@@ -149,3 +149,5 @@ export const KPI_SEED: SmartKpi[] = [
     createdAt: new Date().toISOString()
   }
 ];
+
+// trigger deployment
