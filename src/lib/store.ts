@@ -213,10 +213,10 @@ const initialCOAs: ChartOfAccount[] = [
 ];
 
 const INITIAL_BANK_ACCOUNTS: BankAccount[] = [
-  { id: 'bank-1', name: 'BCA (Utama)', accountNumber: '8001234455', accountCode: '1-1200', balance: 50000000 },
-  { id: 'bank-2', name: 'Mandiri (Ops)', accountNumber: '123000998877', accountCode: '1-1300', balance: 120000000 },
-  { id: 'bank-3', name: 'BRI (Simpanan)', accountNumber: '001122334455', accountCode: '1-1000', balance: 75000000 },
-  { id: 'bank-4', name: 'Petty Cash', accountCode: '1-1000', balance: 5000000 },
+  { id: 'bank-1', name: 'BCA (Utama)', accountNumber: '8001234455', accountCode: '1-1200', balance: 0 },
+  { id: 'bank-2', name: 'Mandiri (Ops)', accountNumber: '123000998877', accountCode: '1-1300', balance: 0 },
+  { id: 'bank-3', name: 'BRI (Simpanan)', accountNumber: '001122334455', accountCode: '1-1000', balance: 0 },
+  { id: 'bank-4', name: 'Petty Cash', accountCode: '1-1000', balance: 0 },
   { id: 'bank-advance-sourcing', name: 'Kas Sourcing (Hilman)', accountCode: '1-1500', balance: 0 }
 ];
 
