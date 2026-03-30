@@ -43,6 +43,7 @@ export async function POST(request: Request) {
       const { error } = await supabaseAdmin.from(table).delete().not('id', 'is', null);
       if (error) {
         console.error(`[DB Reset] Error clearing ${table}:`, error.message);
+        return NextResponse.json({ error: `Failed to clear ${table}: ${error.message}` }, { status: 500 });
       } else {
         console.log(`[DB Reset] ✅ Cleared: ${table}`);
       }
