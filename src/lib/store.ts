@@ -692,20 +692,27 @@ export const useAppStore = create<AppState>((set, get) => ({
         toast.info("Sedang mereset data simulasi...");
 
         try {
-          const res = await fetch('/api/db/reset', { 
+          // 1. WIPE Phase
+          toast.info("Menghapus data operasional...");
+          let res = await fetch('/api/db/reset', { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'wipe', wipeType: 'simulation' }) 
+          });
+          if (!res.ok) throw new Error((await res.json()).error || 'Gagal Wipe');
+
+          // 2. SEED Phase
+          toast.info("Menanam ulang Bank...");
+          res = await fetch('/api/db/reset', { 
             method: 'POST', 
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
-              action: 'simulation',
-              seedData: {
-                bank_accounts: INITIAL_BANK_ACCOUNTS
-              }
+              action: 'seed',
+              seedData: { bank_accounts: INITIAL_BANK_ACCOUNTS }
             }) 
           });
-          if (!res.ok) {
-            const data = await res.json();
-            throw new Error(data.error || 'Server error');
-          }
+          if (!res.ok) throw new Error((await res.json()).error || 'Gagal Seed');
+          
         } catch(e: any) { 
           console.error("Reset fail", e); 
           toast.error("Gagal reset di Server: " + e.message);
@@ -730,31 +737,34 @@ export const useAppStore = create<AppState>((set, get) => ({
         toast.info("Sedang mereset SEMUA data... Mohon tunggu.");
 
         try {
-          // Send ALL seed data to the server so it can re-seed directly 
-          // using the admin client (bypasses RLS + no browser timeout)
-          const res = await fetch('/api/db/reset', { 
+          // 1. WIPE Phase
+          toast.info("Menghapus seluruh database...");
+          let res = await fetch('/api/db/reset', { 
             method: 'POST', 
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              action: 'full',
-              seedData: {
-                users: MOCK_USERS,
-                clients: CLIENTS_SEED,
-                vendors: VENDORS_SEED,
-                products: PRODUCTS_SEED,
-                coas: COA_SEED,
-                bank_accounts: INITIAL_BANK_ACCOUNTS
-              }
-            }) 
+            body: JSON.stringify({ action: 'wipe', wipeType: 'full' }) 
           });
-          
-          if (!res.ok) {
-            const data = await res.json();
-            throw new Error(data.error || 'Server error');
-          }
+          if (!res.ok) throw new Error((await res.json()).error || 'Gagal Wipe Database');
 
-          const result = await res.json();
-          console.log('[Reset] Server result:', result);
+          // 2. SEED Phase (Chunked)
+          const allSeedData = {
+            users: MOCK_USERS,
+            coas: COA_SEED,
+            bank_accounts: INITIAL_BANK_ACCOUNTS,
+            vendors: VENDORS_SEED,
+            clients: CLIENTS_SEED,
+            products: PRODUCTS_SEED
+          };
+
+          for (const [table, rows] of Object.entries(allSeedData)) {
+            toast.info(`Menanam ulang data: ${table}...`);
+            res = await fetch('/api/db/reset', { 
+              method: 'POST', 
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'seed', seedData: { [table]: rows } }) 
+            });
+            if (!res.ok) throw new Error((await res.json()).error || `Gagal seed ${table}`);
+          }
         } catch(e: any) { 
           console.error("Reset fail", e); 
           toast.error("Gagal reset: " + e.message);
