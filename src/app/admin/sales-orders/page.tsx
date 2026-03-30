@@ -247,7 +247,7 @@ export default function SalesOrdersPage() {
       clientId,
       orderDate: new Date().toISOString(),
       targetDeliveryDate: new Date(targetDate).toISOString(),
-      status: 'Draft'
+      status: 'Belanja' // Automatically push to Shopping List
     })
 
     // Create Line Items in Batch (Sequential after SO)
