@@ -688,6 +688,15 @@ export const useAppStore = create<AppState>((set, get) => ({
       resetSimulation: async () => {
         const state = get();
         state.takeDevSnapshot();
+
+        try {
+          await fetch('/api/db/reset', { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'simulation' }) 
+          });
+        } catch(e) { console.error("Reset fail", e); }
+
         set({
           salesOrders: [], salesOrderItems: [], purchases: [], purchaseItems: [],
           deliveries: [], expenses: [], invoices: [], journalEntries: [],
@@ -695,6 +704,10 @@ export const useAppStore = create<AppState>((set, get) => ({
           pendingReturns: [], reimbursements: [], cashTransactions: [],
           bankAccounts: INITIAL_BANK_ACCOUNTS, fixedAssets: []
         });
+
+        const st = get();
+        await st.syncTable('bank_accounts', INITIAL_BANK_ACCOUNTS);
+
         await get().saveToHdd();
         toast.success("Simulation Reset Selesai! Me-reload halaman...");
         setTimeout(() => window.location.reload(), 800);
@@ -702,6 +715,15 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       resetDb: async () => {
         get().takeDevSnapshot();
+
+        try {
+          await fetch('/api/db/reset', { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'full' }) 
+          });
+        } catch(e) { console.error("Reset fail", e); }
+
         set({
           clients: CLIENTS_SEED, vendors: VENDORS_SEED, products: PRODUCTS_SEED, 
           salesOrders: [], salesOrderItems: [], purchases: [], purchaseItems: [],
@@ -710,6 +732,17 @@ export const useAppStore = create<AppState>((set, get) => ({
           tasks: [], notifications: [], bankAccounts: INITIAL_BANK_ACCOUNTS,
           cashTransactions: [], reimbursements: [], fixedAssets: []
         });
+
+        const st = get();
+        await Promise.all([
+          st.syncTable('users', MOCK_USERS),
+          st.syncTable('clients', CLIENTS_SEED),
+          st.syncTable('vendors', VENDORS_SEED),
+          st.syncTable('products', PRODUCTS_SEED),
+          st.syncTable('coas', COA_SEED),
+          st.syncTable('bank_accounts', INITIAL_BANK_ACCOUNTS)
+        ]);
+
         await get().saveToHdd();
         toast.info("Database Reset ke Seed awal!");
         setTimeout(() => window.location.reload(), 500);
