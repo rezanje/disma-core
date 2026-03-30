@@ -216,15 +216,6 @@ export default function ProductsPage() {
             <Upload className="mr-2 h-4 w-4" /> Import CSV
           </Button>
 
-          <Button variant="outline" onClick={() => {
-            if (confirm("Reset inventory to system defaults? This will load the 1460 products I barusan import.")) {
-              resetDb()
-              toast.success("Inventory re-synced successfully")
-            }
-          }}>
-            <RotateCcw className="mr-2 h-4 w-4" /> Sync Data
-          </Button>
-
           <Dialog open={isOpen} onOpenChange={(open) => {
             setIsOpen(open)
             if (!open) resetForm()
