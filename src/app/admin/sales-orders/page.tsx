@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { STATUS_COLORS } from "@/lib/constants"
-import { SalesOrderStatus } from "@/types"
+import { SalesOrderStatus, SalesOrderItem } from "@/types"
 import {
   Table,
   TableBody,
@@ -61,7 +61,7 @@ export default function SalesOrdersPage() {
   const clients = useAppStore(state => state.clients)
   const products = useAppStore(state => state.products)
   const addSalesOrder = useAppStore(state => state.addSalesOrder)
-  const addSalesOrderItem = useAppStore(state => state.addSalesOrderItem)
+  const addSalesOrderItems = useAppStore(state => state.addSalesOrderItems)
   const updateSalesOrder = useAppStore(state => state.updateSalesOrder)
   const updateSalesOrderItem = useAppStore(state => state.updateSalesOrderItem)
   const getHistoricalClientPrice = useAppStore(state => state.getHistoricalClientPrice)
@@ -228,7 +228,7 @@ export default function SalesOrdersPage() {
   }
 
 
-  const handleSaveSO = () => {
+  const handleSaveSO = async () => {
     if (!clientId) {
       toast.error("Please select a client")
       return
@@ -240,8 +240,8 @@ export default function SalesOrdersPage() {
 
     const soId = uuidv4()
     
-    // Create SO
-    addSalesOrder({
+    // Create SO FIRST (Sequential)
+    await addSalesOrder({
       id: soId,
       poNumber: generateDocumentNumber('PO'),
       clientId,
@@ -250,17 +250,17 @@ export default function SalesOrdersPage() {
       status: 'Draft'
     })
 
-    // Create Line Items
-    lineItems.forEach(item => {
-      addSalesOrderItem({
-        id: uuidv4(),
-        salesOrderId: soId,
-        productId: item.productId,
-        qty: item.qty,
-        unitPrice: item.unitPrice,
-        subtotal: item.qty * item.unitPrice
-      })
-    })
+    // Create Line Items in Batch (Sequential after SO)
+    const itemsToAdd: SalesOrderItem[] = lineItems.map(item => ({
+      id: uuidv4(),
+      salesOrderId: soId,
+      productId: item.productId,
+      qty: item.qty,
+      unitPrice: item.unitPrice,
+      subtotal: item.qty * item.unitPrice
+    }))
+
+    await addSalesOrderItems(itemsToAdd)
 
     toast.success("Sales Order created successfully")
     setIsOpen(false)

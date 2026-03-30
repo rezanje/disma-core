@@ -64,6 +64,7 @@ interface AppState {
 
   salesOrderItems: SalesOrderItem[];
   addSalesOrderItem: (item: SalesOrderItem) => void;
+  addSalesOrderItems: (items: SalesOrderItem[]) => void;
   updateSalesOrderItem: (id: string, data: Partial<SalesOrderItem>) => void;
 
   purchases: Purchase[];
@@ -381,6 +382,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       addSalesOrderItem: async (item) => {
         set((state) => ({ salesOrderItems: [...state.salesOrderItems, item] }));
         await get().syncTable('sales_order_items', item);
+      },
+      addSalesOrderItems: async (items: SalesOrderItem[]) => {
+        set((state) => ({ salesOrderItems: [...state.salesOrderItems, ...items] }));
+        await get().syncTable('sales_order_items', items);
       },
       updateSalesOrderItem: async (id, data) => {
         set((state) => ({

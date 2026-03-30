@@ -32,7 +32,7 @@ export default function ClientOrderPage() {
   const clients = useAppStore(state => state.clients)
   const products = useAppStore(state => state.products)
   const addSalesOrder = useAppStore(state => state.addSalesOrder)
-  const addSalesOrderItem = useAppStore(state => state.addSalesOrderItem)
+  const addSalesOrderItems = useAppStore(state => state.addSalesOrderItems)
   
   const client = useMemo(() => clients.find(c => c.id === clientId), [clients, clientId])
   
@@ -96,13 +96,10 @@ export default function ClientOrderPage() {
     
     setIsSubmitting(true)
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    
     const soId = uuidv4()
     
-    // Create SO Request
-    addSalesOrder({
+    // Create SO Request FIRST (Sequential)
+    await addSalesOrder({
       id: soId,
       poNumber: `REQ-${uuidv4().slice(0, 8).toUpperCase()}`,
       clientId: clientId,
@@ -111,17 +108,17 @@ export default function ClientOrderPage() {
       status: 'Pending Approval'
     })
     
-    // Create Items
-    orderItems.forEach(item => {
-      addSalesOrderItem({
-        id: uuidv4(),
-        salesOrderId: soId,
-        productId: item.product.id,
-        qty: item.qty,
-        unitPrice: item.product.sellingPrice,
-        subtotal: item.qty * item.product.sellingPrice
-      })
-    })
+    // Create Items in Batch (Sequential after SO)
+    const itemsToAdd: SalesOrderItem[] = orderItems.map(item => ({
+      id: uuidv4(),
+      salesOrderId: soId,
+      productId: item.product.id,
+      qty: item.qty,
+      unitPrice: item.product.sellingPrice,
+      subtotal: item.qty * item.product.sellingPrice
+    }))
+
+    await addSalesOrderItems(itemsToAdd)
     
     setIsSubmitting(false)
     setIsSuccess(true)
