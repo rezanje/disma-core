@@ -61,14 +61,16 @@ export default function ProductsPage() {
   }>({ key: null, direction: 'asc' })
 
   // Get unique UOMs for filter
-  const uoms = Array.from(new Set(products.map(p => p.uom))).sort()
+  const uoms = Array.from(new Set(products.map(p => p.uom || "kg"))).sort()
 
   // Filter and Sort Logic
   const filteredAndSortedProducts = products
     .filter(product => {
+      const name = product.name || ""
+      const sku = product.skuCode || ""
       const matchesSearch = 
-        product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        product.skuCode.toLowerCase().includes(searchQuery.toLowerCase())
+        name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        sku.toLowerCase().includes(searchQuery.toLowerCase())
       
       const matchesUom = uomFilter === "all" || product.uom === uomFilter
       
@@ -77,8 +79,8 @@ export default function ProductsPage() {
     .sort((a, b) => {
       if (!sortConfig.key) return 0
       
-      const aValue = a[sortConfig.key]
-      const bValue = b[sortConfig.key]
+      const aValue = a[sortConfig.key] ?? ""
+      const bValue = b[sortConfig.key] ?? ""
       
       if (typeof aValue === 'string' && typeof bValue === 'string') {
         return sortConfig.direction === 'asc' 
@@ -118,12 +120,12 @@ export default function ProductsPage() {
   const handleEdit = (product: Product) => {
     setEditingProduct(product)
     setFormData({
-      skuCode: product.skuCode,
-      name: product.name,
-      uom: product.uom,
-      basePrice: product.basePrice,
-      sellingPrice: product.sellingPrice,
-      currentStock: product.currentStock
+      skuCode: product.skuCode || "",
+      name: product.name || "",
+      uom: product.uom || "kg",
+      basePrice: product.basePrice || 0,
+      sellingPrice: product.sellingPrice || 0,
+      currentStock: product.currentStock || 0
     })
     setIsOpen(true)
   }
@@ -425,10 +427,10 @@ export default function ProductsPage() {
                     {p.weeklyPriceRange ? (
                       <div className="flex flex-col items-end">
                         <div className="flex items-center gap-1.5 font-mono text-[10px] font-black text-slate-700 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
-                          {formatRupiah(p.weeklyPriceRange.min)} - {formatRupiah(p.weeklyPriceRange.max)}
+                          {formatRupiah(p.weeklyPriceRange.min || 0)} - {formatRupiah(p.weeklyPriceRange.max || 0)}
                         </div>
                         <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter mt-1">
-                          Updated: {format(new Date(p.weeklyPriceRange.lastUpdated), "dd/MM HH:mm")}
+                          Updated: {p.weeklyPriceRange.lastUpdated ? format(new Date(p.weeklyPriceRange.lastUpdated), "dd/MM HH:mm") : "-"}
                         </span>
                       </div>
                     ) : (
