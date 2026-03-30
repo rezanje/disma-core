@@ -124,14 +124,19 @@ export async function POST(request: Request) {
     // Handle single item or array upsert
     const items = Array.isArray(snakeData) ? snakeData : [snakeData];
     
-    const { error } = await supabase.from(table).upsert(items, { onConflict: 'id' });
-
-    if (error) {
-      console.error(`Supabase POST Error (${table}):`, error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    // Chunk items to avoid Supabase/Postgrest limits (max ~1000 parameters/payload size)
+    const CHUNK_SIZE = 500;
+    for (let i = 0; i < items.length; i += CHUNK_SIZE) {
+      const chunk = items.slice(i, i + CHUNK_SIZE);
+      const { error } = await supabase.from(table).upsert(chunk, { onConflict: 'id' });
+      
+      if (error) {
+        console.error(`Supabase POST Error (${table} chunk ${i}):`, error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, count: items.length });
 
   } catch (error) {
     console.error('API POST Error:', error);
