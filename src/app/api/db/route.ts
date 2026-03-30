@@ -76,8 +76,8 @@ export async function GET() {
       cashTransactions: toCamel(cashTransactions),
       fixedAssets: toCamel(fixedAssets),
       pendingReturns: toCamel(pendingReturns),
-      navConfigs: toCamel(appSettings[0]?.nav_configs || {}),
-      rolePermissions: toCamel(appSettings[0]?.role_permissions || {})
+      navConfigs: appSettings[0]?.nav_configs || {},
+      rolePermissions: appSettings[0]?.role_permissions || {}
     };
 
     // Reconstruct OKRs (they are nested in the frontend state)
@@ -118,7 +118,8 @@ export async function POST(request: Request) {
         return n;
     };
 
-    const snakeData = toSnake(data);
+    // Skip snake_case conversion for app_settings to preserve keys (like roles)
+    const snakeData = table === 'app_settings' ? data : toSnake(data);
 
     // Handle single item or array upsert
     const items = Array.isArray(snakeData) ? snakeData : [snakeData];
