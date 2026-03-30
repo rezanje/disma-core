@@ -4,69 +4,136 @@ import { supabase } from '@/lib/supabase';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-const APP_DATA_KEY = 'disma-main';
+// Helper to convert snake_case to camelCase for the frontend
+const toCamel = (obj: any): any => {
+  if (Array.isArray(obj)) return obj.map(toCamel);
+  if (obj === null || typeof obj !== 'object') return obj;
+  const n: any = {};
+  Object.keys(obj).forEach((k) => {
+    const ck = k.replace(/(_\w)/g, (m) => m[1].toUpperCase());
+    n[ck] = toCamel(obj[k]);
+  });
+  return n;
+};
 
-// GET: Load entire app state from Supabase
+// GET: Aggregate all tables into a single app state (Backward compatible)
 export async function GET() {
   try {
-    // Try Supabase first
-    if (supabase) {
-      const { data, error } = await supabase
-        .from('app_data')
-        .select('data')
-        .eq('id', APP_DATA_KEY)
-        .single();
-      
-      if (error && error.code !== 'PGRST116') {
-        // PGRST116 = row not found, which is fine (first run)
-        console.error('Supabase GET Error:', error);
-        return NextResponse.json({ error: 'Failed to read database' }, { status: 500 });
-      }
-      
-      if (data?.data) {
-        return NextResponse.json(data.data, {
-          headers: { 'Cache-Control': 'no-store, max-age=0' }
-        });
-      }
-    }
+    if (!supabase) return NextResponse.json({ error: 'Supabase not initialized' }, { status: 500 });
 
-    // No data found yet — return empty object so store uses its defaults
-    return NextResponse.json({}, {
+    const fetchTable = async (table: string) => {
+        const { data } = await supabase.from(table).select('*').order('id');
+        return data || [];
+    };
+
+    const [
+      users, clients, vendors, products, coas, bankAccounts,
+      salesOrders, salesOrderItems, purchases, purchaseItems,
+      deliveries, invoices, journalEntries, journalLines,
+      leads, dismaTasks, notifications, employees,
+      kpis, okrObjectives, okrKeyResults,
+      expenses, reimbursements, cashTransactions,
+      fixedAssets, pendingReturns, appSettings
+    ] = await Promise.all([
+      fetchTable('users'), fetchTable('clients'), fetchTable('vendors'),
+      fetchTable('products'), fetchTable('coas'), fetchTable('bank_accounts'),
+      fetchTable('sales_orders'), fetchTable('sales_order_items'),
+      fetchTable('purchases'), fetchTable('purchase_items'),
+      fetchTable('deliveries'), fetchTable('invoices'),
+      fetchTable('journal_entries'), fetchTable('journal_lines'),
+      fetchTable('leads'), fetchTable('disma_tasks'),
+      fetchTable('notifications'), fetchTable('employees'),
+      fetchTable('kpis'), fetchTable('okr_objectives'),
+      fetchTable('okr_key_results'), fetchTable('expenses'),
+      fetchTable('reimbursements'), fetchTable('cash_transactions'),
+      fetchTable('fixed_assets'), fetchTable('pending_returns'),
+      fetchTable('app_settings')
+    ]);
+
+    // Construct the legacy state object structure
+    const state: any = {
+      users: toCamel(users),
+      clients: toCamel(clients),
+      vendors: toCamel(vendors),
+      products: toCamel(products),
+      coas: toCamel(coas),
+      bankAccounts: toCamel(bankAccounts),
+      salesOrders: toCamel(salesOrders),
+      salesOrderItems: toCamel(salesOrderItems),
+      purchases: toCamel(purchases),
+      purchaseItems: toCamel(purchaseItems),
+      deliveries: toCamel(deliveries),
+      invoices: toCamel(invoices),
+      journalEntries: toCamel(journalEntries),
+      journalLines: toCamel(journalLines),
+      leads: toCamel(leads),
+      tasks: toCamel(dismaTasks),
+      notifications: toCamel(notifications),
+      employees: toCamel(employees),
+      kpiObjectives: toCamel(kpis),
+      expenses: toCamel(expenses),
+      reimbursements: toCamel(reimbursements),
+      cashTransactions: toCamel(cashTransactions),
+      fixedAssets: toCamel(fixedAssets),
+      pendingReturns: toCamel(pendingReturns),
+      navConfigs: toCamel(appSettings[0]?.nav_configs || {}),
+      rolePermissions: toCamel(appSettings[0]?.role_permissions || {})
+    };
+
+    // Reconstruct OKRs (they are nested in the frontend state)
+    const objectives = toCamel(okrObjectives);
+    const krs = toCamel(okrKeyResults);
+    state.okrObjectives = objectives.map((o: any) => ({
+      ...o,
+      keyResults: krs.filter((kr: any) => kr.objectiveId === o.id)
+    }));
+
+    return NextResponse.json(state, {
       headers: { 'Cache-Control': 'no-store, max-age=0' }
     });
 
   } catch (error) {
     console.error('API GET Error:', error);
-    return NextResponse.json({ error: 'Failed to read database' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to aggregate data' }, { status: 500 });
   }
 }
 
-// POST: Save entire app state to Supabase
+// POST: Intelligent Sync (Updates only what is provided)
 export async function POST(request: Request) {
   try {
-    const appData = await request.json();
+    const { table, data } = await request.json();
 
-    if (supabase) {
-      const { error } = await supabase
-        .from('app_data')
-        .upsert({
-          id: APP_DATA_KEY,
-          data: appData,
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'id'
+    if (!supabase) return NextResponse.json({ error: 'Supabase not initialized' }, { status: 500 });
+    if (!table) return NextResponse.json({ error: 'Table name required' }, { status: 400 });
+
+    // Convert camelCase to snake_case for the database
+    const toSnake = (obj: any): any => {
+        if (Array.isArray(obj)) return obj.map(toSnake);
+        if (obj === null || typeof obj !== 'object') return obj;
+        const n: any = {};
+        Object.keys(obj).forEach((k) => {
+          const sk = k.replace(/[A-Z]/g, (m) => `_${m.toLowerCase()}`);
+          n[sk] = toSnake(obj[k]);
         });
+        return n;
+    };
 
-      if (error) {
-        console.error('Supabase POST Error:', error);
-        return NextResponse.json({ error: 'Failed to save database' }, { status: 500 });
-      }
+    const snakeData = toSnake(data);
+
+    // Handle single item or array upsert
+    const items = Array.isArray(snakeData) ? snakeData : [snakeData];
+    
+    const { error } = await supabase.from(table).upsert(items, { onConflict: 'id' });
+
+    if (error) {
+      console.error(`Supabase POST Error (${table}):`, error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
 
   } catch (error) {
     console.error('API POST Error:', error);
-    return NextResponse.json({ error: 'Failed to save database' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to sync data' }, { status: 500 });
   }
 }

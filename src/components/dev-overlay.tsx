@@ -16,9 +16,10 @@ export default function DevOverlay() {
     setIsDev(hostname === 'localhost' || hostname === '127.0.0.1')
   }, [])
 
-  if (!isDev) return null
   const resetSimulation = useAppStore(state => state.resetSimulation)
   const undoDevSnapshot = useAppStore(state => state.undoDevSnapshot)
+
+  if (!isDev) return null
 
   // Custom reset that preserves current clients and products
   const handleDevReset = () => {

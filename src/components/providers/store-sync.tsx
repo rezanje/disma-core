@@ -15,9 +15,14 @@ export default function StoreSync() {
 
     // 2. Continuous polling (every 10 seconds)
     const pollInterval = setInterval(() => {
-        console.log('Polling latest data from Supabase...');
-        init();
-    }, 10000);
+        const { isSyncing } = useAppStore.getState();
+        if (!isSyncing) {
+            console.log('Polling latest data from Supabase...');
+            init();
+        } else {
+            console.log('Skipping poll: Sync in progress...');
+        }
+    }, 30000); // Increased to 30s to be less aggressive during industrial use
 
     // 3. Subscribe to changes
     const unsubscribe = useAppStore.subscribe((state, prevState) => {

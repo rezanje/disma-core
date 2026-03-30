@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { GripVertical, ArrowUp, ArrowDown, Save, RotateCcw, Eye, EyeOff, Smartphone, Monitor } from "lucide-react"
 import { toast } from "sonner"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { cn } from "@/lib/utils"
 import { APP_PAGES, getNavItemsForUser } from "@/lib/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -29,22 +29,35 @@ export default function NavigationSettings() {
     mobile: { enabled: true, order: [], hidden: [] }
   })
 
+  const isInitialLoad = useRef(true)
+  const [isDirty, setIsDirty] = useState(false)
+
+  // 1. Initial Load from Store
   useEffect(() => {
-    const existing = navConfigs[role]
-    if (existing) {
-      setConfig(existing)
-    } else {
-      // Default initialization
-      const titles = availablePages.map(p => p.title)
-      setConfig({
-        desktop: { order: titles, hidden: [] },
-        mobile: { enabled: true, order: titles, hidden: [] }
-      })
+    if (isInitialLoad.current && navConfigs[role]) {
+      setConfig(navConfigs[role])
+      isInitialLoad.current = false
     }
   }, [role, navConfigs])
 
+  // 2. Debounced Auto-Save
+  useEffect(() => {
+    if (isInitialLoad.current) return;
+    
+    const handler = setTimeout(() => {
+      if (isDirty) {
+        updateNavConfig(role, config)
+        setIsDirty(false)
+        console.log('Auto-saving navigation config...')
+      }
+    }, 1000)
+
+    return () => clearTimeout(handler)
+  }, [config, isDirty, role, updateNavConfig])
+
   const handleSave = () => {
     updateNavConfig(role, config)
+    setIsDirty(false)
     toast.success("Navigation settings updated and synced!")
   }
 
@@ -55,7 +68,7 @@ export default function NavigationSettings() {
       mobile: { enabled: true, order: titles, hidden: [] }
     }
     setConfig(newConfig)
-    updateNavConfig(role, newConfig)
+    setIsDirty(true)
     toast.info("Navigation reset to defaults.")
   }
 
@@ -72,6 +85,7 @@ export default function NavigationSettings() {
         [platform]: { ...prev[platform], hidden: newHidden }
       }
     })
+    setIsDirty(true)
   }
 
   const moveOrder = (platform: 'desktop' | 'mobile', index: number, direction: 'up' | 'down') => {
@@ -101,6 +115,7 @@ export default function NavigationSettings() {
         [platform]: { ...prev[platform], order: newOrder }
       }
     })
+    setIsDirty(true)
   }
 
   const renderNavList = (platform: 'desktop' | 'mobile') => {
@@ -236,10 +251,13 @@ export default function NavigationSettings() {
                 </div>
                 <Switch 
                   checked={config.mobile.enabled !== false}
-                  onCheckedChange={(val) => setConfig(prev => ({ 
-                    ...prev, 
-                    mobile: { ...prev.mobile, enabled: val } 
-                  }))}
+                  onCheckedChange={(val) => {
+                    setConfig(prev => ({ 
+                      ...prev, 
+                      mobile: { ...prev.mobile, enabled: val } 
+                    }))
+                    setIsDirty(true)
+                  }}
                 />
               </div>
             </CardContent>
