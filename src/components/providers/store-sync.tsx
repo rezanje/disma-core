@@ -13,7 +13,13 @@ export default function StoreSync() {
     // 1. Initial load from HDD
     init()
 
-    // 2. Subscribe to changes
+    // 2. Continuous polling (every 10 seconds)
+    const pollInterval = setInterval(() => {
+        console.log('Polling latest data from Supabase...');
+        init();
+    }, 10000);
+
+    // 3. Subscribe to changes
     const unsubscribe = useAppStore.subscribe((state, prevState) => {
         // Skip sync status changes to avoid infinite loops 
         if (state.isSyncing !== prevState.isSyncing) return;
@@ -30,6 +36,7 @@ export default function StoreSync() {
 
     return () => {
         unsubscribe();
+        clearInterval(pollInterval);
         if (timerRef.current) clearTimeout(timerRef.current);
     }
   }, [init, saveToHdd])

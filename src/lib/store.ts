@@ -242,11 +242,8 @@ const INITIAL_BANK_ACCOUNTS: BankAccount[] = [
   { id: 'bank-advance-sourcing', name: 'Kas Sourcing (Hilman)', accountCode: '1-1500', balance: 0 }
 ];
 
-export const useAppStore = create<AppState>()(
-  persist(
-    (set, get) => ({
+export const useAppStore = create<AppState>((set, get) => ({
       currentUser: null,
-
       setCurrentUser: (user) => set({ currentUser: user }),
       users: MOCK_USERS,
       rolePermissions: initialRolePermissions,
@@ -629,14 +626,7 @@ export const useAppStore = create<AppState>()(
           fixedAssets: []
         });
         
-        // Force sync storage
-        localStorage.setItem('disma-core-storage', JSON.stringify({ 
-          state: {
-            ...get(),
-            // Exclude functions and history for the JSON saved
-            devHistorySnapshot: null
-          }
-        }));
+        // No more local storage sync manual (persist removed)
         
         toast.success("MEMBERSIHKAN DATABASE...", {
           description: "Simulation & Bank Reset Selesai! Me-reload halaman..."
@@ -662,34 +652,5 @@ export const useAppStore = create<AppState>()(
         setTimeout(() => window.location.reload(), 500);
       },
 
-    }),
-
-    {
-      name: 'disma-core-storage',
-      partialize: (state) => {
-        // Exclude functions and the devHistorySnapshot from persistence
-        const { 
-          resetDb, resetSimulation, takeDevSnapshot, undoDevSnapshot, 
-          setCurrentUser, addUser, updateUser, addClient, updateClient,
-          addVendor, updateVendor, addProduct, updateProduct, addCoa,
-          addSalesOrder, updateSalesOrder, addSalesOrderItem, updateSalesOrderItem,
-          addPurchase, updatePurchase, addPurchaseItem, updatePurchaseItem,
-          addDelivery, updateDelivery, addExpense, updateExpense,
-          addInvoice, updateInvoice, addJournalEntry, updateJournalEntry,
-          addJournalLine, addLead, updateLead, updateAnnouncement,
-          addTask, updateTask, deleteTask, addNotification, markNotificationRead,
-          clearAllNotifications, addEmployee, updateEmployee, addKpi, updateKpi,
-          deleteKpi, addOkr, updateOkr, addFixedAsset, updateFixedAsset,
-          deleteFixedAsset, addBankAccount, updateBankAccount, updateBankBalance,
-          addCashTransaction, addReimbursement, updateReimbursement,
-          updateNavConfig, addPendingReturn, removePendingReturn,
-          updateRolePermissions, getHistoricalClientPrice,
-          devHistorySnapshot,
-          ...persistedState 
-        } = state;
-        return persistedState;
-      }
-    }
-
-  )
+    })
 );
