@@ -689,11 +689,18 @@ export const useAppStore = create<AppState>((set, get) => ({
         const state = get();
         state.takeDevSnapshot();
 
+        toast.info("Sedang mereset data simulasi...");
+
         try {
           const res = await fetch('/api/db/reset', { 
             method: 'POST', 
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'simulation' }) 
+            body: JSON.stringify({ 
+              action: 'simulation',
+              seedData: {
+                bank_accounts: INITIAL_BANK_ACCOUNTS
+              }
+            }) 
           });
           if (!res.ok) {
             const data = await res.json();
@@ -713,10 +720,6 @@ export const useAppStore = create<AppState>((set, get) => ({
           bankAccounts: INITIAL_BANK_ACCOUNTS, fixedAssets: []
         });
 
-        const st = get();
-        await st.syncTable('bank_accounts', INITIAL_BANK_ACCOUNTS);
-
-        await get().saveToHdd();
         toast.success("Simulation Reset Selesai! Me-reload halaman...");
         setTimeout(() => window.location.reload(), 800);
       },
@@ -724,23 +727,41 @@ export const useAppStore = create<AppState>((set, get) => ({
       resetDb: async () => {
         get().takeDevSnapshot();
 
+        toast.info("Sedang mereset SEMUA data... Mohon tunggu.");
+
         try {
+          // Send ALL seed data to the server so it can re-seed directly 
+          // using the admin client (bypasses RLS + no browser timeout)
           const res = await fetch('/api/db/reset', { 
             method: 'POST', 
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'full' }) 
+            body: JSON.stringify({ 
+              action: 'full',
+              seedData: {
+                users: MOCK_USERS,
+                clients: CLIENTS_SEED,
+                vendors: VENDORS_SEED,
+                products: PRODUCTS_SEED,
+                coas: COA_SEED,
+                bank_accounts: INITIAL_BANK_ACCOUNTS
+              }
+            }) 
           });
           
           if (!res.ok) {
             const data = await res.json();
             throw new Error(data.error || 'Server error');
           }
+
+          const result = await res.json();
+          console.log('[Reset] Server result:', result);
         } catch(e: any) { 
           console.error("Reset fail", e); 
-          toast.error("Gagal reset di Server: Pastikan kunci SUPABASE_SERVICE_ROLE_KEY di Vercel valid! Error: " + e.message);
+          toast.error("Gagal reset: " + e.message);
           return;
         }
 
+        // Update local state to match what the server just seeded
         set({
           clients: CLIENTS_SEED, vendors: VENDORS_SEED, products: PRODUCTS_SEED, 
           salesOrders: [], salesOrderItems: [], purchases: [], purchaseItems: [],
@@ -750,19 +771,8 @@ export const useAppStore = create<AppState>((set, get) => ({
           cashTransactions: [], reimbursements: [], fixedAssets: []
         });
 
-        const st = get();
-        await Promise.all([
-          st.syncTable('users', MOCK_USERS),
-          st.syncTable('clients', CLIENTS_SEED),
-          st.syncTable('vendors', VENDORS_SEED),
-          st.syncTable('products', PRODUCTS_SEED),
-          st.syncTable('coas', COA_SEED),
-          st.syncTable('bank_accounts', INITIAL_BANK_ACCOUNTS)
-        ]);
-
-        await get().saveToHdd();
-        toast.info("Database Reset ke Seed awal!");
-        setTimeout(() => window.location.reload(), 500);
+        toast.success("Database Reset Berhasil! Me-reload halaman...");
+        setTimeout(() => window.location.reload(), 1000);
       },
     })
 );
