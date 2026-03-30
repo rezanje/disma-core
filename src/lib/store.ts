@@ -269,7 +269,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       init: async () => {
         try {
-          const res = await fetch('/api/db');
+          const res = await fetch('/api/db?ts=' + Date.now(), { cache: 'no-store' });
           const data = await res.json();
           if (data && !data.error) {
             if (Object.keys(data).length === 0) return;
@@ -690,12 +690,20 @@ export const useAppStore = create<AppState>((set, get) => ({
         state.takeDevSnapshot();
 
         try {
-          await fetch('/api/db/reset', { 
+          const res = await fetch('/api/db/reset', { 
             method: 'POST', 
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'simulation' }) 
           });
-        } catch(e) { console.error("Reset fail", e); }
+          if (!res.ok) {
+            const data = await res.json();
+            throw new Error(data.error || 'Server error');
+          }
+        } catch(e: any) { 
+          console.error("Reset fail", e); 
+          toast.error("Gagal reset di Server: " + e.message);
+          return;
+        }
 
         set({
           salesOrders: [], salesOrderItems: [], purchases: [], purchaseItems: [],
@@ -717,12 +725,21 @@ export const useAppStore = create<AppState>((set, get) => ({
         get().takeDevSnapshot();
 
         try {
-          await fetch('/api/db/reset', { 
+          const res = await fetch('/api/db/reset', { 
             method: 'POST', 
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'full' }) 
           });
-        } catch(e) { console.error("Reset fail", e); }
+          
+          if (!res.ok) {
+            const data = await res.json();
+            throw new Error(data.error || 'Server error');
+          }
+        } catch(e: any) { 
+          console.error("Reset fail", e); 
+          toast.error("Gagal reset di Server: Pastikan kunci SUPABASE_SERVICE_ROLE_KEY di Vercel valid! Error: " + e.message);
+          return;
+        }
 
         set({
           clients: CLIENTS_SEED, vendors: VENDORS_SEED, products: PRODUCTS_SEED, 
