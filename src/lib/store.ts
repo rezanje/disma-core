@@ -158,8 +158,8 @@ interface AppState {
   removePendingReturn: (id: string) => void;
 
   // Helpers
-  resetDb: () => void;
-  resetSimulation: () => void;
+  resetDb: () => Promise<void>;
+  resetSimulation: () => Promise<void>;
   getHistoricalClientPrice: (clientId: string, productId: string) => number | undefined;
   
   // Dev & Simulation Helpers
@@ -259,6 +259,12 @@ export const useAppStore = create<AppState>((set, get) => ({
           const res = await fetch('/api/db');
           const data = await res.json();
           if (data && !data.error) {
+            // Handle cases where DB is completely empty (first time run)
+            if (Object.keys(data).length === 0) {
+              console.log('Database returns empty state, skip overwriting defaults.');
+              return; // Do not overwrite state with empty object. Let saveToHdd eventually populate it with defaults.
+            }
+
             // Merge COAs to ensure mandatory ones exist
             const mergedCoas = [...initialCOAs];
             if (data.coas && Array.isArray(data.coas)) {
@@ -271,16 +277,15 @@ export const useAppStore = create<AppState>((set, get) => ({
             const mergedPermissions = { ...initialRolePermissions };
             if (data.rolePermissions && typeof data.rolePermissions === 'object') {
               Object.keys(data.rolePermissions).forEach((role) => {
-                // Keep existing permissions but ensure missing ones from initialRolePermissions are added if the role is new or updated
-                // Actually, if we want the ADMIN to have full control, we should let them manage it,
-                // but for a first-time migration, we need to ensure they have the 'admin_users' key.
                 mergedPermissions[role] = Array.from(new Set([
                   ...(mergedPermissions[role] || []),
                   ...(data.rolePermissions[role] || [])
                 ]));
               });
             }
-            let mergedBanks = data.bankAccounts || [];
+
+            // Ensure we don't clear default banks
+            let mergedBanks = data.bankAccounts ? [...data.bankAccounts] : get().bankAccounts;
             if (Array.isArray(mergedBanks)) {
                const hasSourcing = mergedBanks.find((b: any) => b.id === 'bank-advance-sourcing');
                if (!hasSourcing) {
@@ -292,7 +297,7 @@ export const useAppStore = create<AppState>((set, get) => ({
               ...data, 
               coas: mergedCoas, 
               rolePermissions: mergedPermissions,
-              bankAccounts: mergedBanks.length > 0 ? mergedBanks : undefined,
+              bankAccounts: mergedBanks,
               navConfigs: data.navConfigs || {},
               kpiObjectives: (data.kpiObjectives && data.kpiObjectives.length > 0 && data.kpiObjectives[0].assigneeUserId) ? data.kpiObjectives : KPI_SEED
             });
@@ -593,7 +598,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
       },
 
-      resetSimulation: () => {
+      resetSimulation: async () => {
         const state = get();
         state.takeDevSnapshot();
         
@@ -626,7 +631,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           fixedAssets: []
         });
         
-        // No more local storage sync manual (persist removed)
+        await get().saveToHdd();
         
         toast.success("MEMBERSIHKAN DATABASE...", {
           description: "Simulation & Bank Reset Selesai! Me-reload halaman..."
@@ -635,7 +640,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         setTimeout(() => window.location.reload(), 800);
       },
 
-      resetDb: () => {
+      resetDb: async () => {
         get().takeDevSnapshot();
         set({
           clients: CLIENTS_SEED, vendors: VENDORS_SEED, products: PRODUCTS_SEED, 
@@ -648,6 +653,9 @@ export const useAppStore = create<AppState>((set, get) => ({
           reimbursements: [],
           fixedAssets: []
         });
+        
+        await get().saveToHdd();
+
         toast.info("Database Reset ke Seed awal!");
         setTimeout(() => window.location.reload(), 500);
       },
