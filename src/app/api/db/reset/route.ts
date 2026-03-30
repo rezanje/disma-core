@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
-    if (!supabase) return NextResponse.json({ error: 'Supabase not initialized' }, { status: 500 });
+    if (!supabaseAdmin) return NextResponse.json({ error: 'Supabase Admin not initialized' }, { status: 500 });
     
     let action = 'full';
     try {
@@ -33,18 +33,21 @@ export async function POST(request: Request) {
       ? operationalTables 
       : [...operationalTables, ...masterTables];
 
-    // Sequentially delete from tables.
+    console.log(`[DB Reset] Starting wipe for ${tablesToClear.length} tables in mode: ${action}`);
+
+    // Sequentially delete from tables using service_role client to bypass RLS.
     for (const table of tablesToClear) {
-      // Dummy check that effectively deletes all rows
-      const { error } = await supabase.from(table).delete().not('id', 'is', null);
+      const { error } = await supabaseAdmin.from(table).delete().not('id', 'is', null);
       if (error) {
         console.error(`[DB Reset] Error clearing ${table}:`, error.message);
+      } else {
+        console.log(`[DB Reset] Successfully cleared table: ${table}`);
       }
     }
 
     return NextResponse.json({ success: true, cleared: tablesToClear });
   } catch (error) {
-    console.error('API API RESET Error:', error);
+    console.error('API DB RESET Error:', error);
     return NextResponse.json({ error: 'Failed to reset database' }, { status: 500 });
   }
 }
