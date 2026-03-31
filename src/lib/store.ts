@@ -259,7 +259,11 @@ export const useAppStore = create<AppState>((set, get) => ({
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ table, data })
           });
-          if (!res.ok) throw new Error(`Sync failed for ${table}`);
+          if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            if (body.error === 'Supabase not initialized') return;
+            throw new Error(`Sync failed for ${table}`);
+          }
         } catch (error) {
           console.error(`Sync Error (${table}):`, error);
         } finally {
