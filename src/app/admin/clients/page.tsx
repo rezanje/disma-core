@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useAppStore } from "@/lib/store"
-import { Plus, Pencil, Trash2, Share2, DollarSign, Receipt, TrendingUp, History, FileText, Download, Eye, Search, Filter, Printer, Mail, ChevronRight, ChevronDown, CheckCircle2, X } from "lucide-react"
+import { Plus, Pencil, Trash2, Share2, DollarSign, Receipt, TrendingUp, History, FileText, Download, Upload, Eye, Search, Filter, Printer, Mail, ChevronRight, ChevronDown, CheckCircle2, X } from "lucide-react"
 import { v4 as uuidv4 } from "uuid"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -144,88 +144,222 @@ export default function ClientsPage() {
           </div>
         </div>
         
-        <Dialog open={isOpen} onOpenChange={(open) => {
-          setIsOpen(open)
-          if (!open) resetForm()
-        }}>
-          <DialogTrigger render={
-            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-full h-12 px-6 shadow-[0_10px_30px_rgba(16,185,129,0.3)] hover:-translate-y-1 transition-all">
-              <Plus className="mr-2 h-5 w-5" /> Add New Client
-            </Button>
-          } />
-          <DialogContent className="sm:max-w-[500px] rounded-3xl">
-            <DialogHeader>
-              <DialogTitle className="text-xl font-black">{editingClient ? "Edit Client" : "Add New Client"}</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="companyName" className="text-xs font-black uppercase text-slate-400 tracking-widest">Company Name</Label>
-                <Input 
-                  id="companyName" 
-                  value={formData.companyName}
-                  className="h-11 rounded-xl border-slate-200"
-                  onChange={(e) => setFormData({...formData, companyName: e.target.value})}
-                  placeholder="PT Maju Bersama" 
-                />
+        <div className="flex gap-2">
+          <Button 
+            variant="ghost" 
+            className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded-full h-12 px-6 font-bold"
+            onClick={async () => {
+              if (confirm("Bersihkan SEMUA data client? Ini akan menghapus Client agar import masal lo lancar (Pesanan/Nota tetap aman kecuali kliennya dihapus). Lanjut?")) {
+                toast.loading("Membersihkan database client...", { id: "client_wipe" });
+                try {
+                  const res = await fetch('/api/db/reset', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'clients_only' })
+                  });
+                  if (!res.ok) throw new Error("Gagal membersihkan data client");
+                  toast.success("Data client bersih total!", { id: "client_wipe" });
+                  window.location.reload();
+                } catch (err: any) {
+                  toast.error("Gagal: " + err.message, { id: "client_wipe" });
+                }
+              }
+            }}
+          >
+            <Trash2 className="mr-2 h-4 w-4" /> Bersihkan Klien
+          </Button>
+
+          <Button 
+            variant="outline" 
+            className="rounded-full h-12 px-6 font-bold border-slate-200 hover:bg-slate-50 transition-all shadow-sm"
+            onClick={() => {
+              const input = document.createElement('input')
+              input.type = 'file'
+              input.accept = '.csv'
+              input.onchange = (e: any) => {
+                const file = e.target.files[0]
+                if (!file) return
+                const reader = new FileReader()
+                reader.onload = async (event: any) => {
+                  const csv = (event.target.result as string || "").trim()
+                  if (!csv) {
+                    toast.error("File kosong atau tidak terbaca.")
+                    return
+                  }
+                  
+                  const allLines = csv.split('\n')
+                  let headerRowIndex = -1
+                  let delimiter = ','
+                  
+                  // Find true header row
+                  for (let i = 0; i < allLines.length; i++) {
+                    const line = allLines[i].trim()
+                    if (!line) continue
+                    const upperLine = line.toUpperCase()
+                    if (upperLine.includes('COMPANY') || upperLine.includes('PERUSAHAAN') || upperLine.includes('PELANGGAN')) {
+                      headerRowIndex = i
+                      delimiter = line.includes(';') ? ';' : ','
+                      break
+                    }
+                  }
+
+                  if (headerRowIndex === -1) {
+                    toast.error("Format kolom tidak dikenali. Pastikan ada kolom 'PELANGGAN' atau 'COMPANY NAME'.")
+                    return
+                  }
+
+                  const rawHeaders = allLines[headerRowIndex].split(delimiter).map(h => h.trim().toUpperCase())
+                  const itemMap = new Map<string, any>()
+                  
+                  toast.loading("Sedang memproses klien...", { id: "csv_import_client" });
+
+                  for (let i = headerRowIndex + 1; i < allLines.length; i++) {
+                    const line = allLines[i].trim()
+                    if (!line) continue
+                    
+                    const values = line.split(delimiter).map(v => v.trim())
+                    if (values.length < 1) continue
+                    
+                    const client: any = {
+                      createdAt: new Date().toISOString()
+                    }
+                    
+                    rawHeaders.forEach((h, index) => {
+                      const val = values[index]
+                      if (val === undefined) return
+                      const cleanVal = val.trim()
+
+                      if (h.includes('COMPANY') || h.includes('PERUSAHAAN') || h.includes('PELANGGAN')) {
+                        client.companyName = cleanVal
+                        if (!client.picName) client.picName = cleanVal // Default PIC to client name
+                      } else if (h.includes('PIC') || h.includes('NAMA ORANG')) {
+                        client.picName = cleanVal
+                      } else if (h === 'KODE' || h === 'CODE' || h === 'ID') {
+                        // ignore literal ID column to avoid postgres UUID errors
+                      } else if (h.includes('EMAIL')) {
+                        client.email = cleanVal
+                      } else if (h.includes('PHONE') || h.includes('TELPON') || h.includes('TELEPON') || h.includes('WA')) {
+                        client.phone = cleanVal
+                      } else if (h.includes('ADDRESS') || h.includes('ALAMAT')) {
+                        client.address = cleanVal
+                      } else if (h.includes('TERM') || h.includes('TEMPO') || h.includes('JATUH TEMPO')) {
+                        client.paymentTermDays = parseInt(cleanVal) || 30
+                      }
+                    })
+
+                    // Handle missing ID mapping safely with UUID format
+                    if (client.companyName) {
+                      const existing = clients.find(c => c.companyName.toLowerCase() === client.companyName.toLowerCase());
+                      client.id = existing ? existing.id : uuidv4();
+                      itemMap.set(client.companyName, client); // deduplicate by company name instead of fake ID
+                    }
+                  }
+
+                  const items = Array.from(itemMap.values())
+
+                  if (items.length > 0) {
+                    toast.loading(`Membaca ${items.length} klien unik. Mengirim ke database...`, { id: "csv_import_client" });
+                    try {
+                      const { addClients } = useAppStore.getState();
+                      await addClients(items);
+                      toast.success(`Berhasil mengimpor ${items.length} klien!`, { id: "csv_import_client" });
+                    } catch (err: any) {
+                      toast.error("Gagal: " + err.message, { id: "csv_import_client" });
+                    }
+                  } else {
+                    toast.error("Tidak ada data klien yang valid (butuh Nama Perusahaan & PIC).", { id: "csv_import_client" });
+                  }
+                }
+                reader.readAsText(file)
+              }
+              input.click()
+            }}>
+            <Upload className="mr-2 h-4 w-4" /> Import CSV
+          </Button>
+
+          <Dialog open={isOpen} onOpenChange={(open) => {
+            setIsOpen(open)
+            if (!open) resetForm()
+          }}>
+            <DialogTrigger render={
+              <Button className="bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-full h-12 px-6 shadow-[0_10px_30px_rgba(16,185,129,0.3)] hover:-translate-y-1 transition-all">
+                <Plus className="mr-2 h-5 w-5" /> Add New Client
+              </Button>
+            } />
+            <DialogContent className="sm:max-w-[500px] rounded-3xl">
+              <DialogHeader>
+                <DialogTitle className="text-xl font-black">{editingClient ? "Edit Client" : "Add New Client"}</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="companyName" className="text-xs font-black uppercase text-slate-400 tracking-widest">Company Name</Label>
+                  <Input 
+                    id="companyName" 
+                    value={formData.companyName}
+                    className="h-11 rounded-xl border-slate-200"
+                    onChange={(e) => setFormData({...formData, companyName: e.target.value})}
+                    placeholder="PT Maju Bersama" 
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="picName" className="text-xs font-black uppercase text-slate-400 tracking-widest">PIC Name</Label>
+                  <Input 
+                    id="picName" 
+                    value={formData.picName}
+                    className="h-11 rounded-xl border-slate-200"
+                    onChange={(e) => setFormData({...formData, picName: e.target.value})}
+                    placeholder="Budi Santoso" 
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="email" className="text-xs font-black uppercase text-slate-400 tracking-widest">Email</Label>
+                  <Input 
+                    id="email" 
+                    type="email"
+                    value={formData.email}
+                    className="h-11 rounded-xl border-slate-200"
+                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                    placeholder="name@company.com" 
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="phone" className="text-xs font-black uppercase text-slate-400 tracking-widest">Phone Number</Label>
+                  <Input 
+                    id="phone" 
+                    value={formData.phone}
+                    className="h-11 rounded-xl border-slate-200"
+                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                    placeholder="08123456789" 
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="address" className="text-xs font-black uppercase text-slate-400 tracking-widest">Address</Label>
+                  <Input 
+                    id="address" 
+                    value={formData.address}
+                    className="h-11 rounded-xl border-slate-200"
+                    onChange={(e) => setFormData({...formData, address: e.target.value})}
+                    placeholder="Jl. Sudirman No. 1" 
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="paymentTerms" className="text-xs font-black uppercase text-slate-400 tracking-widest">Payment Terms (Days)</Label>
+                  <Input 
+                    id="paymentTerms" 
+                    type="number"
+                    value={formData.paymentTermDays}
+                    className="h-11 rounded-xl border-slate-200 font-bold"
+                    onChange={(e) => setFormData({...formData, paymentTermDays: parseInt(e.target.value) || 0})}
+                  />
+                </div>
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="picName" className="text-xs font-black uppercase text-slate-400 tracking-widest">PIC Name</Label>
-                <Input 
-                  id="picName" 
-                  value={formData.picName}
-                  className="h-11 rounded-xl border-slate-200"
-                  onChange={(e) => setFormData({...formData, picName: e.target.value})}
-                  placeholder="Budi Santoso" 
-                />
+              <div className="flex justify-end gap-3 mt-4">
+                <Button variant="outline" className="rounded-full h-12 px-6 font-bold" onClick={() => setIsOpen(false)}>Cancel</Button>
+                <Button className="bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-full h-12 px-6" onClick={handleSave}>Save Client</Button>
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="email" className="text-xs font-black uppercase text-slate-400 tracking-widest">Email</Label>
-                <Input 
-                  id="email" 
-                  type="email"
-                  value={formData.email}
-                  className="h-11 rounded-xl border-slate-200"
-                  onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  placeholder="name@company.com" 
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="phone" className="text-xs font-black uppercase text-slate-400 tracking-widest">Phone Number</Label>
-                <Input 
-                  id="phone" 
-                  value={formData.phone}
-                  className="h-11 rounded-xl border-slate-200"
-                  onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                  placeholder="08123456789" 
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="address" className="text-xs font-black uppercase text-slate-400 tracking-widest">Address</Label>
-                <Input 
-                  id="address" 
-                  value={formData.address}
-                  className="h-11 rounded-xl border-slate-200"
-                  onChange={(e) => setFormData({...formData, address: e.target.value})}
-                  placeholder="Jl. Sudirman No. 1" 
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="paymentTerms" className="text-xs font-black uppercase text-slate-400 tracking-widest">Payment Terms (Days)</Label>
-                <Input 
-                  id="paymentTerms" 
-                  type="number"
-                  value={formData.paymentTermDays}
-                  className="h-11 rounded-xl border-slate-200 font-bold"
-                  onChange={(e) => setFormData({...formData, paymentTermDays: parseInt(e.target.value) || 0})}
-                />
-              </div>
-            </div>
-            <div className="flex justify-end gap-3 mt-4">
-              <Button variant="outline" className="rounded-full h-12 px-6 font-bold" onClick={() => setIsOpen(false)}>Cancel</Button>
-              <Button className="bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-full h-12 px-6" onClick={handleSave}>Save Client</Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* SEARCH AND FILTERS */}

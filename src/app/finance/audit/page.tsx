@@ -34,7 +34,7 @@ export default function AuditTransitionPage() {
   const approvedOutflow = approvedExpenses.reduce((sum, e) => sum + e.amount, 0)
   const approvedInflow = 0 
 
-  const handleApprove = (expenseId: string) => {
+  const handleApprove = async (expenseId: string) => {
     const expense = expenses.find(e => e.id === expenseId)
     if (!expense) return
 
@@ -47,9 +47,9 @@ export default function AuditTransitionPage() {
     if (expense.category === 'Belanja Online' && expense.referenceId) {
       const pItem = purchaseItems.find(i => i.id === expense.referenceId)
       const pName = pItem ? (products.find(p => p.id === pItem.productId)?.name || expense.description) : expense.description
-      success = recordOnlinePurchase(expense.referenceId, expense.amount, pName)
+      success = await recordOnlinePurchase(expense.referenceId, expense.amount, pName)
     } else {
-      success = recordOperationalExpense(
+      success = await recordOperationalExpense(
         expense.id,
         expense.amount,
         `${expense.category}: ${expense.description}`,

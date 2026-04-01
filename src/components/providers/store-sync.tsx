@@ -6,40 +6,42 @@ import { useAppStore } from "@/lib/store"
 export default function StoreSync() {
   const init = useAppStore((state) => state.init)
   const saveToHdd = useAppStore((state) => state.saveToHdd)
-  const isSyncing = useAppStore((state) => state.isSyncing)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
-    // 1. Initial load from HDD
+    // 1. Initial load from Supabase
     init()
 
-    // 2. Continuous polling (every 10 seconds)
+    // 2. Realtime Listener (Cross-tab)
+    const bc = new BroadcastChannel('disma_core_sync');
+    bc.onmessage = (event) => {
+        if (event.data?.type === 'SYNC_UPDATE') {
+            console.log(`[REALTIME-SYNC] Update received for ${event.data.table}. Refreshing UI...`);
+            init();
+        }
+    };
+
+    // 3. Failsafe Polling (Long interval for safety)
     const pollInterval = setInterval(() => {
         const { isSyncing } = useAppStore.getState();
         if (!isSyncing) {
-            console.log('Polling latest data from Supabase...');
             init();
-        } else {
-            console.log('Skipping poll: Sync in progress...');
         }
-    }, 30000); // Increased to 30s to be less aggressive during industrial use
+    }, 60000); // 1 minute failsafe
 
-    // 3. Subscribe to changes
+    // 4. Persistence Listener (Save changes to HDD)
     const unsubscribe = useAppStore.subscribe((state, prevState) => {
-        // Skip sync status changes to avoid infinite loops 
         if (state.isSyncing !== prevState.isSyncing) return;
-        if (state.currentUser !== prevState.currentUser) return; // Don't save session to HDD
+        if (state.currentUser !== prevState.currentUser) return;
         
-        // Debounce: save only after 2s of inactivity
         if (timerRef.current) clearTimeout(timerRef.current);
-        
         timerRef.current = setTimeout(() => {
-           console.log('Syncing to HDD...');
            saveToHdd();
-        }, 2000);
+        }, 3000);
     })
 
     return () => {
+        bc.close();
         unsubscribe();
         clearInterval(pollInterval);
         if (timerRef.current) clearTimeout(timerRef.current);

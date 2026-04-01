@@ -113,7 +113,7 @@ export default function OnlinePurchasePage() {
     addExpense({
       id: `exp-online-${expenseId}`,
       date: new Date().toISOString(),
-      reporterId: currentUser?.id || 'system',
+      reporterId: currentUser?.id || '00000000-0000-0000-0000-000000000000',
       category: 'Belanja Online',
       amount: calc.totalPrice, // Total paid
       adminFee: calc.adminFee,

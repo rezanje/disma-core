@@ -17,7 +17,7 @@ export type AccessKey =
   | 'finance_budget' | 'finance_cash_bank' | 'finance_ledger' | 'finance_invoices' 
   | 'finance_reconciliation' | 'finance_reimbursements' | 'finance_online_purchase' | 'finance_audit' | 'finance_documents'
   // Warehouse
-  | 'warehouse_dashboard' | 'warehouse_catalog' | 'warehouse_inbound' | 'warehouse_outbound' | 'warehouse_qc'
+  | 'warehouse_dashboard' | 'warehouse_catalog' | 'warehouse_inbound' | 'warehouse_outbound' | 'warehouse_qc' | 'warehouse_reject_monitor'
   // Sourcing
   | 'sourcing_dashboard' | 'sourcing_list' | 'sourcing_expenses'
   // Courier
@@ -62,7 +62,7 @@ export interface Product {
   weeklyPriceRange?: { min: number, max: number, lastUpdated: string };
 }
 
-export type SalesOrderStatus = 'Pending Approval' | 'Draft' | 'Belanja' | 'QC' | 'Packing' | 'Siap Kirim' | 'Dikirim' | 'Terkirim' | 'Selesai' | 'Batal';
+export type SalesOrderStatus = 'Pending Approval' | 'Draft' | 'Belanja' | 'QC' | 'Packing' | 'Siap Kirim' | 'Dikirim' | 'Awaiting Audit' | 'Terkirim' | 'Selesai' | 'Batal';
 
 export interface SalesOrder {
   id: string;
@@ -114,6 +114,7 @@ export interface Purchase {
   changeReturned?: number;      // Kembalian from Sourcer
   reconciliationNote?: string;  // Sourcer's explanation for discrepancy
   reconciliationStatus?: ReconciliationStatus;
+  reconciliationProofUrl?: string; // Optional: Image/Photo proof of return
 }
 
 export interface PurchaseItem {
@@ -135,7 +136,7 @@ export interface PurchaseItem {
   isOnlineOrdered?: boolean;
 }
 
-export type DeliveryStatus = 'Menunggu' | 'Dikirim' | 'Terkirim';
+export type DeliveryStatus = 'Menunggu' | 'Dikirim' | 'Tunggu Konfirmasi' | 'Awaiting Audit' | 'Terkirim';
 
 export interface Delivery {
   id: string;
@@ -144,6 +145,8 @@ export interface Delivery {
   status: DeliveryStatus;
   deliveryDate?: string;
   baUrl?: string;
+  invoiceId?: string;
+  notes?: string; // Additional documentation for the delivery
 }
 
 export type InvoiceStatus = 'Unpaid' | 'Partial' | 'Paid';
@@ -216,7 +219,7 @@ export interface OperationalExpense {
   id: string;
   date: string;
   reporterId: string;
-  category: 'Bensin' | 'Tol' | 'Parkir' | 'Kuli' | 'Makan' | 'Lainnya' | 'Belanja Online';
+  category: 'Bensin' | 'Tol' | 'Parkir' | 'Kuli' | 'Makan' | 'Lainnya' | 'Belanja Online' | 'Sourcing (HPP)' | 'Sales Revenue' | 'Setoran Pengembalian';
   amount: number;
   adminFee?: number;
   shippingFee?: number;
@@ -228,6 +231,7 @@ export interface OperationalExpense {
   notes?: string;
   auditDate?: string;
   auditNote?: string;
+  targetBankAccountId?: string; // Bank tujuan setoran (diisi sourcing, bisa dikoreksi finance)
 }
 
 export type ReimbursementStatus = 'Pending' | 'Approved' | 'Paid' | 'Rejected';
@@ -419,4 +423,16 @@ export interface PendingReturn {
   reason: string;
   date: string;
   status: 'Pending QC' | 'Processed';
+}
+
+export interface RejectedItem {
+  id: string;
+  date: string;
+  productId: string;
+  qty: number;
+  reason: string;
+  source: 'QC' | 'Return' | 'Gudang';
+  referenceId?: string;
+  reportedBy: string;
+  imageUrl?: string;
 }

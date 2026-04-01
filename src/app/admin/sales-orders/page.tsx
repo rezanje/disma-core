@@ -223,10 +223,6 @@ export default function SalesOrdersPage() {
     setLineItems(lineItems.filter(item => item.id !== id))
   }
 
-  const generateBA = (po: string) => {
-    // Placeholder
-  }
-
 
   const handleSaveSO = async () => {
     if (!clientId) {
@@ -247,7 +243,7 @@ export default function SalesOrdersPage() {
       clientId,
       orderDate: new Date().toISOString(),
       targetDeliveryDate: new Date(targetDate).toISOString(),
-      status: 'Belanja' // Automatically push to Shopping List
+      status: 'Draft' // Start as Draft for manual approval
     })
 
     // Create Line Items in Batch (Sequential after SO)
@@ -350,7 +346,7 @@ export default function SalesOrdersPage() {
                             <button
                               key={c.id}
                               className={cn(
-                                "relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none hover:bg-slate-100 dark:hover:bg-slate-800",
+                                "relative flex w-full cursor-default select-none items-start rounded-md py-3 pl-10 pr-3 text-sm outline-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors",
                                 clientId === c.id && "bg-slate-100 dark:bg-slate-800"
                               )}
                               onClick={() => {
@@ -359,10 +355,15 @@ export default function SalesOrdersPage() {
                                 setClientSearch("")
                               }}
                             >
-                              <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-                                {clientId === c.id && <Check className="h-4 w-4" />}
+                              <span className="absolute left-3 top-3.5 flex h-4 w-4 items-center justify-center">
+                                {clientId === c.id && <Check className="h-4 w-4 text-emerald-600" />}
                               </span>
-                              {c.companyName}
+                              <div className="flex flex-col text-left">
+                                <span className="font-bold text-slate-900 dark:text-slate-100">{c.companyName}</span>
+                                {c.address && (
+                                  <span className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">{c.address}</span>
+                                )}
+                              </div>
                             </button>
                           ))
                         )}
@@ -464,10 +465,16 @@ export default function SalesOrdersPage() {
                     </div>
                     
                     <div className="md:col-span-2 space-y-1">
-                      <Label className="text-xs font-semibold">Qty</Label>
-                      <Input 
-                        type="number" 
-                        min="1" 
+                      <Label className="text-xs font-semibold">
+                        Qty{newLineProductId ? (
+                          <span className="ml-1 text-[10px] font-normal text-slate-400">
+                            ({products.find(p => p.id === newLineProductId)?.uom || '-'})
+                          </span>
+                        ) : null}
+                      </Label>
+                      <Input
+                        type="number"
+                        min="1"
                         className="bg-white dark:bg-slate-950"
                         value={newLineQty}
                         onChange={(e) => setNewLineQty(parseInt(e.target.value) || 1)}
@@ -518,6 +525,7 @@ export default function SalesOrdersPage() {
                           <TableRow className="bg-slate-50 dark:bg-slate-900/50">
                             <TableHead className="text-xs">Product</TableHead>
                             <TableHead className="text-right text-xs w-20">Qty</TableHead>
+                            <TableHead className="text-center text-xs w-16">Satuan</TableHead>
                             <TableHead className="text-right text-xs">Price</TableHead>
                             <TableHead className="text-right text-xs">Subtotal</TableHead>
                             <TableHead className="w-[40px]"></TableHead>
@@ -528,6 +536,7 @@ export default function SalesOrdersPage() {
                             <TableRow key={item.id}>
                               <TableCell className="font-medium text-sm py-2">{item.productName}</TableCell>
                               <TableCell className="text-right text-sm py-2">{item.qty}</TableCell>
+                              <TableCell className="text-center text-xs py-2 text-slate-500">{products.find(p => p.id === item.productId)?.uom ?? '-'}</TableCell>
                               <TableCell className="text-right text-sm py-2">{formatRupiah(item.unitPrice)}</TableCell>
                               <TableCell className="text-right font-bold text-sm py-2">{formatRupiah(item.qty * item.unitPrice)}</TableCell>
                               <TableCell className="py-2">
@@ -632,9 +641,24 @@ export default function SalesOrdersPage() {
                                 size="sm" 
                                 variant="outline" 
                                 title="Print Surat Jalan"
-                                onClick={() => {
-                                  generateSuratJalan(so.poNumber)
-                                  toast.success("Surat Jalan generated")
+                                onClick={async () => {
+                                  toast.loading("Menyiapkan Surat Jalan...", { id: "sj_gen" });
+                                  // Use small timeout to allow UI to breathe
+                                  setTimeout(() => {
+                                    try {
+                                      // @ts-ignore
+                                      const url = generateSuratJalan(so.poNumber, undefined, 'dataurl');
+                                      if (url) {
+                                        setPdfPreview({ url: url as any, title: `Surat Jalan - ${so.poNumber}` });
+                                        toast.success("Siap!", { id: "sj_gen" });
+                                      } else {
+                                        toast.error("Gagal generate PDF", { id: "sj_gen" });
+                                      }
+                                    } catch (e) {
+                                      console.error(e);
+                                      toast.error("Error PDF", { id: "sj_gen" });
+                                    }
+                                  }, 100);
                                 }}
                               >
                                 <Printer className="h-4 w-4 mr-1" /> SJ
@@ -643,9 +667,23 @@ export default function SalesOrdersPage() {
                                 size="sm" 
                                 variant="outline"
                                 title="Print Berita Acara"
-                                onClick={() => {
-                                  generateBA(so.poNumber)
-                                  toast.success("Berita Acara generated")
+                                onClick={async () => {
+                                  toast.loading("Menyiapkan Berita Acara...", { id: "ba_gen" });
+                                  setTimeout(() => {
+                                    try {
+                                      // @ts-ignore
+                                      const url = generateBA(so.poNumber, undefined, 'dataurl');
+                                      if (url) {
+                                        setPdfPreview({ url: url as any, title: `Berita Acara - ${so.poNumber}` });
+                                        toast.success("Siap!", { id: "ba_gen" });
+                                      } else {
+                                        toast.error("Gagal generate PDF", { id: "ba_gen" });
+                                      }
+                                    } catch (e) {
+                                      console.error(e);
+                                      toast.error("Error PDF", { id: "ba_gen" });
+                                    }
+                                  }, 100);
                                 }}
                               >
                                 <Printer className="h-4 w-4 mr-1" /> BA
@@ -794,31 +832,36 @@ export default function SalesOrdersPage() {
                         onChange={(e) => setClientSearch(e.target.value)}
                       />
                     </div>
-                    <div className="max-h-[300px] overflow-y-auto p-1">
-                      {filteredClients.length === 0 ? (
-                        <div className="py-6 text-center text-sm text-slate-500">Klien tidak ditemukan.</div>
-                      ) : (
-                        filteredClients.map((c) => (
-                          <button
-                            key={c.id}
-                            className={cn(
-                              "relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none hover:bg-slate-100",
-                              shareClientId === c.id && "bg-slate-100"
-                            )}
-                            onClick={() => {
-                              setShareClientId(c.id)
-                              setIsShareClientSearchOpen(false)
-                              setClientSearch("")
-                            }}
-                          >
-                            <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-                              {shareClientId === c.id && <Check className="h-4 w-4" />}
-                            </span>
-                            {c.companyName}
-                          </button>
-                        ))
-                      )}
-                    </div>
+                      <div className="max-h-[300px] overflow-y-auto p-1">
+                        {filteredClients.length === 0 ? (
+                          <div className="py-6 text-center text-sm text-slate-500 font-bold uppercase tracking-widest italic">Klien tidak ditemukan.</div>
+                        ) : (
+                          filteredClients.map((c) => (
+                            <button
+                              key={c.id}
+                              className={cn(
+                                "relative flex w-full cursor-default select-none items-start rounded-xl py-3 pl-10 pr-3 text-sm outline-none hover:bg-slate-100 transition-colors",
+                                shareClientId === c.id && "bg-slate-100"
+                              )}
+                              onClick={() => {
+                                setShareClientId(c.id)
+                                setIsShareClientSearchOpen(false)
+                                setClientSearch("")
+                              }}
+                            >
+                              <span className="absolute left-3 top-3.5 flex h-4 w-4 items-center justify-center">
+                                {shareClientId === c.id && <Check className="h-4 w-4 text-emerald-600" />}
+                              </span>
+                              <div className="flex flex-col text-left">
+                                <span className="font-bold text-slate-900">{c.companyName}</span>
+                                {c.address && (
+                                  <span className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">{c.address}</span>
+                                )}
+                              </div>
+                            </button>
+                          ))
+                        )}
+                      </div>
                   </PopoverContent>
                 </Popover>
               </div>

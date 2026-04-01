@@ -52,11 +52,11 @@ export const APP_PAGES: NavItemConfig[] = [
   { key: 'warehouse_inbound', title: 'Goods Inbound', href: '/warehouse/inbound', icon: <Inbox className="h-4 w-4" />, category: 'Warehouse' },
   { key: 'warehouse_outbound', title: 'Goods Outbound', href: '/warehouse/outbound', icon: <ArrowUpToLine className="h-4 w-4" />, category: 'Warehouse' },
   { key: 'warehouse_qc', title: 'Quality Control', href: '/warehouse/qc', icon: <CheckCircle2 className="h-4 w-4" />, category: 'Warehouse' },
+  { key: 'warehouse_reject_monitor', title: 'Rejection Monitor', href: '/warehouse/reject-monitor', icon: <Archive className="h-4 w-4 text-rose-500" />, category: 'Warehouse' },
 
   // Sourcing
   { key: 'sourcing_dashboard', title: 'Sourcing Home', href: '/sourcing', icon: <Search className="h-4 w-4" />, category: 'Sourcing' },
   { key: 'sourcing_list', title: 'Shopping List', href: '/sourcing/list', icon: <ListChecks className="h-4 w-4" />, category: 'Sourcing' },
-  { key: 'sourcing_expenses', title: 'Sourcing Exp.', href: '/sourcing/expenses', icon: <Receipt className="h-4 w-4" />, category: 'Sourcing' },
 
   // Courier
   { key: 'courier_dashboard', title: 'Logistics Home', href: '/courier', icon: <Truck className="h-4 w-4" />, category: 'Courier' },

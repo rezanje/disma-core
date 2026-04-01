@@ -5,7 +5,7 @@ import {
   PurchaseItem, Delivery, Invoice, ChartOfAccount, JournalEntry, 
   JournalLine, OperationalExpense, User, Vendor, Role, Lead, Announcement, AppTask, AppNotification,
   BankAccount, CashTransaction, Reimbursement, FixedAsset,
-  Employee, SmartKpi, OkrObjective, RolePermissionMap, AccessKey, PendingReturn
+  Employee, SmartKpi, OkrObjective, RolePermissionMap, AccessKey, PendingReturn, RejectedItem
 } from '@/types';
 import { COA_SEED, CLIENTS_SEED, VENDORS_SEED, MOCK_USERS, KPI_SEED } from './constants';
 import { PRODUCTS_SEED } from './products_seed';
@@ -33,17 +33,19 @@ interface AppState {
   
   // Storage
   isSyncing: boolean;
+  isResetting: boolean;
   init: () => Promise<void>;
   saveToHdd: () => Promise<void>;
-  syncTable: (table: string, data: any) => Promise<void>;
+  syncTable: (table: string, data: any, silent?: boolean) => Promise<void>;
 
   // Sidebar State
   isSidebarMinimized: boolean;
   toggleSidebar: () => void;
 
-  // Master Data
   clients: Client[];
   addClient: (client: Client) => void;
+  addClients: (clients: Client[]) => void;
+  clearClients: () => Promise<void>;
   updateClient: (id: string, data: Partial<Client>) => void;
   
   vendors: Vendor[];
@@ -52,6 +54,8 @@ interface AppState {
   
   products: Product[];
   addProduct: (product: Product) => void;
+  addProducts: (products: Product[]) => void;
+  clearProducts: () => Promise<void>;
   updateProduct: (id: string, data: Partial<Product>) => void;
   
   coas: ChartOfAccount[];
@@ -73,6 +77,7 @@ interface AppState {
 
   purchaseItems: PurchaseItem[];
   addPurchaseItem: (item: PurchaseItem) => void;
+  addPurchaseItems: (items: PurchaseItem[]) => void;
   updatePurchaseItem: (id: string, data: Partial<PurchaseItem>) => void;
 
   deliveries: Delivery[];
@@ -93,7 +98,8 @@ interface AppState {
   updateJournalEntry: (id: string, updates: Partial<JournalEntry>, newLines: JournalLine[]) => void;
 
   journalLines: JournalLine[];
-  addJournalLine: (line: JournalLine) => void;
+  addJournalLine: (line: JournalLine) => Promise<void>;
+  addJournalLines: (lines: JournalLine[]) => Promise<void>;
 
   leads: Lead[];
   announcement: Announcement | null;
@@ -140,6 +146,7 @@ interface AppState {
   updateBankBalance: (id: string, amount: number) => void;
   cashTransactions: CashTransaction[];
   addCashTransaction: (tx: CashTransaction) => void;
+  updateCashTransaction: (id: string, updates: Partial<CashTransaction>) => Promise<void>;
 
   // Reimbursements
   reimbursements: Reimbursement[];
@@ -158,6 +165,8 @@ interface AppState {
   pendingReturns: PendingReturn[];
   addPendingReturn: (ret: PendingReturn) => void;
   removePendingReturn: (id: string) => void;
+  rejectedItems: RejectedItem[];
+  addRejectedItem: (item: RejectedItem) => void;
 
   // Helpers
   resetDb: () => Promise<void>;
@@ -165,9 +174,9 @@ interface AppState {
   getHistoricalClientPrice: (clientId: string, productId: string) => number | undefined;
   
   // Dev & Simulation Helpers
-  devHistorySnapshot: AppState | null;
+  devHistoryStack: Partial<AppState>[];
   takeDevSnapshot: () => void;
-  undoDevSnapshot: () => void;
+  undoDevSnapshot: () => Promise<void>;
 }
 
 
@@ -186,6 +195,7 @@ const initialCOAs: ChartOfAccount[] = [
   { id: 'coa-10', accountCode: '2-1000', accountName: 'Utang Usaha (Vendor)', accountType: 'Liability' },
   { id: 'coa-10-2', accountCode: '2-2000', accountName: 'Utang Gaji & Honor', accountType: 'Liability' },
   { id: 'coa-10-3', accountCode: '2-3000', accountName: 'Utang Pajak (PPN/PPh)', accountType: 'Liability' },
+  { id: 'coa-10-4', accountCode: '2-4000', accountName: 'Pinjaman Bank (Utang)', accountType: 'Liability' },
   
   // 3-XXXX EQUITY
   { id: 'coa-11', accountCode: '3-1000', accountName: 'Modal Pemilik (Owner Capital)', accountType: 'Equity' },
@@ -225,7 +235,7 @@ const initialRolePermissions: RolePermissionMap = {
   ceo: [],
   cmo: [],
   finance: ['finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets', 'finance_budget', 'finance_cash_bank', 'finance_ledger', 'finance_invoices', 'finance_reconciliation', 'finance_reimbursements', 'finance_online_purchase', 'finance_audit', 'finance_documents', 'tasks_global'],
-  gudang: ['warehouse_dashboard', 'warehouse_catalog', 'warehouse_inbound', 'warehouse_outbound', 'warehouse_qc', 'tasks_global'],
+  gudang: ['warehouse_dashboard', 'warehouse_catalog', 'warehouse_inbound', 'warehouse_outbound', 'warehouse_qc', 'warehouse_reject_monitor', 'tasks_global'],
   sourcing: ['sourcing_dashboard', 'sourcing_list', 'sourcing_expenses', 'tasks_global'],
   kurir: ['courier_dashboard', 'courier_list', 'courier_handover', 'courier_history', 'courier_expenses', 'tasks_global'],
   admin_po: ['admin_dashboard', 'admin_sales_orders', 'admin_shopping_list', 'admin_clients', 'admin_products', 'warehouse_catalog', 'tasks_global'],
@@ -250,8 +260,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       },
 
       isSyncing: false,
+      isResetting: false,
       
-      syncTable: async (table: string, data: any) => {
+      syncTable: async (table: string, data: any, silent = false) => {
         set({ isSyncing: true });
         try {
           const res = await fetch('/api/db', {
@@ -259,7 +270,17 @@ export const useAppStore = create<AppState>((set, get) => ({
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ table, data })
           });
-          if (!res.ok) throw new Error(`Sync failed for ${table}`);
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(`Sync failed for ${table}: ${errData.error || res.statusText}`);
+          }
+
+          // Broadcast to other tabs for INSTANT update (skip if silent)
+          if (!silent && typeof window !== 'undefined') {
+            const bc = new BroadcastChannel('disma_core_sync');
+            bc.postMessage({ type: 'SYNC_UPDATE', table });
+            bc.close();
+          }
         } catch (error) {
           console.error(`Sync Error (${table}):`, error);
         } finally {
@@ -268,11 +289,29 @@ export const useAppStore = create<AppState>((set, get) => ({
       },
 
       init: async () => {
+        if (get().isSyncing) return; // Prevent overwriting in-flight changes
+        
         try {
           const res = await fetch('/api/db?ts=' + Date.now(), { cache: 'no-store' });
           const data = await res.json();
           if (data && !data.error) {
             if (Object.keys(data).length === 0) return;
+
+            // Self-Repair: If Master Data is missing or has wrong IDs in DB, re-sync
+            const dbCoaIds = new Set((data.coas || []).map((c: any) => c.id));
+            const hasIdMismatch = initialCOAs.some(c => !dbCoaIds.has(c.id));
+            if ((!data.coas || data.coas.length === 0) || hasIdMismatch) {
+               console.log("Master Seed: COAs missing or ID mismatch in Supabase. Re-syncing...");
+               get().syncTable('coas', initialCOAs);
+            }
+            if ((!data.users || data.users.length === 0) && MOCK_USERS.length > 0) {
+               console.log("Master Seed: Users missing in Supabase. Seeding...");
+               get().syncTable('users', MOCK_USERS);
+            }
+            if ((!data.bankAccounts || data.bankAccounts.length === 0) && INITIAL_BANK_ACCOUNTS.length > 0) {
+               console.log("Master Seed: Bank Accounts missing in Supabase. Seeding...");
+               get().syncTable('bank_accounts', INITIAL_BANK_ACCOUNTS);
+            }
 
             const mergedCoas = [...initialCOAs];
             if (data.coas && Array.isArray(data.coas)) {
@@ -292,13 +331,99 @@ export const useAppStore = create<AppState>((set, get) => ({
               });
             }
 
-            let mergedBanks = data.bankAccounts && data.bankAccounts.length > 0 ? [...data.bankAccounts] : INITIAL_BANK_ACCOUNTS;
+            // --- INTELLIGENT BANK RE-HYDRATION ---
+            // DB is authoritative for balance. Local additions (not yet in DB) are preserved.
+            const localBanks = get().bankAccounts;
+            let mergedBanks: BankAccount[];
+
+            if (data.bankAccounts && Array.isArray(data.bankAccounts) && data.bankAccounts.length > 0) {
+              // Use DB data as source of truth (has correct balances)
+              mergedBanks = [...data.bankAccounts];
+              // Preserve any local banks not yet synced to DB
+              localBanks.forEach((localBank: BankAccount) => {
+                if (!mergedBanks.find((b: BankAccount) => b.id === localBank.id)) {
+                  mergedBanks.push(localBank);
+                }
+              });
+            } else {
+              // No DB data yet: fall back to local or seed
+              mergedBanks = localBanks.length > 0 ? [...localBanks] : [...INITIAL_BANK_ACCOUNTS];
+            }
+
+            // --- SELF-REPAIR: Recalculate bank balances from CashTransactions if corrupted ---
+            // Jika saldo bank tidak sesuai dengan total CashTransactions, recalculate.
+            if (data.cashTransactions && Array.isArray(data.cashTransactions) && data.cashTransactions.length > 0) {
+              const txs: CashTransaction[] = data.cashTransactions;
+              mergedBanks = mergedBanks.map((bank: BankAccount) => {
+                const bankTxs = txs.filter((tx: CashTransaction) => tx.bankAccountId === bank.id);
+                if (bankTxs.length === 0) return bank;
+                const calculatedBalance = bankTxs.reduce((sum: number, tx: CashTransaction) => {
+                  return sum + (tx.type === 'In' ? tx.amount : -tx.amount);
+                }, 0);
+                if (Math.abs(calculatedBalance - (bank.balance || 0)) > 1) {
+                  console.log(`Balance repair: ${bank.name} DB=${bank.balance} Calc=${calculatedBalance}`);
+                  return { ...bank, balance: calculatedBalance };
+                }
+                return bank;
+              });
+              // Sync repaired balances back to DB
+              const repairedBanks = mergedBanks.filter((bank: BankAccount) => {
+                const original = (data.bankAccounts || []).find((b: BankAccount) => b.id === bank.id);
+                return original && Math.abs((original.balance || 0) - bank.balance) > 1;
+              });
+              if (repairedBanks.length > 0) {
+                console.log(`Syncing ${repairedBanks.length} repaired bank balances to DB...`);
+                repairedBanks.forEach((bank: BankAccount) => get().syncTable('bank_accounts', bank, true));
+              }
+            }
+
+            // --- SMART MERGE FOR OPERATIONAL TABLES (PREVENT REGRESSION) ---
+            const PROGRESS_RANK: Record<string, number> = {
+              'Draft': 0, 'Pending': 1, 'Belanja': 2, 'QC': 3, 'Surat Jalan': 4,
+              'Selesai': 5, 'Approved': 5, 'Rejected': 5,
+              'Belum Transfer': 0, 'Laporan Masuk': 1, 'Terverifikasi': 2,
+              'Pending Audit': 0
+            };
+            const smartMerge = (localArr: any[], serverArr: any[]) => {
+              if (!serverArr || !Array.isArray(serverArr)) return localArr;
+              if (!localArr || localArr.length === 0) return serverArr;
+
+              const merged = [...localArr];
+              serverArr.forEach(item => {
+                const existingIdx = merged.findIndex(m => m.id === item.id);
+                if (existingIdx === -1) {
+                  merged.push(item);
+                } else {
+                  const localItem = merged[existingIdx];
+                  const localStatusRank = PROGRESS_RANK[localItem.status] ?? -1;
+                  const serverStatusRank = PROGRESS_RANK[item.status] ?? -1;
+                  const localRekonRank = PROGRESS_RANK[localItem.reconciliationStatus] ?? -1;
+                  const serverRekonRank = PROGRESS_RANK[item.reconciliationStatus] ?? -1;
+
+                  // Keep whichever is more advanced (local or server)
+                  const localIsAhead = localStatusRank > serverStatusRank || localRekonRank > serverRekonRank;
+                  if (!localIsAhead) {
+                    merged[existingIdx] = { ...item };
+                  }
+                }
+              });
+              return merged;
+            };
+
+            const mergedPurchases = smartMerge(get().purchases, data.purchases);
+            const mergedExpenses = smartMerge(get().expenses, data.expenses);
+            const mergedSalesOrders = smartMerge(get().salesOrders, data.salesOrders);
+            const mergedItems = smartMerge(get().purchaseItems, data.purchaseItems);
             
             set({ 
               ...data, 
               coas: mergedCoas, 
               rolePermissions: mergedPermissions,
               bankAccounts: mergedBanks,
+              purchases: mergedPurchases,
+              expenses: mergedExpenses,
+              salesOrders: mergedSalesOrders,
+              purchaseItems: mergedItems,
               navConfigs: data.navConfigs || {},
               kpiObjectives: (data.kpiObjectives && data.kpiObjectives.length > 0) ? data.kpiObjectives : KPI_SEED
             });
@@ -324,6 +449,30 @@ export const useAppStore = create<AppState>((set, get) => ({
       addClient: async (client) => {
         set((state) => ({ clients: [...state.clients, client] }));
         await get().syncTable('clients', client);
+      },
+      addClients: async (items) => {
+        set((state) => ({ clients: [...state.clients, ...items] }));
+        const CHUNK_SIZE = 50;
+        for (let i = 0; i < items.length; i += CHUNK_SIZE) {
+          const chunk = items.slice(i, i + CHUNK_SIZE);
+          await get().syncTable('clients', chunk);
+        }
+      },
+      clearClients: async () => {
+        set({ isResetting: true });
+        try {
+          const res = await fetch('/api/db/reset', {
+            method: 'POST',
+            body: JSON.stringify({ action: 'clients_only' })
+          });
+          if (!res.ok) throw new Error('Failed to clear clients');
+          set({ clients: [] });
+          toast.success("Semua klien berhasil dihapus!");
+        } catch (error: any) {
+          toast.error("Gagal menghapus klien: " + error.message);
+        } finally {
+          set({ isResetting: false });
+        }
       },
       updateClient: async (id, data) => {
         set((state) => ({
@@ -351,6 +500,32 @@ export const useAppStore = create<AppState>((set, get) => ({
         set((state) => ({ products: [...state.products, product] }));
         await get().syncTable('products', product);
       },
+      addProducts: async (items) => {
+        set((state) => ({ products: [...state.products, ...items] }));
+        
+        // Chunk on the client to avoid server timeouts
+        const CHUNK_SIZE = 50;
+        for (let i = 0; i < items.length; i += CHUNK_SIZE) {
+          const chunk = items.slice(i, i + CHUNK_SIZE);
+          await get().syncTable('products', chunk);
+        }
+      },
+      clearProducts: async () => {
+        set({ isResetting: true });
+        try {
+          const res = await fetch('/api/db/reset', {
+            method: 'POST',
+            body: JSON.stringify({ action: 'products_only' })
+          });
+          if (!res.ok) throw new Error('Failed to clear products');
+          set({ products: [] });
+          toast.success("Semua produk berhasil dihapus!");
+        } catch (error: any) {
+          toast.error("Gagal menghapus produk: " + error.message);
+        } finally {
+          set({ isResetting: false });
+        }
+      },
       updateProduct: async (id, data) => {
         set((state) => ({
           products: state.products.map(p => p.id === id ? { ...p, ...data } : p)
@@ -367,6 +542,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       salesOrders: [],
       addSalesOrder: async (so) => {
+        get().takeDevSnapshot();
         set((state) => ({ salesOrders: [...state.salesOrders, so] }));
         await get().syncTable('sales_orders', so);
       },
@@ -412,6 +588,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       addPurchaseItem: async (item) => {
         set((state) => ({ purchaseItems: [...state.purchaseItems, item] }));
         await get().syncTable('purchase_items', item);
+      },
+      addPurchaseItems: async (items: PurchaseItem[]) => {
+        set((state) => ({ purchaseItems: [...state.purchaseItems, ...items] }));
+        await get().syncTable('purchase_items', items);
       },
       updatePurchaseItem: async (id, data) => {
         set((state) => ({
@@ -482,6 +662,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       addJournalLine: async (line) => {
         set((state) => ({ journalLines: [...state.journalLines, line] }));
         await get().syncTable('journal_lines', line);
+      },
+      addJournalLines: async (lines) => {
+        set((state) => ({ journalLines: [...state.journalLines, ...lines] }));
+        await get().syncTable('journal_lines', lines);
       },
 
       leads: [],
@@ -608,19 +792,62 @@ export const useAppStore = create<AppState>((set, get) => ({
       },
       cashTransactions: [],
       addCashTransaction: async (tx) => {
+        // Auto-snapshot sebelum setiap transaksi kas supaya bisa di-undo step by step
+        get().takeDevSnapshot();
         const balanceChange = tx.type === 'In' ? tx.amount : -tx.amount;
+        let accountToSync: BankAccount | undefined;
+
         set((state) => {
           const updatedAccounts = state.bankAccounts.map(b => 
-            b.id === tx.bankAccountId ? { ...b, balance: b.balance + balanceChange } : b
+            b.id === tx.bankAccountId ? { ...b, balance: (b.balance || 0) + balanceChange } : b
           );
+          accountToSync = updatedAccounts.find(b => b.id === tx.bankAccountId);
+          
           return { 
             cashTransactions: [tx, ...state.cashTransactions],
             bankAccounts: updatedAccounts
           }
         });
+
+        // Sync history first
         await get().syncTable('cash_transactions', tx);
-        const updatedAccount = get().bankAccounts.find(b => b.id === tx.bankAccountId);
-        if (updatedAccount) await get().syncTable('bank_accounts', updatedAccount);
+        
+        // Sync updated balance using the state captured BEFORE the first await
+        if (accountToSync) {
+          await get().syncTable('bank_accounts', accountToSync);
+        }
+      },
+
+      updateCashTransaction: async (id, updates) => {
+        const existing = get().cashTransactions.find(tx => tx.id === id);
+        if (!existing) return;
+
+        const oldChange = existing.type === 'In' ? existing.amount : -existing.amount;
+        const newTx = { ...existing, ...updates };
+        const newChange = newTx.type === 'In' ? newTx.amount : -newTx.amount;
+        const oldBankId = existing.bankAccountId;
+        const newBankId = newTx.bankAccountId;
+
+        let banksToSync: BankAccount[] = [];
+        set((state) => {
+          // Reverse old effect, apply new effect on bank balances
+          const updatedBanks = state.bankAccounts.map(b => {
+            if (oldBankId === newBankId && b.id === oldBankId) {
+              return { ...b, balance: (b.balance || 0) - oldChange + newChange };
+            }
+            if (b.id === oldBankId) return { ...b, balance: (b.balance || 0) - oldChange };
+            if (b.id === newBankId) return { ...b, balance: (b.balance || 0) + newChange };
+            return b;
+          });
+          banksToSync = updatedBanks.filter(b => b.id === oldBankId || b.id === newBankId);
+          return {
+            cashTransactions: state.cashTransactions.map(tx => tx.id === id ? newTx : tx),
+            bankAccounts: updatedBanks,
+          };
+        });
+
+        await get().syncTable('cash_transactions', newTx);
+        for (const b of banksToSync) await get().syncTable('bank_accounts', b);
       },
 
       reimbursements: [],
@@ -648,6 +875,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       },
       removePendingReturn: (id) => set((state) => ({ pendingReturns: state.pendingReturns.filter(r => r.id !== id) })),
 
+      rejectedItems: [],
+      addRejectedItem: async (item) => {
+        set((state) => ({ rejectedItems: [item, ...state.rejectedItems] }));
+        await get().syncTable('rejected_items', item);
+      },
+
       updateRolePermissions: async (role, keys) => {
         set((state) => ({ 
           rolePermissions: { ...state.rolePermissions, [role]: keys }
@@ -668,20 +901,84 @@ export const useAppStore = create<AppState>((set, get) => ({
         return undefined;
       },
 
-      devHistorySnapshot: null,
+      devHistoryStack: [],
       takeDevSnapshot: () => {
         const state = get();
-        const snapshot = { ...state, devHistorySnapshot: null };
-        set({ devHistorySnapshot: snapshot });
+        // Simpan hanya data operasional yang relevan (bukan functions/stack itu sendiri)
+        const snapshot: Partial<AppState> = {
+          salesOrders: state.salesOrders,
+          salesOrderItems: state.salesOrderItems,
+          purchases: state.purchases,
+          purchaseItems: state.purchaseItems,
+          deliveries: state.deliveries,
+          expenses: state.expenses,
+          invoices: state.invoices,
+          journalEntries: state.journalEntries,
+          journalLines: state.journalLines,
+          cashTransactions: state.cashTransactions,
+          bankAccounts: state.bankAccounts,
+          pendingReturns: state.pendingReturns,
+          reimbursements: state.reimbursements,
+          rejectedItems: state.rejectedItems,
+          products: state.products,
+        };
+        const currentStack = get().devHistoryStack;
+        // Max 10 history steps
+        const newStack = [...currentStack, snapshot].slice(-10);
+        set({ devHistoryStack: newStack });
       },
-      undoDevSnapshot: () => {
-        const { devHistorySnapshot } = get();
-        if (devHistorySnapshot) {
-          const { devHistorySnapshot: _, ...restoreData } = devHistorySnapshot;
-          set(restoreData);
-          toast.success("Undo Berhasil!", { description: "State sebelumnya telah dikembalikan." });
-        } else {
+      undoDevSnapshot: async () => {
+        const { devHistoryStack } = get();
+        if (devHistoryStack.length === 0) {
           toast.error("Tidak ada history untuk di-undo.");
+          return;
+        }
+        const toastId = toast.loading(`Undoing... (${devHistoryStack.length} step tersisa)`);
+        const newStack = [...devHistoryStack];
+        const snapshot = newStack.pop()!;
+        // Restore state lokal
+        set({ ...snapshot, devHistoryStack: newStack });
+
+        // Sync ke DB — wipe semua tabel operasional lalu seed ulang dari snapshot
+        try {
+          const tablesToWipe = [
+            'sales_order_items', 'purchase_items', 'journal_lines',
+            'deliveries', 'invoices', 'sales_orders', 'purchases', 'journal_entries',
+            'reimbursements', 'expenses', 'cash_transactions', 'pending_returns',
+            'bank_accounts', 'products',
+          ];
+          // Step 1: Wipe semua tabel sekaligus
+          await fetch('/api/db/reset', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'custom', tables: tablesToWipe })
+          });
+
+          // Step 2: Seed dari snapshot — kirim semua sekaligus
+          const seedData: Record<string, any[]> = {
+            sales_orders: snapshot.salesOrders || [],
+            sales_order_items: snapshot.salesOrderItems || [],
+            purchases: snapshot.purchases || [],
+            purchase_items: snapshot.purchaseItems || [],
+            deliveries: snapshot.deliveries || [],
+            expenses: snapshot.expenses || [],
+            invoices: snapshot.invoices || [],
+            journal_entries: snapshot.journalEntries || [],
+            journal_lines: snapshot.journalLines || [],
+            cash_transactions: snapshot.cashTransactions || [],
+            bank_accounts: snapshot.bankAccounts || [],
+            reimbursements: snapshot.reimbursements || [],
+            products: snapshot.products || [],
+          };
+          await fetch('/api/db/reset', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'seed', seedData })
+          });
+
+          toast.success(`Undo berhasil! (${newStack.length} step tersisa)`, { id: toastId });
+        } catch(e: any) {
+          toast.error("Undo local OK, tapi gagal sync DB: " + e.message, { id: toastId });
         }
       },
 
@@ -697,7 +994,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           let res = await fetch('/api/db/reset', { 
             method: 'POST', 
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'wipe', wipeType: 'simulation' }) 
+            body: JSON.stringify({ action: 'simulation' }) 
           });
           if (!res.ok) throw new Error((await res.json()).error || 'Gagal Wipe');
 

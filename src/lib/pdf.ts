@@ -219,14 +219,33 @@ function drawBAOnDoc(doc: jsPDF, poNumber: string, signatures?: { courier?: stri
 }
 
 export function generateBA(poNumber: string, signatures?: { courier?: string, client?: string }, outputType: 'save' | 'dataurl' = 'save', adjustments?: Record<string, number>) {
-  const doc = new jsPDF({ compress: true })
-  drawSuratJalanOnDoc(doc, poNumber, true, signatures) 
-  drawBAOnDoc(doc, poNumber, signatures, adjustments)
-  
-  if (outputType === 'dataurl') {
-    return doc.output('datauristring')
+  try {
+    const doc = new jsPDF({ compress: true })
+    
+    // Check if the order exists first
+    const store = useAppStore.getState()
+    const so = store.salesOrders.find(s => s.poNumber === poNumber)
+    if (!so) {
+      console.error("Sales order not found for PO Num:", poNumber)
+      return null
+    }
+
+    // DRAW BA Directly on current page
+    // We'll modify drawBAOnDoc slightly to avoid double addPage if needed
+    // But for now, let's just draw manually here or fix drawBAOnDoc
+    drawSuratJalanOnDoc(doc, poNumber, true, signatures) // Page 1: SJ
+    drawBAOnDoc(doc, poNumber, signatures, adjustments) // Page 2: BA
+
+    if (outputType === 'dataurl') {
+      const data = doc.output('datauristring')
+      return data
+    }
+    doc.save(`BA_${poNumber}.pdf`)
+    return true
+  } catch (err) {
+    console.error("FATAL PDF ERROR:", err)
+    return null
   }
-  doc.save(`BA_${poNumber}.pdf`)
 }
 
 function drawInvoiceOnDoc(doc: jsPDF, invoiceId: string) {

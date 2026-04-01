@@ -18,6 +18,7 @@ export default function DevOverlay() {
 
   const resetSimulation = useAppStore(state => state.resetSimulation)
   const undoDevSnapshot = useAppStore(state => state.undoDevSnapshot)
+  const historyCount = useAppStore(state => state.devHistoryStack.length)
 
   if (!isDev) return null
 
@@ -26,8 +27,8 @@ export default function DevOverlay() {
     resetSimulation()
   }
 
-  const handleUndo = () => {
-    undoDevSnapshot()
+  const handleUndo = async () => {
+    await undoDevSnapshot()
   }
 
 
@@ -62,10 +63,11 @@ export default function DevOverlay() {
         <Button 
           onClick={handleUndo}
           variant="ghost"
-          className="h-10 rounded-full text-slate-300 hover:text-white hover:bg-white/10 gap-2 font-bold text-xs uppercase tracking-tight"
+          className="h-10 rounded-full text-slate-300 hover:text-white hover:bg-white/10 gap-2 font-bold text-xs uppercase tracking-tight disabled:opacity-30"
+          disabled={historyCount === 0}
         >
           <Undo2 className="w-4 h-4" />
-          Undo
+          Undo {historyCount > 0 && <span className="bg-white/20 rounded-full px-1.5 py-0.5 text-[10px]">{historyCount}</span>}
         </Button>
 
         <Button 

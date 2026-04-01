@@ -49,7 +49,7 @@ export default function InvoicesPage() {
     return client?.companyName.toLowerCase().includes(searchTerm.toLowerCase())
   })
 
-  const handleRecordPayment = () => {
+  const handleRecordPayment = async () => {
     if (!activeInvoice || paymentAmount <= 0) return
     if (paymentAmount > (activeInvoice.totalAmount - activeInvoice.amountPaid)) {
       toast.error("Nominal pembayaran melebihi sisa tagihan!")
@@ -75,7 +75,7 @@ export default function InvoicesPage() {
     })
 
     // Auto Journal: Debit Cash, Credit AR
-    const success = recordPaymentReceived(activeInvoice.id, paymentAmount, new Date(paymentDate).toISOString())
+    const success = await recordPaymentReceived(activeInvoice.id, paymentAmount, new Date(paymentDate).toISOString())
 
     if (success) {
       toast.success(`Pembayaran ${formatRupiah(paymentAmount)} berhasil dicatat.`)
@@ -441,7 +441,7 @@ export default function InvoicesPage() {
                                     const hasOutstanding = salesOrders.some(so => 
                                        so.clientId === c.id && 
                                        ['Terkirim', 'Selesai'].includes(so.status) && 
-                                       !invoices.some(inv => (inv.salesOrderId === so.id || inv.salesOrderIds?.includes(so.id)) && inv.status === 'Paid')
+                                       !invoices.some(inv => (inv.salesOrderId === so.id || inv.salesOrderIds?.includes(so.id)))
                                     )
                                     const matchesSearch = c.companyName.toLowerCase().includes(tfClientSearch.toLowerCase())
                                     return hasOutstanding && matchesSearch
@@ -501,7 +501,7 @@ export default function InvoicesPage() {
                           {salesOrders.filter(so => 
                              so.clientId === tfClientId && 
                              ['Terkirim', 'Selesai'].includes(so.status) &&
-                             !invoices.some(inv => (inv.salesOrderId === so.id || inv.salesOrderIds?.includes(so.id)) && inv.status === 'Paid')
+                             !invoices.some(inv => (inv.salesOrderId === so.id || inv.salesOrderIds?.includes(so.id)))
                           ).map(so => (
                              <TableRow key={so.id} className="cursor-pointer hover:bg-slate-50 transition-colors" onClick={() => {
                                 if (selectedPOIds.includes(so.id)) setSelectedPOIds(prev => prev.filter(id => id !== so.id))

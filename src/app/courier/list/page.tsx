@@ -33,8 +33,10 @@ export default function CourierDashboard() {
   const [selectedPo, setSelectedPo] = useState<string | null>(null)
   const [selectedSoId, setSelectedSoId] = useState<string | null>(null)
 
-  // Get all active deliveries (Menunggu & Dikirim)
-  const pendingDeliveries = deliveries.filter(d => ['Menunggu', 'Dikirim'].includes(d.status))
+  // Get all active deliveries (Menunggu & Dikirim & Tunggu Konfirmasi)
+  const pendingDeliveries = deliveries.filter(d => ['Menunggu', 'Dikirim', 'Tunggu Konfirmasi'].includes(d.status))
+
+  const [deliveryNotes, setDeliveryNotes] = useState<Record<string, string>>({})
 
   const handleStartDelivery = (id: string, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -52,8 +54,8 @@ export default function CourierDashboard() {
 
   const handleCompleteWithSignature = (signatures: { courier: string, client: string }, adjustments?: Record<string, number>, archivedDocs?: { sj?: string, ba?: string }) => {
     if (activeDeliveryId && selectedSoId) {
-      // 1. Apply any field adjustments first
-      if (adjustments) {
+       // Apply adjustments...
+       if (adjustments) {
         Object.entries(adjustments).forEach(([itemId, finalQty]) => {
           const item = salesOrderItems.find(i => i.id === itemId)
           if (item && item.qty !== finalQty) {
@@ -66,51 +68,52 @@ export default function CourierDashboard() {
         })
       }
 
-      // 2. Complete the delivery with signatures and ARCHIVED docs
-      handleCompleteDelivery(activeDeliveryId, selectedSoId, signatures, archivedDocs)
+      // Update SO with raw signatures
+      updateSalesOrder(selectedSoId, { 
+        courierSignature: signatures.courier,
+        clientSignature: signatures.client,
+        archivedBaUrl: archivedDocs?.ba,
+        archivedSuratJalanUrl: archivedDocs?.sj
+      })
+
+      // Move delivery to 'Tunggu Konfirmasi'
+      updateDelivery(activeDeliveryId, { 
+        status: 'Tunggu Konfirmasi',
+        baUrl: signatures.client 
+      })
+
       setPreviewOpen(false)
-      toast.success("Dokumen Berhasil Ditandatangani & Diarsipkan!")
+      toast.info("Tanda tangan tersimpan. Silakan konfirmasi status akhir.")
     }
   }
 
-  const handleCompleteDelivery = (deliveryId: string, soId: string, signatures?: { courier: string, client: string }, archivedDocs?: { sj?: string, ba?: string }) => {
+  const handleFinalizeDelivery = (deliveryId: string, soId: string) => {
+    const notes = deliveryNotes[deliveryId] || ""
+    updateDelivery(deliveryId, { notes })
+    handleCompleteDelivery(deliveryId, soId)
+  }
+
+  const handleCompleteDelivery = (deliveryId: string, soId: string) => {
     const so = salesOrders.find(s => s.id === soId)
     const client = clients.find(c => c.id === so?.clientId)
     if (!so || !client) return
 
     const soItems = salesOrderItems.filter(i => i.salesOrderId === soId)
-    // Use qtyFinal (real delivered qty) for invoicing; fallback to original qty
     const totalRevenue = soItems.reduce((sum, item) => {
       const finalQty = item.qtyFinal ?? item.qty
       return sum + (finalQty * item.unitPrice)
     }, 0)
 
-    let totalCogs = 0
-    soItems.forEach(item => {
-      const finalQty = item.qtyFinal ?? item.qty
-      const pItem = purchaseItems.filter(pi => pi.productId === item.productId && pi.actualUnitPrice > 0).pop()
-      const unitCogs = pItem ? pItem.actualUnitPrice : (useAppStore.getState().products.find(p => p.id === item.productId)?.basePrice || 0)
-      totalCogs += (unitCogs * finalQty)
-    })
-
-    // 1. Update Delivery with Client Signature as primary proof
+    // 1. Update Delivery
     updateDelivery(deliveryId, { 
-      status: 'Terkirim', 
-      deliveryDate: new Date().toISOString(),
-      baUrl: signatures?.client || 'terkirim.jpg' 
+      status: 'Awaiting Audit', 
+      deliveryDate: new Date().toISOString()
     })
 
-    // 2. Update SO with ARCHIVED URLs for Tukar Faktur & Raw signatures
-    updateSalesOrder(soId, { 
-      status: 'Terkirim',
-      proofOfDeliveryUrl: signatures?.client || 'terkirim.jpg',
-      archivedBaUrl: archivedDocs?.ba,
-      archivedSuratJalanUrl: archivedDocs?.sj,
-      courierSignature: signatures?.courier,
-      clientSignature: signatures?.client
-    })
+    // 2. Update SO
+    updateSalesOrder(soId, { status: 'Awaiting Audit' })
 
-    // 3. Generate Invoice
+    // 3. Generate Invoice (Draft)
     const invoiceId = uuidv4()
     const dueDate = new Date()
     dueDate.setDate(dueDate.getDate() + (client.paymentTermDays || 30))
@@ -126,47 +129,39 @@ export default function CourierDashboard() {
       status: 'Unpaid'
     })
 
-    // 4. Auto-Journal (Revenue & COGS)
-    const success = recordDeliveryAndInvoice(deliveryId, invoiceId, totalRevenue, totalCogs)
+    // 4. Update delivery with invoice link
+    updateDelivery(deliveryId, { invoiceId })
 
-    if (success) {
-      // 5. Handling Returns & Rejections (Auto-routing to Pending QC)
-      soItems.forEach(item => {
-        const finalQty = item.qtyFinal ?? item.qty
-        const rejectedQty = item.qty - finalQty
+    // 5. Handling Returns & Rejections
+    soItems.forEach(item => {
+      const finalQty = item.qtyFinal ?? item.qty
+      const rejectedQty = item.qty - finalQty
 
-        if (rejectedQty > 0) {
-          addPendingReturn({
-            id: uuidv4(),
-            productId: item.productId,
-            originalSoId: soId,
-            qty: rejectedQty,
-            reason: item.qtyAdjustmentReason || "Reject di Customer",
-            date: new Date().toISOString(),
-            status: 'Pending QC'
-          })
-        }
-      })
+      if (rejectedQty > 0) {
+        addPendingReturn({
+          id: uuidv4(),
+          productId: item.productId,
+          originalSoId: soId,
+          qty: rejectedQty,
+          reason: item.qtyAdjustmentReason || "Reject di Customer",
+          date: new Date().toISOString(),
+          status: 'Pending QC'
+        })
+      }
+    })
 
-      // Final PDF Save with Signature for Archive simulation
-      generateBA(so.poNumber, signatures)
-      setActiveDeliveryId(null)
-      
-      // Provide WhatsApp Share Link
-      const message = encodeURIComponent(`Halo ${client.companyName}, Berikut adalah konfirmasi digital untuk pengiriman PO ${so.poNumber}. Barang telah kami serah-terimakan dengan baik. Terima kasih! - DISMA Logistik`)
-      const waUrl = `https://wa.me/${client.phone.replace(/[^0-9]/g, '')}?text=${message}`
-      
-      toast.success("Pengiriman Berhasil!", {
-        description: "Klik untuk kirim konfirmasi ke WhatsApp Client",
-        action: {
-          label: "Kirim WA",
-          onClick: () => window.open(waUrl, '_blank')
-        },
-        duration: 10000
-      })
-    } else {
-      toast.error("Gagal mencatat jurnal akuntansi. Hubungi Admin.")
-    }
+    setActiveDeliveryId(null)
+    
+    const waMessage = encodeURIComponent(`Halo ${client.companyName}, Berikut adalah konfirmasi digital untuk pengiriman PO ${so.poNumber}. Barang telah kami serah-terimakan dengan baik. Terima kasih! - DISMA Logistik`)
+    const waUrl = `https://wa.me/${client.phone.replace(/[^0-9]/g, '')}?text=${waMessage}`
+    
+    toast.success("Pengiriman Berhasil Selesai!", {
+      description: "Klik untuk kirim konfirmasi WA",
+      action: {
+        label: "WhatsApp",
+        onClick: () => window.open(waUrl, '_blank')
+      }
+    })
   }
 
   return (
@@ -192,7 +187,8 @@ export default function CourierDashboard() {
             const so = salesOrders.find(s => s.id === delivery.salesOrderId)
             const client = clients.find(c => c.id === so?.clientId)
             const isExpanded = activeDeliveryId === delivery.id
-            const isOngoing = delivery.status === 'Dikirim'
+            const isOngoing = delivery.status === 'Dikirim' || delivery.status === 'Tunggu Konfirmasi'
+            const isWaitingFinal = delivery.status === 'Tunggu Konfirmasi'
 
             if (!so || !client) return null
 
@@ -219,7 +215,12 @@ export default function CourierDashboard() {
                     <h3 className="font-black text-lg text-slate-800 tracking-tight leading-tight mb-1">{client.companyName}</h3>
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest truncate">{client.address}</p>
                     <div className="flex items-center gap-2 mt-2">
-                      <span className="text-[10px] font-black text-emerald-600 bg-emerald-100 px-3 py-1 rounded-full uppercase tracking-tighter">PO: {so.poNumber}</span>
+                      <span className={cn(
+                        "text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-tighter",
+                        isWaitingFinal ? "bg-amber-100 text-amber-600 animate-pulse" : "bg-emerald-100 text-emerald-600"
+                      )}>
+                        {isWaitingFinal ? "Menunggu Konfirmasi Kurir" : `PO: ${so.poNumber}`}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -239,23 +240,6 @@ export default function CourierDashboard() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <Button 
-                        variant="secondary" 
-                        className="bg-white text-emerald-600 hover:bg-emerald-50 h-14 rounded-3xl font-black uppercase tracking-widest text-[10px] border border-slate-100 shadow-sm transition-all"
-                        onClick={(e) => handleOpenPreview('SuratJalan', so.poNumber, so.id, e)}
-                      >
-                         <ExternalLink className="w-4 h-4 mr-2" /> Surat Jalan
-                      </Button>
-                      <Button 
-                        variant="secondary" 
-                        className="bg-white text-slate-600 hover:bg-slate-100 h-14 rounded-3xl font-black uppercase tracking-widest text-[10px] border border-slate-100 shadow-sm transition-all"
-                        onClick={(e) => handleOpenPreview('BA', so.poNumber, so.id, e)}
-                      >
-                         <ExternalLink className="w-4 h-4 mr-2" /> BA Digital
-                      </Button>
-                    </div>
-
                     {!isOngoing ? (
                       <Button 
                         className="w-full h-16 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase tracking-[0.2em] rounded-3xl shadow-2xl shadow-emerald-500/30 transition-all active:scale-95"
@@ -266,26 +250,61 @@ export default function CourierDashboard() {
                     ) : (
                       <div className="space-y-4 pt-4 border-t border-slate-200">
                         <h4 className="font-black text-xs uppercase tracking-[0.2em] text-emerald-600 flex items-center gap-2">
-                          <PackageCheck className="w-4 h-4" /> Serah Terima Barang
+                          <PackageCheck className="w-4 h-4" /> Progress Pengantaran
                         </h4>
                         
-                        <Button 
-                          variant="outline" 
-                          className="w-full h-20 border-3 border-dashed border-slate-200 bg-white rounded-[2rem] flex flex-col items-center justify-center group hover:border-emerald-400 hover:bg-emerald-50 transition-all duration-500"
-                          onClick={(e) => handleOpenPreview('BA', so.poNumber, so.id, e)}
-                        >
-                          <Camera className="w-6 h-6 text-slate-400 group-hover:text-emerald-500 group-hover:scale-110 transition-all" />
-                          <span className="font-black uppercase text-[10px] tracking-widest text-slate-400 group-hover:text-emerald-600 mt-1">E-Sign: Berita Acara Digital</span>
-                        </Button>
+                        <div className="grid grid-cols-2 gap-4">
+                           <Button 
+                             disabled={isWaitingFinal}
+                             variant="outline" 
+                             className="h-20 border-2 border-dashed border-slate-200 bg-white rounded-[2rem] flex flex-col items-center justify-center group hover:border-emerald-400 hover:bg-emerald-50 transition-all"
+                             onClick={(e) => {
+                               e.stopPropagation()
+                               handleOpenPreview('BA', so.poNumber, so.id, e)
+                             }}
+                           >
+                             <Camera className={cn("w-6 h-6 text-slate-400", !isWaitingFinal && "group-hover:text-emerald-500 group-hover:scale-110")} />
+                             <span className="font-black uppercase text-[8px] tracking-widest text-slate-400 mt-1">E-Sign BA</span>
+                           </Button>
+                           <Button 
+                             variant="outline" 
+                             className="h-20 border-2 border-dashed border-slate-200 bg-white rounded-[2rem] flex flex-col items-center justify-center"
+                             onClick={(e) => {
+                               e.stopPropagation()
+                               handleOpenPreview('SuratJalan', so.poNumber, so.id, e)
+                             }}
+                           >
+                             <ExternalLink className="w-6 h-6 text-slate-400" />
+                             <span className="font-black uppercase text-[8px] tracking-widest text-slate-400 mt-1">Surat Jalan</span>
+                           </Button>
+                        </div>
+
+                        <div className="space-y-2">
+                           <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-4">Catatan Pengiriman (Opsional)</span>
+                           <textarea 
+                             placeholder="Misal: Barang dititip di security, dsb..."
+                             className="w-full rounded-[2rem] border-none bg-white p-6 text-sm font-bold shadow-inner focus:ring-4 focus:ring-emerald-500/10 min-h-[100px] transition-all"
+                             value={deliveryNotes[delivery.id] || ""}
+                             onChange={(e) => setDeliveryNotes({ ...deliveryNotes, [delivery.id]: e.target.value })}
+                             onClick={(e) => e.stopPropagation()}
+                           />
+                        </div>
 
                         <Button 
-                          className="w-full h-16 bg-slate-900 hover:bg-black text-white font-black uppercase tracking-[0.2em] rounded-3xl shadow-2xl shadow-slate-900/20 active:scale-95 transition-all"
+                          className={cn(
+                            "w-full h-20 text-white font-black uppercase tracking-[0.2em] rounded-[2.5rem] shadow-2xl transition-all active:scale-95 text-lg",
+                            isWaitingFinal ? "bg-amber-500 hover:bg-amber-600 animate-pulse" : "bg-slate-900 hover:bg-black"
+                          )}
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleCompleteDelivery(delivery.id, so.id);
+                            if (isWaitingFinal) {
+                              handleFinalizeDelivery(delivery.id, so.id);
+                            } else {
+                              toast.warning("Harap selesaikan tanda tangan digital (BA) terlebih dahulu.");
+                            }
                           }}
                         >
-                          Selesai Bongkar Barang
+                          {isWaitingFinal ? "Konfirmasi Terkirim ✓" : "Selesai & Kirim Laporan"}
                         </Button>
                       </div>
                     )}

@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useAppStore } from "@/lib/store"
 import { formatRupiah, formatNumber, parseNumber } from "@/lib/utils"
-import { Plus, Pencil, Package, Hash, Download, Upload, RotateCcw, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
+import { Plus, Pencil, Package, Hash, Trash2, Download, Upload, RotateCcw, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, History } from "lucide-react"
 import { v4 as uuidv4 } from "uuid"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -37,12 +37,14 @@ import { format } from "date-fns"
 export default function ProductsPage() {
   const products = useAppStore(state => state.products)
   const addProduct = useAppStore(state => state.addProduct)
+  const addProducts = useAppStore(state => state.addProducts)
   const updateProduct = useAppStore(state => state.updateProduct)
   const resetDb = useAppStore(state => state.resetDb)
   
   const [isOpen, setIsOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
-  
+  const [historyProduct, setHistoryProduct] = useState<Product | null>(null)
+
   const [formData, setFormData] = useState({
     skuCode: "",
     name: "",
@@ -152,6 +154,7 @@ export default function ProductsPage() {
   }
 
   return (
+    <>
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
@@ -176,6 +179,30 @@ export default function ProductsPage() {
             <Download className="mr-2 h-4 w-4" /> Template
           </Button>
 
+          <Button 
+            variant="ghost" 
+            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+            onClick={async () => {
+              if (confirm("Bersihkan SEMUA data? Ini akan menghapus Produk, Nota Pesanan, dan Transaksi agar import 1400 barang lo lancar. Lanjut?")) {
+                toast.loading("Membersihkan seluruh database...", { id: "master_wipe" });
+                try {
+                  const res = await fetch('/api/db/reset', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'master' })
+                  });
+                  if (!res.ok) throw new Error("Gagal membersihkan database");
+                  toast.success("Database bersih total! Me-reload...", { id: "master_wipe" });
+                  setTimeout(() => window.location.reload(), 800);
+                } catch (err: any) {
+                  toast.error("Gagal: " + err.message, { id: "master_wipe" });
+                }
+              }
+            }}
+          >
+            <Trash2 className="mr-2 h-4 w-4" /> Bersihkan Produk
+          </Button>
+          
           <Button variant="outline" onClick={() => {
             const input = document.createElement('input')
             input.type = 'file'
@@ -184,30 +211,90 @@ export default function ProductsPage() {
               const file = e.target.files[0]
               if (!file) return
               const reader = new FileReader()
-              reader.onload = (event: any) => {
-                const csv = event.target.result
-                const lines = csv.split('\n')
-                const headers = lines[0].split(',')
-                let count = 0
-                for (let i = 1; i < lines.length; i++) {
-                  if (!lines[i]) continue
-                  const values = lines[i].split(',')
-                  const product: any = { id: uuidv4() }
-                  headers.forEach((h: string, index: number) => {
-                    const cleanH = h.trim()
-                    const val = values[index]?.trim()
-                    if (cleanH === 'basePrice' || cleanH === 'sellingPrice' || cleanH === 'currentStock') {
-                      product[cleanH] = Number(val) || 0
-                    } else {
-                      product[cleanH] = val
-                    }
-                  })
-                  if (product.skuCode && product.name) {
-                    addProduct(product)
-                    count++
+              reader.onload = async (event: any) => {
+                const csv = (event.target.result as string || "").trim()
+                if (!csv) {
+                  toast.error("File kosong atau tidak terbaca.")
+                  return
+                }
+                
+                const allLines = csv.split('\n')
+                let headerRowIndex = -1
+                let delimiter = ','
+                
+                // Find true header row
+                for (let i = 0; i < allLines.length; i++) {
+                  const line = allLines[i].trim()
+                  if (!line) continue
+                  // Check if this line looks like a header (contains common product fields)
+                  if (line.toUpperCase().includes('KODE BRG') || line.toUpperCase().includes('SKU')) {
+                    headerRowIndex = i
+                    delimiter = line.includes(';') ? ';' : ','
+                    break
                   }
                 }
-                toast.success(`Imported ${count} products successfully`)
+
+                if (headerRowIndex === -1) {
+                  toast.error("Format kolom tidak dikenali. Pastikan ada kolom 'KODE BRG' atau 'SKU'.")
+                  return
+                }
+
+                const rawHeaders = allLines[headerRowIndex].split(delimiter).map(h => h.trim().toUpperCase())
+                // Use a Map to automatically de-duplicate by SKU
+                const itemMap = new Map<string, any>()
+                
+                toast.loading("Sedang memproses data...", { id: "csv_import" });
+
+                for (let i = headerRowIndex + 1; i < allLines.length; i++) {
+                  const line = allLines[i].trim()
+                  if (!line) continue
+                  
+                  const values = line.split(delimiter).map(v => v.trim())
+                  if (values.length < 1) continue
+                  
+                  const product: any = {}
+                  
+                  rawHeaders.forEach((h, index) => {
+                    const val = values[index]
+                    if (val === undefined) return
+
+                    const cleanVal = val.trim()
+                    if (h === 'KODE BRG' || h === 'SKUCODE' || h === 'SKU') {
+                      product.skuCode = cleanVal
+                      const existing = products.find(p => p.skuCode === cleanVal)
+                      product.id = existing ? existing.id : uuidv4() // ensure UUID format
+                    } else if (h === 'NAMA BARANG' || h === 'NAME' || h === 'PRODUCT NAME') {
+                      product.name = cleanVal
+                    } else if (h === 'SATUAN' || h === 'UOM') {
+                      product.uom = cleanVal
+                    } else if (h === 'BASEPRICE' || h === 'HARGA BELI' || h === 'BASE (COST)') {
+                      product.basePrice = Number(cleanVal.replace(/[^0-9.-]+/g,"")) || 0
+                    } else if (h === 'SELLINGPRICE' || h === 'HARGA JUAL') {
+                      product.sellingPrice = Number(cleanVal.replace(/[^0-9.-]+/g,"")) || 0
+                    } else if (h === 'CURRENTSTOCK' || h === 'STOK' || h === 'STOCK') {
+                      product.currentStock = Number(cleanVal.replace(/[^0-9.-]+/g,"")) || 0
+                    }
+                  })
+
+                  // Only add if it has a valid SKU and Name
+                  if (product.id && product.skuCode && product.name) {
+                    itemMap.set(product.skuCode, product)
+                  }
+                }
+
+                const items = Array.from(itemMap.values())
+
+                if (items.length > 0) {
+                  toast.loading(`Berhasil membaca ${items.length} produk unik. Sedang mengirim ke database...`, { id: "csv_import" });
+                  try {
+                    await addProducts(items);
+                    toast.success(`Berhasil mengimpor ${items.length} produk!`, { id: "csv_import" });
+                  } catch (err: any) {
+                    toast.error("Koneksi gagal: " + err.message, { id: "csv_import" });
+                  }
+                } else {
+                  toast.error("Tidak ada data produk unik yang ditemukan.", { id: "csv_import" });
+                }
               }
               reader.readAsText(file)
             }
@@ -429,9 +516,14 @@ export default function ProductsPage() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <Button variant="ghost" size="icon" onClick={() => handleEdit(p)} className="hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950">
-                      <Pencil className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => setHistoryProduct(p)} className="hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950" title="Lihat Riwayat Harga">
+                        <History className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => handleEdit(p)} className="hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950">
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
@@ -440,5 +532,80 @@ export default function ProductsPage() {
         </Table>
       </div>
     </div>
+
+    {/* Price History Modal */}
+
+    {historyProduct && (
+      <Dialog open={!!historyProduct} onOpenChange={(open) => !open && setHistoryProduct(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex flex-col gap-1">
+              <span>Riwayat Harga Pasar</span>
+              <span className="text-sm font-normal text-slate-500">{historyProduct.name} · {historyProduct.skuCode}</span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Weekly Range Summary */}
+            {historyProduct.weeklyPriceRange && (
+              <div className="bg-emerald-50 dark:bg-emerald-950/30 rounded-xl p-4 flex justify-between items-center border border-emerald-100 dark:border-emerald-900">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Range Harga Minggu Ini</p>
+                  <p className="text-xl font-black text-slate-800 dark:text-slate-100 mt-1">
+                    {formatRupiah(historyProduct.weeklyPriceRange.min)} – {formatRupiah(historyProduct.weeklyPriceRange.max)}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">per {historyProduct.uom}</p>
+                  <p className="text-[9px] text-slate-400 mt-1">
+                    Updated: {historyProduct.weeklyPriceRange.lastUpdated ? format(new Date(historyProduct.weeklyPriceRange.lastUpdated), "dd/MM HH:mm") : "-"}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* History Entries - last 7 days */}
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Histori 7 Hari Terakhir</p>
+              {(() => {
+                const sevenDaysAgo = new Date()
+                sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+                const entries = (historyProduct.priceHistory || [])
+                  .filter(h => new Date(h.date) >= sevenDaysAgo)
+                  .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
+                if (entries.length === 0) {
+                  return (
+                    <div className="text-center py-8 text-slate-400 text-sm">
+                      Belum ada data harga dalam 7 hari terakhir.
+                    </div>
+                  )
+                }
+
+                return (
+                  <div className="space-y-1.5 max-h-[300px] overflow-y-auto">
+                    {entries.map((h, idx) => (
+                      <div key={idx} className="flex items-center justify-between bg-slate-50 dark:bg-slate-900 rounded-lg px-3 py-2 border border-slate-100 dark:border-slate-800">
+                        <div className="flex items-center gap-3">
+                          <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                            h.source === 'Pasar'
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-blue-100 text-blue-700'
+                          }`}>
+                            {h.source}
+                          </span>
+                          <span className="text-xs text-slate-400">{format(new Date(h.date), "dd MMM HH:mm")}</span>
+                        </div>
+                        <span className="font-black text-sm text-slate-700 dark:text-slate-200">{formatRupiah(h.price)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    )}
+    </>
   )
 }

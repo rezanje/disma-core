@@ -40,9 +40,12 @@ export default function QCPage() {
     .filter(item => item.product)
   
   const [selectedProductId, setSelectedProductId] = useState("")
-  const [qtyPass, setQtyPass] = useState(0)
+  const [qtyPassToInventory, setQtyPassToInventory] = useState(0)
+  const [qtyPassToClient, setQtyPassToClient] = useState(0)
   const [qtyReject, setQtyReject] = useState(0)
   const [rejectReason, setRejectReason] = useState("")
+  const [unbalanceReason, setUnbalanceReason] = useState("")
+  const [qcPhoto, setQcPhoto] = useState<string | null>(null)
 
   const activeProduct = products.find(p => p.id === selectedProductId)
   const activePurchaseItem = pendingQCItems.find(i => i.productId === selectedProductId)
@@ -50,41 +53,64 @@ export default function QCPage() {
   const handleProcessQC = () => {
     if (!activeProduct || !activePurchaseItem) return
     const totalIncoming = activePurchaseItem.qtyPurchased
+    const totalProcessed = qtyPassToInventory + qtyPassToClient + qtyReject
 
-    if (qtyPass + qtyReject !== totalIncoming) {
-      toast.error(`Total QC harus match dengan jumlah datang (${totalIncoming})`)
+    if (totalProcessed !== totalIncoming && !unbalanceReason) {
+      toast.error(`Jumlah tidak balance! Harap masukkan alasan ketidakteraturan.`)
       return
     }
 
-    if (qtyPass > 0) {
-      updateProduct(activeProduct.id, { currentStock: activeProduct.currentStock + qtyPass })
-      toast.success(`${qtyPass} unit masuk stok.`)
+    const currentUser = useAppStore.getState().currentUser
+
+    // 1. Process Passed items to Inventory
+    if (qtyPassToInventory > 0) {
+      updateProduct(activeProduct.id, { currentStock: (activeProduct.currentStock || 0) + qtyPassToInventory })
+      toast.success(`${qtyPassToInventory} unit masuk stok inventory.`)
     }
 
+    // 2. Process Passed items to Client (Update SO)
+    if (qtyPassToClient > 0 && activePurchaseItem.salesOrderId) {
+      const soItems = useAppStore.getState().salesOrderItems.filter(i => i.salesOrderId === activePurchaseItem.salesOrderId)
+      const matchingSOItem = soItems.find(i => i.productId === activePurchaseItem.productId)
+      if (matchingSOItem) {
+        useAppStore.getState().updateSalesOrderItem(matchingSOItem.id, { 
+          qtyFinal: qtyPassToClient, 
+          subtotalFinal: qtyPassToClient * (matchingSOItem.unitPrice || 0)
+        })
+        toast.info(`${qtyPassToClient} unit dialokasikan ke klien.`)
+      }
+    }
+
+    // 3. Process Reject
     if (qtyReject > 0) {
-      recordShrinkage(uuidv4(), qtyReject * activeProduct.basePrice, `Reject QC - ${activeProduct.name}: ${rejectReason}`)
-      toast.error(`${qtyReject} unit dibuang (Shrinkage).`)
+      const rejectId = uuidv4()
+      recordShrinkage(rejectId, qtyReject * (activeProduct.basePrice || 0), `Reject QC - ${activeProduct.name}: ${rejectReason || 'Tanpa alasan'}`)
+      
+      // Log to Rejection Monitor
+      useAppStore.getState().addRejectedItem({
+        id: rejectId,
+        date: new Date().toISOString(),
+        productId: activeProduct.id,
+        qty: qtyReject,
+        reason: rejectReason || 'Tanpa alasan',
+        source: 'QC',
+        referenceId: activePurchaseItem.id,
+        reportedBy: currentUser?.id || 'system',
+        imageUrl: qcPhoto || undefined
+      })
+      toast.error(`${qtyReject} unit reject dicatat di monitor.`)
     }
 
     updatePurchaseItem(activePurchaseItem.id, { isQCed: true })
     
-    // Auto-update PO status logic...
-    const store = useAppStore.getState()
-    if (activePurchaseItem.salesOrderId) {
-      const soItems = store.salesOrderItems.filter(i => i.salesOrderId === activePurchaseItem.salesOrderId)
-      const matchingSOItem = soItems.find(i => i.productId === activePurchaseItem.productId)
-      if (matchingSOItem) {
-         store.updateSalesOrderItem(matchingSOItem.id, { 
-           qtyFinal: qtyPass, 
-           subtotalFinal: qtyPass * matchingSOItem.unitPrice 
-         })
-      }
-    }
-
+    // Cleanup
     setSelectedProductId("")
-    setQtyPass(0)
+    setQtyPassToInventory(0)
+    setQtyPassToClient(0)
     setQtyReject(0)
     setRejectReason("")
+    setUnbalanceReason("")
+    setQcPhoto(null)
   }
 
   // --- TAB 2: CUSTOMER RETURN QC LOGIC ---
@@ -97,6 +123,7 @@ export default function QCPage() {
 
   const handleProcessReturnQC = () => {
     if (!activeReturn || !activeReturnProduct) return
+    const currentUser = useAppStore.getState().currentUser
 
     if (retQtyPass + retQtyReject !== activeReturn.qty) {
       toast.error(`Total QC harus match dengan jumlah retur (${activeReturn.qty})`)
@@ -104,12 +131,25 @@ export default function QCPage() {
     }
 
     if (retQtyPass > 0) {
-      updateProduct(activeReturnProduct.id, { currentStock: activeReturnProduct.currentStock + retQtyPass })
+      updateProduct(activeReturnProduct.id, { currentStock: (activeReturnProduct.currentStock || 0) + retQtyPass })
       toast.success(`${retQtyPass} unit dikembalikan ke stok layak jual.`)
     }
 
     if (retQtyReject > 0) {
-      recordShrinkage(uuidv4(), retQtyReject * activeReturnProduct.basePrice, `Return Reject - ${activeReturnProduct.name}: ${retReason || activeReturn.reason}`)
+      const rejectId = uuidv4()
+      recordShrinkage(rejectId, retQtyReject * (activeReturnProduct.basePrice || 0), `Return Reject - ${activeReturnProduct.name}: ${retReason || activeReturn.reason}`)
+      
+      // Log to Rejection Monitor
+      useAppStore.getState().addRejectedItem({
+        id: rejectId,
+        date: new Date().toISOString(),
+        productId: activeReturnProduct.id,
+        qty: retQtyReject,
+        reason: retReason || activeReturn.reason,
+        source: 'Return',
+        referenceId: activeReturn.id,
+        reportedBy: currentUser?.id || 'system'
+      })
       toast.error(`${retQtyReject} unit rusak/dibuang.`)
     }
 
@@ -157,7 +197,16 @@ export default function QCPage() {
                  <select 
                    className="flex h-14 w-full rounded-2xl border-none bg-slate-50 px-4 py-2 font-bold text-slate-700 focus:ring-4 focus:ring-emerald-500/20 transition-all cursor-pointer"
                    value={selectedProductId}
-                   onChange={(e) => setSelectedProductId(e.target.value)}
+                   onChange={(e) => {
+                     const pid = e.target.value
+                     const item = pendingQCItems.find(i => i.productId === pid)
+                     setSelectedProductId(pid)
+                     if (item) {
+                       setQtyPassToClient(item.salesOrderId ? item.qtyPurchased : 0)
+                       setQtyPassToInventory(item.salesOrderId ? 0 : item.qtyPurchased)
+                       setQtyReject(0)
+                     }
+                   }}
                  >
                    <option value="">-- Pilih Barang Datang --</option>
                    {pendingQCItems.map(item => (
@@ -170,52 +219,111 @@ export default function QCPage() {
 
                {activeProduct && activePurchaseItem && (
                  <div className="pt-6 border-t border-slate-50 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <div className="grid grid-cols-2 gap-6">
-                      <div className="bg-emerald-50/50 p-6 rounded-[2rem] border border-emerald-100/50 space-y-4">
-                        <Label className="text-emerald-700 font-black uppercase text-[10px] tracking-widest flex items-center gap-2">
-                          <ShieldCheck className="w-4 h-4" /> Lolos QC (Siap Jual)
-                        </Label>
-                        <div className="flex items-center gap-3">
-                           <Input 
-                             type="number" 
-                             className="text-2xl font-black h-14 rounded-xl border-none shadow-sm"
-                             value={qtyPass || ''}
-                             onChange={(e) => setQtyPass(parseInt(e.target.value) || 0)}
-                           />
-                           <span className="font-black text-slate-400">{activeProduct.uom}</span>
+                    
+                    <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white relative overflow-hidden group">
+                       <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl -mr-20 -mt-20 group-hover:bg-emerald-500/20 transition-all" />
+                       <p className="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-400 mb-2">Total Barang Datang (Fisik)</p>
+                       <div className="flex items-baseline gap-3">
+                          <h3 className="text-6xl font-black">{activePurchaseItem.qtyPurchased}</h3>
+                          <span className="text-xl font-bold opacity-50 uppercase">{activeProduct.uom}</span>
+                       </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {activePurchaseItem.salesOrderId && (
+                        <div className="bg-indigo-50/50 p-6 rounded-[2.5rem] border border-indigo-100/50 space-y-4">
+                          <Label className="text-indigo-700 font-black uppercase text-[10px] tracking-widest flex items-center gap-2">
+                            <Tag className="w-4 h-4" /> Passed to Client
+                          </Label>
+                          <div className="flex items-center gap-3">
+                             <Input 
+                               type="number" 
+                               className="text-2xl font-black h-14 rounded-xl border-none shadow-sm"
+                               value={qtyPassToClient || ''}
+                               onChange={(e) => setQtyPassToClient(parseInt(e.target.value) || 0)}
+                             />
+                          </div>
+                          <p className="text-[8px] font-bold text-indigo-400 uppercase">Langsung untuk PO Customer</p>
                         </div>
+                      )}
+                      
+                      <div className="bg-emerald-50/50 p-6 rounded-[2.5rem] border border-emerald-100/50 space-y-4">
+                        <Label className="text-emerald-700 font-black uppercase text-[10px] tracking-widest flex items-center gap-2">
+                          <ShieldCheck className="w-4 h-4" /> Passed to Inventory
+                        </Label>
+                        <Input 
+                           type="number" 
+                           className="text-2xl font-black h-14 rounded-xl border-none shadow-sm"
+                           value={qtyPassToInventory || ''}
+                           onChange={(e) => setQtyPassToInventory(parseInt(e.target.value) || 0)}
+                         />
+                         <p className="text-[8px] font-bold text-emerald-400 uppercase">Masuk Stok Gudang (Ready)</p>
                       </div>
-                      <div className="bg-rose-50/50 p-6 rounded-[2rem] border border-rose-100/50 space-y-4">
+
+                      <div className="bg-rose-50/50 p-6 rounded-[2.5rem] border border-rose-100/50 space-y-4">
                         <Label className="text-rose-700 font-black uppercase text-[10px] tracking-widest flex items-center gap-2">
                           <ShieldAlert className="w-4 h-4" /> Reject / Rusak
                         </Label>
-                        <div className="flex items-center gap-3">
-                           <Input 
-                             type="number" 
-                             className="text-2xl font-black h-14 rounded-xl border-none shadow-sm"
-                             value={qtyReject || ''}
-                             onChange={(e) => setQtyReject(parseInt(e.target.value) || 0)}
-                           />
-                           <span className="font-black text-slate-400">{activeProduct.uom}</span>
-                        </div>
+                        <Input 
+                           type="number" 
+                           className="text-2xl font-black h-14 rounded-xl border-none shadow-sm"
+                           value={qtyReject || ''}
+                           onChange={(e) => setQtyReject(parseInt(e.target.value) || 0)}
+                         />
+                         <p className="text-[8px] font-bold text-rose-400 uppercase">Buang / Shrinkage</p>
                       </div>
                     </div>
 
-                    {qtyReject > 0 && (
-                      <div className="space-y-3">
-                         <Label className="font-black text-rose-600 text-[10px] uppercase tracking-widest ml-1">Alasan Reject</Label>
-                         <Input 
-                           placeholder="Sebutkan kondisi barang (busuk, pecah, dll)"
-                           className="h-14 rounded-2xl border-rose-100 bg-white"
-                           value={rejectReason}
-                           onChange={(e) => setRejectReason(e.target.value)}
-                         />
-                      </div>
-                    )}
+                    <div className="space-y-4">
+                       <div className="flex justify-between items-center px-4">
+                          <span className={cn(
+                            "text-xs font-black uppercase tracking-widest",
+                            qtyPassToInventory + qtyPassToClient + qtyReject === activePurchaseItem.qtyPurchased ? "text-emerald-600" : "text-rose-600 animate-pulse"
+                          )}>
+                            Status: {qtyPassToInventory + qtyPassToClient + qtyReject === activePurchaseItem.qtyPurchased ? "Balance ✓" : "Tidak Balance !"}
+                          </span>
+                          <span className="text-[10px] font-bold text-slate-400">Processed: {qtyPassToInventory + qtyPassToClient + qtyReject} / {activePurchaseItem.qtyPurchased}</span>
+                       </div>
+
+                       {(qtyPassToInventory + qtyPassToClient + qtyReject !== activePurchaseItem.qtyPurchased) && (
+                          <div className="space-y-3 p-6 bg-rose-50 rounded-[2rem] border border-rose-100 animate-in zoom-in-95">
+                             <Label className="text-rose-700 font-black uppercase text-[10px] tracking-widest">Alasan Selisih / Tidak Balance (Wajib)</Label>
+                             <Input 
+                               placeholder="Kenapa jumlah fisik beda?"
+                               className="h-14 rounded-xl border-rose-200 bg-white"
+                               value={unbalanceReason}
+                               onChange={(e) => setUnbalanceReason(e.target.value)}
+                             />
+                             <div className="flex items-center gap-3 mt-4">
+                               <div 
+                                 className="h-14 flex-1 border-2 border-dashed border-rose-200 rounded-xl flex items-center justify-center bg-white cursor-pointer hover:border-rose-400 transition-all text-slate-400"
+                                 onClick={() => {
+                                   setQcPhoto("https://images.unsplash.com/photo-1582285273767-42f01eb0a316?auto=format&fit=crop&q=80&w=400")
+                                   toast.success("Foto bukti selisih ditambahkan!")
+                                 }}
+                               >
+                                  {qcPhoto ? <img src={qcPhoto} className="w-full h-full object-cover rounded-lg" /> : <div className="flex items-center gap-2"><ShieldAlert className="w-4 h-4" /><span className="text-[10px] font-black uppercase">Foto Bukti (Opsional)</span></div>}
+                               </div>
+                               {qcPhoto && <Button variant="outline" size="icon" className="h-14 w-14 rounded-xl" onClick={() => setQcPhoto(null)}>✕</Button>}
+                             </div>
+                          </div>
+                       )}
+
+                       {qtyReject > 0 && (
+                         <div className="space-y-3 p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
+                            <Label className="text-slate-500 font-black uppercase text-[10px] tracking-widest">Keterangan Reject</Label>
+                            <Input 
+                              placeholder="Kondisi barang reject (pecah, busuk, dll)"
+                              className="h-14 rounded-xl border-slate-200 bg-white"
+                              value={rejectReason}
+                              onChange={(e) => setRejectReason(e.target.value)}
+                            />
+                         </div>
+                       )}
+                    </div>
 
                     <Button 
-                      className="w-full h-16 bg-slate-900 hover:bg-black text-white rounded-3xl font-black uppercase tracking-[0.2em] shadow-2xl active:scale-95 transition-all"
-                      disabled={qtyPass + qtyReject !== activePurchaseItem.qtyPurchased}
+                      className="w-full h-20 bg-emerald-600 hover:bg-emerald-700 text-white rounded-[2rem] font-black uppercase tracking-[0.2em] shadow-2xl active:scale-95 transition-all text-lg"
                       onClick={handleProcessQC}
                     >
                       Konfirmasi QC Sourcing

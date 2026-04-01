@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { supabase, UPLOAD_BUCKET } from "@/lib/supabase"
+import { supabaseAdmin as supabase, UPLOAD_BUCKET } from "@/lib/supabase"
 import { v4 as uuidv4 } from "uuid"
 
 export async function POST(request: NextRequest) {

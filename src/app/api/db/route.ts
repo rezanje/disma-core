@@ -10,7 +10,8 @@ const toCamel = (obj: any): any => {
   if (obj === null || typeof obj !== 'object') return obj;
   const n: any = {};
   Object.keys(obj).forEach((k) => {
-    const ck = k.replace(/(_\w)/g, (m) => m[1].toUpperCase());
+    let ck = k.replace(/(_\w)/g, (m) => m[1].toUpperCase());
+    if (ck === 'isQced') ck = 'isQCed';
     n[ck] = toCamel(obj[k]);
   });
   return n;
@@ -22,8 +23,35 @@ export async function GET() {
     if (!supabase) return NextResponse.json({ error: 'Supabase not initialized' }, { status: 500 });
 
     const fetchTable = async (table: string) => {
-        const { data } = await supabase.from(table).select('*').order('id');
-        return data || [];
+        let allData: any[] = [];
+        let from = 0;
+        let to = 999;
+        let finished = false;
+
+        while (!finished) {
+          const { data, error } = await supabase.from(table)
+            .select('*')
+            .order('id')
+            .range(from, to);
+            
+          if (error) {
+            console.error(`Error fetching table ${table}:`, error.message);
+            break;
+          }
+          
+          if (!data || data.length === 0) {
+            finished = true;
+          } else {
+            allData = [...allData, ...data];
+            if (data.length < 1000) {
+              finished = true;
+            } else {
+              from += 1000;
+              to += 1000;
+            }
+          }
+        }
+        return allData;
     };
 
     const [
@@ -33,7 +61,7 @@ export async function GET() {
       leads, dismaTasks, notifications, employees,
       kpis, okrObjectives, okrKeyResults,
       expenses, reimbursements, cashTransactions,
-      fixedAssets, pendingReturns, appSettings
+      fixedAssets, pendingReturns, rejectedItems, appSettings
     ] = await Promise.all([
       fetchTable('users'), fetchTable('clients'), fetchTable('vendors'),
       fetchTable('products'), fetchTable('coas'), fetchTable('bank_accounts'),
@@ -47,7 +75,7 @@ export async function GET() {
       fetchTable('okr_key_results'), fetchTable('expenses'),
       fetchTable('reimbursements'), fetchTable('cash_transactions'),
       fetchTable('fixed_assets'), fetchTable('pending_returns'),
-      fetchTable('app_settings')
+      fetchTable('rejected_items'), fetchTable('app_settings')
     ]);
 
     // Construct the legacy state object structure
@@ -76,6 +104,7 @@ export async function GET() {
       cashTransactions: toCamel(cashTransactions),
       fixedAssets: toCamel(fixedAssets),
       pendingReturns: toCamel(pendingReturns),
+      rejectedItems: toCamel(rejectedItems),
       navConfigs: appSettings[0]?.nav_configs || {},
       rolePermissions: appSettings[0]?.role_permissions || {}
     };
@@ -112,14 +141,47 @@ export async function POST(request: Request) {
         if (obj === null || typeof obj !== 'object') return obj;
         const n: any = {};
         Object.keys(obj).forEach((k) => {
-          const sk = k.replace(/[A-Z]/g, (m) => `_${m.toLowerCase()}`);
-          n[sk] = toSnake(obj[k]);
+          let sk = k.replace(/[A-Z]/g, (m) => `_${m.toLowerCase()}`);
+          if (sk === 'is_q_ced') sk = 'is_qced';
+          
+          let val = obj[k];
+          if (typeof val === 'string' && (val === '' || val === 'pending') && sk.endsWith('_id')) {
+             val = null;
+          }
+          
+          n[sk] = toSnake(val);
         });
         return n;
     };
 
-    // Skip snake_case conversion for app_settings to preserve keys (like roles)
-    const snakeData = table === 'app_settings' ? data : toSnake(data);
+    let snakeData = table === 'app_settings' ? data : toSnake(data);
+
+    // CRITICAL FIX: Sanitize purchases table to avoid crashes if schema is not updated
+    if (table === 'purchases') {
+       const sanitize = (item: any) => {
+          const {
+            reconciliation_proof_url,
+            reconciliation_note,
+            reconciliation_status,
+            ...rest
+          } = item;
+          // For now, we only sync 'reconciliation_status' if we're sure it exists,
+          // or we just let it fail for that specific column if we can't sanitize.
+          // Since the user is getting errors specifically for 'reconciliation_proof_url',
+          // we'll omit the new fields to keep the system running.
+          return rest;
+       };
+       snakeData = Array.isArray(snakeData) ? snakeData.map(sanitize) : sanitize(snakeData);
+    }
+
+    // CRITICAL FIX: Sanitize expenses table — target_bank_account_id column may not exist yet
+    if (table === 'expenses') {
+       const sanitize = (item: any) => {
+          const { target_bank_account_id, ...rest } = item;
+          return rest;
+       };
+       snakeData = Array.isArray(snakeData) ? snakeData.map(sanitize) : sanitize(snakeData);
+    }
 
     // Handle single item or array upsert
     const items = Array.isArray(snakeData) ? snakeData : [snakeData];

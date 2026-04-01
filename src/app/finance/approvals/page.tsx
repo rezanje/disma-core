@@ -7,16 +7,17 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { 
   ShieldCheck, Wallet, Send, 
   CheckCircle2, XCircle, Clock, 
   Banknote, Landmark, CreditCard,
   Receipt, User, FileText, Eye, Image as ImageIcon,
-  AlertTriangle, ChevronRight, RefreshCw, Database
+  AlertTriangle, ChevronRight, RefreshCw, Database, Truck, Globe
 } from "lucide-react"
 import { toast } from "sonner"
 import { v4 as uuidv4 } from "uuid"
-import { createAccountingEntry, recordBudgetTransfer, recordReimbursementPayment, recordOnlinePurchase, recordOperationalExpense, recordReconciliationSettlement } from "@/lib/accounting"
+import { createAccountingEntry, recordBudgetTransfer, recordReimbursementPayment, recordOperationalExpense, recordReconciliationSettlement, recordDeliveryAndInvoice, recordAdvanceReturn, updateProductPriceHistory } from "@/lib/accounting"
 import AuthGuard from "@/components/auth/auth-guard"
 import { 
   Dialog, 
@@ -34,48 +35,50 @@ export default function FinanceHubPage() {
   const bankAccounts = useAppStore(state => state.bankAccounts)
   const users = useAppStore(state => state.users)
   const currentUser = useAppStore(state => state.currentUser)
+  const deliveries = useAppStore(state => state.deliveries)
+  const salesOrders = useAppStore(state => state.salesOrders)
+  const salesOrderItems = useAppStore(state => state.salesOrderItems)
+  const invoices = useAppStore(state => state.invoices)
+  const clients = useAppStore(state => state.clients)
   
   const updatePurchase = useAppStore(state => state.updatePurchase)
   const updateReimbursement = useAppStore(state => state.updateReimbursement)
   const updateExpense = useAppStore(state => state.updateExpense)
+  const updateDelivery = useAppStore(state => state.updateDelivery)
+  const updateSalesOrder = useAppStore(state => state.updateSalesOrder)
   const bundleUpdateProducts = useAppStore(state => state.updateProduct)
   const addCashTransaction = useAppStore(state => state.addCashTransaction)
   const addReimbursement = useAppStore(state => state.addReimbursement)
+  const setIsSyncing = (v: boolean) => useAppStore.setState({ isSyncing: v })
 
   const [activeTab, setActiveTab] = useState("pencairan")
   const [selectedBank, setSelectedBank] = useState("bank-1")
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [selectedPurchasers, setSelectedPurchasers] = useState<Record<string, string>>({})
   const [spareAmounts, setSpareAmounts] = useState<Record<string, number>>({})
+  const [returnBankOverrides, setReturnBankOverrides] = useState<Record<string, string>>({})
 
   // --- DATA FILTERING ---
-  // 1. Pencairan PO (Needs Transfer to Sourcing)
-  // Only show purchases that have at least one MARKET (Pasar) item.
-  // Online-only purchases are handled directly in Finance Online Hub and don't need transfer.
   const needsTransfer = purchases.filter(p => {
     const items = purchaseItems.filter(pi => pi.purchaseId === p.id)
     const hasMarketItems = items.some(pi => pi.purchaseMethod === 'Pasar' || !pi.purchaseMethod)
     return p.status === 'Pending' && !p.budgetTransferDate && hasMarketItems
   })
-  
-  // 2. Audit Ops (Potong Kas)
-  const pendingExpenses = expenses.filter(e => e.status === 'Pending Audit')
-  
-  // 3. Reimbursement (Talangan Pribadi)
+  const pendingExpenses = expenses.filter(e => e.status === 'Pending Audit' && e.category !== 'Belanja Online' && e.category !== 'Sourcing (HPP)' && e.category !== 'Setoran Pengembalian')
+  const pendingReturns = expenses.filter(e => e.status === 'Pending Audit' && e.category === 'Setoran Pengembalian')
+  const awaitingOnlineAudit = expenses.filter(e => e.status === 'Pending Audit' && (e.category === 'Belanja Online' || e.category === 'Sourcing (HPP)'))
   const pendingReimbs = reimbursements.filter(r => r.status === 'Pending' || r.status === 'Approved')
-  
-  // 4. Rekonsiliasi (Verification)
-  const awaitingVerification = purchases.filter(p => p.reconciliationStatus === 'Laporan Masuk')
+  const awaitingVerification = purchases.filter(p => 
+    p.reconciliationStatus === 'Laporan Masuk' || 
+    (p.status === 'Selesai' && (!p.reconciliationStatus || p.reconciliationStatus === 'Belum Transfer'))
+  )
+  const awaitingDeliveryAudit = deliveries.filter(d => d.status === 'Awaiting Audit')
 
   // --- ACTIONS ---
-  const handleTransferBudget = (purchaseId: string) => {
+  const handleTransferBudget = async (purchaseId: string) => {
     const purchaserId = selectedPurchasers[purchaseId]
     const spareAmount = spareAmounts[purchaseId] || 0
-    
-    if (!purchaserId) {
-      toast.error("Pilih penerima dana terlebih dahulu.")
-      return
-    }
+    if (!purchaserId) return toast.error("Pilih penerima dana terlebih dahulu.")
 
     const items = purchaseItems.filter(pi => pi.purchaseId === purchaseId && pi.purchaseMethod !== 'Online')
     const itemsBudget = items.reduce((sum, item) => {
@@ -85,567 +88,636 @@ export default function FinanceHubPage() {
     }, 0)
 
     const totalTransferAmount = itemsBudget + spareAmount
-
-    if (totalTransferAmount <= 0) {
-      toast.error("Total pencairan tidak bisa Rp 0.")
-      return
-    }
+    if (totalTransferAmount <= 0) return toast.error("Total pencairan tidak bisa Rp 0.")
 
     const bank = bankAccounts.find(b => b.id === selectedBank)
-    if (!bank || bank.balance < totalTransferAmount) {
-      toast.error("Saldo rekening tidak mencukupi.")
-      return
-    }
+    if (!bank || bank.balance < totalTransferAmount) return toast.error("Saldo rekening tidak mencukupi.")
 
     const now = new Date().toISOString()
+    const user = users.find(u => u.id === purchaserId)
     
-    // New centralized accounting logic (Cash + Journal)
-    recordBudgetTransfer(purchaseId, totalTransferAmount, selectedBank, users.find(u => u.id === purchaserId)?.name || 'Sourcing')
+    toast.loading("Memproses transfer dana...", { id: "transfer-PO" })
+    const success = await recordBudgetTransfer(purchaseId, totalTransferAmount, selectedBank, user?.name || 'Sourcing')
 
-    updatePurchase(purchaseId, {
-      budgetAmount: itemsBudget,
-      operationalSpareAmount: spareAmount,
-      budgetTransferDate: now,
-      budgetTransferedBy: currentUser?.id || 'system',
-      budgetBankAccountId: selectedBank,
-      purchaserId: purchaserId,
-      reconciliationStatus: 'Dana Ditransfer',
-      status: 'Belanja' // Active shopping session
-    })
-
-    toast.success(`Total dana ${formatRupiah(totalTransferAmount)} berhasil ditransfer ke ${users.find(u => u.id === purchaserId)?.name}!`)
+    if (success) {
+      await updatePurchase(purchaseId, { 
+        status: 'Belanja', 
+        purchaserId, 
+        budgetAmount: itemsBudget, 
+        budgetTransferDate: now, 
+        budgetTransferedBy: currentUser?.id || 'system', 
+        budgetBankAccountId: selectedBank,
+        operationalSpareAmount: spareAmount
+      })
+      toast.success(`Dana ${formatRupiah(totalTransferAmount)} berhasil ditransfer ke Sourcer. Sesi belanja aktif!`, { id: "transfer-PO" })
+    } else {
+      toast.error("Gagal memproses transfer. Cek koneksi & database.", { id: "transfer-PO" })
+    }
   }
 
-  const handleVerifyReconciliation = (purchaseId: string) => {
+  const handleAuditExpense = async (expenseId: string, status: 'Approved' | 'Rejected') => {
+    const exp = expenses.find(e => e.id === expenseId)
+    if (!exp) return
+
+    if (status === 'Approved') {
+       const reporter = users.find(u => u.id === exp.reporterId)
+       const isSourcingExp = reporter?.role === 'sourcing'
+       const bank = bankAccounts.find(b => b.id === selectedBank)
+
+       toast.loading("Mencatat transaksi keuangan...", { id: "audit-exp" })
+
+       if (exp.category === 'Setoran Pengembalian') {
+          // Sourcing setor sisa kas → masuk ke bank perusahaan + jurnal credit 1-1500
+          const effectiveBank = returnBankOverrides[expenseId] ?? exp.targetBankAccountId ?? selectedBank
+          const success = await recordAdvanceReturn(exp.amount, exp.reporterId, effectiveBank)
+          if (!success) {
+             toast.error("Gagal mencatat pengembalian dana.", { id: "audit-exp" })
+             return
+          }
+       } else if (isSourcingExp) {
+          // Ops expense sourcing (bensin, tol, dll) — jurnal + CashTransaction Out dari Kas Sourcing
+          let expenseAccountCode = '6-9000'
+          if (exp.category === 'Bensin' || exp.category === 'Tol' || exp.category === 'Parkir') expenseAccountCode = '6-1400'
+          if (exp.category === 'Belanja Online' || exp.category === 'Sourcing (HPP)') expenseAccountCode = '5-1000'
+          await createAccountingEntry(
+            `Beban Sourcing: ${exp.description}`,
+            'Expense',
+            expenseId,
+            [{ accountCode: expenseAccountCode, amount: exp.amount }],
+            [{ accountCode: '1-1500', amount: exp.amount }],
+            exp.date
+          )
+          // Catat Out dari Kas Sourcing — uang sudah dipakai untuk ops
+          const { addCashTransaction } = useAppStore.getState()
+          await addCashTransaction({
+            id: `exp-${expenseId}`,
+            date: exp.date || new Date().toISOString(),
+            amount: exp.amount,
+            type: 'Out',
+            category: exp.category || 'Operasional',
+            description: exp.description || 'Biaya Ops',
+            bankAccountId: 'bank-advance-sourcing',
+            referenceId: expenseId
+          })
+       } else {
+          // Non-sourcing expense → catat penuh ke buku kas perusahaan
+          const success = await recordOperationalExpense(expenseId, exp.amount, exp.description || '', exp.date, exp.category || 'Operasional', bank?.accountCode || '1-1200', selectedBank)
+          if (!success) {
+             toast.error("Gagal mencatat transaksi pengeluaran.", { id: "audit-exp" })
+             return
+          }
+       }
+       toast.success("Audit disetujui & transaksi tercatat.", { id: "audit-exp" })
+    }
+
+    await updateExpense(expenseId, { status })
+    if (status === 'Rejected') toast.success("Audit ditolak.")
+  }
+
+  const handleVerifyReconciliation = async (purchaseId: string) => {
     const purchase = purchases.find(p => p.id === purchaseId)
     if (!purchase) return
 
-    const budgetAmount = (purchase.budgetAmount || 0) + (purchase.operationalSpareAmount || 0)
-    const actualShopSpent = purchase.actualSpent || 0
-    
-    // --- FIX: AGGREGATE OPERATIONAL EXPENSES ---
-    // Look for all APPROVED operational expenses by this purchaser during this trip
-    const tripOps = expenses.filter(e => 
-      e.reporterId === purchase.purchaserId && 
-      e.status === 'Approved' && 
-      e.category !== 'Belanja Online' &&
-      purchase.budgetTransferDate && e.date >= purchase.budgetTransferDate
-    ).reduce((sum, e) => sum + e.amount, 0)
-    
-    // 1. Audit logic: Calculate over/under with Ops included!
-    const totalSpent = actualShopSpent + tripOps
-    const diff = totalSpent - budgetAmount
-    const bankId = purchase.budgetBankAccountId || 'bank-1'
+    const advanceAmount = (purchase.budgetAmount || 0) + (purchase.operationalSpareAmount || 0)
+    const syncTable = useAppStore.getState().syncTable
 
-    // 2. Perform Master Accounting Settlement
-    recordReconciliationSettlement(
-      purchaseId,
-      actualShopSpent,
-      tripOps, // Pass actual ops found
-      budgetAmount,
-      bankId
+    toast.loading("Menutup sesi belanja & sinkronisasi stok...", { id: "rekon" })
+
+    const success = await recordReconciliationSettlement(
+       purchaseId,
+       purchase.actualSpent || 0,
+       0,
+       advanceAmount,
+       purchase.budgetBankAccountId || 'bank-1'
     )
-
-    // 3. Handle Overspend (Nombok) -> Auto Reimburse
-    if (diff > 0) {
-      addReimbursement({
-        id: uuidv4(),
-        date: new Date().toISOString(),
-        userId: purchase.purchaserId || 'u2',
-        title: `Pelunasan Selisih Sourcing: REF-${purchaseId.slice(0,8)}`,
-        amount: diff,
-        description: `Kekurangan dana (nombok) saat belanja pasar & operasional. Berdasarkan audit rekonsiliasi.`,
-        status: 'Approved',
-        receiptUrl: '' 
-      })
-      toast.info(`Nombok terdeteksi (${formatRupiah(diff)}). Otomatis dibuatkan Reimbursement.`)
+    if (!success) {
+      toast.error("Gagal settle rekonsiliasi jurnal.", { id: "rekon" })
+      return
     }
 
+    // Update Zustand local state immediately (no broadcast to avoid race with init())
+    const updatedPurchase = { ...purchase, reconciliationStatus: 'Terverifikasi' as const }
+    useAppStore.setState(state => ({
+      purchases: state.purchases.map(p => p.id === purchaseId ? updatedPurchase : p)
+    }))
+    // Sync to DB silently (no broadcast)
+    await syncTable('purchases', updatedPurchase, true)
 
-    updatePurchase(purchaseId, { reconciliationStatus: 'Terverifikasi', status: 'Selesai' })
-
-    // 4. Auto-Increment Physical Stock for checked items
-    const pItems = purchaseItems.filter(pi => pi.purchaseId === purchaseId && pi.isChecked)
-    pItems.forEach(item => {
-      const product = products.find(p => p.id === item.productId)
-      if (product) {
-        bundleUpdateProducts(product.id, { 
-          currentStock: (product.currentStock || 0) + (item.qtyPurchased || 0) 
-        })
+    // Update product stock using fresh state
+    const pItems = useAppStore.getState().purchaseItems.filter(pi => pi.purchaseId === purchaseId && pi.isChecked)
+    for (const item of pItems) {
+      const latestProduct = useAppStore.getState().products.find(p => p.id === item.productId)
+      if (latestProduct) {
+        const updatedProduct = { ...latestProduct, currentStock: (latestProduct.currentStock || 0) + (item.qtyPurchased || 0) }
+        useAppStore.setState(state => ({
+          products: state.products.map(p => p.id === latestProduct.id ? updatedProduct : p)
+        }))
+        await syncTable('products', updatedProduct, true)
       }
+    }
+
+    // Update harga rekomendasi produk setelah finance approve (bukan saat sourcing submit)
+    for (const item of pItems) {
+      if (item.actualUnitPrice > 0 && item.productId) {
+        updateProductPriceHistory(item.productId, item.actualUnitPrice, 'Pasar (Verified)')
+      }
+    }
+
+    toast.success("Rekonsiliasi terverifikasi! Advance disettle & stok barang ditambahkan.", { id: "rekon" })
+  }
+
+  const handleVerifyDelivery = async (deliveryId: string) => {
+    const delivery = deliveries.find(d => d.id === deliveryId)
+    const soId = delivery?.salesOrderId
+    const invoiceId = delivery?.invoiceId
+    if (!delivery || !soId || !invoiceId) return
+
+    const soItems = salesOrderItems.filter(i => i.salesOrderId === soId)
+    const totalRevenue = soItems.reduce((sum, item) => sum + ((item.qtyFinal ?? item.qty) * item.unitPrice), 0)
+
+    let totalCogs = 0
+    const stockDeductionItems: { productId: string, qty: number }[] = []
+    
+    soItems.forEach(item => {
+      const finalQty = item.qtyFinal ?? item.qty
+      const pItem = purchaseItems.filter(pi => pi.productId === item.productId && pi.actualUnitPrice > 0).pop()
+      const unitCogs = pItem ? pItem.actualUnitPrice : (products.find(p => p.id === item.productId)?.basePrice || 0)
+      totalCogs += (unitCogs * finalQty)
+      stockDeductionItems.push({ productId: item.productId, qty: finalQty })
     })
 
-    toast.success("Rekonsiliasi terverifikasi! Advance disettle, kembalian dicatat, dan stok barang ditambahkan.")
+    toast.loading("Finalisasi pengiriman & invoice...", { id: "delivery" })
+    const success = await recordDeliveryAndInvoice(deliveryId, invoiceId, totalRevenue, totalCogs, stockDeductionItems)
+    if (success) {
+      await updateDelivery(deliveryId, { status: 'Terkirim' })
+      await updateSalesOrder(soId, { status: 'Terkirim' })
+      toast.success("Audit pengiriman selesai! Omzet & HPP tercatat, stok inventory telah dikurangi.", { id: "delivery" })
+    } else {
+      toast.error("Gagal mencatat transaksi ke jurnal.", { id: "delivery" })
+    }
   }
 
   const handlePayReimbursement = async (reimbId: string) => {
     const reimb = reimbursements.find(r => r.id === reimbId)
     if (!reimb) return
-
-    const now = new Date().toISOString()
     const user = users.find(u => u.id === reimb.userId)
     
-    // New centralized accounting logic (Cash + Journal)
-    recordReimbursementPayment(reimbId, reimb.amount, reimb.title, selectedBank, user?.name || 'User')
-
-    updateReimbursement(reimbId, { 
-      status: 'Paid', 
-      paymentDate: now
-    })
-
-    toast.success(`Pembayaran reimburse ${formatRupiah(reimb.amount)} berhasil!`)
+    toast.loading("Memproses pembayaran talangan...", { id: "reimb" })
+    const success = await recordReimbursementPayment(reimb.id, reimb.amount, reimb.title || 'Reimburse', selectedBank, user?.name || 'Karyawan')
+    if (success) {
+      await updateReimbursement(reimbId, { status: 'Paid' })
+      toast.success("Pembayaran reimbursement berhasil dicatat.", { id: "reimb" })
+    } else {
+      toast.error("Gagal mencatat transaksi reimbursement.", { id: "reimb" })
+    }
   }
 
   const handleUpdateProductPrice = (productId: string, newPrice: number) => {
     bundleUpdateProducts(productId, { basePrice: newPrice })
-    toast.success("Harga Dasar Produk di Katalog berhasil diperbarui!", {
-      description: `Kini menggunakan harga terbaru: ${formatRupiah(newPrice)}`,
-    })
-  }
-
-  const handleAuditExpense = (expenseId: string, status: 'Approved' | 'Rejected') => {
-    const expense = expenses.find(e => e.id === expenseId)
-    if (!expense) return
-
-    updateExpense(expenseId, { status, auditDate: new Date().toISOString() })
-    
-    if (status === 'Approved') {
-      let success = false
-      if (expense.category === 'Belanja Online' && expense.referenceId) {
-        const pItem = purchaseItems.find(i => i.id === expense.referenceId)
-        const pName = pItem ? (products.find(p => p.id === pItem.productId)?.name || expense.description) : expense.description
-        success = recordOnlinePurchase(
-          expense.referenceId, 
-          expense.amount + (expense.adminFee || 0) + (expense.shippingFee || 0), // Total inclusive of fees
-          pName,
-          expense.adminFee || 0,
-          expense.shippingFee || 0
-        )
-
-      } else {
-        const reporter = users.find(u => u.id === expense.reporterId)
-        const isSourcing = reporter?.role === 'sourcing'
-        const targetBankId = isSourcing ? 'bank-advance-sourcing' : 'bank-4'
-
-        success = recordOperationalExpense(
-          expense.id,
-          expense.amount,
-          `${expense.category}: ${expense.description}`,
-          expense.date,
-          expense.category,
-          '1-1000', // Default credit COA
-          targetBankId
-        )
-      }
-
-      if (success) {
-        toast.success(`Transaksi ${expense.category} Disetujui & Masuk Laporan Keuangan!`)
-      } else {
-        toast.error("Gagal mencatat transaksi ke jurnal.")
-      }
-    } else {
-      // If REJECTED
-      if (expense.category === 'Belanja Online' && expense.referenceId) {
-        // Rollback purchaseItem status so it can be ordered again (with fix)
-        useAppStore.getState().updatePurchaseItem(expense.referenceId, {
-           isOnlineOrdered: false,
-           actualUnitPrice: 0,
-           qtyPurchased: 0
-        })
-        toast.warning("Pembelian Online ditolak. Item dikembalikan ke antrean belanja.")
-      } else {
-        toast.info(`Status audit diperbarui: ${status}`)
-      }
-    }
+    toast.success("Harga dasar katalog berhasil diperbarui!")
   }
 
   return (
-    <AuthGuard allowedRoles={['finance', 'ceo', 'super_admin', 'cmo']}>
-      <div className="space-y-8 pb-24">
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-          <div>
-            <h2 className="text-4xl font-black text-slate-800 tracking-tighter uppercase">FINANCE <span className="text-emerald-600">HUB</span></h2>
-            <p className="text-slate-500 font-bold uppercase text-[10px] tracking-widest mt-2 flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-emerald-500" /> Pusat Kontrol & Otorisasi Transaksi DISMA
-            </p>
-          </div>
-          
-          <div className="bg-white/50 backdrop-blur-md p-2 rounded-2xl border flex items-center gap-3 shadow-sm">
-             <Landmark className="w-5 h-5 text-slate-400 ml-2" />
-             <div className="flex flex-col">
-                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Sumber Dana Utama</span>
-                <select 
-                  value={selectedBank} 
-                  onChange={(e) => setSelectedBank(e.target.value)}
-                  className="bg-transparent font-black text-xs text-slate-800 border-none focus:ring-0 p-0 cursor-pointer"
-                >
-                  {bankAccounts.map(b => (
-                    <option key={b.id} value={b.id}>
-                      {b.name} ({formatRupiah(b.balance)})
-                    </option>
-                  ))}
-                </select>
-             </div>
-          </div>
-        </div>
+    <AuthGuard allowedRoles={['finance', 'super_admin', 'ceo']}>
+      <div className="p-4 md:p-8 max-w-[1600px] mx-auto space-y-8 pb-32">
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-white dark:bg-slate-900 -mx-4 md:mx-0 p-6 md:p-10 md:rounded-[3rem] shadow-xl border-b md:border border-slate-100">
+           <div className="flex items-center gap-6">
+              <div className="w-16 h-16 bg-slate-950 text-white rounded-[2rem] flex items-center justify-center shadow-2xl">
+                 <ShieldCheck className="w-8 h-8" />
+              </div>
+              <div>
+                 <h1 className="text-3xl font-black text-slate-900 tracking-tighter uppercase leading-none">Finance Control Hub</h1>
+                 <p className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.3em] mt-3 bg-emerald-50 w-fit px-3 py-1 rounded-full">Secure Operational Audit</p>
+              </div>
+           </div>
+           
+           <div className="grid grid-cols-2 gap-4 w-full md:w-auto">
+              {bankAccounts.map(bank => (
+                 <button 
+                   key={bank.id}
+                   onClick={() => setSelectedBank(bank.id)}
+                   className={cn(
+                     "p-4 rounded-3xl text-left border-2 transition-all",
+                     selectedBank === bank.id ? "bg-slate-950 border-slate-950 text-white shadow-2xl scale-105" : "bg-slate-50 border-transparent text-slate-400 hover:bg-white hover:border-slate-100"
+                   )}
+                 >
+                    <p className="text-[9px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
+                       {selectedBank === bank.id ? <Landmark className="w-3 h-3" /> : <Clock className="w-3 h-3" />} {bank.name}
+                    </p>
+                    <p className="text-xl font-black mt-1 leading-none">{formatRupiah(bank.balance)}</p>
+                 </button>
+              ))}
+           </div>
+        </header>
 
-        <Tabs defaultValue="pencairan" className="w-full" onValueChange={setActiveTab}>
-          <TabsList className="bg-slate-100/50 p-1.5 rounded-[2rem] h-16 w-full max-w-4xl mb-8 border backdrop-blur-sm shadow-inner grid grid-cols-4">
+        <Tabs defaultValue="pencairan" onValueChange={setActiveTab} className="w-full">
+          <TabsList className="bg-slate-100/80 p-2 h-16 rounded-[2rem] -mx-2 md:mx-0 mb-10 overflow-x-auto overflow-y-hidden justify-start md:justify-center border border-white scrollbar-hide">
             <TabsTrigger value="pencairan" className="rounded-[1.5rem] font-black uppercase text-[9px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-xl transition-all gap-2">
-              <Wallet className="w-4 h-4" /> Pencairan PO ({needsTransfer.length})
+              <Wallet className="w-4 h-4 text-emerald-500" /> Pencairan PO ({needsTransfer.length})
             </TabsTrigger>
             <TabsTrigger value="audit" className="rounded-[1.5rem] font-black uppercase text-[9px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-xl transition-all gap-2">
-              <FileText className="w-4 h-4" /> Audit Ops ({pendingExpenses.length})
+              <FileText className="w-4 h-4 text-slate-500" /> Audit Ops ({pendingExpenses.length})
             </TabsTrigger>
             <TabsTrigger value="reimburse" className="rounded-[1.5rem] font-black uppercase text-[9px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-xl transition-all gap-2">
-              <CreditCard className="w-4 h-4" /> Reimburse ({pendingReimbs.length})
+              <Receipt className="w-4 h-4 text-indigo-500" /> Reimburse ({pendingReimbs.length})
             </TabsTrigger>
             <TabsTrigger value="rekon" className="rounded-[1.5rem] font-black uppercase text-[9px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-xl transition-all gap-2">
-              <CheckCircle2 className="w-4 h-4 text-orange-500" /> Rekon ({awaitingVerification.length})
+              <CheckCircle2 className="w-4 h-4 text-orange-500" /> Rekon ({awaitingVerification.length + awaitingOnlineAudit.length + pendingReturns.length})
+            </TabsTrigger>
+            <TabsTrigger value="delivery" className="rounded-[1.5rem] font-black uppercase text-[9px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-xl transition-all gap-2">
+              <Truck className="w-4 h-4 text-blue-500" /> Delivery ({awaitingDeliveryAudit.length})
             </TabsTrigger>
           </TabsList>
 
-          {/* TAB 1: Pencairan PO */}
           <TabsContent value="pencairan" className="space-y-6">
             {needsTransfer.length === 0 ? (
-              <EmptyState title="Antrean Pencairan Kosong" desc="Semua PO belanja sudah dicairkan dananya." />
+              <EmptyState title="Antrean Pencairan Kosong" desc="Semua sesi belanja sudah ditransfer dananya." />
             ) : (
-              needsTransfer.map(purchase => {
-                const items = purchaseItems.filter(pi => pi.purchaseId === purchase.id && pi.purchaseMethod !== 'Online')
-                const totalBudget = items.reduce((sum, item) => {
-                  const product = products.find(p => p.id === item.productId)
-                  return sum + ((item.estimatedUnitPrice || product?.basePrice || 0) * item.qtyTarget)
-                }, 0)
-                
-                return (
-                  <Card key={purchase.id} className="border-none shadow-xl rounded-[2.5rem] overflow-hidden bg-white">
-                    <div className="flex flex-col lg:flex-row">
-                       <div className="lg:w-1/3 p-8 bg-slate-50/50 border-r border-slate-100">
-                          <div className="space-y-6">
-                             <div>
-                                <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Sesi Belanja PO</h3>
-                                <p className="text-2xl font-black text-slate-800 uppercase tracking-tighter">REF-{purchase.id.slice(0,8)}</p>
-                             </div>
-
-                             <div className="space-y-4">
-                                <div>
-                                   <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2">Pilih Pemegang Dana (Sourcing)</label>
-                                   <select 
-                                      className="w-full h-12 bg-white border border-slate-200 rounded-xl px-4 font-bold text-sm"
-                                      value={selectedPurchasers[purchase.id] || ""}
+              <div className="grid gap-6">
+                {needsTransfer.map(purchase => {
+                  const items = purchaseItems.filter(pi => pi.purchaseId === purchase.id && pi.purchaseMethod !== 'Online')
+                  const totalBudget = items.reduce((sum, item) => {
+                    const product = products.find(p => p.id === item.productId)
+                    const unitPrice = item.estimatedUnitPrice || product?.basePrice || 0
+                    return sum + (unitPrice * item.qtyTarget)
+                  }, 0)
+                  return (
+                    <Card key={purchase.id} className="border-none shadow-xl rounded-[2.5rem] overflow-hidden bg-white">
+                      <div className="flex flex-col xl:flex-row items-stretch">
+                        <div className="xl:w-1/3 p-8 bg-slate-950 text-white flex flex-col justify-between">
+                           <div className="space-y-6">
+                              <Badge className="bg-emerald-500/20 text-emerald-400 border-none font-black text-[9px] px-3">NEED DISBURSEMENT</Badge>
+                              <div>
+                                 <h3 className="text-3xl font-black tracking-tighter uppercase mb-4">Ref: {purchase.id.slice(0,8)}</h3>
+                                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Estimasi Modal Dibutuhkan</p>
+                                 <p className="text-4xl font-black text-white mt-1 leading-none tracking-tighter">{formatRupiah(totalBudget + (spareAmounts[purchase.id] || 0))}</p>
+                              </div>
+                           </div>
+                           <div className="mt-12 space-y-4">
+                              <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-4">
+                                 <div>
+                                    <label className="text-[9px] font-black uppercase text-slate-400 mb-2 block">Pilih Penanggung Jawab Sourcing</label>
+                                    <select 
+                                      className="w-full h-12 bg-white/10 rounded-xl px-4 text-sm font-bold focus:bg-white focus:text-slate-900 transition-all outline-none"
+                                      value={selectedPurchasers[purchase.id] || ''}
                                       onChange={(e) => setSelectedPurchasers({...selectedPurchasers, [purchase.id]: e.target.value})}
-                                   >
-                                      <option value="">- Pilih Orang -</option>
-                                      {users.filter(u => u.role === 'sourcing').map(u => (
-                                         <option key={u.id} value={u.id}>{u.name}</option>
-                                      ))}
-                                   </select>
-                                </div>
-
-                                <div>
-                                   <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-2">Input Dana Spare Ops (Bensin/Parkir)</label>
-                                   <div className="relative">
-                                      <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-300 text-sm">Rp</span>
-                                      <input 
-                                         type="number"
-                                         className="w-full h-12 bg-white border border-slate-200 rounded-xl pl-10 pr-4 font-black text-emerald-600 text-lg"
-                                         value={spareAmounts[purchase.id] || 0}
-                                         onChange={(e) => setSpareAmounts({...spareAmounts, [purchase.id]: Number(e.target.value)})}
-                                      />
-                                   </div>
-                                </div>
-                             </div>
-
-                             <div className="pt-6 border-t border-slate-200">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Dana Ditransfer</p>
-                                <p className="text-3xl font-black text-emerald-600">{formatRupiah(totalBudget + (spareAmounts[purchase.id] || 0))}</p>
-                                <p className="text-[9px] font-bold text-slate-400 mt-1 italic leading-tight">Berisi Budget Produk ({formatRupiah(totalBudget)}) + Spare Ops ({formatRupiah(spareAmounts[purchase.id] || 0)})</p>
-                             </div>
-
-                             <Button 
-                                className="w-full h-14 bg-emerald-600 hover:bg-emerald-700 rounded-2xl shadow-xl shadow-emerald-500/20 font-black uppercase text-[10px] tracking-widest mt-4"
+                                    >
+                                       <option value="">-- Pilih Sourcing --</option>
+                                       {users.filter(u => u.role === 'sourcing').map(u => (
+                                          <option key={u.id} value={u.id} className="text-slate-900">{u.name}</option>
+                                       ))}
+                                    </select>
+                                 </div>
+                                 <div>
+                                    <label className="text-[9px] font-black uppercase text-slate-400 mb-2 block">Tambahkan Uang Saku / Spare (Bensin dsb)</label>
+                                    <input 
+                                      type="number" 
+                                      className="w-full h-12 bg-white/10 rounded-xl px-4 text-sm font-bold focus:bg-white focus:text-slate-900 transition-all outline-none"
+                                      placeholder="Rp 0"
+                                      onChange={(e) => setSpareAmounts({...spareAmounts, [purchase.id]: parseFloat(e.target.value) || 0})}
+                                    />
+                                 </div>
+                              </div>
+                              <Button 
+                                className="w-full h-16 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black uppercase"
                                 onClick={() => handleTransferBudget(purchase.id)}
-                             >
-                                <Send className="w-4 h-4 mr-2" /> Proses Transfer Dana
-                             </Button>
-                          </div>
-                       </div>
-                       <div className="lg:w-2/3 p-8">
-                           <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Breakdown Target Belanja</h4>
-                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              >
+                                <Send className="w-5 h-5 mr-3" /> Cairkan Advance Belanja
+                              </Button>
+                           </div>
+                        </div>
+                        <div className="xl:w-2/3 p-8 border-l border-slate-50">
+                           <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Daftar Barang Belanja ({items.length} item)</h4>
+                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               {items.map(item => {
                                  const product = products.find(p => p.id === item.productId)
                                  return (
-                                   <div key={item.id} className="flex justify-between items-center p-4 rounded-3xl bg-slate-50 border border-slate-100/10">
-                                      <div className="flex items-center gap-4">
-                                         <div className="w-10 h-10 rounded-2xl bg-white flex items-center justify-center shadow-inner">
-                                            <Landmark className="w-4 h-4 text-emerald-300" />
-                                         </div>
-                                         <div>
-                                            <p className="font-black text-slate-800 text-xs uppercase leading-none">{product?.name}</p>
-                                            <p className="text-[9px] font-bold text-slate-400 mt-1">{item.qtyTarget} {product?.uom}</p>
-                                         </div>
-                                      </div>
-                                      <div className="text-right">
-                                         <p className="font-black text-slate-600 text-sm">{formatRupiah((item.estimatedUnitPrice || product?.basePrice || 0) * item.qtyTarget)}</p>
-                                      </div>
-                                   </div>
+                                    <div key={item.id} className="flex items-center gap-4 p-4 rounded-3xl bg-slate-50 border border-slate-100 hover:bg-white transition-all">
+                                       <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center font-black text-slate-300">📦</div>
+                                       <div>
+                                          <p className="text-xs font-black text-slate-800 uppercase leading-none mb-1">{product?.name}</p>
+                                          <p className="text-[10px] font-bold text-slate-400 uppercase">{item.qtyTarget} {product?.uom} @ {formatRupiah(item.estimatedUnitPrice)}</p>
+                                       </div>
+                                    </div>
                                  )
                               })}
                            </div>
-                       </div>
-                    </div>
-                  </Card>
-                )
-              })
+                        </div>
+                      </div>
+                    </Card>
+                  )
+                })}
+              </div>
             )}
           </TabsContent>
 
-          {/* TAB 2: Audit Ops (Potong Kas) */}
-          <TabsContent value="audit" className="space-y-6">
-             {pendingExpenses.length === 0 ? (
-               <EmptyState title="Audit Operasional Clear" desc="Semua laporan potong kas sudah tervalidasi." />
-             ) : (
-               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <TabsContent value="audit" className="space-y-6 text-center">
+            {pendingExpenses.length === 0 ? (
+              <EmptyState title="Audit Operasional Clear" desc="Semua pengajuan penda sudah diaudit." />
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-left">
                   {pendingExpenses.map(exp => {
-                     const reporter = users.find(u => u.id === exp.reporterId)
-                     return (
-                       <Card key={exp.id} className="border-none shadow-xl rounded-[2.5rem] bg-white group hover:shadow-emerald-500/5 transition-all">
-                          <CardHeader className="p-6 pb-2">
-                             <div className="flex justify-between items-start">
-                                <Badge className="bg-emerald-50 text-emerald-600 border-none font-black text-[9px] uppercase px-3 py-1">Potong Kas</Badge>
-                                <p className="text-[9px] font-bold text-slate-400 uppercase">{new Date(exp.date).toLocaleDateString()} • {reporter?.name}</p>
-                             </div>
-                             <CardTitle className="text-base font-black uppercase text-slate-800 mt-3">{exp.category}</CardTitle>
-                          </CardHeader>
-                          <CardContent className="p-6 pt-0 space-y-4">
-                             <div className="relative group/img overflow-hidden rounded-2xl aspect-[4/3] bg-slate-100 border border-slate-100">
-                                {exp.receiptUrl ? (
-                                   <img src={exp.receiptUrl} className="w-full h-full object-cover group-hover/img:scale-105 transition-transform" />
-                                ) : (
-                                   <div className="flex items-center justify-center h-full text-slate-300">No Photo</div>
-                                )}
-                                <Button 
-                                   variant="secondary" 
-                                   size="sm" 
-                                   className="absolute bottom-2 right-2 rounded-xl h-8 text-[9px] font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all bg-white/90 backdrop-blur-sm shadow-xl"
-                                   onClick={() => setPreviewImage(exp.receiptUrl!)}
-                                >
-                                   <Eye className="w-3 h-3 mr-1.5" /> Lihat Bukti
-                                </Button>
-                             </div>
-                             <div className="bg-slate-50 p-4 rounded-2xl">
-                                <p className="text-xs font-bold text-slate-600 italic">"{exp.description}"</p>
-                                <p className="text-2xl font-black text-slate-900 mt-2 tracking-tighter">{formatRupiah(exp.amount)}</p>
-                             </div>
-                             <div className="flex gap-2">
-                                <Button 
-                                  variant="outline" 
-                                  className="flex-1 rounded-2xl h-12 border-rose-100 text-rose-500 font-bold text-xs"
-                                  onClick={() => handleAuditExpense(exp.id, 'Rejected')}
-                                >
-                                  Tolak
-                                </Button>
-                                <Button 
-                                  className="flex-[2] rounded-2xl h-12 bg-slate-950 text-white font-black uppercase text-[10px] tracking-widest"
-                                  onClick={() => handleAuditExpense(exp.id, 'Approved')}
-                                >
-                                  Approve Audit
-                                </Button>
-                             </div>
-                          </CardContent>
-                       </Card>
-                     )
+                    const reporter = users.find(u => u.id === exp.reporterId)
+                    return (
+                        <Card key={exp.id} className="border-none shadow-xl rounded-[2.5rem] bg-white group hover:shadow-slate-500/5 transition-all">
+                           <CardHeader className="p-6 pb-2">
+                              <div className="flex justify-between items-start">
+                                 <Badge className="bg-slate-100 text-slate-600 border-none font-black text-[9px] uppercase px-3 py-1">Operational Audit</Badge>
+                                 <p className="text-[9px] font-bold text-slate-400 uppercase">{new Date(exp.date).toLocaleDateString()}</p>
+                              </div>
+                              <CardTitle className="text-lg font-black uppercase text-slate-900 mt-4 leading-tight">{exp.category}</CardTitle>
+                              <CardDescription className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1 flex items-center gap-2">
+                                 <User className="w-3 h-3" /> {reporter?.name || 'Admin / System'}
+                              </CardDescription>
+                           </CardHeader>
+                           <CardContent className="p-6 pt-2 space-y-6">
+                              <div className="bg-slate-50/50 p-4 rounded-3xl border border-slate-100">
+                                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Keterangan Biaya</p>
+                                 <p className="text-xs font-bold text-slate-700 mt-1 italic whitespace-pre-wrap leading-relaxed opacity-70">"{exp.description}"</p>
+                                 <div className="mt-4 pt-4 border-t border-slate-100 flex justify-between items-baseline">
+                                    <span className="text-[9px] font-black text-slate-400 uppercase">Nilai Transaksi</span>
+                                    <span className="text-2xl font-black text-slate-900 tracking-tighter">{formatRupiah(exp.amount)}</span>
+                                 </div>
+                              </div>
+                              <div className="flex gap-2 h-12">
+                                 <Button 
+                                   variant="outline" 
+                                   className="flex-1 rounded-2xl border-rose-100 text-rose-500 font-black uppercase text-[10px] tracking-widest"
+                                   onClick={() => handleAuditExpense(exp.id, 'Rejected')}
+                                 >
+                                   Tolak
+                                 </Button>
+                                 <Button 
+                                   className="flex-[2] rounded-2xl bg-slate-950 text-white font-black uppercase text-[10px] tracking-widest"
+                                   onClick={() => handleAuditExpense(exp.id, 'Approved')}
+                                 >
+                                   Approve Audit
+                                 </Button>
+                              </div>
+                           </CardContent>
+                        </Card>
+                    )
                   })}
-               </div>
-             )}
+                </div>
+            )}
           </TabsContent>
 
-          {/* TAB 3: Reimbursement (Talangan Pribadi) */}
           <TabsContent value="reimburse" className="space-y-6">
             {pendingReimbs.length === 0 ? (
               <EmptyState title="Antrean Reimburse Kosong" desc="Semua talangan pribadi sudah diselesaikan." />
             ) : (
-              pendingReimbs.map(reimb => {
-                const user = users.find(u => u.id === reimb.userId)
-                return (
-                  <Card key={reimb.id} className="border-none shadow-xl rounded-[2.5rem] overflow-hidden bg-white">
-                    <CardContent className="p-8 flex flex-col md:flex-row items-center justify-between gap-6">
-                      <div className="flex items-center gap-6">
-                        <div className="w-16 h-16 rounded-[2rem] bg-indigo-50 flex items-center justify-center shadow-inner">
-                           <CreditCard className="w-8 h-8 text-indigo-600" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <h3 className="text-xl font-black text-slate-800 uppercase leading-none tracking-tight">{reimb.title}</h3>
-                            <Badge variant="outline" className={cn(
-                               "text-[9px] font-black uppercase border-indigo-200 px-3",
-                               reimb.status === 'Approved' ? 'bg-indigo-600 text-white' : 'text-indigo-500'
-                            )}>{reimb.status}</Badge>
+              <div className="grid gap-6">
+                {pendingReimbs.map(reimb => {
+                  const user = users.find(u => u.id === reimb.userId)
+                  return (
+                    <Card key={reimb.id} className="border-none shadow-xl rounded-[2.5rem] overflow-hidden bg-white">
+                      <CardContent className="p-8 flex flex-col md:flex-row items-center justify-between gap-6">
+                        <div className="flex items-center gap-6">
+                          <div className="w-16 h-16 rounded-[2rem] bg-indigo-50 flex items-center justify-center shadow-inner">
+                             <CreditCard className="w-8 h-8 text-indigo-600" />
                           </div>
-                          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                             <User className="w-3 h-3" /> {user?.name} — {new Date(reimb.date).toLocaleDateString()}
-                          </p>
-                          <p className="text-[10px] font-medium text-slate-400 mt-1 italic">"{reimb.description}"</p>
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className="text-xl font-black text-slate-800 uppercase leading-none tracking-tight">{reimb.title}</h3>
+                              <Badge variant="outline" className={cn(
+                                 "text-[9px] font-black uppercase border-indigo-200 px-3",
+                                 reimb.status === 'Approved' ? 'bg-indigo-600 text-white' : 'text-indigo-500'
+                              )}>{reimb.status}</Badge>
+                            </div>
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                               <User className="w-3 h-3" /> {user?.name} — {new Date(reimb.date).toLocaleDateString()}
+                            </p>
+                            <p className="text-[10px] font-medium text-slate-400 mt-1 italic">"{reimb.description}"</p>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-6 w-full md:w-auto">
-                         <div className="text-right">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Nilai Talangan</p>
-                            <p className="text-3xl font-black text-rose-600 tracking-tighter">{formatRupiah(reimb.amount)}</p>
-                         </div>
-                         <Button 
-                            variant="outline" 
-                            size="icon" 
-                            className="h-14 w-14 rounded-[1.5rem] border-slate-100 bg-slate-50 hover:bg-white transition-all shadow-sm"
-                            onClick={() => setPreviewImage(reimb.receiptUrl!)}
-                         >
-                            <ImageIcon className="w-5 h-5 text-slate-400" />
-                         </Button>
-                         <div className="flex gap-2">
-                            {reimb.status === 'Pending' ? (
-                               <>
-                                  <Button 
-                                    size="icon" 
-                                    variant="outline" 
-                                    className="h-14 w-14 rounded-2xl border-rose-100 text-rose-400 hover:text-rose-600"
-                                    onClick={() => updateReimbursement(reimb.id, { status: 'Rejected' })}
-                                  >
-                                    <XCircle className="w-6 h-6" />
-                                  </Button>
-                                  <Button 
-                                    className="h-14 px-8 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-[10px] tracking-widest"
-                                    onClick={() => updateReimbursement(reimb.id, { status: 'Approved' })}
-                                  >
-                                    Setujui
-                                  </Button>
-                               </>
-                            ) : (
-                               <Button 
-                                 className="h-14 px-8 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-black uppercase text-[10px] tracking-widest shadow-xl shadow-orange-500/20"
-                                 onClick={() => handlePayReimbursement(reimb.id)}
-                               >
-                                 <Banknote className="w-4 h-4 mr-2" /> Cairkan Duit
-                               </Button>
-                            )}
-                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )
-              })
+                        <div className="flex items-center gap-6 w-full md:w-auto">
+                           <div className="text-right">
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Nilai Talangan</p>
+                              <p className="text-3xl font-black text-rose-600 tracking-tighter">{formatRupiah(reimb.amount)}</p>
+                           </div>
+                           <Button 
+                              variant="outline" 
+                              size="icon" 
+                              className="h-14 w-14 rounded-[1.5rem] border-slate-100 bg-slate-50 hover:bg-white transition-all shadow-sm"
+                              onClick={() => setPreviewImage(reimb.receiptUrl!)}
+                           >
+                              <ImageIcon className="w-5 h-5 text-slate-400" />
+                           </Button>
+                           <div className="flex gap-2">
+                              {reimb.status === 'Pending' ? (
+                                 <>
+                                    <Button size="icon" variant="outline" className="h-14 w-14 rounded-2xl border-rose-100 text-rose-400" onClick={() => updateReimbursement(reimb.id, { status: 'Rejected' })}><XCircle className="w-6 h-6" /></Button>
+                                    <Button className="h-14 px-8 rounded-2xl bg-indigo-600 text-white font-black uppercase text-[10px]" onClick={() => updateReimbursement(reimb.id, { status: 'Approved' })}>Setujui</Button>
+                                 </>
+                              ) : (
+                                 <Button className="h-14 px-8 rounded-2xl bg-orange-500 text-white font-black uppercase text-[10px]" onClick={() => handlePayReimbursement(reimb.id)}><Banknote className="w-4 h-4 mr-2" /> Cairkan Duit</Button>
+                              )}
+                           </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+              </div>
             )}
           </TabsContent>
 
-          {/* TAB 4: Rekonsiliasi Belanja (Laporan PO) */}
-          <TabsContent value="rekon" className="space-y-6">
-             {awaitingVerification.length === 0 ? (
-               <EmptyState title="Semua Laporan Aman" desc="Tidak ada sesi belanja yang menunggu validasi rekonsiliasi." />
+          <TabsContent value="rekon" className="space-y-8">
+             {awaitingVerification.length === 0 && awaitingOnlineAudit.length === 0 && pendingReturns.length === 0 ? (
+               <EmptyState title="Semua Laporan Aman" desc="Tidak ada sesi belanja atau online purchase yang menunggu validasi rekonsiliasi." />
              ) : (
-               <div className="grid gap-6">
-                  {awaitingVerification.map(purchase => {
-                     const diff = (purchase.actualSpent || 0) - (purchase.budgetAmount || 0)
-                     const isMatch = diff === 0
-                     const isDeficit = diff > 0
-                     
+               <div className="grid gap-8">
+                  {/* Category: Setoran Pengembalian Kas Sourcing */}
+                  {pendingReturns.length > 0 && (
+                    <div className="space-y-4">
+                       <div className="flex items-center gap-2 pl-4">
+                          <Banknote className="w-4 h-4 text-emerald-500" />
+                          <h3 className="text-xs font-black uppercase text-slate-500 tracking-widest">Konfirmasi Setoran Kembalian Sourcing</h3>
+                       </div>
+                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                          {pendingReturns.map(exp => {
+                             const reporter = users.find(u => u.id === exp.reporterId)
+                             return (
+                                <Card key={exp.id} className="border-none shadow-xl rounded-[2.5rem] bg-white group hover:scale-[1.02] transition-all">
+                                   <CardHeader className="p-6 pb-2">
+                                      <div className="flex justify-between items-start mb-4">
+                                         <Badge className="bg-emerald-50 text-emerald-700 border-none font-black text-[9px] tracking-widest">PINDAH KAS</Badge>
+                                         <span className="text-[10px] font-black text-slate-400">{new Date(exp.date).toLocaleDateString()}</span>
+                                      </div>
+                                      <CardTitle className="text-sm font-black uppercase leading-tight text-slate-800">{exp.description}</CardTitle>
+                                      <CardDescription className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">BY {reporter?.name || 'SOURCING'}</CardDescription>
+                                   </CardHeader>
+                                   <CardContent className="p-6 pt-4 space-y-4">
+                                      <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
+                                         <span className="text-[9px] font-black text-emerald-600 uppercase block mb-1">Dana Disetor</span>
+                                         <span className="text-2xl font-black text-emerald-700 leading-none">{formatRupiah(exp.amount)}</span>
+                                      </div>
+                                      <div className="space-y-1">
+                                        <div className="flex items-center justify-between">
+                                          <p className="text-[10px] text-slate-500 font-bold">Bank tujuan setoran:</p>
+                                          {exp.targetBankAccountId && !returnBankOverrides[exp.id] && (
+                                            <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">Pilihan Sourcing</span>
+                                          )}
+                                          {returnBankOverrides[exp.id] && (
+                                            <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">Dikoreksi Finance</span>
+                                          )}
+                                        </div>
+                                        <Select
+                                          value={returnBankOverrides[exp.id] ?? exp.targetBankAccountId ?? selectedBank}
+                                          onValueChange={(v) => v && setReturnBankOverrides(prev => ({ ...prev, [exp.id]: v }))}
+                                        >
+                                          <SelectTrigger className="h-10 rounded-2xl border-slate-200 font-bold text-xs">
+                                            <SelectValue placeholder="Pilih bank..." />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            {bankAccounts.filter(b => b.id !== 'bank-advance-sourcing').map(b => (
+                                              <SelectItem key={b.id} value={b.id} className="font-bold text-xs">{b.name} — {formatRupiah(b.balance)}</SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                      <div className="flex gap-2 pt-2">
+                                         <Button
+                                           variant="outline"
+                                           className="flex-1 h-12 rounded-2xl border-rose-100 text-rose-500 font-black uppercase text-[9px] hover:bg-rose-50"
+                                           onClick={() => updateExpense(exp.id, { status: 'Rejected' })}
+                                         >Tolak</Button>
+                                         <Button
+                                           className="flex-[2] h-12 rounded-2xl bg-emerald-600 text-white font-black uppercase text-[9px] shadow-lg shadow-emerald-200"
+                                           onClick={() => handleAuditExpense(exp.id, 'Approved')}
+                                         >Terima Setoran</Button>
+                                      </div>
+                                   </CardContent>
+                                </Card>
+                             )
+                          })}
+                       </div>
+                    </div>
+                  )}
+                  {/* Category: Online Purchase (HPP) */}
+                  {awaitingOnlineAudit.length > 0 && (
+                    <div className="space-y-4">
+                       <div className="flex items-center gap-2 pl-4">
+                          <Globe className="w-4 h-4 text-blue-500" />
+                          <h3 className="text-xs font-black uppercase text-slate-500 tracking-widest">Audit Belanja Online (HPP)</h3>
+                       </div>
+                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                          {awaitingOnlineAudit.map(exp => {
+                             const user = users.find(u => u.id === exp.reporterId)
+                             return (
+                                <Card key={exp.id} className="border-none shadow-xl rounded-[2.5rem] bg-white group hover:scale-[1.02] transition-all">
+                                   <CardHeader className="p-6 pb-2">
+                                      <div className="flex justify-between items-start mb-4">
+                                         <Badge className="bg-blue-50 text-blue-600 border-none font-black text-[9px] tracking-widest">HPP RECONCILIATION</Badge>
+                                         <span className="text-[10px] font-black text-slate-400">{new Date(exp.date).toLocaleDateString()}</span>
+                                      </div>
+                                      <CardTitle className="text-sm font-black uppercase leading-tight text-slate-800 line-clamp-1">{exp.description}</CardTitle>
+                                      <CardDescription className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">BY {user?.name || 'ADMIN FINANCE'}</CardDescription>
+                                   </CardHeader>
+                                   <CardContent className="p-6 pt-4 space-y-6">
+                                      <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100/50">
+                                         <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">Nilai Transaksi</span>
+                                         <span className="text-2xl font-black text-slate-900 leading-none">{formatRupiah(exp.amount)}</span>
+                                      </div>
+                                      <div className="flex gap-2 pt-2">
+                                         <Button 
+                                           variant="outline" 
+                                           className="flex-1 h-12 rounded-2xl border-rose-100 text-rose-500 font-black uppercase text-[9px] hover:bg-rose-50"
+                                           onClick={() => updateExpense(exp.id, { status: 'Rejected' })}
+                                         >Tolak</Button>
+                                         <Button 
+                                           className="flex-[2] h-12 rounded-2xl bg-slate-900 text-white font-black uppercase text-[9px] shadow-lg shadow-slate-200"
+                                           onClick={() => handleAuditExpense(exp.id, 'Approved')}
+                                         >Approve Audit</Button>
+                                      </div>
+                                   </CardContent>
+                                </Card>
+                             )
+                          })}
+                       </div>
+                    </div>
+                  )}
+
+                  {/* Category: Sourcing Reconciliation */}
+                  {awaitingVerification.length > 0 && (
+                    <div className="space-y-4">
+                       <div className="flex items-center gap-2 pl-4">
+                          <CheckCircle2 className="w-4 h-4 text-orange-500" />
+                          <h3 className="text-xs font-black uppercase text-slate-500 tracking-widest">Rekonsiliasi Laporan Sourcing (Market)</h3>
+                       </div>
+                       <div className="grid gap-6">
+                          {awaitingVerification.map(purchase => (
+                             <Card key={purchase.id} className="border-none shadow-xl rounded-[2.5rem] overflow-hidden bg-white">
+                                <div className="flex flex-col xl:flex-row">
+                                   <div className="xl:w-1/3 p-8 bg-slate-50 border-r border-slate-100">
+                                      <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tighter mb-6">Ref: {purchase.id.slice(0,8)}</h3>
+                                      <div className="space-y-4">
+                                         <div className="flex justify-between text-xs font-black uppercase"><span className="text-slate-400">Budget Given</span><span>{formatRupiah(purchase.budgetAmount || 0)}</span></div>
+                                         <div className="flex justify-between text-xs font-black uppercase"><span className="text-slate-400">Actual Spent</span><span className="text-emerald-600">{formatRupiah(purchase.actualSpent || 0)}</span></div>
+                                       <div className="flex justify-between text-xs font-black uppercase pt-4 border-t border-slate-200"><span className="text-slate-400">Returns</span><span className="text-orange-500 font-black">{formatRupiah(purchase.changeReturned || 0)}</span></div>
+                                      </div>
+        
+                                      {purchase.reconciliationProofUrl && (
+                                        <div 
+                                          className="mt-6 aspect-square w-full rounded-2xl bg-white border border-slate-200 p-2 cursor-pointer hover:border-indigo-400 transition-all overflow-hidden"
+                                          onClick={() => setPreviewImage(purchase.reconciliationProofUrl!)}
+                                        >
+                                           <img src={purchase.reconciliationProofUrl} className="w-full h-full object-cover rounded-xl" />
+                                        </div>
+                                      )}
+        
+                                      <Button className="w-full h-14 mt-8 bg-emerald-600 text-white rounded-2xl font-black uppercase text-[10px]" onClick={() => handleVerifyReconciliation(purchase.id)}><ShieldCheck className="w-4 h-4 mr-2" /> Terima Rekonsiliasi</Button>
+                                   </div>
+                                   <div className="xl:w-2/3 p-8">
+                                      <h4 className="text-[10px] font-black text-slate-400 uppercase mb-4">Itemized Expenses</h4>
+                                      <div className="grid gap-2">
+                                         {purchaseItems.filter(pi => pi.purchaseId === purchase.id && pi.isChecked).map(item => (
+                                            <div key={item.id} className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-50">
+                                               <span className="text-xs font-black text-slate-800 uppercase">{products.find(p => p.id === item.productId)?.name}</span>
+                                               <span className="text-xs font-black text-slate-900">{formatRupiah(item.actualUnitPrice * item.qtyPurchased)}</span>
+                                            </div>
+                                         ))}
+                                      </div>
+                                   </div>
+                                </div>
+                             </Card>
+                          ))}
+                       </div>
+                    </div>
+                  )}
+               </div>
+             )}
+          </TabsContent>
+
+          <TabsContent value="delivery" className="space-y-6">
+             {awaitingDeliveryAudit.length === 0 ? (
+               <EmptyState title="Audit Pengiriman Clear" desc="Semua laporan pengiriman kurir sudah tervalidasi." />
+             ) : (
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {awaitingDeliveryAudit.map(delivery => {
+                     const so = salesOrders.find(s => s.id === delivery.salesOrderId)
+                     const client = clients.find(c => c.id === so?.clientId)
+                     const courier = users.find(u => u.id === delivery.courierId)
+                     const soItems = salesOrderItems.filter(i => i.salesOrderId === so?.id)
+                     const totalRev = soItems.reduce((sum, item) => sum + ((item.qtyFinal ?? item.qty) * item.unitPrice), 0)
                      return (
-                        <Card key={purchase.id} className="border-none shadow-xl rounded-[2.5rem] overflow-hidden bg-white">
-                           <div className="flex flex-col xl:flex-row">
-                              <div className="xl:w-1/3 p-8 border-r border-slate-50 bg-slate-50/30">
-                                 <div className="space-y-6">
-                                    <div className="flex justify-between items-start">
-                                       <div>
-                                          <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">REF-{purchase.id.slice(0,8)}</h3>
-                                          <p className="text-[10px] font-black text-orange-400 uppercase tracking-widest mt-1">Laporan Belanja Masuk</p>
-                                       </div>
-                                       {isDeficit && <Badge className="bg-rose-100 text-rose-600 border-none font-black text-[9px]">OVER BUDGET</Badge>}
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-4">
-                                       <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-                                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Budget PO</p>
-                                          <p className="text-lg font-black text-slate-800">{formatRupiah(purchase.budgetAmount || 0)}</p>
-                                       </div>
-                                       <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-                                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Aktual Nota</p>
-                                          <p className="text-lg font-black text-emerald-600">{formatRupiah(purchase.actualSpent || 0)}</p>
-                                       </div>
-                                    </div>
-
-                                    {purchase.reconciliationNote && (
-                                       <div className="bg-amber-50/50 border border-amber-100 rounded-2xl p-4">
-                                          <p className="text-[9px] font-black text-amber-600 uppercase mb-1">Catatan Sourcer:</p>
-                                          <p className="text-xs font-bold text-slate-700 italic">"{purchase.reconciliationNote}"</p>
-                                       </div>
-                                    )}
-
-                                    <Button 
-                                       className="w-full h-14 bg-emerald-600 hover:bg-emerald-700 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-emerald-600/20"
-                                       onClick={() => handleVerifyReconciliation(purchase.id)}
-                                    >
-                                       <ShieldCheck className="w-4 h-4 mr-2" /> Terima Rekonsiliasi
-                                    </Button>
-                                 </div>
+                        <Card key={delivery.id} className="border-none shadow-xl rounded-[2.5rem] bg-white group overflow-hidden">
+                           <CardHeader className="p-6 pb-2">
+                              <Badge className="bg-blue-50 text-blue-600 border-none font-black text-[9px] w-fit mb-4">DELIVERY AUDIT</Badge>
+                              <CardTitle className="text-base font-black uppercase text-slate-800">{client?.companyName}</CardTitle>
+                              <CardDescription className="text-[10px] font-bold text-slate-400 uppercase">PO: {so?.poNumber} • {courier?.name}</CardDescription>
+                           </CardHeader>
+                           <CardContent className="p-6 pt-4 space-y-4">
+                              <div className="aspect-video bg-slate-100 rounded-2xl flex items-center justify-center relative overflow-hidden">
+                                 {delivery.baUrl ? <img src={delivery.baUrl} className="w-full h-full object-cover" /> : <ImageIcon className="w-8 h-8 text-slate-300" />}
+                                 {delivery.baUrl && <Button variant="secondary" size="icon" className="absolute bottom-2 right-2 rounded-xl" onClick={() => setPreviewImage(delivery.baUrl!)}><Eye className="w-4 h-4" /></Button>}
                               </div>
-                              <div className="xl:w-2/3 p-8">
-                                 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Detail Nota Tiap Item</h4>
-                                 <div className="grid gap-2">
-                                    {purchaseItems.filter(pi => pi.purchaseId === purchase.id && pi.isChecked).map(item => {
-                                       const product = products.find(p => p.id === item.productId)
-                                       return (
-                                          <div key={item.id} className="flex items-center justify-between p-4 bg-slate-50/50 rounded-2xl border border-slate-50 hover:bg-white transition-all group">
-                                             <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 rounded-xl bg-white border border-slate-100 overflow-hidden flex items-center justify-center">
-                                                   {item.receiptUrl ? (
-                                                      <button onClick={() => setPreviewImage(item.receiptUrl!)} className="w-full h-full">
-                                                         <img src={item.receiptUrl} className="w-full h-full object-cover" />
-                                                      </button>
-                                                   ) : <ImageIcon className="w-4 h-4 text-slate-200" />}
-                                                </div>
-                                                <div>
-                                                   <p className="text-[11px] font-black text-slate-800 uppercase leading-none">{product?.name}</p>
-                                                   <p className="text-[9px] font-bold text-slate-400 mt-1">{item.qtyPurchased} {product?.uom} @ {formatRupiah(item.actualUnitPrice)}</p>
-                                                </div>
-                                             </div>
-                                             <div className="flex items-center gap-4">
-                                                <div className="text-right">
-                                                   <p className="text-xs font-black text-slate-900">{formatRupiah(item.actualUnitPrice * item.qtyPurchased)}</p>
-                                                   <p className={cn("text-[8px] font-black uppercase", item.actualUnitPrice > (item.estimatedUnitPrice || 0) ? 'text-rose-500' : 'text-emerald-500')}>
-                                                      {item.actualUnitPrice > (item.estimatedUnitPrice || 0) ? `↑ ${formatRupiah(item.actualUnitPrice - (item.estimatedUnitPrice || 0))}` : '✓ OK'}
-                                                   </p>
-                                                </div>
-                                                
-                                                {/* Option to update Catalog Price */}
-                                                {item.actualUnitPrice !== product?.basePrice && (
-                                                  <Button 
-                                                     variant="outline" 
-                                                     size="sm" 
-                                                     className="h-10 px-3 md:px-4 rounded-xl border-emerald-100 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-all flex items-center gap-2 group/cat"
-                                                     onClick={() => handleUpdateProductPrice(item.productId, item.actualUnitPrice)}
-                                                     title="Jadikan Harga Dasar Katalog"
-                                                  >
-                                                     <Database className="w-3.5 h-3.5 group-hover/cat:scale-125 transition-transform" />
-                                                     <span className="hidden md:inline text-[9px] font-black uppercase tracking-widest leading-none">Sinkron Katalog</span>
-                                                  </Button>
-                                                )}
-
-                                                {item.receiptUrl && (
-                                                   <Button 
-                                                      variant="ghost" 
-                                                      size="icon" 
-                                                      className="h-10 w-10 rounded-xl bg-slate-50 text-slate-400 group-hover:text-slate-600 opacity-0 group-hover:opacity-100 transition-all border border-slate-100"
-                                                      onClick={() => setPreviewImage(item.receiptUrl!)}
-                                                   >
-                                                      <Eye className="w-4 h-4" />
-                                                   </Button>
-                                                )}
-                                             </div>
-                                          </div>
-                                       )
-                                    })}
-                                 </div>
+                              <div className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl">
+                                 <span className="text-[9px] font-black text-slate-400 uppercase">Invoice Value</span>
+                                 <span className="text-xl font-black text-slate-900">{formatRupiah(totalRev)}</span>
                               </div>
-                           </div>
+                              <Button className="w-full rounded-2xl h-12 bg-blue-600 text-white font-black uppercase text-[10px]" onClick={() => handleVerifyDelivery(delivery.id)}>Approve & Record Revenue</Button>
+                           </CardContent>
                         </Card>
                      )
                   })}
@@ -654,31 +726,12 @@ export default function FinanceHubPage() {
           </TabsContent>
         </Tabs>
 
-        {/* IMAGE PREVIEW MODAL */}
         <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
-           <DialogContent className="max-w-4xl w-[95vw] border-none rounded-[2rem] p-0 overflow-hidden bg-slate-100 shadow-2xl">
-              <DialogHeader className="p-6 absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-slate-900/40 to-transparent">
-                 <DialogTitle className="text-white font-black uppercase tracking-widest text-xs flex items-center gap-2 drop-shadow-md">
-                    <ImageIcon className="w-4 h-4 text-emerald-400" /> Preview Bukti Nota / Bon
-                 </DialogTitle>
-              </DialogHeader>
-              <div className="w-full h-[75vh] md:h-[80vh] overflow-auto flex items-start justify-center p-4 pt-20 bg-slate-900/5">
-                 {previewImage && (
-                    <img 
-                       src={previewImage} 
-                       className="w-full h-auto shadow-2xl rounded-xl object-contain min-h-full" 
-                       alt="Preview Nota Besar" 
-                    />
-                 )}
+           <DialogContent className="max-w-4xl w-[95vw] border-none rounded-[2rem] p-0 overflow-hidden bg-slate-900">
+              <div className="w-full h-[80vh] flex items-center justify-center p-4">
+                 {previewImage && <img src={previewImage} className="max-w-full max-h-full object-contain" />}
               </div>
-              <div className="p-4 bg-white flex justify-center border-t border-slate-100">
-                 <Button 
-                    className="rounded-2xl bg-slate-900 hover:bg-black text-white font-black px-12 h-12" 
-                    onClick={() => setPreviewImage(null)}
-                 >
-                    Tutup Preview
-                 </Button>
-              </div>
+              <div className="p-4 bg-white flex justify-center border-t border-slate-100"><Button className="rounded-2xl bg-slate-950 text-white font-black px-12 h-12" onClick={() => setPreviewImage(null)}>Tutup Preview</Button></div>
            </DialogContent>
         </Dialog>
       </div>
@@ -690,10 +743,8 @@ function EmptyState({ title, desc }: { title: string, desc: string }) {
   return (
     <Card className="border-none bg-slate-50/50 rounded-[3rem] py-32 shadow-inner">
        <div className="flex flex-col items-center text-center px-6">
-          <div className="w-20 h-20 bg-white rounded-[2rem] shadow-xl shadow-slate-200/50 flex items-center justify-center mb-6">
-             <CheckCircle2 className="w-10 h-10 text-emerald-500/20" />
-          </div>
-          <h3 className="text-lg font-black text-slate-800 uppercase tracking-widest leading-none mb-2">{title}</h3>
+          <div className="w-20 h-20 bg-white rounded-[2rem] shadow-xl shadow-slate-200/50 flex items-center justify-center mb-6"><CheckCircle2 className="w-10 h-10 text-emerald-500/20" /></div>
+          <h3 className="text-lg font-black text-slate-800 uppercase mb-2">{title}</h3>
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{desc}</p>
        </div>
     </Card>

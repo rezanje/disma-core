@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useAppStore } from "@/lib/store"
-import { recordOperationalExpense } from "@/lib/accounting"
+// Accounting recorded by Finance Hub on approval
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -25,27 +25,21 @@ export default function ExpensesForm() {
   const currentUser = useAppStore(state => state.currentUser)
   const addExpense = useAppStore(state => state.addExpense)
   const addReimbursement = useAppStore(state => state.addReimbursement)
-  const purchases = useAppStore(state => state.purchases)
-  const purchaseItems = useAppStore(state => state.purchaseItems)
   const expenses = useAppStore(state => state.expenses)
 
-  // --- ROBUST WALLET CALCULATION ---
-  const bankAccounts = useAppStore(state => state.bankAccounts)
-  const sourcingBank = bankAccounts.find(b => b.id === 'bank-advance-sourcing')
-  const cashIn = sourcingBank?.balance || 0
-  
-  const myPurchaseItems = purchaseItems.filter(pi => 
-    purchases.some(p => p.id === pi.purchaseId && (p.purchaserId === currentUser?.id || p.purchaserId === 'u2' || p.purchaserId === 'pending'))
+  // --- DERIVED WALLET (terpisah dari buku kas perusahaan) ---
+  const purchases = useAppStore(state => state.purchases)
+  const myPurchases = purchases.filter(p =>
+    (p.purchaserId === currentUser?.id || p.purchaserId === '22222222-2222-2222-2222-222222222222') && p.budgetTransferDate
   )
-  const shopOut = myPurchaseItems
-    .filter(i => i.isChecked)
-    .reduce((sum, i) => sum + (i.qtyPurchased * i.actualUnitPrice), 0)
-  
-  const totalExpenses = expenses
-    .filter(e => (e.reporterId === currentUser?.id || e.reporterId === 'u2') && e.status === 'Pending Audit')
+  const totalAdvance = myPurchases.reduce((sum, p) => sum + (p.budgetAmount || 0) + (p.operationalSpareAmount || 0), 0)
+  const totalShop = myPurchases.filter(p => p.reconciliationStatus === 'Laporan Masuk' || p.reconciliationStatus === 'Terverifikasi')
+    .reduce((sum, p) => sum + (p.actualSpent || 0), 0)
+  const totalExp = expenses
+    .filter(e => e.reporterId === currentUser?.id && e.status !== 'Rejected')
     .reduce((sum, e) => sum + e.amount, 0)
-  
-  const walletBalance = cashIn - shopOut - totalExpenses
+
+  const walletBalance = totalAdvance - totalShop - totalExp
 
   const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState({
@@ -97,7 +91,7 @@ export default function ExpensesForm() {
        addExpense({
          id,
          date: new Date().toISOString(),
-         reporterId: currentUser?.id || 'u2',
+         reporterId: currentUser?.id || '22222222-2222-2222-2222-222222222222',
          category: formData.category as any,
          amount: formData.amount,
          description: formData.description,

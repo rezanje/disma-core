@@ -24,6 +24,7 @@ export default function CashAndBankPage() {
   const updateBankAccount = useAppStore(state => state.updateBankAccount)
   const cashTransactions = useAppStore(state => state.cashTransactions)
   const addCashTransaction = useAppStore(state => state.addCashTransaction)
+  const updateCashTransaction = useAppStore(state => state.updateCashTransaction)
   const coas = useAppStore(state => state.coas)
 
   const [isAddTxOpen, setIsAddTxOpen] = useState(false)
@@ -42,6 +43,7 @@ export default function CashAndBankPage() {
   const [searchTerm, setSearchTerm] = useState("")
 
   const [selectedBankFilter, setSelectedBankFilter] = useState<string | null>(null)
+  const [editingTx, setEditingTx] = useState<any>(null)
 
   const filteredTxs = cashTransactions.filter(tx => {
     const matchSearch = tx.description.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -51,81 +53,109 @@ export default function CashAndBankPage() {
     return matchSearch && matchBank;
   }).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
-  const handleCreateBank = () => {
+  const handleCreateBank = async () => {
     if (!bankForm.name) return toast.error("Nama bank harus diisi!")
-    addBankAccount({
-      id: `bank-${Date.now()}`,
-      name: bankForm.name,
-      accountNumber: bankForm.number,
-      accountCode: bankForm.accountCode,
-      balance: bankForm.balance
-    })
-    setIsAddBankOpen(false)
-    setBankForm({ name: '', number: '', balance: 0, accountCode: '1-1000' })
-    toast.success(`${bankForm.name} berhasil didaftarkan!`)
+    const loadingToast = toast.loading("Mendaftarkan akun bank baru...")
+    try {
+      await addBankAccount({
+        id: `bank-${Date.now()}`,
+        name: bankForm.name,
+        accountNumber: bankForm.number,
+        accountCode: bankForm.accountCode,
+        balance: bankForm.balance
+      })
+      setIsAddBankOpen(false)
+      setBankForm({ name: '', number: '', balance: 0, accountCode: '1-1000' })
+      toast.success(`${bankForm.name} berhasil didaftarkan!`, { id: loadingToast })
+    } catch (e: any) {
+      toast.error("Gagal mendaftarkan bank: " + e.message, { id: loadingToast })
+    }
   }
 
-  const handleUpdateBank = () => {
+  const handleUpdateBank = async () => {
     if (!editingBank) return
     const original = bankAccounts.find(b => b.id === editingBank.id)
     if (!original) return
 
+    const loadingToast = toast.loading("Memperbarui info bank & menyesuaikan saldo...")
     const diff = Number(editingBank.balance) - original.balance
     
-    // Create adjustment journal if balance changed
-    if (diff !== 0) {
-      if (!editingBank.adjCategory) {
-        return toast.error("Pilih kategori penyesuaian untuk selisih saldo!")
+    try {
+      // Create adjustment journal if balance changed
+      if (diff !== 0) {
+        if (!editingBank.adjCategory) {
+          return toast.error("Pilih kategori penyesuaian untuk selisih saldo!", { id: loadingToast })
+        }
+
+        let adjAccountCode = '6-9000' // Default other expense
+        if (diff > 0) {
+          // Increase: Debit Bank, Credit Source
+          switch(editingBank.adjCategory) {
+            case 'Investasi': adjAccountCode = '3-1000'; break;
+            case 'Pendapatan': adjAccountCode = '4-2000'; break;
+            case 'Pinjaman': adjAccountCode = '2-4000'; break;
+            default: adjAccountCode = '3-1000';
+          }
+          await createAccountingEntry(
+            `Penyesuaian Saldo (Kenaikan): ${editingBank.name}`,
+            'Adjustment',
+            `adj-${Date.now()}`,
+            [{ accountCode: editingBank.accountCode || '1-1000', amount: diff }],
+            [{ accountCode: adjAccountCode, amount: diff }],
+            new Date().toISOString()
+          )
+        } else {
+          // Decrease: Debit Purpose, Credit Bank
+          const absDiff = Math.abs(diff)
+          switch(editingBank.adjCategory) {
+            case 'Beban': adjAccountCode = '6-9000'; break;
+            case 'Prive': adjAccountCode = '3-2000'; break;
+            case 'Pajak': adjAccountCode = '6-9000'; break;
+            default: adjAccountCode = '6-9000';
+          }
+          await createAccountingEntry(
+            `Penyesuaian Saldo (Penurunan): ${editingBank.name}`,
+            'Adjustment',
+            `adj-${Date.now()}`,
+            [{ accountCode: adjAccountCode, amount: absDiff }],
+            [{ accountCode: editingBank.accountCode || '1-1000', amount: absDiff }],
+            new Date().toISOString()
+          )
+        }
       }
 
-      let adjAccountCode = '6-9000' // Default other expense
-      if (diff > 0) {
-        // Increase: Debit Bank, Credit Source
-        switch(editingBank.adjCategory) {
-          case 'Investasi': adjAccountCode = '3-1000'; break;
-          case 'Pendapatan': adjAccountCode = '4-2000'; break;
-          case 'Pinjaman': adjAccountCode = '2-4000'; break;
-          default: adjAccountCode = '3-1000';
-        }
-        createAccountingEntry(
-          `Penyesuaian Saldo (Kenaikan): ${editingBank.name}`,
-          'Adjustment',
-          `adj-${Date.now()}`,
-          [{ accountCode: editingBank.accountCode || '1-1000', amount: diff }],
-          [{ accountCode: adjAccountCode, amount: diff }],
-          new Date().toISOString()
-        )
-      } else {
-        // Decrease: Debit Purpose, Credit Bank
-        const absDiff = Math.abs(diff)
-        switch(editingBank.adjCategory) {
-          case 'Beban': adjAccountCode = '6-9000'; break;
-          case 'Prive': adjAccountCode = '3-2000'; break;
-          case 'Pajak': adjAccountCode = '6-9000'; break;
-          default: adjAccountCode = '6-9000';
-        }
-        createAccountingEntry(
-          `Penyesuaian Saldo (Penurunan): ${editingBank.name}`,
-          'Adjustment',
-          `adj-${Date.now()}`,
-          [{ accountCode: adjAccountCode, amount: absDiff }],
-          [{ accountCode: editingBank.accountCode || '1-1000', amount: absDiff }],
-          new Date().toISOString()
-        )
-      }
+      await updateBankAccount(editingBank.id, {
+        name: editingBank.name,
+        accountNumber: editingBank.accountNumber,
+        accountCode: editingBank.accountCode,
+        balance: Number(editingBank.balance)
+      })
+      setEditingBank(null)
+      toast.success("Info bank & Jurnal penyesuaian berhasil diperbarui!", { id: loadingToast })
+    } catch (e: any) {
+      toast.error("Gagal memperbarui bank: " + e.message, { id: loadingToast })
     }
-
-    updateBankAccount(editingBank.id, {
-      name: editingBank.name,
-      accountNumber: editingBank.accountNumber,
-      accountCode: editingBank.accountCode,
-      balance: Number(editingBank.balance)
-    })
-    setEditingBank(null)
-    toast.success("Info bank & Jurnal penyesuaian berhasil diperbarui!")
   }
 
-  const handleSaveTx = () => {
+  const handleSaveEditTx = async () => {
+    if (!editingTx) return
+    const loadingToast = toast.loading("Menyimpan perubahan transaksi...")
+    try {
+      await updateCashTransaction(editingTx.id, {
+        bankAccountId: editingTx.bankAccountId,
+        description: editingTx.description,
+        amount: editingTx.amount,
+        category: editingTx.category,
+        counterpartName: editingTx.counterpartName,
+      })
+      setEditingTx(null)
+      toast.success("Transaksi berhasil diperbarui!", { id: loadingToast })
+    } catch (e: any) {
+      toast.error("Gagal memperbarui: " + e.message, { id: loadingToast })
+    }
+  }
+
+  const handleSaveTx = async () => {
     if (txType === 'Transfer') {
       if (!bankId || !targetBankId || amount <= 0 || !description) {
         toast.error("Mohon lengkapi data transfer internal.")
@@ -136,60 +166,66 @@ export default function CashAndBankPage() {
         return
       }
       
-      const txId = uuidv4()
-      const now = new Date().toISOString()
-      const sourceBank = bankAccounts.find(b => b.id === bankId)
-      const targetBank = bankAccounts.find(b => b.id === targetBankId)
+      const loadingToast = toast.loading("Memproses transfer internal...")
       
-      // 1. Journal Entry (Debit Target, Credit Source)
-      const sourceBankCode = sourceBank?.accountCode || '1-1000'
-      const targetBankCode = targetBank?.accountCode || '1-1000'
-      const success = createAccountingEntry(
-        `Pindah Buku: ${description}`,
-        'Transfer',
-        txId,
-        [{ accountCode: targetBankCode, amount }],
-        [{ accountCode: sourceBankCode, amount }],
-        now
-      )
+      try {
+        const txId = uuidv4()
+        const now = new Date().toISOString()
+        const sourceBank = bankAccounts.find(b => b.id === bankId)
+        const targetBank = bankAccounts.find(b => b.id === targetBankId)
+        
+        // 1. Journal Entry (Debit Target, Credit Source)
+        const sourceBankCode = sourceBank?.accountCode || '1-1000'
+        const targetBankCode = targetBank?.accountCode || '1-1000'
+        const success = await createAccountingEntry(
+          `Pindah Buku: ${description}`,
+          'Transfer',
+          txId,
+          [{ accountCode: targetBankCode, amount }],
+          [{ accountCode: sourceBankCode, amount }],
+          now
+        )
 
-      if (success) {
-        // Add OUT tx for source
-        addCashTransaction({
-          id: txId,
-          date: now,
-          type: 'Out',
-          amount,
-          bankAccountId: bankId,
-          category: 'Pindah Saldo Kas',
-          description,
-          counterpartName: targetBank?.name,
-          receiptUrl,
-          referenceType: 'Transfer'
-        })
-        
-        // Add IN tx for target
-        addCashTransaction({
-          id: uuidv4(),
-          date: now,
-          type: 'In',
-          amount,
-          bankAccountId: targetBankId,
-          category: 'Pindah Saldo Kas',
-          description,
-          counterpartName: sourceBank?.name,
-          receiptUrl,
-          referenceType: 'Transfer'
-        })
-        
-        toast.success("Transfer Internal Berhasil Dicatat!")
-        setIsAddTxOpen(false)
-        setAmount(0)
-        setDescription('')
-        setCounterpart('')
-        setTargetBankId('')
-      } else {
-        toast.error("Gagal mencatat jurnal transfer.")
+        if (success) {
+          // Add OUT tx for source - AWAIT to ensure sequential update
+          await addCashTransaction({
+            id: txId,
+            date: now,
+            type: 'Out',
+            amount,
+            bankAccountId: bankId,
+            category: 'Pindah Saldo Kas',
+            description,
+            counterpartName: targetBank?.name,
+            receiptUrl,
+            referenceType: 'Transfer'
+          })
+          
+          // Add IN tx for target - AWAIT to ensure sequential update
+          await addCashTransaction({
+            id: uuidv4(),
+            date: now,
+            type: 'In',
+            amount,
+            bankAccountId: targetBankId,
+            category: 'Pindah Saldo Kas',
+            description,
+            counterpartName: sourceBank?.name,
+            receiptUrl,
+            referenceType: 'Transfer'
+          })
+          
+          toast.success("Transfer Internal Berhasil Dicatat!", { id: loadingToast })
+          setIsAddTxOpen(false)
+          setAmount(0)
+          setDescription('')
+          setCounterpart('')
+          setTargetBankId('')
+        } else {
+          toast.error("Gagal mencatat jurnal transfer.", { id: loadingToast })
+        }
+      } catch (e: any) {
+        toast.error("Gagal memproses transaksi: " + e.message, { id: loadingToast })
       }
       return;
     }
@@ -199,69 +235,75 @@ export default function CashAndBankPage() {
       return
     }
 
-    const txId = uuidv4()
-    const now = new Date().toISOString()
-    const bank = bankAccounts.find(b => b.id === bankId)
+    const loadingToast = toast.loading(`Mencatat transaksi kas ${txType === 'In' ? 'Masuk' : 'Keluar'}...`)
+    
+    try {
+      const txId = uuidv4()
+      const now = new Date().toISOString()
+      const bank = bankAccounts.find(b => b.id === bankId)
 
-    // Map Category to COA Account Code
-    let targetAccountCode = '4-1000' // Default Revenue
-    if (txType === 'In') {
-      switch (category) {
-        case 'Pelunasan Piutang': targetAccountCode = '1-2000'; break;
-        case 'Penjualan Tunai': targetAccountCode = '4-1000'; break;
-        case 'Investasi': targetAccountCode = '3-1000'; break;
-        case 'Pinjaman': targetAccountCode = '2-4000'; break;
-        case 'Refund Vendor': targetAccountCode = '1-3000'; break;
-        case 'Pendapatan Lainnya': targetAccountCode = '4-2000'; break;
+      // Map Category to COA Account Code
+      let targetAccountCode = '4-1000' // Default Revenue
+      if (txType === 'In') {
+        switch (category) {
+          case 'Pelunasan Piutang': targetAccountCode = '1-2000'; break;
+          case 'Penjualan Tunai': targetAccountCode = '4-1000'; break;
+          case 'Investasi': targetAccountCode = '3-1000'; break;
+          case 'Pinjaman': targetAccountCode = '2-4000'; break;
+          case 'Refund Vendor': targetAccountCode = '1-3000'; break;
+          case 'Pendapatan Lainnya': targetAccountCode = '4-2000'; break;
+        }
+      } else {
+        switch (category) {
+          case 'Beban Gaji': targetAccountCode = '6-1000'; break;
+          case 'Sewa Gedung': targetAccountCode = '6-1100'; break;
+          case 'Listrik/Air': targetAccountCode = '6-1200'; break;
+          case 'Marketing': targetAccountCode = '6-1300'; break;
+          case 'Bensin/Transport': targetAccountCode = '6-1400'; break;
+          case 'ATK/Kantor': targetAccountCode = '6-1400'; break; // db.json has 6-1400 for Transport & ATK
+          default: targetAccountCode = '6-9000'; break;
+        }
       }
-    } else {
-      switch (category) {
-        case 'Beban Gaji': targetAccountCode = '6-1000'; break;
-        case 'Sewa Gedung': targetAccountCode = '6-1100'; break;
-        case 'Listrik/Air': targetAccountCode = '6-1200'; break;
-        case 'Marketing': targetAccountCode = '6-1300'; break;
-        case 'Bensin/Transport': targetAccountCode = '6-1400'; break;
-        case 'ATK/Kantor': targetAccountCode = '6-1400'; break; // db.json has 6-1400 for Transport & ATK
-        default: targetAccountCode = '6-9000'; break;
+
+      // 1. Add to store and AWAIT
+      await addCashTransaction({
+        id: txId,
+        date: now,
+        type: txType,
+        amount,
+        bankAccountId: bankId,
+        category,
+        description,
+        counterpartName: counterpart,
+        receiptUrl,
+        referenceType: 'Manual'
+      })
+
+      // 2. Journal Entry (Corrected Mapping)
+      // In: Debit Bank, Credit Target Account
+      // Out: Debit Target Account, Credit Bank
+      const bankAccountCode = bank?.accountCode || '1-1000'
+      const success = await createAccountingEntry(
+        `${txType === 'In' ? 'Penerimaan' : 'Pengiriman'} Kas: ${description}`,
+        'Adjustment',
+        txId,
+        txType === 'In' ? [{ accountCode: bankAccountCode, amount }] : [{ accountCode: targetAccountCode, amount }],
+        txType === 'In' ? [{ accountCode: targetAccountCode, amount }] : [{ accountCode: bankAccountCode, amount }],
+        now
+      )
+
+      if (success) {
+        toast.success("Transaksi Kas Berhasil Dicatat!", { id: loadingToast })
+        setIsAddTxOpen(false)
+        // Reset
+        setAmount(0)
+        setDescription('')
+        setCounterpart('')
+      } else {
+        toast.error("Gagal mencatat jurnal kas.", { id: loadingToast })
       }
-    }
-
-    // 1. Add to store
-    addCashTransaction({
-      id: txId,
-      date: now,
-      type: txType,
-      amount,
-      bankAccountId: bankId,
-      category,
-      description,
-      counterpartName: counterpart,
-      receiptUrl,
-      referenceType: 'Manual'
-    })
-
-    // 2. Journal Entry (Corrected Mapping)
-    // In: Debit Bank, Credit Target Account
-    // Out: Debit Target Account, Credit Bank
-    const bankAccountCode = bank?.accountCode || '1-1000'
-    const success = createAccountingEntry(
-      `${txType === 'In' ? 'Penerimaan' : 'Pengiriman'} Kas: ${description}`,
-      'Adjustment',
-      txId,
-      txType === 'In' ? [{ accountCode: bankAccountCode, amount }] : [{ accountCode: targetAccountCode, amount }],
-      txType === 'In' ? [{ accountCode: targetAccountCode, amount }] : [{ accountCode: bankAccountCode, amount }],
-      now
-    )
-
-    if (success) {
-      toast.success("Transaksi Kas Berhasil Dicatat!")
-      setIsAddTxOpen(false)
-      // Reset
-      setAmount(0)
-      setDescription('')
-      setCounterpart('')
-    } else {
-      toast.error("Gagal mencatat jurnal kas.")
+    } catch (e: any) {
+      toast.error("Gagal mencatat transaksi: " + e.message, { id: loadingToast })
     }
   }
 
@@ -724,7 +766,16 @@ export default function CashAndBankPage() {
                                  </div>
                               </TableCell>
                               <TableCell className={`text-right px-8 font-black text-lg font-mono ${tx.type === 'In' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                 {tx.type === 'In' ? '+' : '-'} {formatRupiah(tx.amount)}
+                                 <div className="flex items-center justify-end gap-3">
+                                    <span>{tx.type === 'In' ? '+' : '-'} {formatRupiah(tx.amount)}</span>
+                                    <Button
+                                       variant="ghost" size="icon"
+                                       className="h-7 w-7 text-slate-400 hover:text-slate-700 shrink-0"
+                                       onClick={() => setEditingTx({ ...tx })}
+                                    >
+                                       <Pencil className="h-3.5 w-3.5" />
+                                    </Button>
+                                 </div>
                               </TableCell>
                            </TableRow>
                         )
@@ -734,6 +785,93 @@ export default function CashAndBankPage() {
             </Table>
          </CardContent>
       </Card>
+
+      {/* Edit Transaction Dialog */}
+      <Dialog open={!!editingTx} onOpenChange={(open) => { if (!open) setEditingTx(null) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-black">Edit Transaksi</DialogTitle>
+          </DialogHeader>
+          {editingTx && (
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label>Akun Bank</Label>
+                <Select value={editingTx.bankAccountId} onValueChange={(val) => setEditingTx({ ...editingTx, bankAccountId: val })}>
+                  <SelectTrigger className="h-11 rounded-xl">
+                    <SelectValue>{bankAccounts.find(b => b.id === editingTx.bankAccountId)?.name}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {bankAccounts.map(b => (
+                      <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Kategori</Label>
+                <Select value={editingTx.category} onValueChange={(val) => setEditingTx({ ...editingTx, category: val })}>
+                  <SelectTrigger className="h-11 rounded-xl">
+                    <SelectValue>{editingTx.category}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {editingTx.type === 'In' ? (
+                      <>
+                        <SelectItem value="Pelunasan Piutang">Pelunasan Piutang (AR)</SelectItem>
+                        <SelectItem value="Penjualan Tunai">Penjualan Tunai</SelectItem>
+                        <SelectItem value="Investasi">Investasi Masuk</SelectItem>
+                        <SelectItem value="Pinjaman">Pinjaman Bank</SelectItem>
+                        <SelectItem value="Refund Vendor">Refund Vendor</SelectItem>
+                        <SelectItem value="Pendapatan Lainnya">Pendapatan Lain-lain</SelectItem>
+                      </>
+                    ) : (
+                      <>
+                        <SelectItem value="Beban Gaji">Beban Gaji Karyawan</SelectItem>
+                        <SelectItem value="Sewa Gedung">Sewa Gedung/Gudang</SelectItem>
+                        <SelectItem value="Listrik/Air">Listrik & Air</SelectItem>
+                        <SelectItem value="Marketing">Marketing & Iklan</SelectItem>
+                        <SelectItem value="Bensin/Transport">Bensin & Transport</SelectItem>
+                        <SelectItem value="ATK/Kantor">ATK & Kebutuhan Kantor</SelectItem>
+                        <SelectItem value="Lainnya">Pengeluaran Lainnya</SelectItem>
+                      </>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Nominal (Rp)</Label>
+                  <Input
+                    type="text" inputMode="numeric"
+                    className="h-11 rounded-xl font-bold"
+                    value={formatNumber(editingTx.amount)}
+                    onChange={(e) => setEditingTx({ ...editingTx, amount: parseNumber(e.target.value) })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{editingTx.type === 'In' ? 'Diterima Dari' : 'Dibayarkan Kepada'}</Label>
+                  <Input
+                    className="h-11 rounded-xl"
+                    value={editingTx.counterpartName || ''}
+                    onChange={(e) => setEditingTx({ ...editingTx, counterpartName: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Keterangan</Label>
+                <Input
+                  className="h-11 rounded-xl"
+                  value={editingTx.description}
+                  onChange={(e) => setEditingTx({ ...editingTx, description: e.target.value })}
+                />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setEditingTx(null)}>Batal</Button>
+                <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleSaveEditTx}>Simpan Perubahan</Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -18,11 +18,19 @@ export default function HandoverPage() {
   const updateSalesOrderItem = useAppStore(state => state.updateSalesOrderItem)
   const updateDelivery = useAppStore(state => state.updateDelivery)
 
+  const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set())
   const [activeHandoverId, setActiveHandoverId] = useState<string | null>(null)
-  
   const pendingPickup = salesOrders.filter(so => so.status === 'Siap Kirim')
 
   const handleHandoverSubmit = (soId: string) => {
+    // Sync all checks to store before finalizing
+    const items = salesOrderItems.filter(i => i.salesOrderId === soId)
+    items.forEach(item => {
+      if (checkedItems.has(item.id)) {
+        updateSalesOrderItem(item.id, { isHandoverChecked: true })
+      }
+    })
+
     // 1. Update SO Status
     updateSalesOrder(soId, { 
       status: 'Dikirim',
@@ -42,8 +50,11 @@ export default function HandoverPage() {
     setActiveHandoverId(null)
   }
 
-  const toggleHandoverCheck = (itemId: string, current: boolean) => {
-    updateSalesOrderItem(itemId, { isHandoverChecked: !current })
+  const toggleHandoverCheck = (itemId: string) => {
+    const next = new Set(checkedItems)
+    if (next.has(itemId)) next.delete(itemId)
+    else next.add(itemId)
+    setCheckedItems(next)
   }
 
   return (
@@ -98,11 +109,11 @@ export default function HandoverPage() {
                 <div className="p-8 space-y-3">
                   {salesOrderItems.filter(i => i.salesOrderId === so.id).map(item => {
                     const product = products.find(p => p.id === item.productId)
-                    const isChecked = !!item.isHandoverChecked
+                    const isChecked = checkedItems.has(item.id)
                     return (
                       <div key={item.id} className={`flex items-center justify-between p-5 rounded-[2rem] border transition-all ${isChecked ? 'bg-emerald-50 border-emerald-100' : 'bg-slate-50 border-slate-100'}`}>
                          <div className="flex items-center gap-4">
-                            <button onClick={() => toggleHandoverCheck(item.id, isChecked)} className="focus:outline-none">
+                            <button onClick={() => toggleHandoverCheck(item.id)} className="focus:outline-none">
                               {isChecked ? <CheckCircle className="w-7 h-7 text-emerald-500 fill-emerald-50" /> : <Circle className="w-7 h-7 text-slate-300" />}
                             </button>
                             <div>
@@ -123,7 +134,7 @@ export default function HandoverPage() {
                   <div className="pt-6">
                     <Button 
                       className="w-full h-16 rounded-[2rem] bg-emerald-600 hover:bg-emerald-700 font-black uppercase text-sm tracking-widest shadow-xl shadow-emerald-200"
-                      disabled={salesOrderItems.filter(i => i.salesOrderId === so.id).some(i => !i.isHandoverChecked)}
+                      disabled={salesOrderItems.filter(i => i.salesOrderId === so.id).some(i => !checkedItems.has(i.id))}
                       onClick={() => handleHandoverSubmit(so.id)}
                     >
                        Konfirmasi & Mulai Pengantaran <Truck className="w-5 h-5 ml-2" />

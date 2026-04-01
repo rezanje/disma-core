@@ -34,57 +34,75 @@ export default function ReimbursementManagementPage() {
     users.find(u => u.id === r.userId)?.name.toLowerCase().includes(searchTerm.toLowerCase())
   ).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
-  const handleApprove = (id: string) => {
-    updateReimbursement(id, { status: 'Approved', auditDate: new Date().toISOString() })
-    toast.success("Reimbursement Approved! Lanjut ke Pembayaran.")
+  const handleApprove = async (id: string) => {
+    const loadingToast = toast.loading("Approving reimbursement...")
+    try {
+      await updateReimbursement(id, { status: 'Approved', auditDate: new Date().toISOString() })
+      toast.success("Reimbursement Approved! Lanjut ke Pembayaran.", { id: loadingToast })
+    } catch (e: any) {
+      toast.error("Gagal approve: " + e.message, { id: loadingToast })
+    }
   }
 
-  const handleReject = (id: string) => {
-    updateReimbursement(id, { status: 'Rejected', auditDate: new Date().toISOString() })
-    toast.info("Reimbursement Ditolak.")
+  const handleReject = async (id: string) => {
+    const loadingToast = toast.loading("Rejecting reimbursement...")
+    try {
+      await updateReimbursement(id, { status: 'Rejected', auditDate: new Date().toISOString() })
+      toast.info("Reimbursement Ditolak.", { id: loadingToast })
+    } catch (e: any) {
+      toast.error("Gagal reject: " + e.message, { id: loadingToast })
+    }
   }
 
-  const handlePay = () => {
+  const handlePay = async () => {
     if (!activeReimb || !payBankId) return
 
-    const now = new Date().toISOString()
-    const txId = uuidv4()
+    const loadingToast = toast.loading("Memproses pembayaran reimburse...")
+    try {
+      const now = new Date().toISOString()
+      const txId = uuidv4()
+      const user = users.find(u => u.id === activeReimb.userId)
 
-    // 1. Mark Reimbursement as Paid
-    updateReimbursement(activeReimb.id, { 
-      status: 'Paid', 
-      paymentDate: now,
-      paymentReference: txId
-    })
+      // 1. Mark Reimbursement as Paid
+      await updateReimbursement(activeReimb.id, { 
+        status: 'Paid', 
+        paymentDate: now,
+        paymentReference: txId
+      })
 
-    // 2. Add Cash Transaction (Outflow)
-    const user = users.find(u => u.id === activeReimb.userId)
-    addCashTransaction({
-      id: txId,
-      date: now,
-      type: 'Out',
-      amount: activeReimb.amount,
-      bankAccountId: payBankId,
-      category: 'Reimbursement',
-      description: `Reimburse: ${activeReimb.title} (${user?.name})`,
-      referenceType: 'Reimbursement',
-      referenceId: activeReimb.id,
-      counterpartName: user?.name
-    })
+      // 2. Add Cash Transaction (Outflow)
+      await addCashTransaction({
+        id: txId,
+        date: now,
+        type: 'Out',
+        amount: activeReimb.amount,
+        bankAccountId: payBankId,
+        category: 'Reimbursement',
+        description: `Reimburse: ${activeReimb.title} (${user?.name})`,
+        referenceType: 'Reimbursement',
+        referenceId: activeReimb.id,
+        counterpartName: user?.name
+      })
 
-    // 3. Journal Entry
-    createAccountingEntry(
-      `Bayar Reimburs: ${activeReimb.title} (${user?.name})`,
-      'Expense',
-      activeReimb.id,
-      [{ accountCode: '6-1000', amount: activeReimb.amount }],
-      [{ accountCode: '1-1000', amount: activeReimb.amount }],
-      now
-    )
+      // 3. Journal Entry
+      const bank = bankAccounts.find(b => b.id === payBankId)
+      const bankCode = bank?.accountCode || '1-1000'
+      
+      await createAccountingEntry(
+        `Bayar Reimburs: ${activeReimb.title} (${user?.name})`,
+        'Expense',
+        activeReimb.id,
+        [{ accountCode: '6-9000', amount: activeReimb.amount }], // 6-9000 for general reimbursement
+        [{ accountCode: bankCode, amount: activeReimb.amount }],
+        now
+      )
 
-    toast.success(`Pembayaran ${formatRupiah(activeReimb.amount)} Berhasil! Saldo Bank Berkurang.`)
-    setIsPayOpen(false)
-    setActiveReimb(null)
+      toast.success(`Pembayaran ${formatRupiah(activeReimb.amount)} Berhasil! Saldo Bank Berkurang.`, { id: loadingToast })
+      setIsPayOpen(false)
+      setActiveReimb(null)
+    } catch (e: any) {
+      toast.error("Gagal memproses pembayaran: " + e.message, { id: loadingToast })
+    }
   }
 
   return (

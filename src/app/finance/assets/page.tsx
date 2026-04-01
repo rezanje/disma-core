@@ -80,7 +80,7 @@ export default function FixedAssetsPage() {
     })
   }, [fixedAssets])
 
-  const handleSyncDepreciation = (id: string) => {
+  const handleSyncDepreciation = async (id: string) => {
     const analytic = assetAnalytics.find(a => a.id === id)
     if (!analytic) return
 
@@ -90,7 +90,7 @@ export default function FixedAssetsPage() {
       return
     }
 
-    const success = recordDepreciation(id, gap, `${analytic.name} (Sync to ${new Date().toLocaleDateString()})`)
+    const success = await recordDepreciation(id, gap, `${analytic.name} (Sync to ${new Date().toLocaleDateString()})`)
     if (success) {
       updateFixedAsset(id, {
         accumulatedDepreciation: analytic.autoAccumulated,

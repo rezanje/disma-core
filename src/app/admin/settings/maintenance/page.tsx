@@ -106,32 +106,33 @@ export default function MaintenancePage() {
     }
 
     try {
-      const state = useAppStore.getState()
-      
-      selectedCategories.forEach(catTitle => {
-        const category = DATA_CATEGORIES.find(c => c.title === catTitle)
-        if (category) {
-          category.keys.forEach(key => {
-            // @ts-ignore - dynamic key clearing
-            if (state[key] !== undefined) {
-              useAppStore.setState({ [key]: [] })
-            }
-          })
-        }
-      })
+      let tablesToClear: string[] = [];
+      const categoryMap: Record<string, string[]> = {
+        "Transactional Data": ['sales_order_items', 'purchase_items', 'journal_lines', 'deliveries', 'invoices', 'sales_orders', 'purchases', 'journal_entries'],
+        "Operational Expenses": ['expenses', 'reimbursements', 'cash_transactions'],
+        "CRM & OKRs": ['leads', 'okr_objectives', 'okr_key_results'],
+        "Performance & HR": ['kpis', 'employees'],
+        "Tasks & Notifications": ['disma_tasks', 'notifications'],
+        "Fixed Assets": ['fixed_assets'],
+        "MASTER DATA (WARNING)": ['clients', 'products', 'vendors']
+      };
 
-      if (selectedCategories.includes("Operational Expenses")) {
-        useAppStore.setState({ 
-          bankAccounts: state.bankAccounts.map(acc => ({ ...acc, balance: 0 }))
-        })
-      }
+      selectedCategories.forEach(cat => {
+         if (categoryMap[cat]) tablesToClear.push(...categoryMap[cat]);
+      });
 
-      await saveToHdd()
-      
+      const res = await fetch('/api/db/reset', {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({ action: 'custom', tables: tablesToClear })
+      });
+      if (!res.ok) throw new Error('Reset failed');
+
       toast.success("Database has been reset successfully.")
       setIsDoubleConfirmOpen(false)
       setSelectedCategories([])
       setResetInput("")
+      setTimeout(() => window.location.reload(), 1500)
     } catch (err) {
       toast.error("An error occurred during reset.")
       console.error(err)
@@ -143,12 +144,14 @@ export default function MaintenancePage() {
     if (!confirm("Reset SEMUA stok barang di katalog menjadi 0? Tindakan ini tidak bisa dibatalkan.")) return
 
     try {
-      const products = useAppStore.getState().products
-      products.forEach(p => {
-        useAppStore.getState().updateProduct(p.id, { currentStock: 0 })
-      })
-      await saveToHdd()
+      const res = await fetch('/api/db/reset', {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({ action: 'reset_stock' })
+      });
+      if (!res.ok) throw new Error('Reset failed');
       toast.success("Semua stok barang berhasil di-reset ke 0!")
+      setTimeout(() => window.location.reload(), 1500)
     } catch (err) {
       toast.error("Gagal melakukan reset stok.")
     }
@@ -158,21 +161,14 @@ export default function MaintenancePage() {
     if (!confirm("HAPUS SEMUA data transaksi (PO, Order, Invoice, Jurnal)? Katalog Produk & Client akan tetap aman.")) return
 
     try {
-      useAppStore.setState({
-         salesOrders: [],
-         salesOrderItems: [],
-         purchases: [],
-         purchaseItems: [],
-         deliveries: [],
-         invoices: [],
-         journalEntries: [],
-         journalLines: [],
-         expenses: [],
-         reimbursements: [],
-         cashTransactions: []
-      })
-      await saveToHdd()
+      const res = await fetch('/api/db/reset', {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({ action: 'simulation' })
+      });
+      if (!res.ok) throw new Error('Reset failed');
       toast.success("Semua data transaksi berhasil dibersihkan!")
+      setTimeout(() => window.location.reload(), 1500)
     } catch (err) {
       toast.error("Gagal membersihkan data transaksi.")
     }

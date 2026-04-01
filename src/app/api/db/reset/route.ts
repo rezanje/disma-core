@@ -10,10 +10,12 @@ export async function POST(request: Request) {
     
     let action = 'full';
     let seedData: any = null;
+    let customTables: string[] = [];
     try {
       const body = await request.json();
       action = body.action || 'full';
       seedData = body.seedData || null;
+      customTables = body.tables || [];
     } catch (e) {
       // Ignore if no body
     }
@@ -31,28 +33,59 @@ export async function POST(request: Request) {
       'bank_accounts', 'coas', 'products', 'vendors', 'clients', 'users'
     ];
 
-    // Determine what to wipe if action is 'wipe' or 'full'
-    let tablesToClear: string[] = [];
-    if (action === 'wipe' || action === 'full' || action === 'simulation') {
-      const wipeMode = action || 'full';
-      tablesToClear = wipeMode === 'simulation' 
-        ? operationalTables 
-        : [...operationalTables, ...masterTables];
+    const actionVal = action;
+    const isWipeAction = ['wipe', 'full', 'simulation', 'master', 'products_only', 'custom'].includes(actionVal);
 
-      console.log(`[DB Reset] Starting wipe for ${tablesToClear.length} tables in mode: ${wipeMode}`);
+    if (actionVal === 'reset_stock') {
+      const { error } = await supabaseAdmin.from('products').update({ current_stock: 0 }).neq('id', '99999999-9999-9999-9999-999999999999');
+      if (error) {
+        console.error('[DB Reset] Error resetting stock:', error.message);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+      console.log('[DB Reset] ✅ Resetted all stocks to 0');
+      return NextResponse.json({ success: true, message: 'Stock reset to 0' });
+    }
 
-      // PHASE 1: DELETE everything
+    if (isWipeAction) {
+      let tablesToClear: string[] = [];
+      
+      if (actionVal === 'custom') {
+        // Enforce deletion order by using predefined lists
+        const sortedTables = [...operationalTables, ...masterTables];
+        tablesToClear = sortedTables.filter(t => customTables.includes(t));
+      } else if (actionVal === 'products_only') {
+        tablesToClear = ['products'];
+      } else if (actionVal === 'clients_only') {
+        tablesToClear = ['clients'];
+      } else if (actionVal === 'simulation') {
+        tablesToClear = operationalTables;
+      } else if (actionVal === 'master') {
+        tablesToClear = [...operationalTables, 'products', 'vendors', 'clients', 'coas'];
+      } else {
+        tablesToClear = [...operationalTables, ...masterTables];
+      }
+
+      console.log(`[DB Reset] Starting wipe for ${tablesToClear.length} tables in mode: ${actionVal}`);
+
       for (const table of tablesToClear) {
-        const { error } = await supabaseAdmin.from(table).delete().not('id', 'is', null);
+        // Aggressive deletion
+        const { error } = await supabaseAdmin.from(table).delete().neq('id', '99999999-9999-9999-9999-999999999999');
         if (error) {
           console.error(`[DB Reset] Error clearing ${table}:`, error.message);
           return NextResponse.json({ error: `Failed to clear ${table}: ${error.message}` }, { status: 500 });
-        } else {
-          console.log(`[DB Reset] ✅ Cleared: ${table}`);
         }
+        console.log(`[DB Reset] ✅ Cleared: ${table}`);
       }
 
-      if (action === 'wipe' || action === 'simulation') {
+      // Reset bank balances to 0 if wiping simulation data
+      if (actionVal === 'simulation') {
+        const { error: bankErr } = await supabaseAdmin.from('bank_accounts').update({ balance: 0 }).neq('id', '99999999-9999-9999-9999-999999999999');
+        if (bankErr) console.error("[DB Reset] Failed to reset bank balances:", bankErr.message);
+        else console.log("[DB Reset] ✅ Reset all bank balances to 0");
+      }
+
+      // If it's just a wipe or specific subset, we can return early
+      if (actionVal === 'wipe' || actionVal === 'simulation' || actionVal === 'products_only' || actionVal === 'master' || actionVal === 'custom') {
          return NextResponse.json({ success: true, cleared: tablesToClear });
       }
     }
@@ -73,10 +106,10 @@ export async function POST(request: Request) {
         };
 
         for (const [table, rows] of Object.entries(seedData)) {
-          if (!Array.isArray(rows) || rows.length === 0) continue;
+          if (!Array.isArray(rows) || (rows as any[]).length === 0) continue;
           
           const snakeRows = toSnake(rows);
-          const CHUNK = 200; // Smaller chunks for reliability
+          const CHUNK = 200; 
           
           for (let i = 0; i < snakeRows.length; i += CHUNK) {
             const chunk = snakeRows.slice(i, i + CHUNK);
@@ -95,11 +128,11 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ 
       success: true, 
-      cleared: tablesToClear,
+      cleared: seededTables, // In case of full reset, it returns what was cleared/seeded
       seeded: seededTables 
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('API DB RESET Error:', error);
-    return NextResponse.json({ error: 'Failed to reset database' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to reset database: ' + error.message }, { status: 500 });
   }
 }

@@ -23,6 +23,7 @@ export default function ShoppingListPage() {
   const purchaseItems = useAppStore(state => state.purchaseItems)
   const addPurchase = useAppStore(state => state.addPurchase)
   const addPurchaseItem = useAppStore(state => state.addPurchaseItem)
+  const addPurchaseItems = useAppStore(state => state.addPurchaseItems)
   const updateSalesOrder = useAppStore(state => state.updateSalesOrder)
 
   const [isLoading, setIsLoading] = useState(false)
@@ -154,30 +155,31 @@ export default function ShoppingListPage() {
     }
 
     setIsLoading(true)
-    setTimeout(() => {
+    setTimeout(async () => {
       const purchaseId = uuidv4()
-      
-      addPurchase({
+      // 1. Await the parent purchase creation first to avoid FK constraint issues
+      await addPurchase({
         id: purchaseId,
         date: new Date().toISOString(),
         purchaserId: 'pending',
         status: 'Pending'
       })
 
-      consolidatedList.forEach(item => {
-        addPurchaseItem({
-          id: uuidv4(),
-          purchaseId: purchaseId,
-          productId: item.productId,
-          qtyTarget: item.totalQty,
-          qtyPurchased: 0,
-          estimatedUnitPrice: item.estimatedPrice,
-          actualUnitPrice: 0,
-          isChecked: false, // Must be checked manually by Sourcing/Buyer
-          purchaseMethod: item.purchaseMethod,
-          salesOrderId: item.salesOrderId // Pass the link to the purchase item!
-        })
-      })
+      // 2. Map items and use the batch add method
+      const newItems = consolidatedList.map(item => ({
+        id: uuidv4(),
+        purchaseId: purchaseId,
+        productId: item.productId,
+        qtyTarget: item.totalQty,
+        qtyPurchased: 0,
+        estimatedUnitPrice: item.estimatedPrice,
+        actualUnitPrice: 0,
+        isChecked: false,
+        purchaseMethod: item.purchaseMethod,
+        salesOrderId: item.salesOrderId
+      }))
+
+      await addPurchaseItems(newItems)
 
       // Advance all active SOs from 'Belanja' to 'Packing'
       activeSOs.forEach(so => {
@@ -438,6 +440,11 @@ export default function ShoppingListPage() {
                           </TableCell>
                         </TableRow>
                       ))}
+                      <TableRow className="bg-emerald-50 dark:bg-emerald-950/30 font-bold border-t-2 border-emerald-200 dark:border-emerald-900">
+                        <TableCell colSpan={5} className="text-right">Total Modal Belanja:</TableCell>
+                        <TableCell className="text-right text-lg text-emerald-600">{formatRupiah(consolidatedList.reduce((sum, item) => sum + (item.estimatedPrice * item.totalQty), 0))}</TableCell>
+                        <TableCell />
+                      </TableRow>
                     </TableBody>
                   </Table>
                 </div>

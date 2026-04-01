@@ -13,14 +13,15 @@ export const ROLES: Record<string, Role> = {
 
 // Mock Users for Auth
 export const MOCK_USERS: User[] = [
-  { id: 'u1', name: 'Bagus (Admin PO)', role: 'admin_po', pin: '1111' },
-  { id: 'u2', name: 'Hilman (Sourcing)', role: 'sourcing', pin: '2222' },
-  { id: 'u3', name: 'Sandi (Inventory)', role: 'gudang', pin: '3333' },
-  { id: 'u4', name: 'Rivai (Logistik)', role: 'kurir', pin: '4444' },
-  { id: 'u5', name: 'Sifa (Admin Finance)', role: 'finance', pin: '5555' },
-  { id: 'u6', name: 'Reza (Super Admin)', role: 'super_admin', pin: '120194' },
-  { id: 'u7', name: 'Damar (CEO)', role: 'ceo', pin: '6666' },
-  { id: 'u8', name: 'Hanif (CMO)', role: 'cmo', pin: '7777' },
+  { id: '11111111-1111-1111-1111-111111111111', name: 'Bagus (Admin PO)', role: 'admin_po', pin: '1111' },
+  { id: '22222222-2222-2222-2222-222222222222', name: 'Hilman (Sourcing)', role: 'sourcing', pin: '2222' },
+  { id: '33333333-3333-3333-3333-333333333333', name: 'Sandi (Inventory)', role: 'gudang', pin: '3333' },
+  { id: '44444444-4444-4444-4444-444444444444', name: 'Rivai (Logistik)', role: 'kurir', pin: '4444' },
+  { id: '55555555-5555-5555-5555-555555555555', name: 'Sifa (Admin Finance)', role: 'finance', pin: '5555' },
+  { id: '66666666-6666-6666-6666-666666666666', name: 'Reza (Super Admin)', role: 'super_admin', pin: '120194' },
+  { id: '77777777-7777-7777-7777-777777777777', name: 'Damar (CEO)', role: 'ceo', pin: '6666' },
+  { id: '88888888-8888-8888-8888-888888888888', name: 'Hanif (CMO)', role: 'cmo', pin: '7777' },
+  { id: '00000000-0000-0000-0000-000000000000', name: 'System', role: 'super_admin', pin: '0000' },
 ];
 
 export const COA_SEED: ChartOfAccount[] = [
@@ -86,7 +87,7 @@ export { PRODUCTS_SEED } from './products_seed';
 import { SmartKpi } from '@/types';
 export const KPI_SEED: SmartKpi[] = [
   {
-    id: 'kpi-1', assigneeUserId: 'u1', assignedByUserId: 'u6', period: 'Maret 2026',
+    id: 'kpi-1', assigneeUserId: '11111111-1111-1111-1111-111111111111', assignedByUserId: '66666666-6666-6666-6666-666666666666', period: 'Maret 2026',
     title: 'Efisiensi Input PO', category: 'Operasional',
     specific: 'Input 100% Sales Order divalidasi jadi PO dlm < 4 jam.',
     measurable: 'Timestamp SO vs PO.', achievable: 'Volume SO saat ini 15-20/hari.',
@@ -95,7 +96,7 @@ export const KPI_SEED: SmartKpi[] = [
     createdAt: new Date().toISOString()
   },
   {
-    id: 'kpi-2', assigneeUserId: 'u1', assignedByUserId: 'u6', period: 'Maret 2026',
+    id: 'kpi-2', assigneeUserId: '11111111-1111-1111-1111-111111111111', assignedByUserId: '66666666-6666-6666-6666-666666666666', period: 'Maret 2026',
     title: 'Akurasi HPP', category: 'Finance',
     specific: 'Minimalisir selisih HPP sistem vs invoice vendor < 1%.',
     measurable: 'Audit invoice vendor.', achievable: 'Kalkulator HPP tersedia.',
@@ -104,7 +105,7 @@ export const KPI_SEED: SmartKpi[] = [
     createdAt: new Date().toISOString()
   },
   {
-    id: 'kpi-3', assigneeUserId: 'u2', assignedByUserId: 'u6', period: 'Maret 2026',
+    id: 'kpi-3', assigneeUserId: '22222222-2222-2222-2222-222222222222', assignedByUserId: '66666666-6666-6666-6666-666666666666', period: 'Maret 2026',
     title: 'Sourcing Savings', category: 'Finance',
     specific: 'Hemat belanja item vs estimasi budget di PO sebesar 5%.',
     measurable: 'Actual vs Estimated price.', achievable: 'Negosiasi supplier.',
@@ -113,7 +114,7 @@ export const KPI_SEED: SmartKpi[] = [
     createdAt: new Date().toISOString()
   },
   {
-    id: 'kpi-4', assigneeUserId: 'u2', assignedByUserId: 'u6', period: 'Maret 2026',
+    id: 'kpi-4', assigneeUserId: '22222222-2222-2222-2222-222222222222', assignedByUserId: '66666666-6666-6666-6666-666666666666', period: 'Maret 2026',
     title: 'Kecepatan Misi', category: 'Operasional',
     specific: '100% misi belanja selesai di hari yang sama dengan transfer.',
     measurable: 'Transfer date vs Mission Selesai.', achievable: 'Budget pagi hari.',
@@ -122,7 +123,7 @@ export const KPI_SEED: SmartKpi[] = [
     createdAt: new Date().toISOString()
   },
   {
-    id: 'kpi-5', assigneeUserId: 'u3', assignedByUserId: 'u6', period: 'Maret 2026',
+    id: 'kpi-5', assigneeUserId: '33333333-3333-3333-3333-333333333333', assignedByUserId: '66666666-6666-6666-6666-666666666666', period: 'Maret 2026',
     title: 'Akurasi Stock Opname', category: 'Quality',
     specific: 'Selisih fisik vs sistem saat stock opname mingguan < 0.5%.',
     measurable: 'Selisih record SO.', achievable: 'Input real-time mobile.',
@@ -131,7 +132,7 @@ export const KPI_SEED: SmartKpi[] = [
     createdAt: new Date().toISOString()
   },
   {
-    id: 'kpi-6', assigneeUserId: 'u4', assignedByUserId: 'u6', period: 'Maret 2026',
+    id: 'kpi-6', assigneeUserId: '44444444-4444-4444-4444-444444444444', assignedByUserId: '66666666-6666-6666-6666-666666666666', period: 'Maret 2026',
     title: 'Lead Time Delivery', category: 'Customer',
     specific: 'Kirim area JABODETABEK < 6 jam sejak pick up.',
     measurable: 'Pickup vs Delivered time.', achievable: 'Optimasi rute maps.',
@@ -140,7 +141,7 @@ export const KPI_SEED: SmartKpi[] = [
     createdAt: new Date().toISOString()
   },
   {
-    id: 'kpi-7', assigneeUserId: 'u5', assignedByUserId: 'u6', period: 'Maret 2026',
+    id: 'kpi-7', assigneeUserId: '55555555-5555-5555-5555-555555555555', assignedByUserId: '66666666-6666-6666-6666-666666666666', period: 'Maret 2026',
     title: 'Speed of Audit', category: 'Operasional',
     specific: 'Audit laporan sourcing dlm < 24 jam.',
     measurable: 'Timestamp Report vs Audit.', achievable: 'Nota terekam di sistem.',
