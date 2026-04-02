@@ -6,12 +6,21 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatRupiah(amount: number): string {
+  const normalizedAmount = Number.isFinite(amount) ? amount : 0
+  const formatted = new Intl.NumberFormat('id-ID', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(normalizedAmount)
+  return `Rp${formatted}`
+}
+
+export function formatRupiahValue(amount: number): string {
+  const normalizedAmount = Number.isFinite(amount) ? amount : 0
+
   return new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount)
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(normalizedAmount)
 }
 
 export function formatNumber(val: number | string): string {
