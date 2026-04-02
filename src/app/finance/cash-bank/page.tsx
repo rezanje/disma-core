@@ -36,6 +36,7 @@ export default function CashAndBankPage() {
   const [bankId, setBankId] = useState('')
   const [targetBankId, setTargetBankId] = useState('')
   const [amount, setAmount] = useState(0)
+  const [txDate, setTxDate] = useState(new Date().toISOString().split('T')[0])
   const [category, setCategory] = useState('')
   const [description, setDescription] = useState('')
   const [counterpart, setCounterpart] = useState('')
@@ -170,7 +171,7 @@ export default function CashAndBankPage() {
       
       try {
         const txId = uuidv4()
-        const now = new Date().toISOString()
+        const now = new Date(txDate).toISOString()
         const sourceBank = bankAccounts.find(b => b.id === bankId)
         const targetBank = bankAccounts.find(b => b.id === targetBankId)
         
@@ -218,6 +219,7 @@ export default function CashAndBankPage() {
           toast.success("Transfer Internal Berhasil Dicatat!", { id: loadingToast })
           setIsAddTxOpen(false)
           setAmount(0)
+          setTxDate(new Date().toISOString().split('T')[0])
           setDescription('')
           setCounterpart('')
           setTargetBankId('')
@@ -297,6 +299,7 @@ export default function CashAndBankPage() {
         setIsAddTxOpen(false)
         // Reset
         setAmount(0)
+        setTxDate(new Date().toISOString().split('T')[0])
         setDescription('')
         setCounterpart('')
       } else {
@@ -467,6 +470,16 @@ export default function CashAndBankPage() {
                               </>
                            )}
                         </div>
+                     </div>
+
+                     <div className="space-y-2">
+                        <Label>Tanggal Transaksi</Label>
+                        <Input
+                           type="date"
+                           className="h-12 rounded-xl"
+                           value={txDate}
+                           onChange={(e) => setTxDate(e.target.value)}
+                        />
                      </div>
 
                      <div className="space-y-2">
