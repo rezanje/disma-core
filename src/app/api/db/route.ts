@@ -237,3 +237,30 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Failed to sync data' }, { status: 500 });
   }
 }
+
+// DELETE: Remove record(s) from a table
+export async function DELETE(request: Request) {
+  try {
+    const { table, id } = await request.json();
+
+    if (!supabase) return NextResponse.json({ error: 'Supabase not initialized' }, { status: 500 });
+    if (!table || !id) return NextResponse.json({ error: 'Table and ID required' }, { status: 400 });
+
+    const ids = Array.isArray(id) ? id : [id];
+    const { error } = await supabase.from(table).delete().in('id', ids);
+
+    if (error) {
+      if (isMissingTableError(error)) {
+        return NextResponse.json({ success: true, count: 0 });
+      }
+      console.error(`Supabase DELETE Error (${table}):`, error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true, count: ids.length });
+
+  } catch (error) {
+    console.error('API DELETE Error:', error);
+    return NextResponse.json({ error: 'Failed to delete data' }, { status: 500 });
+  }
+}

@@ -282,6 +282,8 @@ interface AppState {
   cashTransactions: CashTransaction[];
   addCashTransaction: (tx: CashTransaction) => void;
   updateCashTransaction: (id: string, updates: Partial<CashTransaction>) => Promise<void>;
+  deleteCashTransaction: (id: string) => Promise<void>;
+  bulkDeleteCashTransactions: (ids: string[]) => Promise<void>;
 
   // Reimbursements
   reimbursements: Reimbursement[];
@@ -1294,6 +1296,73 @@ export const useAppStore = create<AppState>((set, get) => ({
 
         await get().syncTable('cash_transactions', newTx);
         for (const b of banksToSync) await get().syncTable('bank_accounts', b);
+      },
+
+      deleteCashTransaction: async (id) => {
+        const existing = get().cashTransactions.find(tx => tx.id === id);
+        if (!existing) return;
+
+        get().takeDevSnapshot();
+        const changeToReverse = existing.type === 'In' ? existing.amount : -existing.amount;
+        let accountToSync: BankAccount | undefined;
+
+        set((state) => {
+          const updatedAccounts = state.bankAccounts.map(b => 
+            b.id === existing.bankAccountId ? { ...b, balance: (b.balance || 0) - changeToReverse } : b
+          );
+          accountToSync = updatedAccounts.find(b => b.id === existing.bankAccountId);
+          
+          return { 
+            cashTransactions: state.cashTransactions.filter(tx => tx.id !== id),
+            bankAccounts: updatedAccounts
+          }
+        });
+
+        await fetch('/api/db', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ table: 'cash_transactions', id })
+        });
+        
+        if (accountToSync) await get().syncTable('bank_accounts', accountToSync);
+      },
+
+      bulkDeleteCashTransactions: async (ids) => {
+        if (!ids.length) return;
+        get().takeDevSnapshot();
+        
+        const txsToDelete = get().cashTransactions.filter(tx => ids.includes(tx.id));
+        const bankDeltas: Record<string, number> = {};
+        
+        txsToDelete.forEach(tx => {
+          const changeToReverse = tx.type === 'In' ? tx.amount : -tx.amount;
+          bankDeltas[tx.bankAccountId] = (bankDeltas[tx.bankAccountId] || 0) - changeToReverse;
+        });
+
+        let updatedBanks: BankAccount[] = [];
+        set((state) => {
+          updatedBanks = state.bankAccounts.map(b => {
+             if (bankDeltas[b.id]) {
+                return { ...b, balance: (b.balance || 0) + bankDeltas[b.id] };
+             }
+             return b;
+          });
+          return {
+            cashTransactions: state.cashTransactions.filter(tx => !ids.includes(tx.id)),
+            bankAccounts: updatedBanks
+          };
+        });
+
+        await fetch('/api/db', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ table: 'cash_transactions', id: ids })
+        });
+
+        for (const bankId of Object.keys(bankDeltas)) {
+           const b = updatedBanks.find(x => x.id === bankId);
+           if (b) await get().syncTable('bank_accounts', b);
+        }
       },
 
       reimbursements: [],

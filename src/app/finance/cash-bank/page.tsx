@@ -6,17 +6,18 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Minus, Landmark, ArrowUpRight, ArrowDownRight, Search, History, Wallet, Wallet2, Building2, Receipt, FileText, Pencil, Settings2 } from "lucide-react"
+import { Plus, Minus, Landmark, ArrowUpRight, ArrowDownRight, Search, History, Wallet, Wallet2, Building2, Receipt, FileText, Pencil, Settings2, Trash2, CheckCircle2, AlertCircle } from "lucide-react"
 import { toast } from "sonner"
 import { format } from "date-fns"
 import { formatRupiah, formatNumber, parseNumber } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { v4 as uuidv4 } from "uuid"
 import { createAccountingEntry } from "@/lib/accounting"
 import ReceiptUpload from "@/components/ui/receipt-upload"
+import { Checkbox } from "@/components/ui/checkbox"
 
 export default function CashAndBankPage() {
   const bankAccounts = useAppStore(state => state.bankAccounts)
@@ -25,6 +26,8 @@ export default function CashAndBankPage() {
   const cashTransactions = useAppStore(state => state.cashTransactions)
   const addCashTransaction = useAppStore(state => state.addCashTransaction)
   const updateCashTransaction = useAppStore(state => state.updateCashTransaction)
+  const deleteCashTransaction = useAppStore(state => state.deleteCashTransaction)
+  const bulkDeleteCashTransactions = useAppStore(state => state.bulkDeleteCashTransactions)
   const coas = useAppStore(state => state.coas)
 
   const [isAddTxOpen, setIsAddTxOpen] = useState(false)
@@ -45,6 +48,9 @@ export default function CashAndBankPage() {
 
   const [selectedBankFilter, setSelectedBankFilter] = useState<string | null>(null)
   const [editingTx, setEditingTx] = useState<any>(null)
+  const [selectedTxIds, setSelectedTxIds] = useState<string[]>([])
+  const [isBulkDeleteConfirmOpen, setIsBulkDeleteConfirmOpen] = useState(false)
+  const [txToDelete, setTxToDelete] = useState<string | null>(null)
 
   const filteredTxs = cashTransactions.filter(tx => {
     const matchSearch = tx.description.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -153,6 +159,30 @@ export default function CashAndBankPage() {
       toast.success("Transaksi berhasil diperbarui!", { id: loadingToast })
     } catch (e: any) {
       toast.error("Gagal memperbarui: " + e.message, { id: loadingToast })
+    }
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!txToDelete) return
+    const loadingToast = toast.loading("Menghapus transaksi...")
+    try {
+      await deleteCashTransaction(txToDelete)
+      setTxToDelete(null)
+      toast.success("Transaksi berhasil dihapus!", { id: loadingToast })
+    } catch (e: any) {
+      toast.error("Gagal menghapus: " + e.message, { id: loadingToast })
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    const loadingToast = toast.loading(`Menghapus ${selectedTxIds.length} transaksi...`)
+    try {
+       await bulkDeleteCashTransactions(selectedTxIds)
+       setSelectedTxIds([])
+       setIsBulkDeleteConfirmOpen(false)
+       toast.success("Transaksi berhasil dihapus massal!", { id: loadingToast })
+    } catch (e: any) {
+       toast.error("Gagal menghapus massal: " + e.message, { id: loadingToast })
     }
   }
 
@@ -675,14 +705,29 @@ export default function CashAndBankPage() {
                   </CardTitle>
                   <CardDescription>Semua mutasi masuk dan keluar tervalidasi.</CardDescription>
                </div>
-               <div className="relative w-72">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                  <Input 
-                    placeholder="Filter transaksi..." 
-                    className="pl-9 bg-white dark:bg-slate-950 rounded-xl"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
+               <div className="flex items-center gap-4">
+                  {selectedTxIds.length > 0 && (
+                     <div className="flex items-center gap-2 animate-in slide-in-from-right-2">
+                        <span className="text-xs font-bold text-slate-500">{selectedTxIds.length} terpilih</span>
+                        <Button 
+                           variant="destructive" 
+                           size="sm" 
+                           className="h-8 rounded-lg px-3 font-bold text-[10px] uppercase tracking-wider"
+                           onClick={() => setIsBulkDeleteConfirmOpen(true)}
+                        >
+                           <Trash2 className="w-3 h-3 mr-1" /> Hapus Massal
+                        </Button>
+                     </div>
+                  )}
+                  <div className="relative w-72">
+                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                     <Input 
+                       placeholder="Filter transaksi..." 
+                       className="pl-9 bg-white dark:bg-slate-950 rounded-xl"
+                       value={searchTerm}
+                       onChange={(e) => setSearchTerm(e.target.value)}
+                     />
+                  </div>
                </div>
             </div>
          </CardHeader>
@@ -690,7 +735,16 @@ export default function CashAndBankPage() {
             <Table>
                <TableHeader className="bg-slate-50 dark:bg-slate-900 border-b">
                   <TableRow>
-                     <TableHead className="w-32 px-8">Tgl & Bank</TableHead>
+                     <TableHead className="w-12 px-8">
+                        <Checkbox 
+                          checked={selectedTxIds.length === filteredTxs.length && filteredTxs.length > 0}
+                          onCheckedChange={(checked) => {
+                            if (checked) setSelectedTxIds(filteredTxs.map(tx => tx.id))
+                            else setSelectedTxIds([])
+                          }}
+                        />
+                     </TableHead>
+                     <TableHead className="w-32 px-4">Tgl & Bank</TableHead>
                      <TableHead>Deskripsi & Info</TableHead>
                      <TableHead>Kategori</TableHead>
                      <TableHead className="text-right px-8">Jumlah</TableHead>
@@ -699,16 +753,26 @@ export default function CashAndBankPage() {
                <TableBody>
                   {filteredTxs.length === 0 ? (
                      <TableRow>
-                        <TableCell colSpan={4} className="h-32 text-center text-muted-foreground italic">
+                        <TableCell colSpan={6} className="h-32 text-center text-muted-foreground italic">
                            Belum ada transaksi kas yang dicatat.
                         </TableCell>
                      </TableRow>
                   ) : (
                      filteredTxs.map(tx => {
                         const bank = bankAccounts.find(b => b.id === tx.bankAccountId)
+                        const isSelected = selectedTxIds.includes(tx.id)
                         return (
-                           <TableRow key={tx.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors py-4">
-                              <TableCell className="px-8 flex flex-col items-start gap-1">
+                           <TableRow key={tx.id} className={`hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors py-4 ${isSelected ? 'bg-emerald-50/50' : ''}`}>
+                              <TableCell className="px-8">
+                                 <Checkbox 
+                                   checked={isSelected}
+                                   onCheckedChange={(checked) => {
+                                      if (checked) setSelectedTxIds([...selectedTxIds, tx.id])
+                                      else setSelectedTxIds(selectedTxIds.filter(id => id !== tx.id))
+                                   }}
+                                 />
+                              </TableCell>
+                              <TableCell className="px-4 flex flex-col items-start gap-1">
                                  <span className="text-[10px] font-bold text-slate-400">{format(new Date(tx.date), 'dd/MM HH:mm')}</span>
                                  <Badge variant="secondary" className="text-[9px] font-black h-4 px-1.5 uppercase tracking-tighter bg-slate-100">
                                     {bank?.name || 'Bank'}
@@ -781,13 +845,22 @@ export default function CashAndBankPage() {
                               <TableCell className={`text-right px-8 font-black text-lg font-mono ${tx.type === 'In' ? 'text-emerald-600' : 'text-rose-600'}`}>
                                  <div className="flex items-center justify-end gap-3">
                                     <span>{tx.type === 'In' ? '+' : '-'} {formatRupiah(tx.amount)}</span>
-                                    <Button
-                                       variant="ghost" size="icon"
-                                       className="h-7 w-7 text-slate-400 hover:text-slate-700 shrink-0"
-                                       onClick={() => setEditingTx({ ...tx })}
-                                    >
-                                       <Pencil className="h-3.5 w-3.5" />
-                                    </Button>
+                                    <div className="flex items-center gap-1">
+                                       <Button
+                                          variant="ghost" size="icon"
+                                          className="h-7 w-7 text-slate-300 hover:text-rose-600 hover:bg-rose-50 transition-all"
+                                          onClick={() => setTxToDelete(tx.id)}
+                                       >
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                       </Button>
+                                       <Button
+                                          variant="ghost" size="icon"
+                                          className="h-7 w-7 text-slate-400 hover:text-slate-700 shrink-0"
+                                          onClick={() => setEditingTx({ ...tx })}
+                                       >
+                                          <Pencil className="h-3.5 w-3.5" />
+                                       </Button>
+                                    </div>
                                  </div>
                               </TableCell>
                            </TableRow>
@@ -798,6 +871,44 @@ export default function CashAndBankPage() {
             </Table>
          </CardContent>
       </Card>
+
+      {/* DELETE CONFIRMATION DIALOG */}
+      <Dialog open={!!txToDelete} onOpenChange={(open) => !open && setTxToDelete(null)}>
+         <DialogContent className="rounded-[2rem] max-w-sm p-8">
+            <DialogHeader className="items-center text-center">
+               <div className="w-16 h-16 bg-rose-50 rounded-2xl flex items-center justify-center mb-4">
+                  <AlertCircle className="w-8 h-8 text-rose-500" />
+               </div>
+               <DialogTitle className="text-xl font-black uppercase tracking-tight">Hapus Transaksi?</DialogTitle>
+               <DialogDescription className="font-bold text-slate-500 mt-2">
+                  Tindakan ini akan menghapus riwayat transaksi dan **mengembalikan saldo bank** ke posisi sebelum transaksi ini terjadi.
+               </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="flex-col gap-2 sm:flex-col mt-6">
+               <Button variant="destructive" className="w-full h-12 rounded-xl font-black uppercase text-xs tracking-widest" onClick={handleConfirmDelete}>Ya, Hapus Sekarang</Button>
+               <Button variant="ghost" className="w-full h-12 rounded-xl font-bold text-slate-400" onClick={() => setTxToDelete(null)}>Batalkan</Button>
+            </DialogFooter>
+         </DialogContent>
+      </Dialog>
+
+      {/* BULK DELETE CONFIRMATION DIALOG */}
+      <Dialog open={isBulkDeleteConfirmOpen} onOpenChange={setIsBulkDeleteConfirmOpen}>
+         <DialogContent className="rounded-[2rem] max-w-sm p-8">
+            <DialogHeader className="items-center text-center">
+               <div className="w-16 h-16 bg-rose-50 rounded-2xl flex items-center justify-center mb-4">
+                  <Trash2 className="w-8 h-8 text-rose-500" />
+               </div>
+               <DialogTitle className="text-xl font-black uppercase tracking-tight">Hapus {selectedTxIds.length} Transaksi?</DialogTitle>
+               <DialogDescription className="font-bold text-slate-500 mt-2">
+                  Anda akan menghapus {selectedTxIds.length} transaksi sekaligus. Saldo dari masing-masing akun bank terkait akan dikalkulasi ulang secara otomatis.
+               </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="flex-col gap-2 sm:flex-col mt-6">
+               <Button variant="destructive" className="w-full h-12 rounded-xl font-black uppercase text-xs tracking-widest" onClick={handleBulkDelete}>Hapus Semua Terpilih</Button>
+               <Button variant="ghost" className="w-full h-12 rounded-xl font-bold text-slate-400" onClick={() => setIsBulkDeleteConfirmOpen(false)}>Batalkan</Button>
+            </DialogFooter>
+         </DialogContent>
+      </Dialog>
 
       {/* Edit Transaction Dialog */}
       <Dialog open={!!editingTx} onOpenChange={(open) => { if (!open) setEditingTx(null) }}>
