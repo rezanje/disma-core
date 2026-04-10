@@ -48,7 +48,7 @@ export default function SourcingDashboard() {
   const [reconciliationNote, setReconciliationNote] = useState('')
   const [proofImage, setProofImage] = useState<string | null>(null)
   const [returnTargetBank, setReturnTargetBank] = useState('bank-1')
-  const [courierRecipientId, setCourierRecipientId] = useState('44444444-4444-4444-4444-444444444444')
+  const [courierRecipientId, setCourierRecipientId] = useState('')
   const [courierTransferAmount, setCourierTransferAmount] = useState(0)
 
   const handleExpandItem = (item: PurchaseItem | null) => {
@@ -61,7 +61,10 @@ export default function SourcingDashboard() {
   }
 
   const bankAccounts = useAppStore(state => state.bankAccounts)
-  const courierUsers = users.filter(user => user.role === 'kurir')
+  const courierUsers = users.filter(user => 
+     ['kurir', 'gudang', 'sourcing'].includes(user.role) && 
+     user.id !== currentUser?.id
+  )
   const courierTransferHistory = cashTransactions
     .filter(tx => tx.bankAccountId === 'bank-advance-sourcing' && tx.type === 'Out' && tx.category === 'Distribusi Kas Operasional')
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
@@ -96,6 +99,8 @@ export default function SourcingDashboard() {
   const handleTransferToCourier = async () => {
     const recipient = courierUsers.find(user => user.id === courierRecipientId)
     const sourceWallet = bankAccounts.find(bank => bank.id === 'bank-advance-sourcing')
+    const myWallet = getAdvanceWalletByUserId(currentUser?.id)
+    const sourceBankAccountId = myWallet?.bankAccountId || 'bank-advance-sourcing'
     const safeTransferLimit = Math.max(0, totalHolding)
 
     if (!recipient) return toast.error("Pilih kurir penerima dulu.")
@@ -103,12 +108,16 @@ export default function SourcingDashboard() {
     if (courierTransferAmount > safeTransferLimit) return toast.error("Saldo aman kas sourcing tidak cukup.")
     if (!sourceWallet || sourceWallet.balance < courierTransferAmount) return toast.error("Saldo buku kas sourcing belum cukup.")
 
-    const loadingToast = toast.loading("Mengirim dana operasional ke kurir...")
+
+    const recipientWallet = getAdvanceWalletByUserId(recipient.id)
+    const targetWalletId = recipientWallet?.bankAccountId || 'bank-advance-courier'
+
+    const loadingToast = toast.loading(`Mengirim dana operasional ke ${recipient.name}...`)
     const transferReferenceId = uuidv4()
     const success = await recordOperationalAdvanceTransfer(
       courierTransferAmount,
-      'bank-advance-sourcing',
-      'bank-advance-courier',
+      sourceBankAccountId,
+      targetWalletId,
       `Distribusi dana operasional ke ${recipient.name}`,
       transferReferenceId,
       currentUser?.name || 'Hilman (Sourcing)',
@@ -349,17 +358,19 @@ export default function SourcingDashboard() {
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-[8px] font-black uppercase text-slate-500 tracking-widest">Distribusi Dana Operasional</p>
-                <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Hilman bisa oper sebagian kas ke Rifai untuk bensin, tol, parkir, dan kebutuhan jalan.</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">
+                  Operkan sebagian kas untuk mendukung operasional personil lain di lapangan.
+                </p>
               </div>
               <Badge variant="outline" className="border-white/10 bg-white/5 text-[8px] font-black uppercase text-slate-300">
-                Kas Kurir
+                Operasional
               </Badge>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-[1.1fr_0.8fr_auto] gap-3">
               <Select value={courierRecipientId} onValueChange={(v) => v && setCourierRecipientId(v)}>
                 <SelectTrigger className="h-11 rounded-2xl bg-white/5 border-white/10 text-white text-[10px] font-black uppercase">
-                  <SelectValue placeholder="Pilih kurir..." />
+                  <SelectValue placeholder="Pilih penerima dana..." />
                 </SelectTrigger>
                 <SelectContent>
                   {courierUsers.map(user => (
