@@ -29,6 +29,7 @@ export const COA_SEED: ChartOfAccount[] = [
   { id: 'coa-1-2', accountCode: '1-1200', accountName: 'Bank BCA - Utama', accountType: 'Asset' },
   { id: 'coa-1-3', accountCode: '1-1300', accountName: 'Bank Mandiri - Operasional', accountType: 'Asset' },
   { id: 'coa-1-5', accountCode: '1-1500', accountName: 'Uang Muka Karyawan (Advance)', accountType: 'Asset' },
+  { id: 'coa-1-5-1', accountCode: '1-1510', accountName: 'Kas Operasional Kurir', accountType: 'Asset' },
   { id: 'coa-2', accountCode: '1-2000', accountName: 'Piutang Usaha', accountType: 'Asset' },
   { id: 'coa-3', accountCode: '1-3000', accountName: 'Persediaan Barang', accountType: 'Asset' },
   { id: 'coa-4', accountCode: '2-1000', accountName: 'Utang Usaha', accountType: 'Liability' },

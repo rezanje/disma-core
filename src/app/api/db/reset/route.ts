@@ -4,6 +4,8 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // Allow up to 60 seconds for this heavy operation
 
+const isMissingTableError = (message: string) => /could not find the table|schema cache/i.test(message);
+
 export async function POST(request: Request) {
   try {
     if (!supabaseAdmin) return NextResponse.json({ error: 'Supabase Admin not initialized' }, { status: 500 });
@@ -23,7 +25,7 @@ export async function POST(request: Request) {
     // Tables ordered by dependency (children first, parents last) to avoid foreign key violations.
     const operationalTables = [
       'sales_order_items', 'purchase_items', 'journal_lines', 'okr_key_results',
-      'deliveries', 'invoices', 'sales_orders', 'purchases', 'journal_entries', 'okr_objectives',
+      'deliveries', 'invoices', 'sales_orders', 'purchases', 'journal_entries', 'stock_movements', 'rejected_items', 'okr_objectives',
       'reimbursements', 'expenses', 'cash_transactions', 'pending_returns', 'fixed_assets', 
       'notifications', 'disma_tasks', 'leads', 'employees', 'kpis'
     ];
@@ -71,6 +73,10 @@ export async function POST(request: Request) {
         // Aggressive deletion
         const { error } = await supabaseAdmin.from(table).delete().neq('id', '99999999-9999-9999-9999-999999999999');
         if (error) {
+          if ((table === 'stock_movements' || table === 'rejected_items') && isMissingTableError(error.message || '')) {
+            console.warn(`[DB Reset] Skipping missing table: ${table}`);
+            continue;
+          }
           console.error(`[DB Reset] Error clearing ${table}:`, error.message);
           return NextResponse.json({ error: `Failed to clear ${table}: ${error.message}` }, { status: 500 });
         }
@@ -110,18 +116,26 @@ export async function POST(request: Request) {
           
           const snakeRows = toSnake(rows);
           const CHUNK = 200; 
+          let skippedMissingTable = false;
           
           for (let i = 0; i < snakeRows.length; i += CHUNK) {
             const chunk = snakeRows.slice(i, i + CHUNK);
             const { error } = await supabaseAdmin.from(table).upsert(chunk, { onConflict: 'id' });
             if (error) {
+              if ((table === 'stock_movements' || table === 'rejected_items') && isMissingTableError(error.message || '')) {
+                console.warn(`[DB Reset] Skipping seed for missing table: ${table}`);
+                skippedMissingTable = true;
+                break;
+              }
               console.error(`[DB Reset] Seed error ${table} chunk ${i}:`, error.message);
               return NextResponse.json({ error: `Failed to seed ${table}: ${error.message}` }, { status: 500 });
             }
           }
-          
-          console.log(`[DB Reset] 🌱 Seeded: ${table} (${(rows as any[]).length} rows)`);
-          seededTables.push(table);
+          if (skippedMissingTable) continue;
+          if (!seededTables.includes(table)) {
+            console.log(`[DB Reset] 🌱 Seeded: ${table} (${(rows as any[]).length} rows)`);
+            seededTables.push(table);
+          }
         }
       }
     }

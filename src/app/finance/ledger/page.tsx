@@ -50,7 +50,7 @@ export default function LedgerPage() {
     const totalCredit = editLines.reduce((sum, l) => sum + Number(l.creditAmount), 0)
 
     if (totalDebit !== totalCredit) {
-      toast.error(`Jurnal tidak balance! Selisih: Rp ${Math.abs(totalDebit - totalCredit).toLocaleString()}`)
+      toast.error(`Jurnal tidak balance! Selisih: ${formatRupiah(Math.abs(totalDebit - totalCredit))}`)
       return
     }
 
@@ -254,7 +254,7 @@ export default function LedgerPage() {
                                   "font-black tracking-tighter",
                                   isDebit ? "text-emerald-600" : "text-slate-800"
                                 )}>
-                                  Rp {isDebit ? line.debitAmount.toLocaleString() : line.creditAmount.toLocaleString()}
+                                  {formatRupiah(isDebit ? line.debitAmount : line.creditAmount)}
                                 </span>
                               </div>
                             )
@@ -316,12 +316,12 @@ export default function LedgerPage() {
                 <div className="flex gap-8 bg-white px-8 py-4 rounded-[2rem] shadow-sm border border-slate-100">
                   <div className="text-right">
                     <p className="text-[9px] font-black text-slate-300 uppercase mb-1">Total Debit</p>
-                    <p className="text-xl font-black text-emerald-600 tracking-tighter">Rp {editLines.reduce((s, l) => s + Number(l.debitAmount), 0).toLocaleString()}</p>
+                    <p className="text-xl font-black text-emerald-600 tracking-tighter">{formatRupiah(editLines.reduce((s, l) => s + Number(l.debitAmount), 0))}</p>
                   </div>
                   <div className="w-px h-10 bg-slate-100 self-center" />
                   <div className="text-right">
                     <p className="text-[9px] font-black text-slate-300 uppercase mb-1">Total Kredit</p>
-                    <p className="text-xl font-black text-slate-800 tracking-tighter">Rp {editLines.reduce((s, l) => s + Number(l.creditAmount), 0).toLocaleString()}</p>
+                    <p className="text-xl font-black text-slate-800 tracking-tighter">{formatRupiah(editLines.reduce((s, l) => s + Number(l.creditAmount), 0))}</p>
                   </div>
                 </div>
               </div>

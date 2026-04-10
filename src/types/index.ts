@@ -62,6 +62,39 @@ export interface Product {
   weeklyPriceRange?: { min: number, max: number, lastUpdated: string };
 }
 
+export type StockMovementDirection = 'In' | 'Out' | 'Transfer' | 'Info';
+export type StockMovementKind =
+  | 'QC_RECEIPT'
+  | 'QC_INVENTORY'
+  | 'QC_CLIENT_ALLOCATION'
+  | 'ONLINE_PURCHASE'
+  | 'DELIVERY_OUTBOUND'
+  | 'RETURN_RESTOCK'
+  | 'RETURN_REJECT'
+  | 'ADJUSTMENT'
+  | 'INITIAL';
+
+export interface StockMovement {
+  id: string;
+  date: string;
+  productId: string;
+  productName?: string;
+  skuCode?: string;
+  quantity: number;
+  stockDelta: number;
+  resultingStock: number;
+  direction: StockMovementDirection;
+  kind: StockMovementKind;
+  source: string;
+  destination?: string;
+  referenceType?: 'Purchase' | 'Delivery' | 'Invoice' | 'Expense' | 'Adjustment' | 'Transfer' | 'QC';
+  referenceId?: string;
+  purchaseItemId?: string;
+  salesOrderId?: string;
+  note?: string;
+  createdByUserId?: string;
+}
+
 export type SalesOrderStatus = 'Pending Approval' | 'Draft' | 'Belanja' | 'QC' | 'Packing' | 'Siap Kirim' | 'Dikirim' | 'Awaiting Audit' | 'Terkirim' | 'Selesai' | 'Batal';
 
 export interface SalesOrder {

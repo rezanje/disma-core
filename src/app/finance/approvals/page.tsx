@@ -17,7 +17,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { v4 as uuidv4 } from "uuid"
-import { createAccountingEntry, recordBudgetTransfer, recordReimbursementPayment, recordOperationalExpense, recordReconciliationSettlement, recordDeliveryAndInvoice, recordAdvanceReturn, updateProductPriceHistory } from "@/lib/accounting"
+import { recordBudgetTransfer, recordReimbursementPayment, recordOperationalExpense, recordReconciliationSettlement, recordDeliveryAndInvoice, recordAdvanceReturn, updateProductPriceHistory, recordAdvanceExpense, getAdvanceWalletByRole, getAdvanceWalletByUserId } from "@/lib/accounting"
 import AuthGuard from "@/components/auth/auth-guard"
 import { 
   Dialog, 
@@ -47,7 +47,6 @@ export default function FinanceHubPage() {
   const updateDelivery = useAppStore(state => state.updateDelivery)
   const updateSalesOrder = useAppStore(state => state.updateSalesOrder)
   const bundleUpdateProducts = useAppStore(state => state.updateProduct)
-  const addCashTransaction = useAppStore(state => state.addCashTransaction)
   const addReimbursement = useAppStore(state => state.addReimbursement)
   const setIsSyncing = (v: boolean) => useAppStore.setState({ isSyncing: v })
 
@@ -121,7 +120,7 @@ export default function FinanceHubPage() {
 
     if (status === 'Approved') {
        const reporter = users.find(u => u.id === exp.reporterId)
-       const isSourcingExp = reporter?.role === 'sourcing'
+       const advanceWallet = getAdvanceWalletByRole(reporter?.role)
        const bank = bankAccounts.find(b => b.id === selectedBank)
 
        toast.loading("Mencatat transaksi keuangan...", { id: "audit-exp" })
@@ -134,31 +133,19 @@ export default function FinanceHubPage() {
              toast.error("Gagal mencatat pengembalian dana.", { id: "audit-exp" })
              return
           }
-       } else if (isSourcingExp) {
-          // Ops expense sourcing (bensin, tol, dll) — jurnal + CashTransaction Out dari Kas Sourcing
-          let expenseAccountCode = '6-9000'
-          if (exp.category === 'Bensin' || exp.category === 'Tol' || exp.category === 'Parkir') expenseAccountCode = '6-1400'
-          if (exp.category === 'Belanja Online' || exp.category === 'Sourcing (HPP)') expenseAccountCode = '5-1000'
-          await createAccountingEntry(
-            `Beban Sourcing: ${exp.description}`,
-            'Expense',
+       } else if (advanceWallet) {
+          const success = await recordAdvanceExpense(
             expenseId,
-            [{ accountCode: expenseAccountCode, amount: exp.amount }],
-            [{ accountCode: '1-1500', amount: exp.amount }],
-            exp.date
+            exp.reporterId,
+            exp.amount,
+            exp.description || 'Biaya Ops',
+            exp.date,
+            exp.category || 'Operasional'
           )
-          // Catat Out dari Kas Sourcing — uang sudah dipakai untuk ops
-          const { addCashTransaction } = useAppStore.getState()
-          await addCashTransaction({
-            id: `exp-${expenseId}`,
-            date: exp.date || new Date().toISOString(),
-            amount: exp.amount,
-            type: 'Out',
-            category: exp.category || 'Operasional',
-            description: exp.description || 'Biaya Ops',
-            bankAccountId: 'bank-advance-sourcing',
-            referenceId: expenseId
-          })
+          if (!success) {
+            toast.error(`Gagal mencatat pengeluaran ${advanceWallet.label}.`, { id: "audit-exp" })
+            return
+          }
        } else {
           // Non-sourcing expense → catat penuh ke buku kas perusahaan
           const success = await recordOperationalExpense(expenseId, exp.amount, exp.description || '', exp.date, exp.category || 'Operasional', bank?.accountCode || '1-1200', selectedBank)
@@ -177,6 +164,10 @@ export default function FinanceHubPage() {
   const handleVerifyReconciliation = async (purchaseId: string) => {
     const purchase = purchases.find(p => p.id === purchaseId)
     if (!purchase) return
+    if (purchase.reconciliationStatus === 'Terverifikasi') {
+      toast.info("Rekonsiliasi ini sudah pernah diverifikasi.")
+      return
+    }
 
     const advanceAmount = (purchase.budgetAmount || 0) + (purchase.operationalSpareAmount || 0)
     const syncTable = useAppStore.getState().syncTable
@@ -203,18 +194,7 @@ export default function FinanceHubPage() {
     // Sync to DB silently (no broadcast)
     await syncTable('purchases', updatedPurchase, true)
 
-    // Update product stock using fresh state
     const pItems = useAppStore.getState().purchaseItems.filter(pi => pi.purchaseId === purchaseId && pi.isChecked)
-    for (const item of pItems) {
-      const latestProduct = useAppStore.getState().products.find(p => p.id === item.productId)
-      if (latestProduct) {
-        const updatedProduct = { ...latestProduct, currentStock: (latestProduct.currentStock || 0) + (item.qtyPurchased || 0) }
-        useAppStore.setState(state => ({
-          products: state.products.map(p => p.id === latestProduct.id ? updatedProduct : p)
-        }))
-        await syncTable('products', updatedProduct, true)
-      }
-    }
 
     // Update harga rekomendasi produk setelah finance approve (bukan saat sourcing submit)
     for (const item of pItems) {
@@ -223,13 +203,14 @@ export default function FinanceHubPage() {
       }
     }
 
-    toast.success("Rekonsiliasi terverifikasi! Advance disettle & stok barang ditambahkan.", { id: "rekon" })
+    toast.success("Rekonsiliasi terverifikasi! Advance disettle & harga rekomendasi diperbarui.", { id: "rekon" })
   }
 
   const handleVerifyDelivery = async (deliveryId: string) => {
     const delivery = deliveries.find(d => d.id === deliveryId)
     const soId = delivery?.salesOrderId
-    const invoiceId = delivery?.invoiceId
+    const fallbackInvoice = invoices.find(inv => inv.salesOrderId === soId)
+    const invoiceId = delivery?.invoiceId || fallbackInvoice?.id
     if (!delivery || !soId || !invoiceId) return
 
     const soItems = salesOrderItems.filter(i => i.salesOrderId === soId)
@@ -363,9 +344,9 @@ export default function FinanceHubPage() {
                                       onChange={(e) => setSelectedPurchasers({...selectedPurchasers, [purchase.id]: e.target.value})}
                                     >
                                        <option value="">-- Pilih Sourcing --</option>
-                                       {users.filter(u => u.role === 'sourcing').map(u => (
-                                          <option key={u.id} value={u.id} className="text-slate-900">{u.name}</option>
-                                       ))}
+                                        {users.filter(u => ['sourcing', 'gudang', 'kurir'].includes(u.role)).map(u => (
+                                           <option key={u.id} value={u.id} className="text-slate-900">{u.name}</option>
+                                        ))}
                                     </select>
                                  </div>
                                  <div>
@@ -433,7 +414,7 @@ export default function FinanceHubPage() {
                            <CardContent className="p-6 pt-2 space-y-6">
                               <div className="bg-slate-50/50 p-4 rounded-3xl border border-slate-100">
                                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Keterangan Biaya</p>
-                                 <p className="text-xs font-bold text-slate-700 mt-1 italic whitespace-pre-wrap leading-relaxed opacity-70">"{exp.description}"</p>
+                                 <p className="text-xs font-bold text-slate-700 mt-1 italic whitespace-pre-wrap leading-relaxed opacity-70">&quot;{exp.description}&quot;</p>
                                  <div className="mt-4 pt-4 border-t border-slate-100 flex justify-between items-baseline">
                                     <span className="text-[9px] font-black text-slate-400 uppercase">Nilai Transaksi</span>
                                     <span className="text-2xl font-black text-slate-900 tracking-tighter">{formatRupiah(exp.amount)}</span>
@@ -487,7 +468,7 @@ export default function FinanceHubPage() {
                             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
                                <User className="w-3 h-3" /> {user?.name} — {new Date(reimb.date).toLocaleDateString()}
                             </p>
-                            <p className="text-[10px] font-medium text-slate-400 mt-1 italic">"{reimb.description}"</p>
+                            <p className="text-[10px] font-medium text-slate-400 mt-1 italic">&quot;{reimb.description}&quot;</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-6 w-full md:w-auto">
@@ -527,16 +508,17 @@ export default function FinanceHubPage() {
                <EmptyState title="Semua Laporan Aman" desc="Tidak ada sesi belanja atau online purchase yang menunggu validasi rekonsiliasi." />
              ) : (
                <div className="grid gap-8">
-                  {/* Category: Setoran Pengembalian Kas Sourcing */}
+                  {/* Category: Setoran Pengembalian Kas Operasional */}
                   {pendingReturns.length > 0 && (
                     <div className="space-y-4">
                        <div className="flex items-center gap-2 pl-4">
                           <Banknote className="w-4 h-4 text-emerald-500" />
-                          <h3 className="text-xs font-black uppercase text-slate-500 tracking-widest">Konfirmasi Setoran Kembalian Sourcing</h3>
+                          <h3 className="text-xs font-black uppercase text-slate-500 tracking-widest">Konfirmasi Setoran Kembalian Operasional</h3>
                        </div>
                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                           {pendingReturns.map(exp => {
                              const reporter = users.find(u => u.id === exp.reporterId)
+                             const sourceWallet = getAdvanceWalletByUserId(exp.reporterId)
                              return (
                                 <Card key={exp.id} className="border-none shadow-xl rounded-[2.5rem] bg-white group hover:scale-[1.02] transition-all">
                                    <CardHeader className="p-6 pb-2">
@@ -545,7 +527,7 @@ export default function FinanceHubPage() {
                                          <span className="text-[10px] font-black text-slate-400">{new Date(exp.date).toLocaleDateString()}</span>
                                       </div>
                                       <CardTitle className="text-sm font-black uppercase leading-tight text-slate-800">{exp.description}</CardTitle>
-                                      <CardDescription className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">BY {reporter?.name || 'SOURCING'}</CardDescription>
+                                      <CardDescription className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">BY {reporter?.name || 'OPERASIONAL'}</CardDescription>
                                    </CardHeader>
                                    <CardContent className="p-6 pt-4 space-y-4">
                                       <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
@@ -570,7 +552,7 @@ export default function FinanceHubPage() {
                                             <SelectValue placeholder="Pilih bank..." />
                                           </SelectTrigger>
                                           <SelectContent>
-                                            {bankAccounts.filter(b => b.id !== 'bank-advance-sourcing').map(b => (
+                                            {bankAccounts.filter(b => b.id !== sourceWallet?.bankAccountId).map(b => (
                                               <SelectItem key={b.id} value={b.id} className="font-bold text-xs">{b.name} — {formatRupiah(b.balance)}</SelectItem>
                                             ))}
                                           </SelectContent>

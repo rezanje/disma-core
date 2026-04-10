@@ -5,12 +5,145 @@ import {
   PurchaseItem, Delivery, Invoice, ChartOfAccount, JournalEntry, 
   JournalLine, OperationalExpense, User, Vendor, Role, Lead, Announcement, AppTask, AppNotification,
   BankAccount, CashTransaction, Reimbursement, FixedAsset,
-  Employee, SmartKpi, OkrObjective, RolePermissionMap, AccessKey, PendingReturn, RejectedItem
+  Employee, SmartKpi, OkrObjective, RolePermissionMap, AccessKey, PendingReturn, RejectedItem, StockMovement
 } from '@/types';
 import { COA_SEED, CLIENTS_SEED, VENDORS_SEED, MOCK_USERS, KPI_SEED } from './constants';
 import { PRODUCTS_SEED } from './products_seed';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
+
+const LOCAL_PRODUCTS_CACHE_KEY = 'disma_local_products_cache';
+const LOCAL_CLIENTS_CACHE_KEY = 'disma_local_clients_cache';
+const LOCAL_SALES_ORDERS_CACHE_KEY = 'disma_local_sales_orders_cache';
+const LOCAL_SALES_ORDER_ITEMS_CACHE_KEY = 'disma_local_sales_order_items_cache';
+const LOCAL_PURCHASES_CACHE_KEY = 'disma_local_purchases_cache';
+const LOCAL_PURCHASE_ITEMS_CACHE_KEY = 'disma_local_purchase_items_cache';
+
+const loadLocalProductsCache = (): Product[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(LOCAL_PRODUCTS_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveLocalProductsCache = (products: Product[]) => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(LOCAL_PRODUCTS_CACHE_KEY, JSON.stringify(products));
+  } catch {
+    // Ignore local cache write failures so the app can continue working.
+  }
+};
+
+const loadLocalClientsCache = (): Client[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(LOCAL_CLIENTS_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveLocalClientsCache = (clients: Client[]) => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(LOCAL_CLIENTS_CACHE_KEY, JSON.stringify(clients));
+  } catch {
+    // Ignore local cache write failures so the app can continue working.
+  }
+};
+
+const loadLocalSalesOrdersCache = (): SalesOrder[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(LOCAL_SALES_ORDERS_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveLocalSalesOrdersCache = (salesOrders: SalesOrder[]) => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(LOCAL_SALES_ORDERS_CACHE_KEY, JSON.stringify(salesOrders));
+  } catch {
+    // Ignore local cache write failures so the app can continue working.
+  }
+};
+
+const loadLocalSalesOrderItemsCache = (): SalesOrderItem[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(LOCAL_SALES_ORDER_ITEMS_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveLocalSalesOrderItemsCache = (salesOrderItems: SalesOrderItem[]) => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(LOCAL_SALES_ORDER_ITEMS_CACHE_KEY, JSON.stringify(salesOrderItems));
+  } catch {
+    // Ignore local cache write failures so the app can continue working.
+  }
+};
+
+const loadLocalPurchasesCache = (): Purchase[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(LOCAL_PURCHASES_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveLocalPurchasesCache = (purchases: Purchase[]) => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(LOCAL_PURCHASES_CACHE_KEY, JSON.stringify(purchases));
+  } catch {
+    // Ignore local cache write failures so the app can continue working.
+  }
+};
+
+const loadLocalPurchaseItemsCache = (): PurchaseItem[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(LOCAL_PURCHASE_ITEMS_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveLocalPurchaseItemsCache = (purchaseItems: PurchaseItem[]) => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(LOCAL_PURCHASE_ITEMS_CACHE_KEY, JSON.stringify(purchaseItems));
+  } catch {
+    // Ignore local cache write failures so the app can continue working.
+  }
+};
 
 export interface NavItemConfig {
   order: string[] // List of item titles in order
@@ -57,6 +190,8 @@ interface AppState {
   addProducts: (products: Product[]) => void;
   clearProducts: () => Promise<void>;
   updateProduct: (id: string, data: Partial<Product>) => void;
+  stockMovements: StockMovement[];
+  addStockMovement: (movement: StockMovement) => Promise<void>;
   
   coas: ChartOfAccount[];
   addCoa: (coa: ChartOfAccount) => void;
@@ -186,6 +321,7 @@ const initialCOAs: ChartOfAccount[] = [
   { id: 'coa-1-2', accountCode: '1-1200', accountName: 'Bank BCA - Utama', accountType: 'Asset' },
   { id: 'coa-1-3', accountCode: '1-1300', accountName: 'Bank Mandiri - Operasional', accountType: 'Asset' },
   { id: 'coa-1-5', accountCode: '1-1500', accountName: 'Uang Muka Karyawan (Advance)', accountType: 'Asset' },
+  { id: 'coa-1-5-1', accountCode: '1-1510', accountName: 'Kas Operasional Kurir', accountType: 'Asset' },
   { id: 'coa-2', accountCode: '1-2000', accountName: 'Piutang Usaha (Klien)', accountType: 'Asset' },
   { id: 'coa-3', accountCode: '1-3000', accountName: 'Persediaan Barang Dagang', accountType: 'Asset' },
   { id: 'coa-4', accountCode: '1-4000', accountName: 'Aset Tetap (Kendaraan/Alat)', accountType: 'Asset' },
@@ -227,13 +363,40 @@ const INITIAL_BANK_ACCOUNTS: BankAccount[] = [
   { id: 'bank-2', name: 'Mandiri (Ops)', accountNumber: '123000998877', accountCode: '1-1300', balance: 0 },
   { id: 'bank-3', name: 'BRI (Simpanan)', accountNumber: '001122334455', accountCode: '1-1000', balance: 0 },
   { id: 'bank-4', name: 'Petty Cash', accountCode: '1-1000', balance: 0 },
-  { id: 'bank-advance-sourcing', name: 'Kas Sourcing (Hilman)', accountCode: '1-1500', balance: 0 }
+  { id: 'bank-advance-sourcing', name: 'Kas Sourcing (Hilman)', accountCode: '1-1500', balance: 0 },
+  { id: 'bank-advance-sourcing-sandi', name: 'Kas Sourcing (Sandi)', accountCode: '1-1500', balance: 0 },
+  { id: 'bank-advance-sourcing-rifai', name: 'Kas Sourcing (Rifai)', accountCode: '1-1500', balance: 0 },
+  { id: 'bank-advance-courier', name: 'Kas Kurir (Ops)', accountCode: '1-1510', balance: 0 }
 ];
 
 const initialRolePermissions: RolePermissionMap = {
-  super_admin: [],
-  ceo: [],
-  cmo: [],
+  super_admin: [
+    'admin_dashboard', 'admin_vendors', 'admin_clients', 'admin_products', 
+    'admin_sales_orders', 'admin_shopping_list', 'admin_assets', 'admin_hr', 'admin_crm', 
+    'admin_documents', 'admin_okr', 'admin_users', 'admin_settings', 'admin_tasks', 'admin_maintenance',
+    'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets', 
+    'finance_budget', 'finance_cash_bank', 'finance_ledger', 'finance_invoices', 
+    'finance_reconciliation', 'finance_reimbursements', 'finance_online_purchase', 'finance_audit', 'finance_documents',
+    'warehouse_dashboard', 'warehouse_catalog', 'warehouse_inbound', 'warehouse_outbound', 'warehouse_qc', 'warehouse_reject_monitor',
+    'sourcing_dashboard', 'sourcing_list', 'sourcing_expenses',
+    'courier_dashboard', 'courier_list', 'courier_handover', 'courier_history', 'courier_expenses',
+    'tasks_global', 'settings_global'
+  ],
+  ceo: [
+    'admin_dashboard', 'admin_vendors', 'admin_clients', 'admin_products', 
+    'admin_sales_orders', 'admin_shopping_list', 'admin_assets', 'admin_hr', 'admin_crm', 
+    'admin_documents', 'admin_okr', 'admin_users', 'admin_settings', 'admin_tasks',
+    'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets', 
+    'finance_budget', 'finance_cash_bank', 'finance_ledger', 'finance_invoices',
+    'finance_audit', 'finance_documents',
+    'warehouse_dashboard', 'warehouse_catalog', 'tasks_global', 'settings_global'
+  ],
+  cmo: [
+    'admin_dashboard', 'admin_vendors', 'admin_clients', 'admin_products', 
+    'admin_sales_orders', 'admin_shopping_list', 'admin_crm', 
+    'admin_documents', 'admin_okr', 'admin_tasks',
+    'finance_dashboard', 'finance_reports', 'tasks_global', 'settings_global'
+  ],
   finance: ['finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets', 'finance_budget', 'finance_cash_bank', 'finance_ledger', 'finance_invoices', 'finance_reconciliation', 'finance_reimbursements', 'finance_online_purchase', 'finance_audit', 'finance_documents', 'tasks_global'],
   gudang: ['warehouse_dashboard', 'warehouse_catalog', 'warehouse_inbound', 'warehouse_outbound', 'warehouse_qc', 'warehouse_reject_monitor', 'tasks_global'],
   sourcing: ['sourcing_dashboard', 'sourcing_list', 'sourcing_expenses', 'tasks_global'],
@@ -272,7 +435,12 @@ export const useAppStore = create<AppState>((set, get) => ({
           });
           if (!res.ok) {
             const errData = await res.json().catch(() => ({}));
-            throw new Error(`Sync failed for ${table}: ${errData.error || res.statusText}`);
+            const errMessage = String(errData.error || res.statusText || '');
+            if (/could not find the table|schema cache/i.test(errMessage)) {
+              console.warn(`[Sync] ${table} table not available yet in Supabase dev, skipping remote sync.`);
+              return;
+            }
+            throw new Error(`Sync failed for ${table}: ${errMessage}`);
           }
 
           // Broadcast to other tabs for INSTANT update (skip if silent)
@@ -312,6 +480,8 @@ export const useAppStore = create<AppState>((set, get) => ({
                console.log("Master Seed: Bank Accounts missing in Supabase. Seeding...");
                get().syncTable('bank_accounts', INITIAL_BANK_ACCOUNTS);
             }
+            // DANGER: Automatic save to HDD in init() can cause data loss if fetch is empty.
+            // Removed to prevent race conditions during polling.
 
             const mergedCoas = [...initialCOAs];
             if (data.coas && Array.isArray(data.coas)) {
@@ -322,12 +492,14 @@ export const useAppStore = create<AppState>((set, get) => ({
             }
 
             const mergedPermissions = { ...initialRolePermissions };
-            if (data.rolePermissions && typeof data.rolePermissions === 'object') {
+            const hasServerPermissions = data.rolePermissions && typeof data.rolePermissions === 'object' && Object.keys(data.rolePermissions).length > 0;
+            
+            if (hasServerPermissions) {
               Object.keys(data.rolePermissions).forEach((role) => {
-                mergedPermissions[role] = Array.from(new Set([
-                  ...(mergedPermissions[role] || []),
-                  ...(data.rolePermissions[role] || [])
-                ]));
+                // If server has data for this role, it's the source of truth (allows revoking permissions)
+                if (Array.isArray(data.rolePermissions[role])) {
+                   mergedPermissions[role] = data.rolePermissions[role];
+                }
               });
             }
 
@@ -349,6 +521,28 @@ export const useAppStore = create<AppState>((set, get) => ({
               // No DB data yet: fall back to local or seed
               mergedBanks = localBanks.length > 0 ? [...localBanks] : [...INITIAL_BANK_ACCOUNTS];
             }
+
+            const missingSeedBanks = INITIAL_BANK_ACCOUNTS.filter((seedBank) => !mergedBanks.find((bank) => bank.id === seedBank.id));
+            if (missingSeedBanks.length > 0) {
+              mergedBanks = [...mergedBanks, ...missingSeedBanks];
+              missingSeedBanks.forEach((bank) => get().syncTable('bank_accounts', bank, true));
+            }
+
+            // --- USER SEEDING & SHIELD ---
+            let mergedUsers = data.users || [];
+            // Preserve mock users if they don't exist in DB to ensure initial team exists
+            MOCK_USERS.forEach(mock => {
+              if (!mergedUsers.find((u: any) => u.id === mock.id)) {
+                mergedUsers.push(mock);
+                // No auto-sync here to avoid prompt storm, will sync on first edit
+              }
+            });
+            // Preserve local users not yet in DB
+            get().users.forEach(localUser => {
+              if (!mergedUsers.find((u: any) => u.id === localUser.id)) {
+                mergedUsers.push(localUser);
+              }
+            });
 
             // --- SELF-REPAIR: Recalculate bank balances from CashTransactions if corrupted ---
             // Jika saldo bank tidak sesuai dengan total CashTransactions, recalculate.
@@ -410,23 +604,239 @@ export const useAppStore = create<AppState>((set, get) => ({
               return merged;
             };
 
-            const mergedPurchases = smartMerge(get().purchases, data.purchases);
+            const localProductsCache = loadLocalProductsCache();
+            const localClientsCache = loadLocalClientsCache();
+            const localSalesOrdersCache = loadLocalSalesOrdersCache();
+            const localSalesOrderItemsCache = loadLocalSalesOrderItemsCache();
+            const localPurchasesCache = loadLocalPurchasesCache();
+            const localPurchaseItemsCache = loadLocalPurchaseItemsCache();
+            const mergedPurchases = smartMerge(localPurchasesCache.length > 0 ? localPurchasesCache : get().purchases, data.purchases);
             const mergedExpenses = smartMerge(get().expenses, data.expenses);
-            const mergedSalesOrders = smartMerge(get().salesOrders, data.salesOrders);
-            const mergedItems = smartMerge(get().purchaseItems, data.purchaseItems);
-            
+            const mergedSalesOrders = smartMerge(localSalesOrdersCache.length > 0 ? localSalesOrdersCache : get().salesOrders, data.salesOrders);
+            const mergedSalesOrderItems = smartMerge(localSalesOrderItemsCache.length > 0 ? localSalesOrderItemsCache : get().salesOrderItems, data.salesOrderItems);
+            const mergedItems = smartMerge(localPurchaseItemsCache.length > 0 ? localPurchaseItemsCache : get().purchaseItems, data.purchaseItems);
+            const mergedClients = [...(data.clients || [])];
+            localClientsCache.forEach((client: Client) => {
+              if (!mergedClients.find((existing: Client) => existing.id === client.id)) {
+                mergedClients.push(client);
+              }
+            });
+            const mergedProducts = [...(data.products || [])];
+            localProductsCache.forEach((product: Product) => {
+              if (!mergedProducts.find((existing: Product) => existing.id === product.id)) {
+                mergedProducts.push(product);
+              }
+            });
+
+            // --- FINAL STATE UPDATE ---
+            // Only update rolePermissions and navConfigs if the server actually provided them
+            // to avoid resetting to defaults on temporary fetch failures.
+            const finalRolePermissions = hasServerPermissions ? mergedPermissions : get().rolePermissions;
+            const finalNavConfigs = (data.navConfigs && Object.keys(data.navConfigs).length > 0) ? data.navConfigs : get().navConfigs;
+
             set({ 
               ...data, 
               coas: mergedCoas, 
-              rolePermissions: mergedPermissions,
+              rolePermissions: finalRolePermissions,
               bankAccounts: mergedBanks,
               purchases: mergedPurchases,
               expenses: mergedExpenses,
               salesOrders: mergedSalesOrders,
+              salesOrderItems: mergedSalesOrderItems,
               purchaseItems: mergedItems,
-              navConfigs: data.navConfigs || {},
+              clients: mergedClients.length > 0 ? mergedClients : get().clients,
+              products: mergedProducts.length > 0 ? mergedProducts : get().products,
+              users: mergedUsers.length > 0 ? mergedUsers : get().users,
+              stockMovements: data.stockMovements || [],
+              navConfigs: finalNavConfigs,
               kpiObjectives: (data.kpiObjectives && data.kpiObjectives.length > 0) ? data.kpiObjectives : KPI_SEED
             });
+
+            saveLocalClientsCache(get().clients);
+            saveLocalProductsCache(get().products);
+            saveLocalSalesOrdersCache(get().salesOrders);
+            saveLocalSalesOrderItemsCache(get().salesOrderItems);
+            saveLocalPurchasesCache(get().purchases);
+            saveLocalPurchaseItemsCache(get().purchaseItems);
+
+            // --- LEGACY HPP BACKFILL ---
+            // Before the HPP mapping fix, market sourcing settlements were posted to inventory (1-3000).
+            // Repair them in-place so historical P&L reports reflect the correct cost of goods sold.
+            const repairLegacyHppSettlements = async () => {
+              const current = get();
+              const hppCoa = current.coas.find(c => c.accountCode === '5-1000');
+              const legacyInventoryCoa = current.coas.find(c => c.accountCode === '1-3000');
+
+              if (!hppCoa || !legacyInventoryCoa) return 0;
+
+              const targetEntries = current.journalEntries.filter(entry => {
+                const desc = (entry.description || '').toLowerCase();
+                return (
+                  desc.includes('penyelesaian belanja sourcing') ||
+                  desc.includes('belanja pasar disetujui') ||
+                  desc.includes('sourcing (hpp)')
+                );
+              });
+
+              let repaired = 0;
+              for (const entry of targetEntries) {
+                const entryLines = current.journalLines.filter(line => line.journalEntryId === entry.id);
+                const hasLegacyDebit = entryLines.some(line => line.accountId === legacyInventoryCoa.id && Number(line.debitAmount || 0) > 0);
+                const hasHppDebit = entryLines.some(line => line.accountId === hppCoa.id && Number(line.debitAmount || 0) > 0);
+
+                if (!hasLegacyDebit || hasHppDebit) continue;
+
+                const updatedLines = entryLines.map(line => (
+                  line.accountId === legacyInventoryCoa.id && Number(line.debitAmount || 0) > 0
+                    ? { ...line, accountId: hppCoa.id }
+                    : line
+                ));
+
+                await get().updateJournalEntry(entry.id, {}, updatedLines);
+                repaired += 1;
+              }
+
+              if (repaired > 0) {
+                console.log(`Legacy HPP backfill complete: repaired ${repaired} journal entr${repaired === 1 ? 'y' : 'ies'}.`);
+              }
+
+              return repaired;
+            };
+
+            await repairLegacyHppSettlements();
+
+            const repairDuplicateSettlementRecords = async () => {
+              const current = get();
+
+              const cashTransactions = [...current.cashTransactions];
+              const seenCashKeys = new Set<string>();
+              const dedupedCashTransactions = cashTransactions.filter((tx) => {
+                const cashKey = [
+                  tx.type,
+                  tx.category,
+                  tx.bankAccountId,
+                  tx.referenceId || '',
+                  tx.amount,
+                  tx.description || '',
+                ].join('|');
+
+                if (seenCashKeys.has(cashKey)) return false;
+                seenCashKeys.add(cashKey);
+                return true;
+              });
+
+              const linesByEntry = new Map<string, JournalLine[]>();
+              current.journalLines.forEach((line) => {
+                const existing = linesByEntry.get(line.journalEntryId) || [];
+                existing.push(line);
+                linesByEntry.set(line.journalEntryId, existing);
+              });
+
+              const seenJournalKeys = new Set<string>();
+              const dedupedJournalEntries = current.journalEntries.filter((entry) => {
+                const normalizedLines = [...(linesByEntry.get(entry.id) || [])]
+                  .sort((a, b) => a.id.localeCompare(b.id))
+                  .map((line) => `${line.accountId}:${line.debitAmount}:${line.creditAmount}`)
+                  .join('|');
+
+                const journalKey = [
+                  entry.referenceType || '',
+                  entry.referenceId || '',
+                  entry.description || '',
+                  normalizedLines,
+                ].join('|');
+
+                if (seenJournalKeys.has(journalKey)) return false;
+                seenJournalKeys.add(journalKey);
+                return true;
+              });
+
+              const validJournalEntryIds = new Set(dedupedJournalEntries.map((entry) => entry.id));
+              const dedupedJournalLines = current.journalLines.filter((line) => validJournalEntryIds.has(line.journalEntryId));
+
+              const cashChanged = dedupedCashTransactions.length !== current.cashTransactions.length;
+              const journalChanged = dedupedJournalEntries.length !== current.journalEntries.length;
+
+              if (!cashChanged && !journalChanged) return 0;
+
+              const recalculatedBanks = current.bankAccounts.map((bank) => {
+                const balance = dedupedCashTransactions
+                  .filter((tx) => tx.bankAccountId === bank.id)
+                  .reduce((sum, tx) => sum + (tx.type === 'In' ? tx.amount : -tx.amount), 0);
+
+                return { ...bank, balance };
+              });
+
+              set({
+                cashTransactions: dedupedCashTransactions,
+                journalEntries: dedupedJournalEntries,
+                journalLines: dedupedJournalLines,
+                bankAccounts: recalculatedBanks,
+              });
+
+              await fetch('/api/db/reset', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  action: 'custom',
+                  tables: ['journal_lines', 'journal_entries', 'cash_transactions', 'bank_accounts'],
+                })
+              });
+
+              await fetch('/api/db/reset', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  action: 'seed',
+                  seedData: {
+                    journal_entries: dedupedJournalEntries,
+                    journal_lines: dedupedJournalLines,
+                    cash_transactions: dedupedCashTransactions,
+                    bank_accounts: recalculatedBanks,
+                  }
+                })
+              });
+
+              const removedCash = current.cashTransactions.length - dedupedCashTransactions.length;
+              const removedJournal = current.journalEntries.length - dedupedJournalEntries.length;
+              console.log(`Duplicate settlement repair complete: removed ${removedCash} cash transaction(s) and ${removedJournal} journal entr${removedJournal === 1 ? 'y' : 'ies'}.`);
+              return removedCash + removedJournal;
+            };
+
+            await repairDuplicateSettlementRecords();
+
+            // --- LEGACY INVENTORY STOCK CLEANUP ---
+            // If there is no purchase history yet, any pre-filled product stock is stale seed data.
+            // Reset it to zero so inventory only grows from real QC/inbound events.
+            const repairLegacyInventoryStock = async () => {
+              const current = get();
+              const hasPurchaseHistory = Array.isArray(data.purchaseItems) && data.purchaseItems.length > 0;
+              if (hasPurchaseHistory) return 0;
+
+              const productsToRepair = current.products.filter(product => Number(product.currentStock || 0) !== 0);
+              if (productsToRepair.length === 0) return 0;
+
+              const zeroedProducts = current.products.map(product => (
+                Number(product.currentStock || 0) !== 0
+                  ? { ...product, currentStock: 0 }
+                  : product
+              ));
+
+              set({ products: zeroedProducts });
+
+              for (const product of productsToRepair) {
+                await get().syncTable(
+                  'products',
+                  { ...product, currentStock: 0 },
+                  true
+                );
+              }
+
+              console.log(`Legacy inventory stock cleanup complete: reset ${productsToRepair.length} product stock record${productsToRepair.length === 1 ? '' : 's'}.`);
+              return productsToRepair.length;
+            };
+
+            await repairLegacyInventoryStock();
           }
         } catch (error) {
           console.error('Store Init Error:', error);
@@ -435,6 +845,15 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       saveToHdd: async () => {
         const state = get();
+        // Guard: Don't save if state looks suspicious/empty to avoid wiping DB during failed init
+        const hasNav = Object.keys(state.navConfigs).length > 0;
+        const hasPermissions = Object.values(state.rolePermissions).some(keys => keys.length > 0);
+        
+        if (!hasNav && !hasPermissions) {
+           console.warn("[Storage] Suspending saveToHdd: state looks uninitialized.");
+           return;
+        }
+
         await state.syncTable('app_settings', {
           id: 'global-settings',
           nav_configs: state.navConfigs,
@@ -447,11 +866,15 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       clients: CLIENTS_SEED,
       addClient: async (client) => {
-        set((state) => ({ clients: [...state.clients, client] }));
+        const updatedClients = [...get().clients, client];
+        set({ clients: updatedClients });
+        saveLocalClientsCache(updatedClients);
         await get().syncTable('clients', client);
       },
       addClients: async (items) => {
-        set((state) => ({ clients: [...state.clients, ...items] }));
+        const updatedClients = [...get().clients, ...items];
+        set({ clients: updatedClients });
+        saveLocalClientsCache(updatedClients);
         const CHUNK_SIZE = 50;
         for (let i = 0; i < items.length; i += CHUNK_SIZE) {
           const chunk = items.slice(i, i + CHUNK_SIZE);
@@ -467,6 +890,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           });
           if (!res.ok) throw new Error('Failed to clear clients');
           set({ clients: [] });
+          saveLocalClientsCache([]);
           toast.success("Semua klien berhasil dihapus!");
         } catch (error: any) {
           toast.error("Gagal menghapus klien: " + error.message);
@@ -475,9 +899,9 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
       },
       updateClient: async (id, data) => {
-        set((state) => ({
-          clients: state.clients.map(c => c.id === id ? { ...c, ...data } : c)
-        }));
+        const updatedClients = get().clients.map(c => c.id === id ? { ...c, ...data } : c);
+        set({ clients: updatedClients });
+        saveLocalClientsCache(updatedClients);
         const updated = get().clients.find(c => c.id === id);
         if (updated) await get().syncTable('clients', updated);
       },
@@ -497,11 +921,15 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       products: PRODUCTS_SEED,
       addProduct: async (product) => {
-        set((state) => ({ products: [...state.products, product] }));
+        const updatedProducts = [...get().products, product];
+        set({ products: updatedProducts });
+        saveLocalProductsCache(updatedProducts);
         await get().syncTable('products', product);
       },
       addProducts: async (items) => {
-        set((state) => ({ products: [...state.products, ...items] }));
+        const updatedProducts = [...get().products, ...items];
+        set({ products: updatedProducts });
+        saveLocalProductsCache(updatedProducts);
         
         // Chunk on the client to avoid server timeouts
         const CHUNK_SIZE = 50;
@@ -519,6 +947,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           });
           if (!res.ok) throw new Error('Failed to clear products');
           set({ products: [] });
+          saveLocalProductsCache([]);
           toast.success("Semua produk berhasil dihapus!");
         } catch (error: any) {
           toast.error("Gagal menghapus produk: " + error.message);
@@ -527,11 +956,16 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
       },
       updateProduct: async (id, data) => {
-        set((state) => ({
-          products: state.products.map(p => p.id === id ? { ...p, ...data } : p)
-        }));
+        const updatedProducts = get().products.map(p => p.id === id ? { ...p, ...data } : p);
+        set({ products: updatedProducts });
+        saveLocalProductsCache(updatedProducts);
         const updated = get().products.find(p => p.id === id);
         if (updated) await get().syncTable('products', updated);
+      },
+      stockMovements: [],
+      addStockMovement: async (movement) => {
+        set((state) => ({ stockMovements: [movement, ...state.stockMovements] }));
+        await get().syncTable('stock_movements', movement);
       },
 
       coas: COA_SEED,
@@ -543,60 +977,72 @@ export const useAppStore = create<AppState>((set, get) => ({
       salesOrders: [],
       addSalesOrder: async (so) => {
         get().takeDevSnapshot();
-        set((state) => ({ salesOrders: [...state.salesOrders, so] }));
+        const updatedSalesOrders = [...get().salesOrders, so];
+        set({ salesOrders: updatedSalesOrders });
+        saveLocalSalesOrdersCache(updatedSalesOrders);
         await get().syncTable('sales_orders', so);
       },
       updateSalesOrder: async (id, data) => {
-        set((state) => ({
-          salesOrders: state.salesOrders.map(so => so.id === id ? { ...so, ...data } : so)
-        }));
+        const updatedSalesOrders = get().salesOrders.map(so => so.id === id ? { ...so, ...data } : so);
+        set({ salesOrders: updatedSalesOrders });
+        saveLocalSalesOrdersCache(updatedSalesOrders);
         const updated = get().salesOrders.find(so => so.id === id);
         if (updated) await get().syncTable('sales_orders', updated);
       },
 
       salesOrderItems: [],
       addSalesOrderItem: async (item) => {
-        set((state) => ({ salesOrderItems: [...state.salesOrderItems, item] }));
+        const updatedSalesOrderItems = [...get().salesOrderItems, item];
+        set({ salesOrderItems: updatedSalesOrderItems });
+        saveLocalSalesOrderItemsCache(updatedSalesOrderItems);
         await get().syncTable('sales_order_items', item);
       },
       addSalesOrderItems: async (items: SalesOrderItem[]) => {
-        set((state) => ({ salesOrderItems: [...state.salesOrderItems, ...items] }));
+        const updatedSalesOrderItems = [...get().salesOrderItems, ...items];
+        set({ salesOrderItems: updatedSalesOrderItems });
+        saveLocalSalesOrderItemsCache(updatedSalesOrderItems);
         await get().syncTable('sales_order_items', items);
       },
       updateSalesOrderItem: async (id, data) => {
-        set((state) => ({
-          salesOrderItems: state.salesOrderItems.map(item => item.id === id ? { ...item, ...data } : item)
-        }));
+        const updatedSalesOrderItems = get().salesOrderItems.map(item => item.id === id ? { ...item, ...data } : item);
+        set({ salesOrderItems: updatedSalesOrderItems });
+        saveLocalSalesOrderItemsCache(updatedSalesOrderItems);
         const updated = get().salesOrderItems.find(item => item.id === id);
         if (updated) await get().syncTable('sales_order_items', updated);
       },
 
       purchases: [],
       addPurchase: async (p) => {
-        set((state) => ({ purchases: [...state.purchases, p] }));
+        const updatedPurchases = [...get().purchases, p];
+        set({ purchases: updatedPurchases });
+        saveLocalPurchasesCache(updatedPurchases);
         await get().syncTable('purchases', p);
       },
       updatePurchase: async (id, data) => {
-        set((state) => ({
-          purchases: state.purchases.map(p => p.id === id ? { ...p, ...data } : p)
-        }));
+        const updatedPurchases = get().purchases.map(p => p.id === id ? { ...p, ...data } : p);
+        set({ purchases: updatedPurchases });
+        saveLocalPurchasesCache(updatedPurchases);
         const updated = get().purchases.find(p => p.id === id);
         if (updated) await get().syncTable('purchases', updated);
       },
 
       purchaseItems: [],
       addPurchaseItem: async (item) => {
-        set((state) => ({ purchaseItems: [...state.purchaseItems, item] }));
+        const updatedPurchaseItems = [...get().purchaseItems, item];
+        set({ purchaseItems: updatedPurchaseItems });
+        saveLocalPurchaseItemsCache(updatedPurchaseItems);
         await get().syncTable('purchase_items', item);
       },
       addPurchaseItems: async (items: PurchaseItem[]) => {
-        set((state) => ({ purchaseItems: [...state.purchaseItems, ...items] }));
+        const updatedPurchaseItems = [...get().purchaseItems, ...items];
+        set({ purchaseItems: updatedPurchaseItems });
+        saveLocalPurchaseItemsCache(updatedPurchaseItems);
         await get().syncTable('purchase_items', items);
       },
       updatePurchaseItem: async (id, data) => {
-        set((state) => ({
-          purchaseItems: state.purchaseItems.map(pi => pi.id === id ? { ...pi, ...data } : pi)
-        }));
+        const updatedPurchaseItems = get().purchaseItems.map(pi => pi.id === id ? { ...pi, ...data } : pi);
+        set({ purchaseItems: updatedPurchaseItems });
+        saveLocalPurchaseItemsCache(updatedPurchaseItems);
         const updated = get().purchaseItems.find(pi => pi.id === id);
         if (updated) await get().syncTable('purchase_items', updated);
       },
@@ -915,6 +1361,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           invoices: state.invoices,
           journalEntries: state.journalEntries,
           journalLines: state.journalLines,
+          stockMovements: state.stockMovements,
           cashTransactions: state.cashTransactions,
           bankAccounts: state.bankAccounts,
           pendingReturns: state.pendingReturns,
@@ -938,13 +1385,20 @@ export const useAppStore = create<AppState>((set, get) => ({
         const snapshot = newStack.pop()!;
         // Restore state lokal
         set({ ...snapshot, devHistoryStack: newStack });
+        if (snapshot.clients) saveLocalClientsCache(snapshot.clients);
+        if (snapshot.products) saveLocalProductsCache(snapshot.products);
+        if (snapshot.salesOrders) saveLocalSalesOrdersCache(snapshot.salesOrders);
+        if (snapshot.salesOrderItems) saveLocalSalesOrderItemsCache(snapshot.salesOrderItems);
+        if (snapshot.purchases) saveLocalPurchasesCache(snapshot.purchases);
+        if (snapshot.purchaseItems) saveLocalPurchaseItemsCache(snapshot.purchaseItems);
 
         // Sync ke DB — wipe semua tabel operasional lalu seed ulang dari snapshot
         try {
           const tablesToWipe = [
             'sales_order_items', 'purchase_items', 'journal_lines',
             'deliveries', 'invoices', 'sales_orders', 'purchases', 'journal_entries',
-            'reimbursements', 'expenses', 'cash_transactions', 'pending_returns',
+            'reimbursements', 'expenses', 'cash_transactions', 'pending_returns', 'rejected_items',
+            'stock_movements',
             'bank_accounts', 'products',
           ];
           // Step 1: Wipe semua tabel sekaligus
@@ -965,9 +1419,11 @@ export const useAppStore = create<AppState>((set, get) => ({
             invoices: snapshot.invoices || [],
             journal_entries: snapshot.journalEntries || [],
             journal_lines: snapshot.journalLines || [],
+            stock_movements: snapshot.stockMovements || [],
             cash_transactions: snapshot.cashTransactions || [],
             bank_accounts: snapshot.bankAccounts || [],
             reimbursements: snapshot.reimbursements || [],
+            rejected_items: snapshot.rejectedItems || [],
             products: snapshot.products || [],
           };
           await fetch('/api/db/reset', {
@@ -1019,10 +1475,16 @@ export const useAppStore = create<AppState>((set, get) => ({
         set({
           salesOrders: [], salesOrderItems: [], purchases: [], purchaseItems: [],
           deliveries: [], expenses: [], invoices: [], journalEntries: [],
-          journalLines: [], leads: [], tasks: [], notifications: [],
-          pendingReturns: [], reimbursements: [], cashTransactions: [],
+          journalLines: [], stockMovements: [], leads: [], tasks: [], notifications: [],
+          pendingReturns: [], rejectedItems: [], reimbursements: [], cashTransactions: [],
           bankAccounts: INITIAL_BANK_ACCOUNTS, fixedAssets: []
         });
+        saveLocalClientsCache(get().clients);
+        saveLocalProductsCache(get().products);
+        saveLocalSalesOrdersCache([]);
+        saveLocalSalesOrderItemsCache([]);
+        saveLocalPurchasesCache([]);
+        saveLocalPurchaseItemsCache([]);
 
         toast.success("Simulation Reset Selesai! Me-reload halaman...");
         setTimeout(() => window.location.reload(), 800);
@@ -1050,7 +1512,8 @@ export const useAppStore = create<AppState>((set, get) => ({
             bank_accounts: INITIAL_BANK_ACCOUNTS,
             vendors: VENDORS_SEED,
             clients: CLIENTS_SEED,
-            products: PRODUCTS_SEED
+            products: PRODUCTS_SEED,
+            stock_movements: []
           };
 
           for (const [table, rows] of Object.entries(allSeedData)) {
@@ -1073,10 +1536,17 @@ export const useAppStore = create<AppState>((set, get) => ({
           clients: CLIENTS_SEED, vendors: VENDORS_SEED, products: PRODUCTS_SEED, 
           salesOrders: [], salesOrderItems: [], purchases: [], purchaseItems: [],
           deliveries: [], expenses: [], invoices: [], journalEntries: [],
-          journalLines: [], coas: COA_SEED, users: MOCK_USERS, leads: [],
+          journalLines: [], stockMovements: [], coas: COA_SEED, users: MOCK_USERS, leads: [],
           tasks: [], notifications: [], bankAccounts: INITIAL_BANK_ACCOUNTS,
+          rejectedItems: [],
           cashTransactions: [], reimbursements: [], fixedAssets: []
         });
+        saveLocalClientsCache(CLIENTS_SEED);
+        saveLocalProductsCache(PRODUCTS_SEED);
+        saveLocalSalesOrdersCache([]);
+        saveLocalSalesOrderItemsCache([]);
+        saveLocalPurchasesCache([]);
+        saveLocalPurchaseItemsCache([]);
 
         toast.success("Database Reset Berhasil! Me-reload halaman...");
         setTimeout(() => window.location.reload(), 1000);

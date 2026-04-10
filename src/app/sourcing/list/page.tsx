@@ -2,17 +2,17 @@
 
 import { useState } from "react"
 import { useAppStore } from "@/lib/store"
-// import { recordPurchaseComplete } from "@/lib/accounting"
+import { recordOperationalAdvanceTransfer } from "@/lib/accounting"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Camera, CheckCircle2, ChevronRight, PackageCheck, ShoppingBag, Globe, Banknote, Wallet, Image as ImageIcon, XCircle, Send, Receipt } from "lucide-react"
+import { CheckCircle2, ChevronRight, PackageCheck, ShoppingBag, Globe, Banknote, Wallet, Image as ImageIcon, XCircle, Send, Receipt } from "lucide-react"
 import { toast } from "sonner"
 import { v4 as uuidv4 } from "uuid"
-import { PurchaseItem } from "@/types"
+import { OperationalExpense, PurchaseItem } from "@/types"
 import { formatNumber, parseNumber, formatRupiah, cn } from "@/lib/utils"
 // Price history update moved to finance approval step
 import ReceiptUpload from "@/components/ui/receipt-upload"
@@ -25,13 +25,21 @@ export default function SourcingDashboard() {
   const purchaseItems = useAppStore(state => state.purchaseItems)
   const products = useAppStore(state => state.products)
   const expenses = useAppStore(state => state.expenses)
+  const users = useAppStore(state => state.users)
+  const cashTransactions = useAppStore(state => state.cashTransactions)
   const updatePurchase = useAppStore(state => state.updatePurchase)
   const updatePurchaseItem = useAppStore(state => state.updatePurchaseItem)
   const addExpense = useAppStore(state => state.addExpense)
   const addReimbursement = useAppStore(state => state.addReimbursement)
 
   const [activeTab, setActiveTab] = useState<'belanja' | 'dompet' | 'ops'>('belanja')
-  const [opsFormData, setOpsFormData] = useState({ transactionType: 'Biaya Operasional', category: '', amount: 0, description: '', receiptUrl: '' })
+  const [opsFormData, setOpsFormData] = useState<{
+    transactionType: 'Biaya Operasional' | 'Kasbon'
+    category: OperationalExpense['category'] | ''
+    amount: number
+    description: string
+    receiptUrl: string
+  }>({ transactionType: 'Biaya Operasional', category: '', amount: 0, description: '', receiptUrl: '' })
   const [opsLoading, setOpsLoading] = useState(false)
   const [activeItem, setActiveItem] = useState<PurchaseItem | null>(null)
   const [editPrice, setEditPrice] = useState<number>(0)
@@ -40,6 +48,8 @@ export default function SourcingDashboard() {
   const [reconciliationNote, setReconciliationNote] = useState('')
   const [proofImage, setProofImage] = useState<string | null>(null)
   const [returnTargetBank, setReturnTargetBank] = useState('bank-1')
+  const [courierRecipientId, setCourierRecipientId] = useState('44444444-4444-4444-4444-444444444444')
+  const [courierTransferAmount, setCourierTransferAmount] = useState(0)
 
   const handleExpandItem = (item: PurchaseItem | null) => {
     setActiveItem(item)
@@ -51,6 +61,10 @@ export default function SourcingDashboard() {
   }
 
   const bankAccounts = useAppStore(state => state.bankAccounts)
+  const courierUsers = users.filter(user => user.role === 'kurir')
+  const courierTransferHistory = cashTransactions
+    .filter(tx => tx.bankAccountId === 'bank-advance-sourcing' && tx.type === 'Out' && tx.category === 'Distribusi Kas Operasional')
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
   // === DERIVED SOURCING WALLET (internal money tracker, terpisah dari buku kas perusahaan) ===
   // Modal = total budget yang sudah ditransfer finance untuk user ini (semua purchase yang sudah punya budgetTransferDate)
@@ -79,6 +93,37 @@ export default function SourcingDashboard() {
   // Saldo = modal diterima - belanja - ops (semua derived, tidak pakai CashTransaction)
   const totalHolding = totalAdvanceReceived - totalShopSpent - totalExpenses
 
+  const handleTransferToCourier = async () => {
+    const recipient = courierUsers.find(user => user.id === courierRecipientId)
+    const sourceWallet = bankAccounts.find(bank => bank.id === 'bank-advance-sourcing')
+    const safeTransferLimit = Math.max(0, totalHolding)
+
+    if (!recipient) return toast.error("Pilih kurir penerima dulu.")
+    if (courierTransferAmount <= 0) return toast.error("Nominal distribusi harus lebih dari nol.")
+    if (courierTransferAmount > safeTransferLimit) return toast.error("Saldo aman kas sourcing tidak cukup.")
+    if (!sourceWallet || sourceWallet.balance < courierTransferAmount) return toast.error("Saldo buku kas sourcing belum cukup.")
+
+    const loadingToast = toast.loading("Mengirim dana operasional ke kurir...")
+    const transferReferenceId = uuidv4()
+    const success = await recordOperationalAdvanceTransfer(
+      courierTransferAmount,
+      'bank-advance-sourcing',
+      'bank-advance-courier',
+      `Distribusi dana operasional ke ${recipient.name}`,
+      transferReferenceId,
+      currentUser?.name || 'Hilman (Sourcing)',
+      recipient.name
+    )
+
+    if (!success) {
+      toast.error("Distribusi dana ke kurir gagal dicatat.", { id: loadingToast })
+      return
+    }
+
+    setCourierTransferAmount(0)
+    toast.success(`Dana ${formatRupiah(courierTransferAmount)} berhasil dikirim ke ${recipient.name}.`, { id: loadingToast })
+  }
+
   const handleReportReturn = async () => {
     if (totalHolding <= 0) return toast.error("Saldo kas sudah nol, tidak ada yang perlu disetor.");
     const loadingToast = toast.loading("Mengirim laporan pengembalian dana...");
@@ -102,8 +147,9 @@ export default function SourcingDashboard() {
 
       setProofImage(null);
       toast.success("Laporan setoran dikirim! Silakan serahkan uang ke Admin.", { id: loadingToast });
-    } catch (e: any) {
-      toast.error("Gagal mengirim laporan: " + e.message, { id: loadingToast });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Unknown error'
+      toast.error("Gagal mengirim laporan: " + message, { id: loadingToast });
     }
   };
 
@@ -156,13 +202,6 @@ export default function SourcingDashboard() {
         })
       }
 
-      const itemsCost = currentItems.reduce((sum, item) => {
-        // Use local editing state if this is the active item
-        const price = activeItem?.id === item.id ? editPrice : (item.actualUnitPrice || 0)
-        const qty = activeItem?.id === item.id ? (editQty || item.qtyTarget) : (item.qtyPurchased || 0)
-        return item.isChecked ? sum + (qty * price) : sum
-      }, 0)
-  
       for (const p of activePurchases) {
         const pItems = currentItems.filter(item => item.purchaseId === p.id && item.isChecked)
         const pCost = pItems.reduce((sum, item) => {
@@ -186,17 +225,23 @@ export default function SourcingDashboard() {
       // Saldo sourcing derived — tidak perlu CashTransaction, otomatis berkurang dari actualSpent
       // Harga rekomendasi produk baru di-update setelah finance approve rekon (bukan di sini)
 
-      const salesOrders = useAppStore.getState().salesOrders
-      const updateSO = useAppStore.getState().updateSalesOrder
-      const shopOrders = salesOrders.filter(so => so.status === 'Belanja')
+      // Ambil semua salesOrderId unik dari items yang baru saja disubmit
+      const purchaseIds = activePurchases.map(p => p.id)
+      const involvedSOIds = new Set(
+        currentItems
+          .filter(item => purchaseIds.includes(item.purchaseId) && item.isChecked && item.salesOrderId)
+          .map(item => item.salesOrderId as string)
+      )
 
-      for (const so of shopOrders) {
-        await updateSO(so.id, { status: 'QC' })
+      const updateSO = useAppStore.getState().updateSalesOrder
+      for (const soId of involvedSOIds) {
+        await updateSO(soId, { status: 'QC' })
       }
 
       toast.success(`${activePurchases.length} sesi belanja berhasil diselesaikan!`, { id: loadingToast })
-    } catch (e: any) {
-      toast.error("Gagal mengirim laporan: " + e.message, { id: loadingToast })
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Unknown error'
+      toast.error("Gagal mengirim laporan: " + message, { id: loadingToast })
     }
   }
 
@@ -213,7 +258,16 @@ export default function SourcingDashboard() {
       addReimbursement({ id, date: new Date().toISOString(), userId: currentUser?.id || 'system', title: `${opsFormData.category}: ${opsFormData.description}`, amount: opsFormData.amount, description: opsFormData.description, receiptUrl: opsFormData.receiptUrl, status: 'Pending' })
       toast.success("Pengajuan Reimbursement berhasil dikirim!")
     } else {
-      addExpense({ id, date: new Date().toISOString(), reporterId: currentUser?.id || '22222222-2222-2222-2222-222222222222', category: opsFormData.category as any, amount: opsFormData.amount, description: opsFormData.description, receiptUrl: opsFormData.receiptUrl, status: 'Pending Audit' })
+      addExpense({
+        id,
+        date: new Date().toISOString(),
+        reporterId: currentUser?.id || '22222222-2222-2222-2222-222222222222',
+        category: (opsFormData.category || 'Lainnya') as OperationalExpense['category'],
+        amount: opsFormData.amount,
+        description: opsFormData.description,
+        receiptUrl: opsFormData.receiptUrl,
+        status: 'Pending Audit'
+      })
       toast.success("Laporan biaya berhasil dikirim untuk audit!")
     }
     setOpsFormData({ transactionType: 'Biaya Operasional', category: '', amount: 0, description: '', receiptUrl: '' })
@@ -289,6 +343,50 @@ export default function SourcingDashboard() {
                />
             </div>
             <p className="text-[9px] font-bold text-slate-500 uppercase mt-2 tracking-widest">Pemakaian: {formatRupiah(totalAdvanceReceived - totalHolding + totalShopSpentActual)}</p>
+          </div>
+
+          <div className="grid gap-3 pt-3 border-t border-white/10">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-[8px] font-black uppercase text-slate-500 tracking-widest">Distribusi Dana Operasional</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Hilman bisa oper sebagian kas ke Rifai untuk bensin, tol, parkir, dan kebutuhan jalan.</p>
+              </div>
+              <Badge variant="outline" className="border-white/10 bg-white/5 text-[8px] font-black uppercase text-slate-300">
+                Kas Kurir
+              </Badge>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-[1.1fr_0.8fr_auto] gap-3">
+              <Select value={courierRecipientId} onValueChange={(v) => v && setCourierRecipientId(v)}>
+                <SelectTrigger className="h-11 rounded-2xl bg-white/5 border-white/10 text-white text-[10px] font-black uppercase">
+                  <SelectValue placeholder="Pilih kurir..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {courierUsers.map(user => (
+                    <SelectItem key={user.id} value={user.id} className="text-xs font-bold">
+                      {user.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Input
+                type="text"
+                inputMode="numeric"
+                className="h-11 rounded-2xl bg-white/5 border-white/10 text-white placeholder:text-slate-500 font-black"
+                placeholder="Nominal distribusi"
+                value={formatNumber(courierTransferAmount)}
+                onChange={(e) => setCourierTransferAmount(parseNumber(e.target.value))}
+              />
+
+              <Button
+                className="h-11 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black uppercase text-[10px]"
+                onClick={handleTransferToCourier}
+              >
+                <Send className="w-4 h-4 mr-2" />
+                Kirim
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -513,8 +611,10 @@ export default function SourcingDashboard() {
 
       {isAllDone && activePurchases.length > 0 && (() => {
         const checkedItems = currentItems.filter(i => i.isChecked)
-        const itemsCost = checkedItems.reduce((sum, i) => sum + (i.qtyPurchased * i.actualUnitPrice), 0)
-        
+        const itemsCost = checkedItems.reduce((sum, item) => {
+          const qty = item.qtyPurchased || item.qtyTarget
+          return sum + (qty * (item.actualUnitPrice || 0))
+        }, 0)
         const shoppingBudget = activePurchases.reduce((sum, p) => sum + (p.budgetAmount || 0), 0)
         const spareBudget = activePurchases.reduce((sum, p) => sum + (p.operationalSpareAmount || 0), 0)
         const totalBudgetGiven = shoppingBudget + spareBudget
@@ -735,6 +835,30 @@ export default function SourcingDashboard() {
                         <Badge variant="outline" className="text-[8px] font-black uppercase border-emerald-200 text-emerald-500">Approved</Badge>
                      </div>
                   </CardContent>
+               </Card>
+             ))}
+
+             {courierTransferHistory.map(tx => (
+               <Card key={tx.id} className="rounded-2xl border-none shadow-sm bg-indigo-50/40 border-l-4 border-l-indigo-400">
+                 <CardContent className="p-4 flex items-center justify-between">
+                   <div className="flex items-center gap-3">
+                     <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shadow-sm">
+                       <Send className="w-5 h-5" />
+                     </div>
+                     <div>
+                       <p className="text-[10px] font-black uppercase tracking-widest leading-none mb-1">{tx.description}</p>
+                       <p className="text-[9px] font-bold text-indigo-500 uppercase italic">
+                         {new Date(tx.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} · Dana operasional kurir
+                       </p>
+                     </div>
+                   </div>
+                   <div className="text-right">
+                     <p className="font-black tracking-tighter text-indigo-600">-{formatRupiah(tx.amount)}</p>
+                     <Badge variant="outline" className="text-[8px] font-black uppercase border-indigo-200 text-indigo-500">
+                       Ke Kurir
+                     </Badge>
+                   </div>
+                 </CardContent>
                </Card>
              ))}
 

@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import { useAppStore } from "@/lib/store"
-import { recordOperationalExpense } from "@/lib/accounting"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -43,6 +42,7 @@ export default function CourierExpensesPage() {
   const currentUser = useAppStore(state => state.currentUser)
   const expenses = useAppStore(state => state.expenses)
   const addExpense = useAppStore(state => state.addExpense)
+  const bankAccounts = useAppStore(state => state.bankAccounts)
 
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [expenseType, setExpenseType] = useState<'Operational' | 'Kasbon'>('Operational')
@@ -51,6 +51,7 @@ export default function CourierExpensesPage() {
   const [description, setDescription] = useState("")
   const [receiptUrl, setReceiptUrl] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [returnTargetBank, setReturnTargetBank] = useState('bank-advance-sourcing')
 
   // Filter expenses reported by current user today
   const today = new Date().toISOString().split('T')[0]
@@ -60,8 +61,14 @@ export default function CourierExpensesPage() {
   ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
   const totalToday = todayExpenses.reduce((sum, e) => sum + e.amount, 0)
+  const courierWallet = bankAccounts.find(account => account.id === 'bank-advance-courier')
+  const pendingCourierReports = expenses.filter(expense =>
+    expense.reporterId === (currentUser?.id || 'system') &&
+    expense.status === 'Pending Audit'
+  )
+  const cashInHand = Math.max(0, Number(courierWallet?.balance || 0) - pendingCourierReports.reduce((sum, expense) => sum + expense.amount, 0))
 
-  const handleAddExpense = () => {
+  const handleAddExpense = async () => {
     if (amount <= 0) {
       toast.error("Masukkan jumlah biaya yang valid")
       return
@@ -83,7 +90,7 @@ export default function CourierExpensesPage() {
 
     // 1. Submission only creates an audit record. 
     // Data will reach the ledger once approved in Finance Hub.
-    addExpense(newExpense)
+    await addExpense(newExpense)
 
     toast.success("Laporan biaya dikirim ke Finance.")
     setIsSubmitting(false)
@@ -93,6 +100,24 @@ export default function CourierExpensesPage() {
     setAmount(0)
     setDescription("")
     setCategory('Bensin')
+  }
+
+  const handleReportReturn = async () => {
+    const targetBank = bankAccounts.find(bank => bank.id === returnTargetBank)
+    if (cashInHand <= 0) return toast.error("Tidak ada sisa kas yang perlu disetor.")
+
+    await addExpense({
+      id: `return-courier-${Date.now()}`,
+      date: new Date().toISOString(),
+      reporterId: currentUser?.id || 'system',
+      category: 'Setoran Pengembalian',
+      amount: cashInHand,
+      description: `Setoran sisa kas kurir ${formatRupiah(cashInHand)} ke ${targetBank?.name || 'tujuan operasional'}`,
+      status: 'Pending Audit',
+      targetBankAccountId: returnTargetBank,
+    })
+
+    toast.success("Laporan setoran sisa kas kurir dikirim ke Finance.")
   }
 
   const getCategoryIcon = (cat: string) => {
@@ -136,7 +161,7 @@ export default function CourierExpensesPage() {
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
                    <Label className="uppercase text-[10px] font-black text-slate-400">Pilih Jenis Transaksi</Label>
-                   <Tabs defaultValue="Operational" className="w-full" onValueChange={(val) => setExpenseType(val as any)}>
+                   <Tabs defaultValue="Operational" className="w-full" onValueChange={(val) => setExpenseType(val as 'Operational' | 'Kasbon')}>
                       <TabsList className="grid w-full grid-cols-2 h-10 rounded-xl">
                          <TabsTrigger value="Operational" className="rounded-lg text-[10px] font-black uppercase">Operasional</TabsTrigger>
                          <TabsTrigger value="Kasbon" className="rounded-lg text-[10px] font-black uppercase">Kasbon</TabsTrigger>
@@ -146,7 +171,7 @@ export default function CourierExpensesPage() {
                 
                 <div className="space-y-2">
                   <Label>Kategori Biaya</Label>
-                  <Select value={category} onValueChange={(val) => setCategory(val as any)}>
+                  <Select value={category} onValueChange={(val) => setCategory(val as OperationalExpense['category'])}>
                     <SelectTrigger className="w-full h-12">
                       <SelectValue placeholder="Pilih Kategori">
                         {category}
@@ -218,9 +243,43 @@ export default function CourierExpensesPage() {
           <div className="relative z-10">
             <p className="text-emerald-100 text-sm font-medium">Total Biaya Hari Ini</p>
             <h3 className="text-3xl font-black mt-1 tracking-tight">{formatRupiah(totalToday)}</h3>
-            <div className="mt-4 flex items-center gap-2 text-xs bg-white/10 w-fit px-2 py-1 rounded-full border border-white/20">
-              <AlertCircle className="w-3 h-3" />
-              <span>Biaya diremburse ke Finance</span>
+            <div className="mt-4 grid gap-3">
+              <div className="flex items-center gap-2 text-xs bg-white/10 w-fit px-2 py-1 rounded-full border border-white/20">
+                <AlertCircle className="w-3 h-3" />
+                <span>Biaya direkon Finance dari kas operasional kurir</span>
+              </div>
+
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-100/70">Kas di Tangan</p>
+                  <p className="text-2xl font-black tracking-tight">{formatRupiah(cashInHand)}</p>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                  <Select value={returnTargetBank} onValueChange={(value) => value && setReturnTargetBank(value)}>
+                    <SelectTrigger className="h-10 min-w-[220px] rounded-2xl bg-white/10 border-white/20 text-white font-black text-[10px] uppercase">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {bankAccounts.filter(bank => bank.id !== 'bank-advance-courier').map(bank => (
+                        <SelectItem key={bank.id} value={bank.id} className="text-xs font-bold">
+                          {bank.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Button
+                    variant="outline"
+                    className="h-10 rounded-2xl bg-white/10 border-white/20 text-white hover:bg-white hover:text-emerald-700 font-black uppercase text-[10px]"
+                    onClick={handleReportReturn}
+                    disabled={cashInHand <= 0}
+                  >
+                    <Camera className="w-4 h-4 mr-2" />
+                    Setor Sisa Kas
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
         </CardContent>

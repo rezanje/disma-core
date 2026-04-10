@@ -1,5 +1,6 @@
 "use client"
 
+import type { SVGProps } from "react"
 import { useState } from "react"
 import { useAppStore } from "@/lib/store"
 import { recordShrinkage } from "@/lib/accounting"
@@ -11,6 +12,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ShieldAlert, ShieldCheck, Tag, RefreshCcw, PackageSearch, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
 import { v4 as uuidv4 } from "uuid"
+import { cn } from "@/lib/utils"
+import { recordStockMovement } from "@/lib/accounting"
 
 export default function QCPage() {
   const products = useAppStore(state => state.products)
@@ -19,9 +22,9 @@ export default function QCPage() {
   const pendingReturns = useAppStore(state => state.pendingReturns)
   const salesOrders = useAppStore(state => state.salesOrders)
   
-  const updateProduct = useAppStore(state => state.updateProduct)
   const updatePurchaseItem = useAppStore(state => state.updatePurchaseItem)
   const removePendingReturn = useAppStore(state => state.removePendingReturn)
+  const updateSalesOrder = useAppStore(state => state.updateSalesOrder)
 
   // --- TAB 1: SOURCING QC LOGIC ---
   const pendingQCItems = purchaseItems
@@ -39,7 +42,7 @@ export default function QCPage() {
     }))
     .filter(item => item.product)
   
-  const [selectedProductId, setSelectedProductId] = useState("")
+  const [selectedPurchaseItemId, setSelectedPurchaseItemId] = useState("")
   const [qtyPassToInventory, setQtyPassToInventory] = useState(0)
   const [qtyPassToClient, setQtyPassToClient] = useState(0)
   const [qtyReject, setQtyReject] = useState(0)
@@ -47,10 +50,10 @@ export default function QCPage() {
   const [unbalanceReason, setUnbalanceReason] = useState("")
   const [qcPhoto, setQcPhoto] = useState<string | null>(null)
 
-  const activeProduct = products.find(p => p.id === selectedProductId)
-  const activePurchaseItem = pendingQCItems.find(i => i.productId === selectedProductId)
+  const activePurchaseItem = pendingQCItems.find(i => i.id === selectedPurchaseItemId)
+  const activeProduct = products.find(p => p.id === activePurchaseItem?.productId)
 
-  const handleProcessQC = () => {
+  const handleProcessQC = async () => {
     if (!activeProduct || !activePurchaseItem) return
     const totalIncoming = activePurchaseItem.qtyPurchased
     const totalProcessed = qtyPassToInventory + qtyPassToClient + qtyReject
@@ -62,9 +65,37 @@ export default function QCPage() {
 
     const currentUser = useAppStore.getState().currentUser
 
+    await recordStockMovement({
+      productId: activeProduct.id,
+      quantity: totalIncoming,
+      stockDelta: 0,
+      direction: 'Info',
+      kind: 'QC_RECEIPT',
+      source: 'Sourcing',
+      destination: 'QC Inspection',
+      referenceType: 'QC',
+      referenceId: activePurchaseItem.id,
+      purchaseItemId: activePurchaseItem.id,
+      note: `Barang masuk QC dari sourcing untuk ${activeProduct.name}`,
+      createdByUserId: currentUser?.id || 'system',
+    })
+
     // 1. Process Passed items to Inventory
     if (qtyPassToInventory > 0) {
-      updateProduct(activeProduct.id, { currentStock: (activeProduct.currentStock || 0) + qtyPassToInventory })
+      await recordStockMovement({
+        productId: activeProduct.id,
+        quantity: qtyPassToInventory,
+        stockDelta: qtyPassToInventory,
+        direction: 'In',
+        kind: 'QC_INVENTORY',
+        source: 'QC',
+        destination: 'Inventory',
+        referenceType: 'QC',
+        referenceId: activePurchaseItem.id,
+        purchaseItemId: activePurchaseItem.id,
+        note: `Lolos QC dan masuk inventory`,
+        createdByUserId: currentUser?.id || 'system',
+      })
       toast.success(`${qtyPassToInventory} unit masuk stok inventory.`)
     }
 
@@ -73,9 +104,24 @@ export default function QCPage() {
       const soItems = useAppStore.getState().salesOrderItems.filter(i => i.salesOrderId === activePurchaseItem.salesOrderId)
       const matchingSOItem = soItems.find(i => i.productId === activePurchaseItem.productId)
       if (matchingSOItem) {
-        useAppStore.getState().updateSalesOrderItem(matchingSOItem.id, { 
+        await useAppStore.getState().updateSalesOrderItem(matchingSOItem.id, { 
           qtyFinal: qtyPassToClient, 
           subtotalFinal: qtyPassToClient * (matchingSOItem.unitPrice || 0)
+        })
+        await recordStockMovement({
+          productId: activeProduct.id,
+          quantity: qtyPassToClient,
+          stockDelta: 0,
+          direction: 'Transfer',
+          kind: 'QC_CLIENT_ALLOCATION',
+          source: 'QC',
+          destination: 'Client Allocation',
+          referenceType: 'QC',
+          referenceId: activePurchaseItem.id,
+          purchaseItemId: activePurchaseItem.id,
+          salesOrderId: activePurchaseItem.salesOrderId,
+          note: `Lolos QC dan dialokasikan ke client`,
+          createdByUserId: currentUser?.id || 'system',
         })
         toast.info(`${qtyPassToClient} unit dialokasikan ke klien.`)
       }
@@ -84,10 +130,24 @@ export default function QCPage() {
     // 3. Process Reject
     if (qtyReject > 0) {
       const rejectId = uuidv4()
-      recordShrinkage(rejectId, qtyReject * (activeProduct.basePrice || 0), `Reject QC - ${activeProduct.name}: ${rejectReason || 'Tanpa alasan'}`)
+      await recordShrinkage(rejectId, qtyReject * (activeProduct.basePrice || 0), `Reject QC - ${activeProduct.name}: ${rejectReason || 'Tanpa alasan'}`)
+      await recordStockMovement({
+        productId: activeProduct.id,
+        quantity: qtyReject,
+        stockDelta: 0,
+        direction: 'Info',
+        kind: 'ADJUSTMENT',
+        source: 'QC',
+        destination: 'Reject/Write-off',
+        referenceType: 'QC',
+        referenceId: activePurchaseItem.id,
+        purchaseItemId: activePurchaseItem.id,
+        note: `Reject QC: ${rejectReason || 'Tanpa alasan'}`,
+        createdByUserId: currentUser?.id || 'system',
+      })
       
       // Log to Rejection Monitor
-      useAppStore.getState().addRejectedItem({
+      await useAppStore.getState().addRejectedItem({
         id: rejectId,
         date: new Date().toISOString(),
         productId: activeProduct.id,
@@ -101,10 +161,24 @@ export default function QCPage() {
       toast.error(`${qtyReject} unit reject dicatat di monitor.`)
     }
 
-    updatePurchaseItem(activePurchaseItem.id, { isQCed: true })
+    await updatePurchaseItem(activePurchaseItem.id, { isQCed: true })
+    
+    // Antarkan SO ke status Packing jika semua itemnya sudah di-QC
+    if (activePurchaseItem.salesOrderId) {
+      const soId = activePurchaseItem.salesOrderId
+      const allPIs = useAppStore.getState().purchaseItems
+      const soPIs = allPIs.filter(pi => pi.salesOrderId === soId)
+      
+      const allQCed = soPIs.every(pi => pi.isQCed || pi.purchaseMethod === 'Online')
+      
+      if (allQCed) {
+        await updateSalesOrder(soId, { status: 'Packing' })
+        toast.success("Semua barang untuk PO ini telah masuk QC. Status SO: DI GUDANG.")
+      }
+    }
     
     // Cleanup
-    setSelectedProductId("")
+    setSelectedPurchaseItemId("")
     setQtyPassToInventory(0)
     setQtyPassToClient(0)
     setQtyReject(0)
@@ -121,7 +195,7 @@ export default function QCPage() {
   const [retQtyReject, setRetQtyReject] = useState(0)
   const [retReason, setRetReason] = useState("")
 
-  const handleProcessReturnQC = () => {
+  const handleProcessReturnQC = async () => {
     if (!activeReturn || !activeReturnProduct) return
     const currentUser = useAppStore.getState().currentUser
 
@@ -131,16 +205,41 @@ export default function QCPage() {
     }
 
     if (retQtyPass > 0) {
-      updateProduct(activeReturnProduct.id, { currentStock: (activeReturnProduct.currentStock || 0) + retQtyPass })
+      await recordStockMovement({
+        productId: activeReturnProduct.id,
+        quantity: retQtyPass,
+        stockDelta: retQtyPass,
+        direction: 'In',
+        kind: 'RETURN_RESTOCK',
+        source: 'Return QC',
+        destination: 'Inventory',
+        referenceType: 'QC',
+        referenceId: activeReturn.id,
+        note: `Retur customer lolos QC dan kembali ke inventory`,
+        createdByUserId: currentUser?.id || 'system',
+      })
       toast.success(`${retQtyPass} unit dikembalikan ke stok layak jual.`)
     }
 
     if (retQtyReject > 0) {
       const rejectId = uuidv4()
-      recordShrinkage(rejectId, retQtyReject * (activeReturnProduct.basePrice || 0), `Return Reject - ${activeReturnProduct.name}: ${retReason || activeReturn.reason}`)
+      await recordShrinkage(rejectId, retQtyReject * (activeReturnProduct.basePrice || 0), `Return Reject - ${activeReturnProduct.name}: ${retReason || activeReturn.reason}`)
+      await recordStockMovement({
+        productId: activeReturnProduct.id,
+        quantity: retQtyReject,
+        stockDelta: 0,
+        direction: 'Info',
+        kind: 'RETURN_REJECT',
+        source: 'Return QC',
+        destination: 'Reject/Write-off',
+        referenceType: 'QC',
+        referenceId: activeReturn.id,
+        note: `Retur customer reject: ${retReason || activeReturn.reason}`,
+        createdByUserId: currentUser?.id || 'system',
+      })
       
       // Log to Rejection Monitor
-      useAppStore.getState().addRejectedItem({
+      await useAppStore.getState().addRejectedItem({
         id: rejectId,
         date: new Date().toISOString(),
         productId: activeReturnProduct.id,
@@ -196,11 +295,11 @@ export default function QCPage() {
                  <Label className="font-black text-xs uppercase tracking-widest text-slate-400">Pilih Barang untuk di-QC</Label>
                  <select 
                    className="flex h-14 w-full rounded-2xl border-none bg-slate-50 px-4 py-2 font-bold text-slate-700 focus:ring-4 focus:ring-emerald-500/20 transition-all cursor-pointer"
-                   value={selectedProductId}
+                   value={selectedPurchaseItemId}
                    onChange={(e) => {
-                     const pid = e.target.value
-                     const item = pendingQCItems.find(i => i.productId === pid)
-                     setSelectedProductId(pid)
+                     const itemId = e.target.value
+                     const item = pendingQCItems.find(i => i.id === itemId)
+                     setSelectedPurchaseItemId(itemId)
                      if (item) {
                        setQtyPassToClient(item.salesOrderId ? item.qtyPurchased : 0)
                        setQtyPassToInventory(item.salesOrderId ? 0 : item.qtyPurchased)
@@ -209,8 +308,8 @@ export default function QCPage() {
                    }}
                  >
                    <option value="">-- Pilih Barang Datang --</option>
-                   {pendingQCItems.map(item => (
-                     <option key={item.id} value={item.productId}>
+                     {pendingQCItems.map(item => (
+                     <option key={item.id} value={item.id}>
                        {item.product?.name} ({item.qtyPurchased} {item.product?.uom})
                      </option>
                    ))}
@@ -433,7 +532,7 @@ export default function QCPage() {
   )
 }
 
-function Trash2(props: any) {
+function Trash2(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}
@@ -454,8 +553,4 @@ function Trash2(props: any) {
       <line x1="14" y1="11" x2="14" y2="17" />
     </svg>
   )
-}
-
-function cn(...inputs: any[]) {
-  return inputs.filter(Boolean).join(" ");
 }

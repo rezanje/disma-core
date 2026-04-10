@@ -10,11 +10,14 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 
+type SortField = "name" | "skuCode" | "currentStock"
+
 export default function WarehouseCatalogPage() {
   const products = useAppStore(state => state.products)
+  const stockMovements = useAppStore(state => state.stockMovements)
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
-  const [sortBy, setSortBy] = useState("name")
+  const [sortBy, setSortBy] = useState<SortField>("name")
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc")
 
   const processedProducts = useMemo(() => {
@@ -38,12 +41,24 @@ export default function WarehouseCatalogPage() {
 
     // 3. Sorting
     result.sort((a, b) => {
-      let valA: any = a[sortBy as keyof typeof a]
-      let valB: any = b[sortBy as keyof typeof b]
+      const getSortValue = (product: typeof a) => {
+        switch (sortBy) {
+          case "skuCode":
+            return product.skuCode
+          case "currentStock":
+            return product.currentStock
+          case "name":
+          default:
+            return product.name
+        }
+      }
+
+      let valA: string | number = getSortValue(a)
+      let valB: string | number = getSortValue(b)
 
       if (typeof valA === "string") {
         valA = valA.toLowerCase()
-        valB = valB.toLowerCase()
+        valB = typeof valB === "string" ? valB.toLowerCase() : String(valB).toLowerCase()
       }
 
       if (valA < valB) return sortOrder === "asc" ? -1 : 1
@@ -54,7 +69,13 @@ export default function WarehouseCatalogPage() {
     return result
   }, [products, searchQuery, statusFilter, sortBy, sortOrder])
 
-  const toggleSort = (field: string) => {
+  const recentMovements = useMemo(() => {
+    return [...stockMovements]
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 15)
+  }, [stockMovements])
+
+  const toggleSort = (field: SortField) => {
     if (sortBy === field) {
       setSortOrder(sortOrder === "asc" ? "desc" : "asc")
     } else {
@@ -125,7 +146,7 @@ export default function WarehouseCatalogPage() {
                 <span className="text-[10px] font-black text-slate-400 uppercase pl-3 flex items-center gap-1.5 border-r pr-3 mr-1">
                   <ArrowUpDown className="w-3 h-3" /> Urutan
                 </span>
-                <Select value={sortBy} onValueChange={(val) => setSortBy(val || "name")}>
+                <Select value={sortBy} onValueChange={(val) => setSortBy((val as SortField) || "name")}>
                   <SelectTrigger className="w-[140px] h-9 border-none bg-transparent focus:ring-0 font-bold text-xs ring-0 focus-visible:ring-0">
                     <SelectValue placeholder="Urutkan By" />
                   </SelectTrigger>
@@ -224,6 +245,60 @@ export default function WarehouseCatalogPage() {
           {processedProducts.length > 100 && (
             <div className="p-8 text-center bg-slate-50/50 border-t border-slate-100">
                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Showing top 100 results • Use search for more</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="bg-white/50 backdrop-blur-xl shadow-2xl shadow-slate-200/50 border-white rounded-[2.5rem] overflow-hidden">
+        <CardHeader className="p-8 pb-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Mutasi Stok</h3>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Jejak pergerakan barang dari QC, inventory, dan outbound</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Movement</p>
+              <p className="text-2xl font-black text-emerald-600">{stockMovements.length}</p>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {recentMovements.length === 0 ? (
+            <div className="p-8 text-center text-slate-400 font-bold uppercase tracking-widest text-[10px]">
+              Belum ada mutasi stok yang terekam.
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {recentMovements.map((m) => {
+                const product = products.find(p => p.id === m.productId)
+                return (
+                  <div key={m.id} className="px-8 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div>
+                      <p className="font-black text-slate-800 uppercase text-sm">{product?.name || m.productName || 'Unknown Product'}</p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                        {new Date(m.date).toLocaleString()} • {m.source}{m.destination ? ` → ${m.destination}` : ""}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Delta</p>
+                        <p className={cn("text-sm font-black", m.stockDelta > 0 ? "text-emerald-600" : m.stockDelta < 0 ? "text-rose-600" : "text-slate-500")}>
+                          {m.stockDelta > 0 ? "+" : ""}{m.stockDelta}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Hasil</p>
+                        <p className="text-sm font-black text-slate-900">{m.resultingStock}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Jenis</p>
+                        <p className="text-[10px] font-black text-emerald-600 uppercase">{m.kind.replace(/_/g, " ")}</p>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           )}
         </CardContent>

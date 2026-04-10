@@ -4,6 +4,11 @@ import { supabase } from '@/lib/supabase';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+const isMissingTableError = (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error || '');
+  return /could not find the table|schema cache/i.test(message);
+};
+
 // Helper to convert snake_case to camelCase for the frontend
 const toCamel = (obj: any): any => {
   if (Array.isArray(obj)) return obj.map(toCamel);
@@ -35,6 +40,9 @@ export async function GET() {
             .range(from, to);
             
           if (error) {
+            if (isMissingTableError(error)) {
+              return [];
+            }
             console.error(`Error fetching table ${table}:`, error.message);
             break;
           }
@@ -58,6 +66,7 @@ export async function GET() {
       users, clients, vendors, products, coas, bankAccounts,
       salesOrders, salesOrderItems, purchases, purchaseItems,
       deliveries, invoices, journalEntries, journalLines,
+      stockMovements,
       leads, dismaTasks, notifications, employees,
       kpis, okrObjectives, okrKeyResults,
       expenses, reimbursements, cashTransactions,
@@ -69,6 +78,7 @@ export async function GET() {
       fetchTable('purchases'), fetchTable('purchase_items'),
       fetchTable('deliveries'), fetchTable('invoices'),
       fetchTable('journal_entries'), fetchTable('journal_lines'),
+      fetchTable('stock_movements'),
       fetchTable('leads'), fetchTable('disma_tasks'),
       fetchTable('notifications'), fetchTable('employees'),
       fetchTable('kpis'), fetchTable('okr_objectives'),
@@ -94,6 +104,7 @@ export async function GET() {
       invoices: toCamel(invoices),
       journalEntries: toCamel(journalEntries),
       journalLines: toCamel(journalLines),
+      stockMovements: toCamel(stockMovements),
       leads: toCamel(leads),
       tasks: toCamel(dismaTasks),
       notifications: toCamel(notifications),
@@ -105,9 +116,11 @@ export async function GET() {
       fixedAssets: toCamel(fixedAssets),
       pendingReturns: toCamel(pendingReturns),
       rejectedItems: toCamel(rejectedItems),
-      navConfigs: appSettings[0]?.nav_configs || {},
-      rolePermissions: appSettings[0]?.role_permissions || {}
     };
+
+    const globalSettings = appSettings.find((s: any) => s.id === 'global-settings') || appSettings[0];
+    state.navConfigs = globalSettings?.nav_configs || {};
+    state.rolePermissions = globalSettings?.role_permissions || {};
 
     // Reconstruct OKRs (they are nested in the frontend state)
     const objectives = toCamel(okrObjectives);
@@ -176,8 +189,24 @@ export async function POST(request: Request) {
 
     // CRITICAL FIX: Sanitize expenses table — target_bank_account_id column may not exist yet
     if (table === 'expenses') {
-       const sanitize = (item: any) => {
+       const sanitize = (item: Record<string, unknown>) => {
           const { target_bank_account_id, ...rest } = item;
+          return rest;
+       };
+       snakeData = Array.isArray(snakeData) ? snakeData.map(sanitize) : sanitize(snakeData);
+    }
+
+    if (table === 'deliveries') {
+       const sanitize = (item: Record<string, unknown>) => {
+          const { notes, invoice_id, ...rest } = item;
+          return rest;
+       };
+       snakeData = Array.isArray(snakeData) ? snakeData.map(sanitize) : sanitize(snakeData);
+    }
+
+    if (table === 'stock_movements') {
+       const sanitize = (item: Record<string, unknown>) => {
+          const { created_by_user_id, ...rest } = item;
           return rest;
        };
        snakeData = Array.isArray(snakeData) ? snakeData.map(sanitize) : sanitize(snakeData);
@@ -193,6 +222,9 @@ export async function POST(request: Request) {
       const { error } = await supabase.from(table).upsert(chunk, { onConflict: 'id' });
       
       if (error) {
+        if (isMissingTableError(error)) {
+          return NextResponse.json({ success: true, count: 0, skipped: true, missingTable: true });
+        }
         console.error(`Supabase POST Error (${table} chunk ${i}):`, error);
         return NextResponse.json({ error: error.message }, { status: 500 });
       }

@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "seed:dev-db": "node scripts/seed-dev-db.js"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

@@ -3,12 +3,14 @@
 import React from "react"
 import { useAppStore } from "@/lib/store"
 import { Button } from "@/components/ui/button"
-import { RefreshCcw, Undo2, Ban } from "lucide-react"
-import { toast } from "sonner"
+import { RefreshCcw, Undo2, Ban, Play, Plus } from "lucide-react"
+import { runAppendOutstandingSimulation, runResetSimulationScenario } from "@/lib/simulation"
 
 export default function DevOverlay() {
   const [isVisible, setIsVisible] = React.useState(true)
   const [isDev, setIsDev] = React.useState(false)
+  const [isRunningResetSimulation, setIsRunningResetSimulation] = React.useState(false)
+  const [isRunningAppendSimulation, setIsRunningAppendSimulation] = React.useState(false)
 
   React.useEffect(() => {
     // Only show on localhost / development
@@ -29,6 +31,24 @@ export default function DevOverlay() {
 
   const handleUndo = async () => {
     await undoDevSnapshot()
+  }
+
+  const handleRunResetSimulation = async () => {
+    setIsRunningResetSimulation(true)
+    try {
+      await runResetSimulationScenario()
+    } finally {
+      setIsRunningResetSimulation(false)
+    }
+  }
+
+  const handleRunAppendSimulation = async () => {
+    setIsRunningAppendSimulation(true)
+    try {
+      await runAppendOutstandingSimulation()
+    } finally {
+      setIsRunningAppendSimulation(false)
+    }
   }
 
 
@@ -68,6 +88,24 @@ export default function DevOverlay() {
         >
           <Undo2 className="w-4 h-4" />
           Undo {historyCount > 0 && <span className="bg-white/20 rounded-full px-1.5 py-0.5 text-[10px]">{historyCount}</span>}
+        </Button>
+
+        <Button 
+          onClick={handleRunResetSimulation}
+          className="h-10 rounded-full bg-amber-500 hover:bg-amber-600 text-white gap-2 font-black text-xs uppercase tracking-widest shadow-lg shadow-amber-500/20 disabled:opacity-70"
+          disabled={isRunningResetSimulation || isRunningAppendSimulation}
+        >
+          <Play className="w-4 h-4" />
+          {isRunningResetSimulation ? "Menjalankan..." : "Reset + Simulasi"}
+        </Button>
+
+        <Button 
+          onClick={handleRunAppendSimulation}
+          className="h-10 rounded-full bg-sky-500 hover:bg-sky-600 text-white gap-2 font-black text-xs uppercase tracking-widest shadow-lg shadow-sky-500/20 disabled:opacity-70"
+          disabled={isRunningResetSimulation || isRunningAppendSimulation}
+        >
+          <Plus className="w-4 h-4" />
+          {isRunningAppendSimulation ? "Menambahkan..." : "Tambah Simulasi"}
         </Button>
 
         <Button 

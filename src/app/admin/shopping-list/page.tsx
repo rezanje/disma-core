@@ -181,11 +181,6 @@ export default function ShoppingListPage() {
 
       await addPurchaseItems(newItems)
 
-      // Advance all active SOs from 'Belanja' to 'Packing'
-      activeSOs.forEach(so => {
-        updateSalesOrder(so.id, { status: 'Packing' })
-      })
-
       // Clear manual items
       setManualItems([])
 

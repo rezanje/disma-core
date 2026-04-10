@@ -1,10 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
+import { resolveSupabaseEnv } from './supabase-env';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const { profile, url: supabaseUrl, serviceRoleKey } = resolveSupabaseEnv();
 
 if (!supabaseUrl || !serviceRoleKey) {
-  console.warn('⚠️ Supabase ADMIN credentials not found.');
+  console.warn(`⚠️ Supabase ADMIN credentials not found for ${profile} profile.`);
 }
 
 // THIS CLIENT BYPASSES RLS. ONLY USE IN API ROUTES!

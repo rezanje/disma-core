@@ -1,13 +1,14 @@
 "use client"
 
 import { useAppStore } from "@/lib/store"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ArrowUpFromLine, Package, Truck, CheckCircle2, Circle, ShieldCheck, ShieldAlert, AlertTriangle } from "lucide-react"
+import { ArrowUpFromLine, Package, Truck, CheckCircle2, Circle, ShieldCheck, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
 import { v4 as uuidv4 } from "uuid"
 import { cn } from "@/lib/utils"
+import { recordStockMovement } from "@/lib/accounting"
 
 export default function OutboundPage() {
   const currentUser = useAppStore(state => state.currentUser)
@@ -16,26 +17,36 @@ export default function OutboundPage() {
   const products = useAppStore(state => state.products)
   const clients = useAppStore(state => state.clients)
   const updateSalesOrder = useAppStore(state => state.updateSalesOrder)
-  const updateProduct = useAppStore(state => state.updateProduct)
   const addDelivery = useAppStore(state => state.addDelivery)
 
   // Orders that are ready for packing
   const packingOrders = salesOrders.filter(so => so.status === 'Packing')
   const handoverOrders = salesOrders.filter(so => so.status === 'Siap Kirim')
 
-  const handleRelease = (soId: string) => {
+  const handleRelease = async (soId: string) => {
     const items = salesOrderItems.filter(i => i.salesOrderId === soId)
     
     // 1. Reduce Inventory Stock (use qtyFinal if available, fallback to qty)
-    items.forEach(item => {
+    for (const item of items) {
       const product = products.find(p => p.id === item.productId)
       if (product) {
         const qtyToDeduct = item.qtyFinal ?? item.qty
-        updateProduct(product.id, {
-          currentStock: Math.max(0, product.currentStock - qtyToDeduct) 
+        await recordStockMovement({
+          productId: product.id,
+          quantity: qtyToDeduct,
+          stockDelta: -qtyToDeduct,
+          direction: 'Out',
+          kind: 'DELIVERY_OUTBOUND',
+          source: 'Inventory',
+          destination: 'Client Delivery',
+          referenceType: 'Delivery',
+          referenceId: soId,
+          salesOrderId: soId,
+          note: `Barang keluar untuk pengiriman SO ${soId}`,
+          createdByUserId: currentUser?.id || 'system',
         })
       }
-    })
+    }
 
     // 2. Update SO Status to 'Siap Kirim' (READY FOR HANDOVER)
     updateSalesOrder(soId, { 
@@ -181,9 +192,7 @@ export default function OutboundPage() {
                 <p className="text-xs font-bold uppercase italic">Belum ada PO yang siap serah terima</p>
              </Card>
            ) : (
-             handoverOrders.map(so => {
-               const client = clients.find(c => c.id === so.clientId)
-               const items = salesOrderItems.filter(i => i.salesOrderId === so.id)
+            handoverOrders.map(so => {
                return (
                  <Card key={so.id} className="overflow-hidden border-emerald-100 dark:border-emerald-900/50 shadow-sm liquid-card opacity-80 hover:opacity-100 transition-opacity">
                    <div className="p-4 bg-emerald-50/50 border-b flex justify-between items-center">

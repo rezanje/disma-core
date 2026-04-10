@@ -1,6 +1,7 @@
 import { jsPDF } from "jspdf"
 import { format } from "date-fns"
 import { useAppStore } from "./store"
+import { formatRupiah, formatRupiahValue } from "./utils"
 
 // Basic standardized branding
 const BRANDING = {
@@ -98,8 +99,8 @@ function drawSalesOrderOnDoc(doc: jsPDF, poNumber: string) {
     doc.text(`${index + 1}`, 16, y)
     doc.text(product?.name || '-', 30, y)
     doc.text(`${item.qty}`, 120, y)
-    doc.text(`${item.unitPrice.toLocaleString()}`, 140, y)
-    doc.text(`${item.subtotal.toLocaleString()}`, 175, y)
+    doc.text(formatRupiahValue(item.unitPrice), 140, y)
+    doc.text(formatRupiahValue(item.subtotal), 175, y)
     y += 10
   })
 
@@ -288,8 +289,8 @@ function drawInvoiceOnDoc(doc: jsPDF, invoiceId: string) {
     const finalSubtotal = item.subtotalFinal ?? item.subtotal
     doc.text(product?.name || '-', 16, y)
     doc.text(`${finalQty} ${product?.uom}`, 100, y)
-    doc.text(`Rp ${item.unitPrice.toLocaleString()}`, 130, y)
-    doc.text(`Rp ${finalSubtotal.toLocaleString()}`, 170, y)
+    doc.text(formatRupiah(item.unitPrice), 130, y)
+    doc.text(formatRupiah(finalSubtotal), 170, y)
     y += 10
   })
 
@@ -297,7 +298,7 @@ function drawInvoiceOnDoc(doc: jsPDF, invoiceId: string) {
   y += 15
   doc.setFont("helvetica", "bold")
   doc.text("Total Tagihan:", 130, y)
-  doc.text(`Rp ${inv.totalAmount.toLocaleString()}`, 170, y)
+  doc.text(formatRupiah(inv.totalAmount), 170, y)
 
   y += 30; doc.setFontSize(10); doc.text("Instruksi Pembayaran:", 14, y)
   doc.setFont("helvetica", "normal"); doc.text("Bank BCA: 1234567890 a/n PT DISMA DISTRIBUSI", 14, y + 6)
@@ -384,7 +385,7 @@ export function generateShoppingListPDF(items: Array<{productId: string, product
   items.forEach(item => {
     doc.text(item.skuCode, 16, y)
     doc.text(item.productName, 45, y)
-    doc.text(`Rp ${item.estimatedPrice.toLocaleString()}`, 115, y)
+    doc.text(formatRupiah(item.estimatedPrice), 115, y)
     doc.text(`${item.totalQty}`, 150, y)
     doc.rect(185, y - 4, 6, 6) // Checkbox box
     y += 10
@@ -416,18 +417,18 @@ export function generateFinancialReportPDF(data: {
   
   // Revenue & COGS
   doc.text("Pendapatan Operasional", 20, y)
-  doc.text(`Rp ${data.pl.revenue.toLocaleString()}`, 170, y, { align: 'right' })
+  doc.text(formatRupiah(data.pl.revenue), 170, y, { align: 'right' })
   y += 7
   
   doc.setTextColor(200, 0, 0)
   doc.text("(HPP / Beban Pokok Penjualan)", 20, y)
-  doc.text(`(Rp ${data.pl.cogs.toLocaleString()})`, 170, y, { align: 'right' })
+  doc.text(`(${formatRupiah(data.pl.cogs)})`, 170, y, { align: 'right' })
   doc.setTextColor(0, 0, 0)
   y += 10
 
   doc.setFont("helvetica", "bold")
   doc.text("Laba Kotor (Gross Profit)", 20, y)
-  doc.text(`Rp ${data.pl.grossProfit.toLocaleString()}`, 170, y, { align: 'right' })
+  doc.text(formatRupiah(data.pl.grossProfit), 170, y, { align: 'right' })
   y += 12
 
   // OpEx Breakdown
@@ -436,25 +437,25 @@ export function generateFinancialReportPDF(data: {
   y += 7
   data.pl.opex.forEach(cat => {
     doc.text(`Beban ${cat.category}`, 25, y)
-    doc.text(`(Rp ${cat.amount.toLocaleString()})`, 170, y, { align: 'right' })
+    doc.text(`(${formatRupiah(cat.amount)})`, 170, y, { align: 'right' })
     y += 7
   })
   doc.setTextColor(200, 0, 0)
   doc.text("Beban Barang Rusak (Shrinkage)", 25, y)
-  doc.text(`(Rp ${data.pl.shrinkage.toLocaleString()})`, 170, y, { align: 'right' })
+  doc.text(`(${formatRupiah(data.pl.shrinkage)})`, 170, y, { align: 'right' })
   doc.setTextColor(0, 0, 0)
   y += 10
 
   doc.setFont("helvetica", "bold")
   doc.text("Total Beban Biaya", 20, y)
-  doc.text(`(Rp ${data.pl.totalExpenses.toLocaleString()})`, 170, y, { align: 'right' })
+  doc.text(`(${formatRupiah(data.pl.totalExpenses)})`, 170, y, { align: 'right' })
   y += 12
 
   doc.setFontSize(14)
   if (data.pl.netProfit >= 0) doc.setTextColor(0, 150, 0)
   else doc.setTextColor(200, 0, 0)
   doc.text("Laba Bersih (Net Profit)", 20, y)
-  doc.text(`Rp ${data.pl.netProfit.toLocaleString()}`, 170, y, { align: 'right' })
+  doc.text(formatRupiah(data.pl.netProfit), 170, y, { align: 'right' })
   doc.setTextColor(0, 0, 0)
   doc.setFontSize(10)
   y += 20
@@ -474,20 +475,20 @@ export function generateFinancialReportPDF(data: {
   doc.setFont("helvetica", "normal")
   // Assets list
   doc.text("Kas & Bank", 25, y)
-  doc.text(`Rp ${data.balanceSheet.assets.cash.toLocaleString()}`, 90, y, { align: 'right' })
+  doc.text(formatRupiah(data.balanceSheet.assets.cash), 90, y, { align: 'right' })
   // Equity list
   doc.text("Modal Awal", 115, y)
-  doc.text(`Rp ${data.balanceSheet.equity.base.toLocaleString()}`, 180, y, { align: 'right' })
+  doc.text(formatRupiah(data.balanceSheet.equity.base), 180, y, { align: 'right' })
   y += 7
 
   doc.text("Piutang Usaha", 25, y)
-  doc.text(`Rp ${data.balanceSheet.assets.ar.toLocaleString()}`, 90, y, { align: 'right' })
+  doc.text(formatRupiah(data.balanceSheet.assets.ar), 90, y, { align: 'right' })
   doc.text("Laba Ditahan", 115, y)
-  doc.text(`Rp ${data.balanceSheet.equity.retained.toLocaleString()}`, 180, y, { align: 'right' })
+  doc.text(formatRupiah(data.balanceSheet.equity.retained), 180, y, { align: 'right' })
   y += 7
 
   doc.text("Persediaan Barang", 25, y)
-  doc.text(`Rp ${data.balanceSheet.assets.inventory.toLocaleString()}`, 90, y, { align: 'right' })
+  doc.text(formatRupiah(data.balanceSheet.assets.inventory), 90, y, { align: 'right' })
   y += 7
 
   doc.line(20, y, 90, y)
@@ -496,9 +497,9 @@ export function generateFinancialReportPDF(data: {
 
   doc.setFont("helvetica", "bold")
   doc.text("Total Aset", 20, y)
-  doc.text(`Rp ${data.balanceSheet.assets.total.toLocaleString()}`, 90, y, { align: 'right' })
+  doc.text(formatRupiah(data.balanceSheet.assets.total), 90, y, { align: 'right' })
   doc.text("Total Ekuitas", 110, y)
-  doc.text(`Rp ${data.balanceSheet.equity.total.toLocaleString()}`, 180, y, { align: 'right' })
+  doc.text(formatRupiah(data.balanceSheet.equity.total), 180, y, { align: 'right' })
   y += 15
 
   // 3. AR AGING SECTION
@@ -509,11 +510,11 @@ export function generateFinancialReportPDF(data: {
 
   doc.setFontSize(10)
   doc.setFont("helvetica", "normal")
-  doc.text("Lancar (Current)", 20, y); doc.text(`Rp ${data.aging.current.toLocaleString()}`, 80, y, { align: 'right' })
-  doc.text("1 - 30 Hari", 110, y); doc.text(`Rp ${data.aging.days30.toLocaleString()}`, 170, y, { align: 'right' })
+  doc.text("Lancar (Current)", 20, y); doc.text(formatRupiah(data.aging.current), 80, y, { align: 'right' })
+  doc.text("1 - 30 Hari", 110, y); doc.text(formatRupiah(data.aging.days30), 170, y, { align: 'right' })
   y += 7
-  doc.text("31 - 60 Hari", 20, y); doc.text(`Rp ${data.aging.days60.toLocaleString()}`, 80, y, { align: 'right' })
-  doc.text("> 60 Hari", 110, y); doc.text(`Rp ${data.aging.days90.toLocaleString()}`, 170, y, { align: 'right' })
+  doc.text("31 - 60 Hari", 20, y); doc.text(formatRupiah(data.aging.days60), 80, y, { align: 'right' })
+  doc.text("> 60 Hari", 110, y); doc.text(formatRupiah(data.aging.days90), 170, y, { align: 'right' })
   
   y += 20
   // 4. CASH FLOW SECTION
@@ -524,15 +525,15 @@ export function generateFinancialReportPDF(data: {
 
   doc.setFontSize(10)
   doc.setFont("helvetica", "normal")
-  doc.text("Penerimaan dari Pelanggan", 20, y); doc.text(`Rp ${data.cashFlow.in.toLocaleString()}`, 170, y, { align: 'right' })
+  doc.text("Penerimaan dari Pelanggan", 20, y); doc.text(formatRupiah(data.cashFlow.in), 170, y, { align: 'right' })
   y += 7
   doc.setTextColor(200, 0, 0)
-  doc.text("Pembayaran ke Supplier & Ops", 20, y); doc.text(`(Rp ${data.cashFlow.out.toLocaleString()})`, 170, y, { align: 'right' })
+  doc.text("Pembayaran ke Supplier & Ops", 20, y); doc.text(`(${formatRupiah(data.cashFlow.out)})`, 170, y, { align: 'right' })
   doc.setTextColor(0, 0, 0)
   y += 10
 
   doc.setFont("helvetica", "bold")
-  doc.text("Net Cash Flow", 20, y); doc.text(`Rp ${data.cashFlow.net.toLocaleString()}`, 170, y, { align: 'right' })
+  doc.text("Net Cash Flow", 20, y); doc.text(formatRupiah(data.cashFlow.net), 170, y, { align: 'right' })
 
   y += 25
   drawSignatures(doc, "Finance (Pembuat)", "Direktur Utama (CEO)", y)

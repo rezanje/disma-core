@@ -9,9 +9,9 @@ export default function DeliveryHistoryPage() {
   const salesOrders = useAppStore(state => state.salesOrders)
   const clients = useAppStore(state => state.clients)
 
-  const completedDeliveries = deliveries.filter(d => d.status === 'Terkirim')
-  // Sort by latest completed
-  completedDeliveries.sort((a, b) => new Date(b.deliveryDate || 0).getTime() - new Date(a.deliveryDate || 0).getTime())
+  const completedDeliveries = deliveries
+    .filter(d => ['Awaiting Audit', 'Terkirim'].includes(d.status))
+    .sort((a, b) => new Date(b.deliveryDate || 0).getTime() - new Date(a.deliveryDate || 0).getTime())
 
   return (
     <div className="space-y-4">
@@ -48,8 +48,14 @@ export default function DeliveryHistoryPage() {
                     <p className="text-xs text-slate-500 truncate flex items-center gap-1 mt-1">
                       <MapPin className="w-3 h-3" /> {client.address}
                     </p>
-                    <div className="mt-2 text-xs font-medium text-emerald-600 border border-emerald-200 bg-emerald-50 dark:border-emerald-900/50 dark:bg-emerald-900/20 px-2 py-1 rounded inline-block">
-                      BA Terkirim & Invoice Dibuat
+                    <div className={`mt-2 text-xs font-medium px-2 py-1 rounded inline-block ${
+                      delivery.status === 'Terkirim'
+                        ? 'text-emerald-600 border border-emerald-200 bg-emerald-50 dark:border-emerald-900/50 dark:bg-emerald-900/20'
+                        : 'text-amber-700 border border-amber-200 bg-amber-50'
+                    }`}>
+                      {delivery.status === 'Terkirim'
+                        ? 'BA Terkirim & Invoice Dibuat'
+                        : 'Sudah dikonfirmasi kurir, menunggu audit finance'}
                     </div>
                   </div>
                 </CardContent>

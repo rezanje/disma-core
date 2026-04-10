@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { useAppStore } from "@/lib/store"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -75,9 +74,6 @@ export default function MaintenancePage() {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
   const [isDoubleConfirmOpen, setIsDoubleConfirmOpen] = useState(false)
   const [resetInput, setResetInput] = useState("")
-  
-  const saveToHdd = useAppStore(state => state.saveToHdd)
-
   const toggleCategory = (title: string) => {
     setSelectedCategories(prev => 
       prev.includes(title) 
@@ -106,9 +102,8 @@ export default function MaintenancePage() {
     }
 
     try {
-      let tablesToClear: string[] = [];
       const categoryMap: Record<string, string[]> = {
-        "Transactional Data": ['sales_order_items', 'purchase_items', 'journal_lines', 'deliveries', 'invoices', 'sales_orders', 'purchases', 'journal_entries'],
+        "Transactional Data": ['sales_order_items', 'purchase_items', 'journal_lines', 'deliveries', 'invoices', 'sales_orders', 'purchases', 'journal_entries', 'stock_movements', 'rejected_items'],
         "Operational Expenses": ['expenses', 'reimbursements', 'cash_transactions'],
         "CRM & OKRs": ['leads', 'okr_objectives', 'okr_key_results'],
         "Performance & HR": ['kpis', 'employees'],
@@ -116,10 +111,7 @@ export default function MaintenancePage() {
         "Fixed Assets": ['fixed_assets'],
         "MASTER DATA (WARNING)": ['clients', 'products', 'vendors']
       };
-
-      selectedCategories.forEach(cat => {
-         if (categoryMap[cat]) tablesToClear.push(...categoryMap[cat]);
-      });
+      const tablesToClear = selectedCategories.flatMap(cat => categoryMap[cat] || []);
 
       const res = await fetch('/api/db/reset', {
          method: 'POST',
@@ -133,9 +125,8 @@ export default function MaintenancePage() {
       setSelectedCategories([])
       setResetInput("")
       setTimeout(() => window.location.reload(), 1500)
-    } catch (err) {
+    } catch {
       toast.error("An error occurred during reset.")
-      console.error(err)
     }
   }
 
@@ -152,7 +143,7 @@ export default function MaintenancePage() {
       if (!res.ok) throw new Error('Reset failed');
       toast.success("Semua stok barang berhasil di-reset ke 0!")
       setTimeout(() => window.location.reload(), 1500)
-    } catch (err) {
+    } catch {
       toast.error("Gagal melakukan reset stok.")
     }
   }
@@ -169,7 +160,7 @@ export default function MaintenancePage() {
       if (!res.ok) throw new Error('Reset failed');
       toast.success("Semua data transaksi berhasil dibersihkan!")
       setTimeout(() => window.location.reload(), 1500)
-    } catch (err) {
+    } catch {
       toast.error("Gagal membersihkan data transaksi.")
     }
   }
@@ -344,7 +335,7 @@ export default function MaintenancePage() {
               Cancel
             </Button>
             <Button onClick={proceedToDoubleConfirm} className="flex-1 h-14 rounded-2xl font-black bg-rose-600 hover:bg-rose-700 text-white">
-              Yes, I'm Sure
+              Yes, I&apos;m Sure
             </Button>
           </DialogFooter>
         </DialogContent>

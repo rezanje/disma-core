@@ -2,13 +2,11 @@
 
 import { useState } from "react"
 import { useAppStore } from "@/lib/store"
-import { recordDeliveryAndInvoice } from "@/lib/accounting"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { MapPin, Navigation, PackageCheck, Truck, Camera, ExternalLink } from "lucide-react"
 import { toast } from "sonner"
 import { v4 as uuidv4 } from "uuid"
-import { generateSuratJalan, generateBA } from "@/lib/pdf"
 import DocumentPreview from "@/components/delivery/DocumentPreview"
 import { cn } from "@/lib/utils"
 
@@ -18,7 +16,6 @@ export default function CourierDashboard() {
   const salesOrders = useAppStore(state => state.salesOrders)
   const salesOrderItems = useAppStore(state => state.salesOrderItems)
   const clients = useAppStore(state => state.clients)
-  const purchaseItems = useAppStore(state => state.purchaseItems)
   
   const updateDelivery = useAppStore(state => state.updateDelivery)
   const updateSalesOrder = useAppStore(state => state.updateSalesOrder)
@@ -32,6 +29,7 @@ export default function CourierDashboard() {
   const [previewType, setPreviewType] = useState<'SuratJalan' | 'BA'>('SuratJalan')
   const [selectedPo, setSelectedPo] = useState<string | null>(null)
   const [selectedSoId, setSelectedSoId] = useState<string | null>(null)
+  const [finalizingDeliveryId, setFinalizingDeliveryId] = useState<string | null>(null)
 
   // Get all active deliveries (Menunggu & Dikirim & Tunggu Konfirmasi)
   const pendingDeliveries = deliveries.filter(d => ['Menunggu', 'Dikirim', 'Tunggu Konfirmasi'].includes(d.status))
@@ -87,13 +85,22 @@ export default function CourierDashboard() {
     }
   }
 
-  const handleFinalizeDelivery = (deliveryId: string, soId: string) => {
+  const handleFinalizeDelivery = async (deliveryId: string, soId: string) => {
     const notes = deliveryNotes[deliveryId] || ""
-    updateDelivery(deliveryId, { notes })
-    handleCompleteDelivery(deliveryId, soId)
+    setFinalizingDeliveryId(deliveryId)
+
+    try {
+      await updateDelivery(deliveryId, { notes })
+      await handleCompleteDelivery(deliveryId, soId)
+    } catch (error) {
+      console.error("Finalize delivery failed:", error)
+      toast.error("Gagal konfirmasi terkirim. Coba lagi setelah refresh.")
+    } finally {
+      setFinalizingDeliveryId(null)
+    }
   }
 
-  const handleCompleteDelivery = (deliveryId: string, soId: string) => {
+  const handleCompleteDelivery = async (deliveryId: string, soId: string) => {
     const so = salesOrders.find(s => s.id === soId)
     const client = clients.find(c => c.id === so?.clientId)
     if (!so || !client) return
@@ -105,20 +112,20 @@ export default function CourierDashboard() {
     }, 0)
 
     // 1. Update Delivery
-    updateDelivery(deliveryId, { 
+    await updateDelivery(deliveryId, { 
       status: 'Awaiting Audit', 
       deliveryDate: new Date().toISOString()
     })
 
     // 2. Update SO
-    updateSalesOrder(soId, { status: 'Awaiting Audit' })
+    await updateSalesOrder(soId, { status: 'Awaiting Audit' })
 
     // 3. Generate Invoice (Draft)
     const invoiceId = uuidv4()
     const dueDate = new Date()
     dueDate.setDate(dueDate.getDate() + (client.paymentTermDays || 30))
 
-    addInvoice({
+    await addInvoice({
       id: invoiceId,
       salesOrderId: soId,
       clientId: client.id,
@@ -130,15 +137,15 @@ export default function CourierDashboard() {
     })
 
     // 4. Update delivery with invoice link
-    updateDelivery(deliveryId, { invoiceId })
+    await updateDelivery(deliveryId, { invoiceId })
 
     // 5. Handling Returns & Rejections
-    soItems.forEach(item => {
+    const pendingReturnPromises = soItems.map(async (item) => {
       const finalQty = item.qtyFinal ?? item.qty
       const rejectedQty = item.qty - finalQty
 
       if (rejectedQty > 0) {
-        addPendingReturn({
+        await addPendingReturn({
           id: uuidv4(),
           productId: item.productId,
           originalSoId: soId,
@@ -150,18 +157,26 @@ export default function CourierDashboard() {
       }
     })
 
+    await Promise.all(pendingReturnPromises)
+
     setActiveDeliveryId(null)
-    
-    const waMessage = encodeURIComponent(`Halo ${client.companyName}, Berikut adalah konfirmasi digital untuk pengiriman PO ${so.poNumber}. Barang telah kami serah-terimakan dengan baik. Terima kasih! - DISMA Logistik`)
-    const waUrl = `https://wa.me/${client.phone.replace(/[^0-9]/g, '')}?text=${waMessage}`
-    
-    toast.success("Pengiriman Berhasil Selesai!", {
-      description: "Klik untuk kirim konfirmasi WA",
-      action: {
-        label: "WhatsApp",
-        onClick: () => window.open(waUrl, '_blank')
-      }
-    })
+
+    const phoneDigits = String(client.phone || '').replace(/[^0-9]/g, '')
+    if (phoneDigits) {
+      const waMessage = encodeURIComponent(`Halo ${client.companyName}, Berikut adalah konfirmasi digital untuk pengiriman PO ${so.poNumber}. Barang telah kami serah-terimakan dengan baik. Terima kasih! - DISMA Logistik`)
+      const waUrl = `https://wa.me/${phoneDigits}?text=${waMessage}`
+
+      toast.success("Pengiriman berhasil selesai!", {
+        description: "Klik untuk kirim konfirmasi WA",
+        action: {
+          label: "WhatsApp",
+          onClick: () => window.open(waUrl, '_blank')
+        }
+      })
+      return
+    }
+
+    toast.success("Pengiriman berhasil selesai!")
   }
 
   return (
@@ -189,6 +204,7 @@ export default function CourierDashboard() {
             const isExpanded = activeDeliveryId === delivery.id
             const isOngoing = delivery.status === 'Dikirim' || delivery.status === 'Tunggu Konfirmasi'
             const isWaitingFinal = delivery.status === 'Tunggu Konfirmasi'
+            const isSubmittingFinal = finalizingDeliveryId === delivery.id
 
             if (!so || !client) return null
 
@@ -295,16 +311,17 @@ export default function CourierDashboard() {
                             "w-full h-20 text-white font-black uppercase tracking-[0.2em] rounded-[2.5rem] shadow-2xl transition-all active:scale-95 text-lg",
                             isWaitingFinal ? "bg-amber-500 hover:bg-amber-600 animate-pulse" : "bg-slate-900 hover:bg-black"
                           )}
-                          onClick={(e) => {
+                          disabled={isSubmittingFinal}
+                          onClick={async (e) => {
                             e.stopPropagation();
                             if (isWaitingFinal) {
-                              handleFinalizeDelivery(delivery.id, so.id);
+                              await handleFinalizeDelivery(delivery.id, so.id);
                             } else {
                               toast.warning("Harap selesaikan tanda tangan digital (BA) terlebih dahulu.");
                             }
                           }}
                         >
-                          {isWaitingFinal ? "Konfirmasi Terkirim ✓" : "Selesai & Kirim Laporan"}
+                          {isSubmittingFinal ? "Memproses..." : isWaitingFinal ? "Konfirmasi Terkirim ✓" : "Selesai & Kirim Laporan"}
                         </Button>
                       </div>
                     )}

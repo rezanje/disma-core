@@ -22,7 +22,7 @@ import {
   Select, SelectContent, SelectItem, 
   SelectTrigger, SelectValue 
 } from "@/components/ui/select"
-import { cn } from "@/lib/utils"
+import { cn, formatRupiah } from "@/lib/utils"
 
 export default function FixedAssetsPage() {
   const fixedAssets = useAppStore(state => state.fixedAssets)
@@ -96,7 +96,7 @@ export default function FixedAssetsPage() {
         accumulatedDepreciation: analytic.autoAccumulated,
         currentValue: analytic.autoCurrentValue
       })
-      toast.success(`Jurnal penyusutan disingkronkan. Nilai terkini: Rp ${analytic.autoCurrentValue.toLocaleString()}`)
+      toast.success(`Jurnal penyusutan disingkronkan. Nilai terkini: ${formatRupiah(analytic.autoCurrentValue)}`)
     }
   }
 
@@ -226,7 +226,7 @@ export default function FixedAssetsPage() {
           </div>
           <div>
             <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Total Asset Cost</p>
-            <h3 className="text-2xl font-black text-slate-800">Rp {totalAssetValue.toLocaleString()}</h3>
+            <h3 className="text-2xl font-black text-slate-800">{formatRupiah(totalAssetValue)}</h3>
           </div>
         </Card>
         
@@ -236,7 +236,7 @@ export default function FixedAssetsPage() {
           </div>
           <div>
             <p className="text-[10px] font-black uppercase text-emerald-600/60 tracking-widest">Est. Current Value</p>
-            <h3 className="text-2xl font-black text-emerald-600">Rp {totalNetBookValue.toLocaleString()}</h3>
+            <h3 className="text-2xl font-black text-emerald-600">{formatRupiah(totalNetBookValue)}</h3>
           </div>
         </Card>
 
@@ -288,11 +288,11 @@ export default function FixedAssetsPage() {
                    <div className="flex justify-between items-end">
                      <div>
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Market Value (Today)</p>
-                        <p className="text-3xl font-black text-emerald-600 tracking-tighter">Rp {asset.autoCurrentValue.toLocaleString()}</p>
+                        <p className="text-3xl font-black text-emerald-600 tracking-tighter">{formatRupiah(asset.autoCurrentValue)}</p>
                      </div>
                      <div className="text-right">
                         <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-1">Total Penyusutan</p>
-                        <p className="text-lg font-black text-slate-300 line-through tracking-tighter">Rp {asset.autoAccumulated.toLocaleString()}</p>
+                        <p className="text-lg font-black text-slate-300 line-through tracking-tighter">{formatRupiah(asset.autoAccumulated)}</p>
                      </div>
                    </div>
                    <div className="w-full h-4 bg-slate-100 rounded-full overflow-hidden p-1 shadow-inner">
@@ -307,11 +307,11 @@ export default function FixedAssetsPage() {
                    <div className="grid grid-cols-2 gap-8 pt-4 border-t border-slate-50">
                      <div className="flex flex-col gap-1">
                        <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Initial Investment</p>
-                       <p className="font-black text-slate-800">Rp {asset.purchasePrice.toLocaleString()}</p>
+                       <p className="font-black text-slate-800">{formatRupiah(asset.purchasePrice)}</p>
                      </div>
                      <div className="flex flex-col gap-1 text-right">
                        <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Salvage Value</p>
-                       <p className="font-black text-slate-400">Rp {asset.salvageValue.toLocaleString()}</p>
+                       <p className="font-black text-slate-400">{formatRupiah(asset.salvageValue)}</p>
                      </div>
                    </div>
                  </div>
