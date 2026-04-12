@@ -239,6 +239,13 @@ export const recordOnlinePurchase = async (
   const adminFee = Number(_adminFee || 0);
   const shippingFee = Number(_shippingFee || 0);
   
+  // Prevent duplicate recording
+  const existingItem = store.purchaseItems.find(pi => pi.id === itemId);
+  if (existingItem?.isOnlineAudited) {
+    console.warn(`Attempted to record already audited online purchase: ${itemId}`);
+    return true; // Already done
+  }
+
   const baseProductAmount = totalAmount - adminFee - shippingFee;
 
   // 1. Double Entry (Split)
@@ -260,40 +267,49 @@ export const recordOnlinePurchase = async (
     [{ accountCode: bankAccountCode, amount: totalAmount }]
   );
 
-  // 2. Cash History
-  if (success && totalAmount > 0) {
-    await store.addCashTransaction({
-      id: uuidv4(),
-      date: new Date().toISOString(),
-      amount: totalAmount,
-      type: 'Out',
-      category: 'Sourcing (HPP)',
-      description: `Belanja Online: ${productName} (Incl. Admin & Ongkir)`,
-      bankAccountId: bankAccountId
-    });
-  }
+  if (success) {
+    // 2. Cash History
+    if (totalAmount > 0) {
+      await store.addCashTransaction({
+        id: uuidv4(),
+        date: new Date().toISOString(),
+        amount: totalAmount,
+        type: 'Out',
+        category: 'Belanja Online', // Use exact category for better filtering
+        description: `Belanja Online: ${productName} (Incl. Admin & Ongkir)`,
+        bankAccountId: bankAccountId,
+        referenceId: itemId,
+        referenceType: 'Purchase'
+      });
+    }
 
-  // 3. Update Inventory & Price History
-  const product = store.products.find(p => p.name === productName || p.skuCode === productName || p.id === itemId);
-  if (product) {
-    const pItem = store.purchaseItems.find(pi => pi.id === itemId);
-    const qtyReceived = pItem?.qtyTarget || pItem?.qtyPurchased || 1;
-
-    await recordStockMovement({
-      productId: product.id,
-      quantity: qtyReceived,
-      stockDelta: qtyReceived,
-      direction: 'In',
-      kind: 'ONLINE_PURCHASE',
-      source: 'Online Purchase',
-      destination: 'Inventory',
-      referenceType: 'Purchase',
-      referenceId: itemId,
-      purchaseItemId: itemId,
-      note: `Belanja online ${productName} masuk stok`,
+    // 3. Mark as Audited in Purchase Items
+    await store.updatePurchaseItem(itemId, { 
+      isOnlineAudited: true,
+      actualUnitPrice: baseProductAmount / (existingItem?.qtyTarget || 1)
     });
 
-    updateProductPriceHistory(product.id, baseProductAmount / qtyReceived, 'Online Purchase');
+    // 4. Update Inventory & Price History
+    const product = store.products.find(p => p.name === productName || p.skuCode === productName || p.id === itemId || p.id === existingItem?.productId);
+    if (product) {
+      const qtyReceived = existingItem?.qtyTarget || 1;
+
+      await recordStockMovement({
+        productId: product.id,
+        quantity: qtyReceived,
+        stockDelta: qtyReceived,
+        direction: 'In',
+        kind: 'ONLINE_PURCHASE',
+        source: 'Online Purchase',
+        destination: 'Inventory',
+        referenceType: 'Purchase',
+        referenceId: itemId,
+        purchaseItemId: itemId,
+        note: `Belanja online ${productName} masuk stok (Approved by Finance)`,
+      });
+
+      updateProductPriceHistory(product.id, baseProductAmount / qtyReceived, 'Online Purchase');
+    }
   }
 
   return success;

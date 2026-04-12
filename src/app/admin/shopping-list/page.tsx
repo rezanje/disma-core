@@ -181,6 +181,12 @@ export default function ShoppingListPage() {
 
       await addPurchaseItems(newItems)
 
+      // 3. Update Sales Orders status to 'Sourcing' so they leave the consolidator list
+      const uniqueSoIds = Array.from(new Set(activeSOs.map(so => so.id)));
+      for (const soId of uniqueSoIds) {
+        await updateSalesOrder(soId, { status: 'Sourcing' });
+      }
+
       // Clear manual items
       setManualItems([])
 
@@ -379,11 +385,11 @@ export default function ShoppingListPage() {
                       {consolidatedList.map((item, idx) => (
                         <TableRow key={idx}>
                           <TableCell className="text-xs text-slate-500">{item.skuCode}</TableCell>
-                          <TableCell className="font-medium">
-                            <div className="flex flex-col">
-                              <span>{item.productName}</span>
+                          <TableCell className="font-medium max-w-[200px] leading-tight">
+                            <div className="flex flex-col gap-1">
+                              <span className="text-xs break-words">{item.productName}</span>
                               {products.find(p => p.id === item.productId)?.weeklyPriceRange && (
-                                <span className="text-[9px] font-bold text-amber-600 w-fit whitespace-nowrap" title="Harga terendah-tertinggi minggu ini (Kamis-Rabu)">
+                                <span className="text-[9px] font-bold text-amber-600 w-fit" title="Harga terendah-tertinggi minggu ini (Kamis-Rabu)">
                                   Patokan: {formatRupiah(products.find(p => p.id === item.productId)!.weeklyPriceRange!.min)} - {formatRupiah(products.find(p => p.id === item.productId)!.weeklyPriceRange!.max)}
                                 </span>
                               )}

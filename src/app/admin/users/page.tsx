@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { v4 as uuidv4 } from "uuid"
 import { useAppStore } from "@/lib/store"
 import { Role, User } from "@/types"
@@ -53,6 +53,17 @@ export default function UserManagementPage() {
   const addUser = useAppStore(state => state.addUser)
   const rolePermissions = useAppStore(state => state.rolePermissions) || {}
   const updateRolePermissions = useAppStore(state => state.updateRolePermissions)
+
+  const { useSearchParams } = require("next/navigation")
+  const searchParams = useSearchParams()
+  const tabParam = searchParams.get("tab")
+
+  // State for Tabs
+  const [activeTab, setActiveTab] = useState(tabParam || "users")
+
+  useEffect(() => {
+    if (tabParam) setActiveTab(tabParam)
+  }, [tabParam])
 
   // State for Add User
   const [isAddOpen, setIsAddOpen] = useState(false)
@@ -194,7 +205,7 @@ export default function UserManagementPage() {
           </Dialog>
         </div>
 
-        <Tabs defaultValue="users" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="bg-slate-100 p-1 rounded-xl">
             <TabsTrigger value="users" className="rounded-lg font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <UsersIcon className="w-4 h-4 mr-2" /> Daftar Pengguna

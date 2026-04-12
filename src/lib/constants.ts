@@ -56,6 +56,7 @@ export const STATUS_COLORS: Record<string, string> = {
   Draft: 'bg-slate-200 text-slate-800',
   'Pending Approval': 'bg-emerald-100 text-emerald-800 border-emerald-200',
   Belanja: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+  Sourcing: 'bg-purple-100 text-purple-800 border-purple-200',
   QC: 'bg-amber-100 text-amber-800 border-amber-200',
   Packing: 'bg-blue-100 text-blue-800 border-blue-200',
   'Siap Kirim': 'bg-emerald-100 text-emerald-800 border-emerald-200',

@@ -85,58 +85,12 @@ export default function Topbar({ title, navItems = [], displayAllNav = false }: 
         />
       </Link>
 
-      {/* Center Navigation - Now with overflow handling */}
-      <nav className={cn(
-        "hidden md:flex items-center gap-1 bg-slate-900/5 rounded-full p-1 border border-white/40 overflow-hidden",
-        displayAllNav ? "overflow-x-auto scrollbar-hide max-w-[calc(100%-250px)]" : ""
-      )}>
-        <div className="flex items-center gap-1 min-w-max">
-          {pillNav.map((item) => {
-            const isActive = pathname === item.href
-            return (
-              <Link 
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "px-4 py-2 rounded-full text-[10px] font-black transition-all duration-300 whitespace-nowrap",
-                  isActive 
-                    ? "bg-white text-emerald-600 shadow-sm" 
-                    : "text-slate-500 hover:text-slate-800 hover:bg-white/40"
-                )}
-              >
-                <span>{item.title}</span>
-              </Link>
-            )
-          })}
-        </div>
-        
-        {moreNav.length > 0 && !displayAllNav && (
-           <DropdownMenu>
-             <DropdownMenuTrigger className="px-4 py-2 rounded-full text-xs font-black text-slate-500 hover:text-emerald-600 hover:bg-white/40 transition-all flex items-center gap-2 outline-none shrink-0">
-                <LayoutGrid className="w-4 h-4" />
-                <span className="hidden lg:inline">All Apps</span>
-             </DropdownMenuTrigger>
-             <DropdownMenuContent align="center" className="w-56 liquid-card mt-2 p-2 border-none">
-               <DropdownMenuGroup>
-                 <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-3 py-2">Full Navigation</DropdownMenuLabel>
-                 <DropdownMenuSeparator className="bg-slate-100" />
-                 <div className="grid grid-cols-1 gap-1 py-1">
-                   {moreNav.map((item) => (
-                     <DropdownMenuItem key={item.href} className="p-0 hover:bg-transparent focus:bg-transparent">
-                       <Link href={item.href} className="flex-1 flex items-center gap-3 px-3 py-2.5 rounded-2xl hover:bg-emerald-50 group transition-all">
-                           <div className="w-8 h-8 rounded-xl bg-slate-50 group-hover:bg-white flex items-center justify-center transition-colors">
-                             {item.icon}
-                           </div>
-                           <span className="text-xs font-bold text-slate-700 group-hover:text-emerald-600">{item.title}</span>
-                       </Link>
-                     </DropdownMenuItem>
-                   ))}
-                 </div>
-               </DropdownMenuGroup>
-             </DropdownMenuContent>
-           </DropdownMenu>
-        )}
-      </nav>
+      {/* Center Title - replacing the horizontal nav */}
+      <div className="hidden md:flex flex-1 items-center justify-center">
+        <h1 className="text-sm font-bold bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-transparent dark:from-white dark:to-slate-400 truncate max-w-md uppercase tracking-widest">
+          {title}
+        </h1>
+      </div>
 
       {/* Right Section: Utils & Profile */}
       <div className="flex items-center gap-2">

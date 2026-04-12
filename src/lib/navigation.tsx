@@ -15,6 +15,11 @@ export interface NavItemConfig {
   href: string;
   icon: React.ReactNode;
   category: 'Admin' | 'Finance' | 'Warehouse' | 'Sourcing' | 'Courier' | 'Global';
+  children?: {
+    key: string;
+    title: string;
+    href: string;
+  }[];
 }
 
 export const APP_PAGES: NavItemConfig[] = [
@@ -31,13 +36,36 @@ export const APP_PAGES: NavItemConfig[] = [
   { key: 'admin_crm', title: 'CRM & Pipeline', href: '/admin/crm', icon: <Target className="h-4 w-4" />, category: 'Admin' },
   { key: 'admin_documents', title: 'Document Vault', href: '/admin/documents', icon: <FileText className="h-4 w-4" />, category: 'Admin' },
   { key: 'admin_okr', title: 'OKR Manager', href: '/admin/okr', icon: <Target className="h-4 w-4" />, category: 'Admin' },
-  { key: 'admin_users', title: 'User Management', href: '/admin/users', icon: <Shield className="h-4 w-4" />, category: 'Admin' },
+  { 
+    key: 'admin_users', 
+    title: 'User Management', 
+    href: '/admin/users', 
+    icon: <Shield className="h-4 w-4" />, 
+    category: 'Admin',
+    children: [
+      { key: 'users_list', title: 'Daftar Pengguna', href: '/admin/users' },
+      { key: 'users_perms', title: 'Izin & Otoritas', href: '/admin/users?tab=roles' },
+    ]
+  },
   { key: 'admin_settings', title: 'System Settings', href: '/admin/settings', icon: <Cog className="h-4 w-4" />, category: 'Admin' },
   { key: 'admin_tasks', title: 'Admin Tasks', href: '/admin/tasks', icon: <ListChecks className="h-4 w-4" />, category: 'Admin' },
 
   // Finance
   { key: 'finance_dashboard', title: 'Finance Dashboard', href: '/finance', icon: <BarChart3 className="h-4 w-4" />, category: 'Finance' },
-  { key: 'finance_approvals', title: 'Finance Hub', href: '/finance/approvals', icon: <ShieldCheck className="h-4 w-4 text-emerald-500" />, category: 'Finance' },
+  { 
+    key: 'finance_approvals', 
+    title: 'Finance Hub', 
+    href: '/finance/approvals', 
+    icon: <ShieldCheck className="h-4 w-4 text-emerald-500" />, 
+    category: 'Finance',
+    children: [
+      { key: 'finance_pencairan', title: 'Pencairan PO', href: '/finance/approvals?tab=pencairan' },
+      { key: 'finance_audit', title: 'Audit Ops', href: '/finance/approvals?tab=audit' },
+      { key: 'finance_reimburse', title: 'Reimbursement', href: '/finance/approvals?tab=reimburse' },
+      { key: 'finance_rekon', title: 'Rekonsiliasi', href: '/finance/approvals?tab=rekon' },
+      { key: 'finance_delivery', title: 'Audit Delivery', href: '/finance/approvals?tab=delivery' },
+    ]
+  },
   { key: 'finance_cash_bank', title: 'Cash & Bank', href: '/finance/cash-bank', icon: <Bank className="h-4 w-4" />, category: 'Finance' },
   { key: 'finance_reports', title: 'Financial Reports', href: '/finance/reports', icon: <FileSpreadsheet className="h-4 w-4" />, category: 'Finance' },
   { key: 'finance_invoices', title: 'Invoices (AR/AP)', href: '/finance/invoices', icon: <ScrollText className="h-4 w-4" />, category: 'Finance' },
@@ -55,8 +83,18 @@ export const APP_PAGES: NavItemConfig[] = [
   { key: 'warehouse_reject_monitor', title: 'Rejection Monitor', href: '/warehouse/reject-monitor', icon: <Archive className="h-4 w-4 text-rose-500" />, category: 'Warehouse' },
 
   // Sourcing
-  { key: 'sourcing_dashboard', title: 'Sourcing Home', href: '/sourcing', icon: <Search className="h-4 w-4" />, category: 'Sourcing' },
-  { key: 'sourcing_list', title: 'Shopping List', href: '/sourcing/list', icon: <ListChecks className="h-4 w-4" />, category: 'Sourcing' },
+  { 
+    key: 'sourcing_dashboard', 
+    title: 'Sourcing Home', 
+    href: '/sourcing/list', 
+    icon: <Search className="h-4 w-4" />, 
+    category: 'Sourcing',
+    children: [
+      { key: 'sourcing_list', title: 'Shopping List', href: '/sourcing/list?tab=belanja' },
+      { key: 'sourcing_ops', title: 'Biaya Ops', href: '/sourcing/list?tab=ops' },
+    ]
+  },
+  { key: 'sourcing_list_legacy', title: 'Archived Tasks', href: '/sourcing/list', icon: <ListChecks className="h-4 w-4" />, category: 'Sourcing' },
 
   // Courier
   { key: 'courier_dashboard', title: 'Logistics Home', href: '/courier', icon: <Truck className="h-4 w-4" />, category: 'Courier' },

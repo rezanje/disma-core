@@ -73,7 +73,7 @@ export async function POST(request: Request) {
         // Aggressive deletion
         const { error } = await supabaseAdmin.from(table).delete().neq('id', '99999999-9999-9999-9999-999999999999');
         if (error) {
-          if ((table === 'stock_movements' || table === 'rejected_items') && isMissingTableError(error.message || '')) {
+          if (isMissingTableError(error.message || '')) {
             console.warn(`[DB Reset] Skipping missing table: ${table}`);
             continue;
           }
@@ -122,7 +122,7 @@ export async function POST(request: Request) {
             const chunk = snakeRows.slice(i, i + CHUNK);
             const { error } = await supabaseAdmin.from(table).upsert(chunk, { onConflict: 'id' });
             if (error) {
-              if ((table === 'stock_movements' || table === 'rejected_items') && isMissingTableError(error.message || '')) {
+              if (isMissingTableError(error.message || '')) {
                 console.warn(`[DB Reset] Skipping seed for missing table: ${table}`);
                 skippedMissingTable = true;
                 break;

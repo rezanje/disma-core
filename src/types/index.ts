@@ -95,7 +95,7 @@ export interface StockMovement {
   createdByUserId?: string;
 }
 
-export type SalesOrderStatus = 'Pending Approval' | 'Draft' | 'Belanja' | 'QC' | 'Packing' | 'Siap Kirim' | 'Dikirim' | 'Awaiting Audit' | 'Terkirim' | 'Selesai' | 'Batal';
+export type SalesOrderStatus = 'Pending Approval' | 'Draft' | 'Belanja' | 'Sourcing' | 'QC' | 'Packing' | 'Siap Kirim' | 'Dikirim' | 'Awaiting Audit' | 'Terkirim' | 'Selesai' | 'Batal';
 
 export interface SalesOrder {
   id: string;
@@ -167,6 +167,7 @@ export interface PurchaseItem {
   onlineRef?: string; // e.g. Shopee Order ID
   onlineOrderDate?: string;
   isOnlineOrdered?: boolean;
+  isOnlineAudited?: boolean;
 }
 
 export type DeliveryStatus = 'Menunggu' | 'Dikirim' | 'Tunggu Konfirmasi' | 'Awaiting Audit' | 'Terkirim';

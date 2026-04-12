@@ -39,6 +39,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { motion } from "framer-motion"
+import Link from "next/link"
 
 export default function CeoDashboard() {
   const salesOrders = useAppStore(state => state.salesOrders)
@@ -350,12 +351,13 @@ export default function CeoDashboard() {
                     </p>
                   </div>
                 </div>
-                <Button 
-                  onClick={() => window.location.href = '/admin/crm'}
-                  className="bg-white hover:bg-slate-100 text-indigo-600 font-black px-12 h-16 rounded-[2rem] shadow-2xl shadow-indigo-950/20 transition-all flex items-center gap-3 active:scale-95 group/btn"
-                >
-                  Jump to CRM Portal <ArrowRight className="w-5 h-5 group-hover/btn:translate-x-1 transition-transform" />
-                </Button>
+                 <Link href="/admin/crm">
+                  <Button 
+                    className="bg-white hover:bg-slate-100 text-indigo-600 font-black px-12 h-16 rounded-[2rem] shadow-2xl shadow-indigo-950/20 transition-all flex items-center gap-3 active:scale-95 group/btn"
+                  >
+                    Jump to CRM Portal <ArrowRight className="w-5 h-5 group-hover/btn:translate-x-1 transition-transform" />
+                  </Button>
+                 </Link>
               </CardContent>
            </Card>
 

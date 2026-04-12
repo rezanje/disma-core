@@ -24,21 +24,30 @@ export default function FinanceDashboard() {
       }, 0)
   }
 
-  // AP (Liabilities)
-  const totalAP = getBalance('2-1100') || 0
+  // AP (Liabilities) - Default ke Utang Usaha 2-1000
+  const totalAP = getBalance('2-1000') || 0
   
-  // AR (Asset)
-  const totalAR = getBalance('1-1100') || invoices.reduce((sum, inv) => sum + (inv.totalAmount - inv.amountPaid), 0)
-  
-  const pendingInvoices = invoices.filter(inv => inv.status !== 'Paid')
-  const collectionThisMonth = invoices.filter(inv => inv.status === 'Paid').reduce((sum, inv) => sum + inv.amountPaid, 0)
-
-  // Projected Revenue = Active Sales Orders
-  const projectedRevenue = salesOrderItems.reduce((sum, item) => {
-     const so = salesOrders.find(o => o.id === item.salesOrderId)
-     if (so && so.status !== 'Batal') return sum + item.subtotal
-     return sum
+  // AR (Asset) - Default ke Piutang Usaha 1-2000
+  // Ambil dari sisa tagihan invoice jika ledger Piutang kosong
+  const ledgerAR = getBalance('1-2000')
+  const invoiceAR = invoices.reduce((sum, inv) => {
+    if (inv.status !== 'Paid' && inv.status !== 'Draft') return sum + (inv.totalAmount - (inv.amountPaid || 0))
+    return sum
   }, 0)
+  const totalAR = ledgerAR || invoiceAR
+  
+  const pendingInvoices = invoices.filter(inv => inv.status !== 'Paid' && inv.status !== 'Draft')
+  const collectionThisMonth = invoices
+    .filter(inv => inv.status === 'Paid')
+    .reduce((sum, inv) => sum + (inv.amountPaid || 0), 0)
+
+  // Projected Revenue = Sales Orders yang 'Sudah Dibayar' atau 'Diproses' tapi belum selesai
+  const projectedRevenue = salesOrders
+    .filter(so => so.status !== 'Batal' && so.status !== 'Selesai')
+    .reduce((sum, so) => {
+      const items = salesOrderItems.filter(item => item.salesOrderId === so.id)
+      return sum + items.reduce((iSum, item) => iSum + item.subtotal, 0)
+    }, 0)
 
   // DSO calculation
   let dso = 0
@@ -153,15 +162,21 @@ export default function FinanceDashboard() {
                {invoices.length === 0 ? (
                  <p className="text-xs text-slate-400 italic py-4">No active invoices found.</p>
                ) : (
-                 invoices.slice(0, 4).sort((a,b) => new Date(b.issueDate).getTime() - new Date(a.issueDate).getTime()).map(inv => (
-                   <div key={inv.id} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
+                 [...invoices]
+                   .sort((a,b) => new Date(b.issueDate).getTime() - new Date(a.issueDate).getTime())
+                   .slice(0, 5)
+                   .map(inv => (
+                   <div key={inv.id} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0 hover:bg-slate-50/50 px-2 rounded-lg transition-colors">
                       <div>
                         <p className="text-[10px] font-black text-slate-800 uppercase tracking-tight">INV-{inv.id.slice(0,8).toUpperCase()}</p>
-                        <p className="text-[9px] font-bold text-slate-400">{new Date(inv.issueDate).toLocaleDateString()}</p>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase">{new Date(inv.issueDate).toLocaleDateString()}</p>
                       </div>
-                      <span className={`text-[10px] font-black ${inv.status === 'Paid' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                        {formatRupiah(inv.totalAmount)}
-                      </span>
+                      <div className="text-right">
+                        <p className={`text-[10px] font-black ${inv.status === 'Paid' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                          {formatRupiah(inv.totalAmount)}
+                        </p>
+                        <p className="text-[8px] font-bold text-slate-300 uppercase tracking-tighter">{inv.status}</p>
+                      </div>
                    </div>
                  ))
                )}

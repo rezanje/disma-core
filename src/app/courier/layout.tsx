@@ -1,12 +1,12 @@
 "use client"
 
-import Topbar from "@/components/layout/topbar"
-
+import Sidebar from "@/components/layout/sidebar"
 import AuthGuard from "@/components/auth/auth-guard"
 import BottomNav from "@/components/layout/bottom-nav"
 import { Truck, ClipboardCheck, ReceiptText } from "lucide-react"
 import { useAppStore } from "@/lib/store"
 import { getNavItemsForUser } from "@/lib/navigation"
+import { cn } from "@/lib/utils"
 
 export default function CourierLayout({ children }: { children: React.ReactNode }) {
   const currentUser = useAppStore(state => state.currentUser)
@@ -14,16 +14,24 @@ export default function CourierLayout({ children }: { children: React.ReactNode 
   
   const userKeys = permissions[currentUser?.role || ''] || [];
   const navItems = getNavItemsForUser(userKeys as any);
-  // Mobile-first layout for Kurir
+  const isMinimized = useAppStore(state => state.isSidebarMinimized)
+
   return (
     <AuthGuard allowedRoles={['kurir', 'ceo', 'super_admin', 'cmo']}>
-      <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-slate-950 pb-16">
-        <Topbar title="Courier Dashboard" navItems={navItems} />
-        
-        <main className="flex-1 w-full max-w-md md:max-w-4xl lg:max-w-6xl mx-auto p-4 md:p-8 lg:p-12">
-          {children}
-        </main>
-        
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex overflow-x-hidden">
+        {/* Sidebar di Kiri */}
+        <Sidebar roleName={currentUser?.role?.replace('_', ' ') || 'Courier'} />
+
+        <div className={cn(
+          "flex-1 flex flex-col transition-all duration-500 min-w-0 pr-4",
+          isMinimized ? "pl-28" : "pl-72"
+        )}>
+          {/* Main Content Area */}
+          <main className="flex-1 p-4 md:p-6 lg:p-8 mt-6 glass-panel mb-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            {children}
+          </main>
+        </div>
+
         <BottomNav items={navItems} />
       </div>
     </AuthGuard>

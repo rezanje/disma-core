@@ -149,7 +149,8 @@ export default function FinancialReportsPage() {
   const totalEquity = equityAccounts.reduce((sum, a) => sum + a.balance, 0) + netIncome
   
   const cashFlowDetail = useMemo(() => {
-    const cashAccounts = coas.filter(a => a.accountName.toLowerCase().includes('kas') || a.accountName.toLowerCase().includes('bank'))
+    // Detect cash/bank accounts by account code (starting with 1-1) rather than just name
+    const cashAccounts = coas.filter(a => a.accountCode.startsWith('1-1'))
     const entries = filteredEntries.map(entry => {
       const lines = filteredLines.filter(l => l.journalEntryId === entry.id)
       const cashLines = lines.filter(l => cashAccounts.some(ca => ca.id === l.accountId))

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useAppStore } from "@/lib/store"
 import { recordOperationalAdvanceTransfer } from "@/lib/accounting"
 import { Card, CardContent } from "@/components/ui/card"
@@ -32,7 +32,15 @@ export default function SourcingDashboard() {
   const addExpense = useAppStore(state => state.addExpense)
   const addReimbursement = useAppStore(state => state.addReimbursement)
 
-  const [activeTab, setActiveTab] = useState<'belanja' | 'dompet' | 'ops'>('belanja')
+  const { useSearchParams } = require("next/navigation")
+  const searchParams = useSearchParams()
+  const tabParam = searchParams.get("tab")
+
+  const [activeTab, setActiveTab] = useState<'belanja' | 'dompet' | 'ops'>((tabParam as any) || 'belanja')
+
+  useEffect(() => {
+    if (tabParam) setActiveTab(tabParam as any)
+  }, [tabParam])
   const [opsFormData, setOpsFormData] = useState<{
     transactionType: 'Biaya Operasional' | 'Kasbon'
     category: OperationalExpense['category'] | ''

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useAppStore } from "@/lib/store"
 import { formatRupiah, cn } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -17,7 +17,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { v4 as uuidv4 } from "uuid"
-import { recordBudgetTransfer, recordReimbursementPayment, recordOperationalExpense, recordReconciliationSettlement, recordDeliveryAndInvoice, recordAdvanceReturn, updateProductPriceHistory, recordAdvanceExpense, getAdvanceWalletByRole, getAdvanceWalletByUserId } from "@/lib/accounting"
+import { recordBudgetTransfer, recordReimbursementPayment, recordOperationalExpense, recordReconciliationSettlement, recordDeliveryAndInvoice, recordAdvanceReturn, updateProductPriceHistory, recordAdvanceExpense, getAdvanceWalletByRole, getAdvanceWalletByUserId, recordOnlinePurchase } from "@/lib/accounting"
 import AuthGuard from "@/components/auth/auth-guard"
 import { 
   Dialog, 
@@ -50,7 +50,17 @@ export default function FinanceHubPage() {
   const addReimbursement = useAppStore(state => state.addReimbursement)
   const setIsSyncing = (v: boolean) => useAppStore.setState({ isSyncing: v })
 
-  const [activeTab, setActiveTab] = useState("pencairan")
+  const { useSearchParams } = require("next/navigation")
+  const searchParams = useSearchParams()
+  const tabParam = searchParams.get("tab")
+
+  const [activeTab, setActiveTab] = useState(tabParam || "pencairan")
+  
+  // Sync activeTab with URL param if changed
+  useEffect(() => {
+    if (tabParam) setActiveTab(tabParam)
+  }, [tabParam])
+
   const [selectedBank, setSelectedBank] = useState("bank-1")
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [selectedPurchasers, setSelectedPurchasers] = useState<Record<string, string>>({})
@@ -119,21 +129,44 @@ export default function FinanceHubPage() {
     if (!exp) return
 
     if (status === 'Approved') {
-       const reporter = users.find(u => u.id === exp.reporterId)
-       const advanceWallet = getAdvanceWalletByRole(reporter?.role)
+       const advanceWallet = getAdvanceWalletByUserId(exp.reporterId)
        const bank = bankAccounts.find(b => b.id === selectedBank)
 
        toast.loading("Mencatat transaksi keuangan...", { id: "audit-exp" })
 
        if (exp.category === 'Setoran Pengembalian') {
-          // Sourcing setor sisa kas → masuk ke bank perusahaan + jurnal credit 1-1500
           const effectiveBank = returnBankOverrides[expenseId] ?? exp.targetBankAccountId ?? selectedBank
           const success = await recordAdvanceReturn(exp.amount, exp.reporterId, effectiveBank)
           if (!success) {
              toast.error("Gagal mencatat pengembalian dana.", { id: "audit-exp" })
              return
           }
+       } else if (exp.category === 'Belanja Online' || exp.category === 'Sourcing (HPP)') {
+          if (!exp.referenceId) {
+             toast.error("Gagal: Reference ID (Purchase Item) tidak ditemukan.", { id: "audit-exp" })
+             return
+          }
+
+          const productName = exp.description.split(':').pop()?.split('(')[0]?.trim() || 'Online Item'
+          
+          // Use advance wallet bank account if the reporter is a sourcer/courier
+          const targetBankId = advanceWallet ? advanceWallet.bankAccountId : selectedBank
+
+          const success = await recordOnlinePurchase(
+             exp.referenceId,
+             exp.amount,
+             productName,
+             exp.adminFee || 0,
+             exp.shippingFee || 0,
+             targetBankId
+          )
+
+          if (!success) {
+             toast.error("Gagal memproses tutup buku belanja online.", { id: "audit-exp" })
+             return
+          }
        } else if (advanceWallet) {
+          // Field staff expense (Sourcing/Kurir) -> Use their advance wallet
           const success = await recordAdvanceExpense(
             expenseId,
             exp.reporterId,
@@ -147,8 +180,16 @@ export default function FinanceHubPage() {
             return
           }
        } else {
-          // Non-sourcing expense → catat penuh ke buku kas perusahaan
-          const success = await recordOperationalExpense(expenseId, exp.amount, exp.description || '', exp.date, exp.category || 'Operasional', bank?.accountCode || '1-1200', selectedBank)
+          // Normal office/admin expense -> Use the bank selected in finance dashboard
+          const success = await recordOperationalExpense(
+            expenseId, 
+            exp.amount, 
+            exp.description || '', 
+            exp.date, 
+            exp.category || 'Operasional', 
+            bank?.accountCode || '1-1200', 
+            selectedBank
+          )
           if (!success) {
              toast.error("Gagal mencatat transaksi pengeluaran.", { id: "audit-exp" })
              return
@@ -291,7 +332,7 @@ export default function FinanceHubPage() {
            </div>
         </header>
 
-        <Tabs defaultValue="pencairan" onValueChange={setActiveTab} className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="bg-slate-100/80 p-2 h-16 rounded-[2rem] -mx-2 md:mx-0 mb-10 overflow-x-auto overflow-y-hidden justify-start md:justify-center border border-white scrollbar-hide">
             <TabsTrigger value="pencairan" className="rounded-[1.5rem] font-black uppercase text-[9px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-xl transition-all gap-2">
               <Wallet className="w-4 h-4 text-emerald-500" /> Pencairan PO ({needsTransfer.length})

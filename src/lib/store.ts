@@ -575,12 +575,22 @@ export const useAppStore = create<AppState>((set, get) => ({
 
             // --- SMART MERGE FOR OPERATIONAL TABLES (PREVENT REGRESSION) ---
             const PROGRESS_RANK: Record<string, number> = {
-              'Draft': 0, 'Pending': 1, 'Belanja': 2, 'QC': 3, 'Surat Jalan': 4,
+              'Draft': 0, 'Pending': 1, 'Belanja': 2, 'Sourcing': 2.5, 'QC': 3, 'Surat Jalan': 4,
               'Selesai': 5, 'Approved': 5, 'Rejected': 5,
               'Belum Transfer': 0, 'Laporan Masuk': 1, 'Terverifikasi': 2,
-              'Pending Audit': 0
+              'Pending Audit': 0,
+              // CRM Leads
+              'Lead': 0, 'Meeting': 1, 'Quotation': 2, 'Closed': 3,
+              // Tasks
+              'Todo': 0, 'In Progress': 1, 'Done': 2, 'Cancelled': 2,
+              // Reimbursements
+              'Paid': 2,
+              // Deliveries
+              'Menunggu': 0, 'Dikirim': 1, 'Tunggu Konfirmasi': 2, 'Awaiting Audit': 3, 'Terkirim': 4,
+              // Invoices
+              'Unpaid': 0, 'Partial': 1
             };
-            const smartMerge = (localArr: any[], serverArr: any[]) => {
+            const smartMerge = (localArr: any[], serverArr: any[], immutable: boolean = false) => {
               if (!serverArr || !Array.isArray(serverArr)) return localArr;
               if (!localArr || localArr.length === 0) return serverArr;
 
@@ -589,7 +599,7 @@ export const useAppStore = create<AppState>((set, get) => ({
                 const existingIdx = merged.findIndex(m => m.id === item.id);
                 if (existingIdx === -1) {
                   merged.push(item);
-                } else {
+                } else if (!immutable) {
                   const localItem = merged[existingIdx];
                   const localStatusRank = PROGRESS_RANK[localItem.status] ?? -1;
                   const serverStatusRank = PROGRESS_RANK[item.status] ?? -1;
@@ -630,9 +640,25 @@ export const useAppStore = create<AppState>((set, get) => ({
               }
             });
 
+            // --- SMART MERGE: Protect finance tables from being overwritten by stale server data ---
+            // Transactions and Journals are mostly immutable - don't overwrite local if ID matches
+            const mergedCashTransactions = smartMerge(get().cashTransactions, data.cashTransactions, true);
+            const mergedJournalEntries = smartMerge(get().journalEntries, data.journalEntries, true);
+            const mergedJournalLines = smartMerge(get().journalLines, data.journalLines, true);
+            const mergedInvoices = smartMerge(get().invoices, data.invoices);
+            const mergedDeliveries = smartMerge(get().deliveries, data.deliveries);
+            const mergedLeads = smartMerge(get().leads, data.leads);
+            const mergedTasks = smartMerge(get().tasks, data.tasks);
+            const mergedReimbursements = smartMerge(get().reimbursements, data.reimbursements);
+            const mergedStockMovements = smartMerge(get().stockMovements, data.stockMovements, true);
+
             // --- FINAL STATE UPDATE ---
+            // Defensive Check: If server returns empty for critical tables, but we have local data,
+            // DO NOT overwrite the local cache with empty data yet. This prevents "startup wipe".
+            const isServerResponseEmpty = !data.salesOrders || data.salesOrders.length === 0;
+            const hasLocalData = (get().salesOrders.length > 0) || (localSalesOrdersCache.length > 0);
+            
             // Only update rolePermissions and navConfigs if the server actually provided them
-            // to avoid resetting to defaults on temporary fetch failures.
             const finalRolePermissions = hasServerPermissions ? mergedPermissions : get().rolePermissions;
             const finalNavConfigs = (data.navConfigs && Object.keys(data.navConfigs).length > 0) ? data.navConfigs : get().navConfigs;
 
@@ -646,20 +672,39 @@ export const useAppStore = create<AppState>((set, get) => ({
               salesOrders: mergedSalesOrders,
               salesOrderItems: mergedSalesOrderItems,
               purchaseItems: mergedItems,
+              cashTransactions: mergedCashTransactions,
+              journalEntries: mergedJournalEntries,
+              journalLines: mergedJournalLines,
+              invoices: mergedInvoices,
+              deliveries: mergedDeliveries,
+              leads: mergedLeads,
+              tasks: mergedTasks,
+              reimbursements: mergedReimbursements,
               clients: mergedClients.length > 0 ? mergedClients : get().clients,
               products: mergedProducts.length > 0 ? mergedProducts : get().products,
               users: mergedUsers.length > 0 ? mergedUsers : get().users,
-              stockMovements: data.stockMovements || [],
+              stockMovements: mergedStockMovements,
               navConfigs: finalNavConfigs,
               kpiObjectives: (data.kpiObjectives && data.kpiObjectives.length > 0) ? data.kpiObjectives : KPI_SEED
             });
 
-            saveLocalClientsCache(get().clients);
-            saveLocalProductsCache(get().products);
-            saveLocalSalesOrdersCache(get().salesOrders);
-            saveLocalSalesOrderItemsCache(get().salesOrderItems);
-            saveLocalPurchasesCache(get().purchases);
-            saveLocalPurchaseItemsCache(get().purchaseItems);
+            // --- DEFENSIVE CACHING ---
+            // Only update local HDD cache if the server actually had data.
+            // This prevents a "dead/empty" server from wiping the user's local backup.
+            if (!isServerResponseEmpty || (get().salesOrders.length > 0)) {
+              if (mergedClients.length > 0) saveLocalClientsCache(get().clients);
+              if (mergedProducts.length > 0) saveLocalProductsCache(get().products);
+              if (mergedSalesOrders.length > 0) saveLocalSalesOrdersCache(get().salesOrders);
+              if (mergedSalesOrderItems.length > 0) saveLocalSalesOrderItemsCache(get().salesOrderItems);
+              if (mergedPurchases.length > 0) saveLocalPurchasesCache(get().purchases);
+              if (mergedItems.length > 0) saveLocalPurchaseItemsCache(get().purchaseItems);
+              
+              if (isServerResponseEmpty && hasLocalData) {
+                 console.warn("[Storage] Server seems empty, but Local Data exists. Preserving Local Cache.");
+              }
+            } else {
+              console.log("[Storage] Skipping HDD Cache update: Server and Local are both empty.");
+            }
 
             // --- LEGACY HPP BACKFILL ---
             // Before the HPP mapping fix, market sourcing settlements were posted to inventory (1-3000).
