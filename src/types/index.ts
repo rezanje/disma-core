@@ -19,7 +19,7 @@ export type AccessKey =
   // Warehouse
   | 'warehouse_dashboard' | 'warehouse_catalog' | 'warehouse_inbound' | 'warehouse_outbound' | 'warehouse_qc' | 'warehouse_reject_monitor'
   // Sourcing
-  | 'sourcing_dashboard' | 'sourcing_list' | 'sourcing_expenses'
+  | 'sourcing_dashboard' | 'sourcing_list' | 'sourcing_list_legacy' | 'sourcing_expenses'
   // Courier
   | 'courier_dashboard' | 'courier_list' | 'courier_handover' | 'courier_history' | 'courier_expenses'
   // Global

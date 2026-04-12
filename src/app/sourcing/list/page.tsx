@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useAppStore } from "@/lib/store"
-import { recordOperationalAdvanceTransfer } from "@/lib/accounting"
+import { recordOperationalAdvanceTransfer, getAdvanceWalletByUserId } from "@/lib/accounting"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"

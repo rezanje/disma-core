@@ -31,12 +31,12 @@ export default function FinanceDashboard() {
   // Ambil dari sisa tagihan invoice jika ledger Piutang kosong
   const ledgerAR = getBalance('1-2000')
   const invoiceAR = invoices.reduce((sum, inv) => {
-    if (inv.status !== 'Paid' && inv.status !== 'Draft') return sum + (inv.totalAmount - (inv.amountPaid || 0))
+    if (inv.status !== 'Paid') return sum + (inv.totalAmount - (inv.amountPaid || 0))
     return sum
   }, 0)
   const totalAR = ledgerAR || invoiceAR
   
-  const pendingInvoices = invoices.filter(inv => inv.status !== 'Paid' && inv.status !== 'Draft')
+  const pendingInvoices = invoices.filter(inv => inv.status !== 'Paid')
   const collectionThisMonth = invoices
     .filter(inv => inv.status === 'Paid')
     .reduce((sum, inv) => sum + (inv.amountPaid || 0), 0)
