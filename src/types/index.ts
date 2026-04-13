@@ -40,7 +40,7 @@ export interface Client {
   createdAt: string;
 }
 
-export type ClientPriceTier = 'Tier 1' | 'Tier 2' | 'Tier 3' | 'Tier 4' | 'Tier 5' | 'Custom';
+export type ClientPriceTier = 'Standard' | 'Tier 1' | 'Tier 2' | 'Tier 3' | 'Tier 4' | 'Tier 5' | 'Custom';
 export interface ClientPrice {
   id: string;
   clientId: string;

@@ -648,7 +648,7 @@ export const useAppStore = create<AppState>((set, get) => ({
                 mergedClients.push(client);
               }
             });
-            const mergedProducts = [...(data.products || [])];
+            let mergedProducts = [...(data.products || [])];
             localProductsCache.forEach((product: Product) => {
               if (!mergedProducts.find((existing: Product) => existing.id === product.id)) {
                 mergedProducts.push(product);

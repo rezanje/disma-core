@@ -80,7 +80,7 @@ export async function GET() {
       fetchTable('deliveries'), fetchTable('invoices'),
       fetchTable('journal_entries'), fetchTable('journal_lines'),
       fetchTable('stock_movements'),
-      fetchTable('leads'), fetchTable('disma_tasks'),
+      fetchTable('leads'), fetchTable('disma_tasks'), fetchTable('notifications'),
       fetchTable('employees'), fetchTable('kpis'), fetchTable('okr_objectives'),
       fetchTable('okr_key_results'), fetchTable('expenses'),
       fetchTable('reimbursements'), fetchTable('cash_transactions'),

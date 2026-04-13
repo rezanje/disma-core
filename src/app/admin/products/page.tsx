@@ -48,6 +48,7 @@ export default function ProductsPage() {
   const [formData, setFormData] = useState({
     skuCode: "",
     name: "",
+    category: "",
     uom: "kg",
     basePrice: 0,
     sellingPrice: 0,
@@ -120,7 +121,7 @@ export default function ProductsPage() {
   }
 
   const resetForm = () => {
-    setFormData({ skuCode: "", name: "", uom: "kg", basePrice: 0, sellingPrice: 0, currentStock: 0 })
+    setFormData({ skuCode: "", name: "", category: "", uom: "kg", basePrice: 0, sellingPrice: 0, tier1Price: 0, tier2Price: 0, tier3Price: 0, tier4Price: 0, tier5Price: 0, currentStock: 0 })
     setEditingProduct(null)
   }
 

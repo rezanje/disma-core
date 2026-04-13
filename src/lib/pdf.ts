@@ -228,7 +228,7 @@ function drawBAOnDoc(doc: jsPDF, poNumber: string, signatures?: { courier?: stri
   drawSignatures(doc, "Kurir Pengirim", "Penerima (Klien)", y + 20, signatures?.courier, signatures?.client)
 }
 
-export function generateBA(poNumber: string, signatures?: { courier?: string, client?: string }, outputType: 'save' | 'dataurl' = 'save', adjustments?: Record<string, number>) {
+export function generateBA(poNumber: string, signatures?: { courier?: string, client?: string }, outputType: 'save' | 'dataurl' | 'blob' = 'save', adjustments?: Record<string, number>) {
   try {
     const doc = new jsPDF({ compress: true })
     
