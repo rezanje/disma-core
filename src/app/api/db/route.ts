@@ -70,7 +70,8 @@ export async function GET() {
       leads, dismaTasks, notifications, employees,
       kpis, okrObjectives, okrKeyResults,
       expenses, reimbursements, cashTransactions,
-      fixedAssets, pendingReturns, rejectedItems, appSettings
+      fixedAssets, pendingReturns, rejectedItems, appSettings,
+      clientPrices
     ] = await Promise.all([
       fetchTable('users'), fetchTable('clients'), fetchTable('vendors'),
       fetchTable('products'), fetchTable('coas'), fetchTable('bank_accounts'),
@@ -80,12 +81,12 @@ export async function GET() {
       fetchTable('journal_entries'), fetchTable('journal_lines'),
       fetchTable('stock_movements'),
       fetchTable('leads'), fetchTable('disma_tasks'),
-      fetchTable('notifications'), fetchTable('employees'),
-      fetchTable('kpis'), fetchTable('okr_objectives'),
+      fetchTable('employees'), fetchTable('kpis'), fetchTable('okr_objectives'),
       fetchTable('okr_key_results'), fetchTable('expenses'),
       fetchTable('reimbursements'), fetchTable('cash_transactions'),
       fetchTable('fixed_assets'), fetchTable('pending_returns'),
-      fetchTable('rejected_items'), fetchTable('app_settings')
+      fetchTable('rejected_items'), fetchTable('app_settings'),
+      fetchTable('client_prices')
     ]);
 
     // Construct the legacy state object structure
@@ -116,6 +117,7 @@ export async function GET() {
       fixedAssets: toCamel(fixedAssets),
       pendingReturns: toCamel(pendingReturns),
       rejectedItems: toCamel(rejectedItems),
+      clientPrices: toCamel(clientPrices),
     };
 
     const globalSettings = appSettings.find((s: any) => s.id === 'global-settings') || appSettings[0];

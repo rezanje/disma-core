@@ -32,7 +32,7 @@ export async function POST(request: Request) {
 
     // Master definition tables.
     const masterTables = [
-      'bank_accounts', 'coas', 'products', 'vendors', 'clients', 'users'
+      'bank_accounts', 'coas', 'products', 'vendors', 'clients', 'users', 'client_prices'
     ];
 
     const actionVal = action;

@@ -55,6 +55,7 @@ export default function QCPage() {
 
   const handleProcessQC = async () => {
     if (!activeProduct || !activePurchaseItem) return
+    const isOnline = activePurchaseItem.purchaseMethod === 'Online'
     const totalIncoming = activePurchaseItem.qtyPurchased
     const totalProcessed = qtyPassToInventory + qtyPassToClient + qtyReject
 
@@ -81,7 +82,8 @@ export default function QCPage() {
     })
 
     // 1. Process Passed items to Inventory
-    if (qtyPassToInventory > 0) {
+    // FIX: Only add to inventory if NOT an Online Purchase (Online is already added during approval)
+    if (qtyPassToInventory > 0 && !isOnline) {
       await recordStockMovement({
         productId: activeProduct.id,
         quantity: qtyPassToInventory,
@@ -93,10 +95,12 @@ export default function QCPage() {
         referenceType: 'QC',
         referenceId: activePurchaseItem.id,
         purchaseItemId: activePurchaseItem.id,
-        note: `Lolos QC dan masuk inventory`,
+        note: `Lolos QC dan masuk inventory (Sourcing)`,
         createdByUserId: currentUser?.id || 'system',
       })
       toast.success(`${qtyPassToInventory} unit masuk stok inventory.`)
+    } else if (isOnline) {
+      toast.info(`Barang online sudah ada di inventory. Hanya mencatat perubahan jika ada reject.`)
     }
 
     // 2. Process Passed items to Client (Update SO)
@@ -134,8 +138,8 @@ export default function QCPage() {
       await recordStockMovement({
         productId: activeProduct.id,
         quantity: qtyReject,
-        stockDelta: 0,
-        direction: 'Info',
+        stockDelta: isOnline ? -qtyReject : 0, // ONLY deduct if it was pre-added (Online)
+        direction: isOnline ? 'Out' : 'Info',
         kind: 'ADJUSTMENT',
         source: 'QC',
         destination: 'Reject/Write-off',

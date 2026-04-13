@@ -11,7 +11,7 @@ export type AccessKey =
   // Admin & CEO
   | 'admin_dashboard' | 'admin_vendors' | 'admin_clients' | 'admin_products' 
   | 'admin_sales_orders' | 'admin_shopping_list' | 'admin_assets' | 'admin_hr' | 'admin_crm' 
-  | 'admin_documents' | 'admin_okr' | 'admin_users' | 'admin_settings' | 'admin_tasks' | 'admin_maintenance'
+  | 'admin_documents' | 'admin_okr' | 'admin_users' | 'admin_settings' | 'admin_tasks' | 'admin_maintenance' | 'admin_price_lists'
   // Finance
   | 'finance_dashboard' | 'finance_approvals' | 'finance_reports' | 'finance_assets' 
   | 'finance_budget' | 'finance_cash_bank' | 'finance_ledger' | 'finance_invoices' 
@@ -40,6 +40,17 @@ export interface Client {
   createdAt: string;
 }
 
+export type ClientPriceTier = 'Tier 1' | 'Tier 2' | 'Tier 3' | 'Tier 4' | 'Tier 5' | 'Custom';
+export interface ClientPrice {
+  id: string;
+  clientId: string;
+  productId: string;
+  agreedPrice: number;
+  tier: ClientPriceTier;
+  lastUpdated: string;
+  updatedByUserId?: string;
+}
+
 export interface Vendor {
   id: string;
   companyName: string;
@@ -54,9 +65,15 @@ export interface Product {
   id: string;
   skuCode: string;
   name: string;
+  category?: string; // e.g., 'Sayur', 'Daging', 'ATK'
   uom: string; // Unit of Measure (e.g., pcs, kg)
   basePrice: number;
   sellingPrice: number;
+  tier1Price?: number;
+  tier2Price?: number;
+  tier3Price?: number;
+  tier4Price?: number;
+  tier5Price?: number;
   currentStock: number;
   priceHistory?: { date: string, price: number, source: string }[];
   weeklyPriceRange?: { min: number, max: number, lastUpdated: string };

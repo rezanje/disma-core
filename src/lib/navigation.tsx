@@ -28,6 +28,7 @@ export const APP_PAGES: NavItemConfig[] = [
 
   { key: 'admin_vendors', title: 'Vendor Management', href: '/admin/vendors', icon: <Truck className="h-4 w-4" />, category: 'Admin' },
   { key: 'admin_clients', title: 'Client Management', href: '/admin/clients', icon: <Users className="h-4 w-4" />, category: 'Admin' },
+  { key: 'admin_price_lists', title: 'Price Lists', href: '/admin/client-prices', icon: <Banknote className="h-4 w-4" />, category: 'Admin' },
   { key: 'admin_products', title: 'Produk/SKU Master', href: '/admin/products', icon: <Boxes className="h-4 w-4" />, category: 'Admin' },
   { key: 'admin_sales_orders', title: 'Sales orders (PO)', href: '/admin/sales-orders', icon: <ShoppingCart className="h-4 w-4" />, category: 'Admin' },
   { key: 'admin_shopping_list', title: 'Shopping List', href: '/admin/shopping-list', icon: <ListChecks className="h-4 w-4" />, category: 'Admin' },

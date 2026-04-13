@@ -65,6 +65,7 @@ export default function SalesOrdersPage() {
   const updateSalesOrder = useAppStore(state => state.updateSalesOrder)
   const updateSalesOrderItem = useAppStore(state => state.updateSalesOrderItem)
   const getHistoricalClientPrice = useAppStore(state => state.getHistoricalClientPrice)
+  const clientPrices = useAppStore(state => state.clientPrices) || []
   
   const [isOpen, setIsOpen] = useState(false)
   const [clientId, setClientId] = useState("")
@@ -97,6 +98,14 @@ export default function SalesOrdersPage() {
   const [productSearch, setProductSearch] = useState("")
   const [isClientSearchOpen, setIsClientSearchOpen] = useState(false)
   const [isProductSearchOpen, setIsProductSearchOpen] = useState(false)
+  const [poNumberDraft, setPoNumberDraft] = useState("")
+
+  // Generate initial PO number when opening dialog
+  useEffect(() => {
+    if (isOpen) {
+      setPoNumberDraft(generateDocumentNumber('PO'))
+    }
+  }, [isOpen])
 
   const filteredClients = clients.filter(c => 
     c.companyName.toLowerCase().includes(clientSearch.toLowerCase())
@@ -118,6 +127,13 @@ export default function SalesOrdersPage() {
 
   useEffect(() => {
     if (detailSOId) {
+      const so = salesOrders.find(s => s.id === detailSOId)
+      if (so?.status === 'Pending Approval') {
+        setPoNumberDraft(generateDocumentNumber('PO'))
+      } else if (so) {
+        setPoNumberDraft(so.poNumber)
+      }
+
       const items = salesOrderItems.filter(item => item.salesOrderId === detailSOId)
       const editingObj: { [id: string]: { qty: number, price: number } } = {}
       items.forEach(item => {
@@ -186,8 +202,27 @@ export default function SalesOrdersPage() {
     setNewLineProductId(pid)
     const product = products.find(p => p.id === pid)
     
-    // Check for historical price if client is selected
-    if (clientId && pid) {
+    if (clientId && pid && product) {
+      // 1. PRIORITY: Check for Active Price List Tier or Custom Price
+      const activeRecord = clientPrices.find(cp => cp.clientId === clientId && cp.productId === pid)
+      if (activeRecord) {
+        let specializedPrice = product.sellingPrice
+        if (activeRecord.tier === 'Custom') specializedPrice = activeRecord.agreedPrice
+        else if (activeRecord.tier === 'Tier 1') specializedPrice = product.tier1Price || product.sellingPrice
+        else if (activeRecord.tier === 'Tier 2') specializedPrice = product.tier2Price || product.sellingPrice
+        else if (activeRecord.tier === 'Tier 3') specializedPrice = product.tier3Price || product.sellingPrice
+        else if (activeRecord.tier === 'Tier 4') specializedPrice = product.tier4Price || product.sellingPrice
+        else if (activeRecord.tier === 'Tier 5') specializedPrice = product.tier5Price || product.sellingPrice
+
+        setNewLinePrice(specializedPrice)
+        toast.info(`Harga diisi otomatis dari ${activeRecord.tier === 'Custom' ? 'Price List Kustom' : 'Price List ' + activeRecord.tier} Klien ini.`, {
+           style: { background: '#ecfdf5', color: '#047857', border: '1px solid #10b981' },
+           duration: 4000
+        })
+        return
+      }
+
+      // 2. FALLBACK: Check for historical price
       const historicalPrice = getHistoricalClientPrice(clientId, pid)
       if (historicalPrice) {
         setNewLinePrice(historicalPrice)
@@ -239,7 +274,7 @@ export default function SalesOrdersPage() {
     // Create SO FIRST (Sequential)
     await addSalesOrder({
       id: soId,
-      poNumber: generateDocumentNumber('PO'),
+      poNumber: poNumberDraft || generateDocumentNumber('PO'),
       clientId,
       orderDate: new Date().toISOString(),
       targetDeliveryDate: new Date(targetDate).toISOString(),
@@ -300,6 +335,17 @@ export default function SalesOrdersPage() {
             </DialogHeader>
             <div className="grid gap-6 py-4">
               
+              <div className="space-y-2">
+                <Label className="text-emerald-600 font-black uppercase text-[10px] tracking-widest">PO Number (Dapat Diubah)</Label>
+                <Input 
+                  value={poNumberDraft}
+                  onChange={(e) => setPoNumberDraft(e.target.value)}
+                  className="font-black text-lg border-emerald-100 bg-emerald-50/30 focus:bg-white transition-all"
+                  placeholder="PO-XXXXXX"
+                />
+                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">Sesuaikan dengan nomor PO dari Client jika perlu.</p>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
@@ -484,11 +530,15 @@ export default function SalesOrdersPage() {
                     <div className="md:col-span-3 space-y-1">
                       <div className="flex justify-between items-center">
                         <Label className="text-xs font-semibold">Harga Satuan (Rp)</Label>
-                        {clientId && newLineProductId && getHistoricalClientPrice(clientId, newLineProductId) && (
+                        {clientId && newLineProductId && clientPrices.find(cp => cp.clientId === clientId && cp.productId === newLineProductId) ? (
+                           <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-1 rounded border border-emerald-200 uppercase">
+                             PRICE LIST KHUSUS
+                           </span>
+                        ) : clientId && newLineProductId && getHistoricalClientPrice(clientId, newLineProductId) ? (
                           <span className="text-[9px] font-black text-blue-600 bg-blue-50 px-1 rounded border border-blue-200 uppercase">
-                            Harga History Client
+                            Harga History
                           </span>
-                        )}
+                        ) : null}
                       </div>
                       <Input 
                         type="text"
@@ -767,9 +817,12 @@ export default function SalesOrdersPage() {
                             size="sm" 
                             className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
                             onClick={() => {
+                              const customPo = window.prompt("Nomor PO (Edit jika perlu):", generateDocumentNumber('PO'));
+                              if (customPo === null) return; // Cancel approval
+
                               updateSalesOrder(so.id, { 
                                 status: 'Draft',
-                                poNumber: generateDocumentNumber('PO') // Convert REQ to real PO
+                                poNumber: customPo
                               })
                               toast.success("Request Approved! Silakan cek di tab Order Aktif.")
                             }}
@@ -1020,6 +1073,24 @@ export default function SalesOrdersPage() {
             </div>
           </DialogHeader>
 
+          {selectedSO?.status === 'Pending Approval' && (
+            <div className="px-6 py-2 bg-emerald-50 border-y border-emerald-100">
+               <div className="flex items-center gap-4">
+                  <div className="flex-1 space-y-1">
+                    <Label className="text-[9px] font-black uppercase text-emerald-600 tracking-widest pl-1">Nomor PO (Edit jika perlu)</Label>
+                    <Input 
+                      value={poNumberDraft}
+                      onChange={(e) => setPoNumberDraft(e.target.value)}
+                      className="h-10 font-black text-emerald-700 bg-white border-emerald-200"
+                    />
+                  </div>
+                  <div className="text-[9px] text-slate-400 font-bold uppercase tracking-tight max-w-[150px]">
+                    Ubah nomor ini untuk menyesuaikan dengan PO fisik Client.
+                  </div>
+               </div>
+            </div>
+          )}
+
           <div className="flex-1 overflow-y-auto p-6 pt-4 space-y-6">
             {/* SECTION: CLIENT INFO */}
             <div className="grid grid-cols-2 gap-6 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100">
@@ -1234,7 +1305,7 @@ export default function SalesOrdersPage() {
                         })
                         updateSalesOrder(selectedSO.id, { 
                           status: 'Draft',
-                          poNumber: generateDocumentNumber('PO')
+                          poNumber: poNumberDraft || generateDocumentNumber('PO')
                         })
                         setIsDetailOpen(false)
                         toast.success("Pesanan Disetujui & PO Diterbitkan!")

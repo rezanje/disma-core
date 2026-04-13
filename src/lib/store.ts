@@ -5,7 +5,7 @@ import {
   PurchaseItem, Delivery, Invoice, ChartOfAccount, JournalEntry, 
   JournalLine, OperationalExpense, User, Vendor, Role, Lead, Announcement, AppTask, AppNotification,
   BankAccount, CashTransaction, Reimbursement, FixedAsset,
-  Employee, SmartKpi, OkrObjective, RolePermissionMap, AccessKey, PendingReturn, RejectedItem, StockMovement
+  Employee, SmartKpi, OkrObjective, RolePermissionMap, AccessKey, PendingReturn, RejectedItem, StockMovement, ClientPrice
 } from '@/types';
 import { COA_SEED, CLIENTS_SEED, VENDORS_SEED, MOCK_USERS, KPI_SEED } from './constants';
 import { PRODUCTS_SEED } from './products_seed';
@@ -144,6 +144,15 @@ const saveLocalPurchaseItemsCache = (purchaseItems: PurchaseItem[]) => {
     // Ignore local cache write failures so the app can continue working.
   }
 };
+export const clearAllOperationalCaches = () => {
+  if (typeof window === 'undefined') return;
+  window.localStorage.removeItem(LOCAL_SALES_ORDERS_CACHE_KEY);
+  window.localStorage.removeItem(LOCAL_SALES_ORDER_ITEMS_CACHE_KEY);
+  window.localStorage.removeItem(LOCAL_PURCHASES_CACHE_KEY);
+  window.localStorage.removeItem(LOCAL_PURCHASE_ITEMS_CACHE_KEY);
+  window.localStorage.removeItem(LOCAL_PRODUCTS_CACHE_KEY);
+  window.localStorage.removeItem(LOCAL_CLIENTS_CACHE_KEY);
+};
 
 export interface NavItemConfig {
   order: string[] // List of item titles in order
@@ -180,6 +189,12 @@ interface AppState {
   addClients: (clients: Client[]) => void;
   clearClients: () => Promise<void>;
   updateClient: (id: string, data: Partial<Client>) => void;
+
+  clientPrices: ClientPrice[];
+  addClientPrice: (cp: ClientPrice) => Promise<void>;
+  updateClientPrice: (id: string, updates: Partial<ClientPrice>) => Promise<void>;
+  deleteClientPrice: (id: string) => Promise<void>;
+  deleteMultipleClientPrices: (ids: string[]) => Promise<void>;
   
   vendors: Vendor[];
   addVendor: (vendor: Vendor) => void;
@@ -375,7 +390,7 @@ const initialRolePermissions: RolePermissionMap = {
   super_admin: [
     'admin_dashboard', 'admin_vendors', 'admin_clients', 'admin_products', 
     'admin_sales_orders', 'admin_shopping_list', 'admin_assets', 'admin_hr', 'admin_crm', 
-    'admin_documents', 'admin_okr', 'admin_users', 'admin_settings', 'admin_tasks', 'admin_maintenance',
+    'admin_documents', 'admin_okr', 'admin_users', 'admin_settings', 'admin_tasks', 'admin_maintenance', 'admin_price_lists',
     'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets', 
     'finance_budget', 'finance_cash_bank', 'finance_ledger', 'finance_invoices', 
     'finance_reconciliation', 'finance_reimbursements', 'finance_online_purchase', 'finance_audit', 'finance_documents',
@@ -387,7 +402,7 @@ const initialRolePermissions: RolePermissionMap = {
   ceo: [
     'admin_dashboard', 'admin_vendors', 'admin_clients', 'admin_products', 
     'admin_sales_orders', 'admin_shopping_list', 'admin_assets', 'admin_hr', 'admin_crm', 
-    'admin_documents', 'admin_okr', 'admin_users', 'admin_settings', 'admin_tasks',
+    'admin_documents', 'admin_okr', 'admin_users', 'admin_settings', 'admin_tasks', 'admin_price_lists',
     'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets', 
     'finance_budget', 'finance_cash_bank', 'finance_ledger', 'finance_invoices',
     'finance_audit', 'finance_documents',
@@ -396,14 +411,14 @@ const initialRolePermissions: RolePermissionMap = {
   cmo: [
     'admin_dashboard', 'admin_vendors', 'admin_clients', 'admin_products', 
     'admin_sales_orders', 'admin_shopping_list', 'admin_crm', 
-    'admin_documents', 'admin_okr', 'admin_tasks',
+    'admin_documents', 'admin_okr', 'admin_tasks', 'admin_price_lists',
     'finance_dashboard', 'finance_reports', 'tasks_global', 'settings_global'
   ],
-  finance: ['finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets', 'finance_budget', 'finance_cash_bank', 'finance_ledger', 'finance_invoices', 'finance_reconciliation', 'finance_reimbursements', 'finance_online_purchase', 'finance_audit', 'finance_documents', 'tasks_global'],
+  finance: ['finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets', 'finance_budget', 'finance_cash_bank', 'finance_ledger', 'finance_invoices', 'finance_reconciliation', 'finance_reimbursements', 'finance_online_purchase', 'finance_audit', 'finance_documents', 'tasks_global', 'admin_price_lists'],
   gudang: ['warehouse_dashboard', 'warehouse_catalog', 'warehouse_inbound', 'warehouse_outbound', 'warehouse_qc', 'warehouse_reject_monitor', 'tasks_global'],
   sourcing: ['sourcing_dashboard', 'sourcing_list', 'sourcing_expenses', 'tasks_global'],
   kurir: ['courier_dashboard', 'courier_list', 'courier_handover', 'courier_history', 'courier_expenses', 'tasks_global'],
-  admin_po: ['admin_dashboard', 'admin_sales_orders', 'admin_shopping_list', 'admin_clients', 'admin_products', 'warehouse_catalog', 'tasks_global'],
+  admin_po: ['admin_dashboard', 'admin_sales_orders', 'admin_shopping_list', 'admin_clients', 'admin_products', 'warehouse_catalog', 'tasks_global', 'admin_price_lists'],
 };
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -639,6 +654,52 @@ export const useAppStore = create<AppState>((set, get) => ({
                 mergedProducts.push(product);
               }
             });
+             let localClientPricesCache = [];
+             try {
+               const localClientPricesStr = typeof window !== 'undefined' ? window.localStorage.getItem('disma_core_client_prices_cache') : null;
+               if (localClientPricesStr) localClientPricesCache = JSON.parse(localClientPricesStr);
+             } catch (e) {
+               console.warn("[Storage] Failed to parse client prices cache", e);
+             }
+             
+             const currentPrices = get().clientPrices || [];
+             // Combine unique items from all local sources as the base for merging with server data
+             const uniqueLocal = [...currentPrices];
+             localClientPricesCache.forEach((cp: any) => {
+               if (!uniqueLocal.find(ul => ul.id === cp.id)) uniqueLocal.push(cp);
+             });
+             
+             const mergedClientPrices = smartMerge(uniqueLocal, data.clientPrices || []);
+
+            // --- SELF-REPAIR: Recalculate product stock from StockMovements if mismatched ---
+            if (data.stockMovements && Array.isArray(data.stockMovements) && data.stockMovements.length > 0) {
+              const sm: StockMovement[] = data.stockMovements;
+              mergedProducts = mergedProducts.map((product: Product) => {
+                const productMovements = sm.filter((m: StockMovement) => m.productId === product.id);
+                if (productMovements.length === 0) return product;
+                
+                // Sort by date to calculate running balance correctly (though we only need final sum)
+                const calculatedStock = productMovements.reduce((sum: number, m: StockMovement) => {
+                  return sum + (m.stockDelta || 0);
+                }, 0);
+
+                if (Math.abs(calculatedStock - (product.currentStock || 0)) > 0.1) {
+                  console.log(`Inventory repair: ${product.name} DB=${product.currentStock} Calc=${calculatedStock}`);
+                  return { ...product, currentStock: Math.max(0, calculatedStock) };
+                }
+                return product;
+              });
+
+              // Sync repaired stocks back to DB
+              const repairedProducts = mergedProducts.filter((product: Product) => {
+                const original = (data.products || []).find((p: Product) => p.id === product.id);
+                return original && Math.abs((original.currentStock || 0) - product.currentStock) > 0.1;
+              });
+              if (repairedProducts.length > 0) {
+                console.log(`Syncing ${repairedProducts.length} repaired product balances to DB...`);
+                repairedProducts.forEach((product: Product) => get().syncTable('products', product, true));
+              }
+            }
 
             // --- SMART MERGE: Protect finance tables from being overwritten by stale server data ---
             // Transactions and Journals are mostly immutable - don't overwrite local if ID matches
@@ -684,6 +745,7 @@ export const useAppStore = create<AppState>((set, get) => ({
               products: mergedProducts.length > 0 ? mergedProducts : get().products,
               users: mergedUsers.length > 0 ? mergedUsers : get().users,
               stockMovements: mergedStockMovements,
+              clientPrices: mergedClientPrices,
               navConfigs: finalNavConfigs,
               kpiObjectives: (data.kpiObjectives && data.kpiObjectives.length > 0) ? data.kpiObjectives : KPI_SEED
             });
@@ -698,7 +760,8 @@ export const useAppStore = create<AppState>((set, get) => ({
               if (mergedSalesOrderItems.length > 0) saveLocalSalesOrderItemsCache(get().salesOrderItems);
               if (mergedPurchases.length > 0) saveLocalPurchasesCache(get().purchases);
               if (mergedItems.length > 0) saveLocalPurchaseItemsCache(get().purchaseItems);
-              
+              if (mergedClientPrices.length > 0) window.localStorage.setItem('disma_core_client_prices_cache', JSON.stringify(get().clientPrices));
+               
               if (isServerResponseEmpty && hasLocalData) {
                  console.warn("[Storage] Server seems empty, but Local Data exists. Preserving Local Cache.");
               }
@@ -1426,6 +1489,36 @@ export const useAppStore = create<AppState>((set, get) => ({
       updateNavConfig: async (role, config) => {
         set((state) => ({ navConfigs: { ...state.navConfigs, [role]: config } }));
         await get().saveToHdd();
+      },
+
+      clientPrices: [],
+      addClientPrice: async (cp) => {
+        set((state) => ({ clientPrices: [...state.clientPrices, cp] }));
+        await get().syncTable('client_prices', cp);
+      },
+      updateClientPrice: async (id, data) => {
+        set((state) => ({
+          clientPrices: state.clientPrices.map(c => c.id === id ? { ...c, ...data } : c)
+        }));
+        const updated = get().clientPrices.find(c => c.id === id);
+        if (updated) await get().syncTable('client_prices', updated);
+      },
+      deleteClientPrice: async (id) => {
+        set((state) => ({ clientPrices: state.clientPrices.filter(c => c.id !== id) }));
+        await fetch('/api/db', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ table: 'client_prices', id })
+        });
+      },
+      deleteMultipleClientPrices: async (ids) => {
+        if (!ids || ids.length === 0) return;
+        set((state) => ({ clientPrices: state.clientPrices.filter(c => !ids.includes(c.id)) }));
+        await fetch('/api/db', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ table: 'client_prices', id: ids })
+        });
       },
 
       pendingReturns: [],

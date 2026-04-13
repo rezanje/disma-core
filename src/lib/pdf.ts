@@ -2,6 +2,7 @@ import { jsPDF } from "jspdf"
 import { format } from "date-fns"
 import { useAppStore } from "./store"
 import { formatRupiah, formatRupiahValue } from "./utils"
+import { DISMA_LOGO_BASE64 } from "./logo"
 
 // Basic standardized branding
 const BRANDING = {
@@ -13,14 +14,21 @@ const BRANDING = {
 
 // Helper to draw standard header
 function drawHeader(doc: jsPDF, title: string, docNumber: string, date: Date) {
-  doc.setFontSize(20)
+  // Logo at top left
+  try {
+    doc.addImage(DISMA_LOGO_BASE64, 'PNG', 14, 8, 22, 22)
+  } catch (e) {
+    console.error("Logo error:", e)
+  }
+
+  doc.setFontSize(18)
   doc.setFont("helvetica", "bold")
-  doc.text(BRANDING.companyName, 14, 22)
+  doc.text(BRANDING.companyName, 42, 18)
   
-  doc.setFontSize(10)
+  doc.setFontSize(9)
   doc.setFont("helvetica", "normal")
-  doc.text(BRANDING.address, 14, 28)
-  doc.text(`Phone: ${BRANDING.phone} | Email: ${BRANDING.email}`, 14, 33)
+  doc.text(BRANDING.address, 42, 23)
+  doc.text(`Phone: ${BRANDING.phone} | Email: ${BRANDING.email}`, 42, 28)
 
   doc.setDrawColor(200, 200, 200)
   doc.line(14, 38, 196, 38)
@@ -238,8 +246,10 @@ export function generateBA(poNumber: string, signatures?: { courier?: string, cl
     drawBAOnDoc(doc, poNumber, signatures, adjustments) // Page 2: BA
 
     if (outputType === 'dataurl') {
-      const data = doc.output('datauristring')
-      return data
+      return doc.output('datauristring')
+    }
+    if (outputType === 'blob') {
+      return doc.output('blob')
     }
     doc.save(`BA_${poNumber}.pdf`)
     return true
@@ -539,4 +549,198 @@ export function generateFinancialReportPDF(data: {
   drawSignatures(doc, "Finance (Pembuat)", "Direktur Utama (CEO)", y)
 
   doc.save(`Laporan_Keuangan_${format(new Date(), 'yyyyMMdd')}.pdf`)
+}
+
+export function generatePriceListPDF(clientId: string, outputType: 'save' | 'dataurl' | 'blob' = 'save', startDate?: string, endDate?: string) {
+  const store = useAppStore.getState()
+  const client = store.clients.find(c => c.id === clientId)
+  if (!client) return
+
+  const clientPrices = store.clientPrices?.filter(cp => cp.clientId === clientId) || []
+  
+  const doc = new jsPDF({ compress: true })
+  
+  // Custom Header for Price List
+  try {
+    doc.addImage(DISMA_LOGO_BASE64, 'PNG', 14, 8, 22, 22)
+  } catch (e) {
+    console.error("Logo error:", e)
+  }
+
+  doc.setFontSize(18)
+  doc.setFont("helvetica", "bold")
+  doc.text(BRANDING.companyName, 42, 18)
+  
+  doc.setFontSize(9)
+  doc.setFont("helvetica", "normal")
+  doc.text(BRANDING.address, 42, 23)
+  doc.text(`Phone: ${BRANDING.phone} | Email: ${BRANDING.email}`, 42, 28)
+
+  doc.setDrawColor(200, 200, 200)
+  doc.line(14, 38, 196, 38)
+
+  doc.setFontSize(18)
+  doc.setFont("helvetica", "bold")
+  doc.text("DAFTAR HARGA", 14, 48)
+
+  if (startDate && endDate) {
+    doc.setFontSize(10)
+    doc.setFont("helvetica", "bold")
+    const startStr = format(new Date(startDate), 'dd MMM yyyy')
+    const endStr = format(new Date(endDate), 'dd MMM yyyy')
+    doc.text(`Periode: ${startStr} s/d ${endStr}`, 14, 56)
+  }
+
+  doc.setFontSize(11)
+  doc.setFont("helvetica", "bold")
+  doc.text("Disiapkan Untuk:", 130, 48)
+  doc.setFont("helvetica", "normal")
+  doc.text(client.companyName, 130, 54)
+  doc.text(client.picName, 130, 59)
+  doc.text(client.address || '', 130, 64, { maxWidth: 60 })
+
+  doc.setFontSize(10)
+  doc.text("Berikut adalah daftar penawaran harga produk khusus untuk perusahaan Anda:", 14, 75)
+
+  let y = 82
+  doc.setFillColor(240, 240, 240)
+  doc.rect(14, y, 182, 10, 'F')
+  doc.setFont("helvetica", "bold")
+  doc.text("SKU", 16, y + 7)
+  doc.text("Nama Produk", 45, y + 7)
+  doc.text("Satuan", 130, y + 7)
+  doc.text("Harga Penawaran", 195, y + 7, { align: 'right' })
+
+  doc.setFont("helvetica", "normal")
+  y += 18
+  const targetProducts = store.products.filter(p => clientPrices.some(cp => cp.productId === p.id))
+
+  // Group products for categorization
+  const groups: Record<string, Product[]> = {}
+  targetProducts.forEach(p => {
+    const cat = (p.category || "Lain-lain").trim()
+    if (!groups[cat]) groups[cat] = []
+    groups[cat].push(p)
+  })
+
+  // Helper for category headers
+  const drawTableTableHeader = () => {
+    doc.setFillColor(242, 242, 242)
+    doc.rect(14, y, 182, 10, 'F')
+    doc.setFont("helvetica", "bold")
+    doc.setFontSize(9)
+    doc.setTextColor(60, 60, 60)
+    doc.text("SKU CODE", 16, y + 7)
+    doc.text("PRODUCT NAME", 45, y + 7)
+    doc.text("UOM", 130, y + 7)
+    doc.text("QUOTED PRICE", 195, y + 7, { align: 'right' })
+    doc.setFont("helvetica", "normal")
+    y += 18
+  }
+
+  // Sort categories
+  const sortedCategories = Object.keys(groups).sort()
+
+  sortedCategories.forEach(category => {
+    const productsInCategory = groups[category]
+    
+    // Header Kategori
+    if (y > 270) {
+      doc.addPage()
+      y = 20
+      drawTableTableHeader()
+    }
+
+    doc.setFillColor(248, 248, 248)
+    doc.rect(14, y - 5, 182, 7, 'F')
+    doc.setFont("helvetica", "bold")
+    doc.setFontSize(9)
+    doc.setTextColor(50, 50, 50)
+    doc.text(`KATEGORI: ${category.toUpperCase()}`, 17, y)
+    y += 10
+
+    productsInCategory.forEach(product => {
+      // Check if we reached the bottom of page
+      if (y > 275) {
+        doc.addPage()
+        y = 20
+        drawTableTableHeader()
+        
+        // Re-draw category if the group is continued
+        doc.setFillColor(248, 248, 248)
+        doc.rect(14, y - 5, 182, 7, 'F')
+        doc.setFont("helvetica", "bold")
+        doc.setFontSize(8)
+        doc.text(`KATEGORI: ${category.toUpperCase()} (Lanjutan)`, 17, y)
+        y += 10
+      }
+
+      const record = clientPrices.find(cp => cp.productId === product.id)
+      let priceToDisplay = product.sellingPrice
+      let hasSpecialPrice = false
+
+      if (record) {
+        hasSpecialPrice = true
+        if (record.tier === 'Custom') priceToDisplay = record.agreedPrice
+        else if (record.tier === 'Tier 1') priceToDisplay = product.tier1Price || Math.round(product.basePrice * 1.5) || product.sellingPrice
+        else if (record.tier === 'Tier 2') priceToDisplay = product.tier2Price || Math.round(product.basePrice * 1.3) || product.sellingPrice
+        else if (record.tier === 'Tier 3') priceToDisplay = product.tier3Price || Math.round(product.basePrice * 1.2) || product.sellingPrice
+        else if (record.tier === 'Tier 4') priceToDisplay = product.tier4Price || Math.round(product.basePrice * 1.15) || product.sellingPrice
+        else if (record.tier === 'Tier 5') priceToDisplay = product.tier5Price || Math.round(product.basePrice * 1.1) || product.sellingPrice
+      }
+
+      doc.setFontSize(9)
+      doc.setFont("helvetica", "normal")
+      doc.setTextColor(110, 110, 110)
+      doc.text(product.skuCode, 16, y)
+      
+      doc.setTextColor(0, 0, 0)
+      doc.setFont("helvetica", "bold")
+      doc.text(product.name, 45, y)
+      
+      doc.setFont("helvetica", "normal")
+      doc.setTextColor(100, 100, 100)
+      doc.text(product.uom, 130, y)
+      
+      if (hasSpecialPrice && record?.tier !== 'Standard') {
+        doc.setFont("helvetica", "bold")
+        doc.setTextColor(16, 110, 60) // Emerald for custom
+      } else {
+        doc.setFont("helvetica", "bold")
+        doc.setTextColor(0, 0, 0)
+      }
+      
+      doc.text(formatRupiah(priceToDisplay), 195, y, { align: 'right' })
+      doc.setFont("helvetica", "normal")
+      doc.setTextColor(0, 0, 0)
+
+      y += 8
+    })
+    y += 2 // Extra space after category group
+  })
+
+  doc.setDrawColor(200, 200, 200)
+  doc.line(14, y + 5, 196, y + 5)
+  y += 15
+
+  doc.setFontSize(9)
+  doc.setTextColor(100, 100, 100)
+  doc.text("* Harga dapat berubah sewaktu-waktu tanpa pemberitahuan sebelumnya.", 14, y)
+  doc.setTextColor(0, 0, 0)
+
+  y += 20
+
+  if (outputType === 'blob') {
+    return doc
+  }
+  
+  if (outputType === 'dataurl') {
+    return doc.output('datauristring')
+  }
+  
+  const startSuffix = startDate ? format(new Date(startDate), 'yyyyMMdd') : ''
+  const endSuffix = endDate ? format(new Date(endDate), 'yyyyMMdd') : ''
+  const periodStr = startSuffix && endSuffix ? `_${startSuffix}_sd_${endSuffix}` : `_${format(new Date(), 'yyyyMMdd')}`
+  
+  doc.save(`pricelist disma fresh (${client.companyName})${periodStr}.pdf`)
 }

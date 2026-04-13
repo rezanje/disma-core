@@ -12,44 +12,226 @@ export const ROLES: Record<string, Role> = {
 };
 
 // Mock Users for Auth
-export const MOCK_USERS: User[] = [
-  { id: '11111111-1111-1111-1111-111111111111', name: 'Bagus (Admin PO)', role: 'admin_po', pin: '1111' },
-  { id: '22222222-2222-2222-2222-222222222222', name: 'Hilman (Sourcing)', role: 'sourcing', pin: '2222' },
-  { id: '33333333-3333-3333-3333-333333333333', name: 'Sandi (Inventory)', role: 'gudang', pin: '3333' },
-  { id: '44444444-4444-4444-4444-444444444444', name: 'Rivai (Logistik)', role: 'kurir', pin: '4444' },
-  { id: '55555555-5555-5555-5555-555555555555', name: 'Sifa (Admin Finance)', role: 'finance', pin: '5555' },
-  { id: '66666666-6666-6666-6666-666666666666', name: 'Reza (Super Admin)', role: 'super_admin', pin: '120194' },
-  { id: '77777777-7777-7777-7777-777777777777', name: 'Damar (CEO)', role: 'ceo', pin: '6666' },
-  { id: '88888888-8888-8888-8888-888888888888', name: 'Hanif (CMO)', role: 'cmo', pin: '7777' },
-  { id: '00000000-0000-0000-0000-000000000000', name: 'System', role: 'super_admin', pin: '0000' },
+export const MOCK_USERS: any[] = [
+  {
+    "id": "u1",
+    "pin": "1111",
+    "name": "Bagus (Admin PO)",
+    "role": "admin_po"
+  },
+  {
+    "id": "u2",
+    "pin": "2222",
+    "name": "Hilman (Sourcing)",
+    "role": "sourcing"
+  },
+  {
+    "id": "u3",
+    "pin": "3333",
+    "name": "Sandi (Inventory)",
+    "role": "gudang"
+  },
+  {
+    "id": "u4",
+    "pin": "4444",
+    "name": "Rivai (Logistik)",
+    "role": "kurir"
+  },
+  {
+    "id": "u5",
+    "pin": "5555",
+    "name": "Sifa (Admin Finance)",
+    "role": "finance"
+  },
+  {
+    "id": "u6",
+    "pin": "120194",
+    "name": "Reza (Super Admin)",
+    "role": "super_admin"
+  },
+  {
+    "id": "u7",
+    "pin": "6666",
+    "name": "Damar (CEO)",
+    "role": "ceo"
+  },
+  {
+    "id": "u8",
+    "pin": "7777",
+    "name": "Hanif (CMO)",
+    "role": "cmo"
+  }
 ];
 
-export const COA_SEED: ChartOfAccount[] = [
-  { id: 'coa-1', accountCode: '1-1000', accountName: 'Kas di Tangan (Petty Cash)', accountType: 'Asset' },
-  { id: 'coa-1-2', accountCode: '1-1200', accountName: 'Bank BCA - Utama', accountType: 'Asset' },
-  { id: 'coa-1-3', accountCode: '1-1300', accountName: 'Bank Mandiri - Operasional', accountType: 'Asset' },
-  { id: 'coa-1-5', accountCode: '1-1500', accountName: 'Uang Muka Karyawan (Advance)', accountType: 'Asset' },
-  { id: 'coa-1-5-1', accountCode: '1-1510', accountName: 'Kas Operasional Kurir', accountType: 'Asset' },
-  { id: 'coa-2', accountCode: '1-2000', accountName: 'Piutang Usaha', accountType: 'Asset' },
-  { id: 'coa-3', accountCode: '1-3000', accountName: 'Persediaan Barang', accountType: 'Asset' },
-  { id: 'coa-4', accountCode: '2-1000', accountName: 'Utang Usaha', accountType: 'Liability' },
-  { id: 'coa-4-1', accountCode: '2-2000', accountName: 'Utang Gaji & Upah', accountType: 'Liability' },
-  { id: 'coa-4-2', accountCode: '2-4000', accountName: 'Pinjaman Bank (Utang)', accountType: 'Liability' },
-  { id: 'coa-5', accountCode: '3-1000', accountName: 'Modal Saham / Investasi', accountType: 'Equity' },
-  { id: 'coa-5-1', accountCode: '3-2000', accountName: 'Prive / Penarikan Modal', accountType: 'Equity' },
-  { id: 'coa-6', accountCode: '4-1000', accountName: 'Pendapatan Penjualan', accountType: 'Revenue' },
-  { id: 'coa-6-1', accountCode: '4-2000', accountName: 'Pendapatan Lain-lain', accountType: 'Revenue' },
-  { id: 'coa-7', accountCode: '5-1000', accountName: 'Harga Pokok Penjualan (HPP)', accountType: 'Expense' },
-  { id: 'coa-8', accountCode: '5-2000', accountName: 'Beban Kerusakan Barang (Shrinkage)', accountType: 'Expense' },
-  { id: 'coa-9', accountCode: '6-1000', accountName: 'Beban Gaji & Upah', accountType: 'Expense' },
-  { id: 'coa-9-1', accountCode: '6-1100', accountName: 'Beban Sewa & Properti', accountType: 'Expense' },
-  { id: 'coa-9-2', accountCode: '6-1200', accountName: 'Beban Listrik, Air & Internet', accountType: 'Expense' },
-  { id: 'coa-9-3', accountCode: '6-1300', accountName: 'Beban Marketing & Iklan', accountType: 'Expense' },
-  { id: 'coa-9-4', accountCode: '6-1400', accountName: 'Beban Transportasi & BBM', accountType: 'Expense' },
-  { id: 'coa-9-5', accountCode: '6-1500', accountName: 'Beban ATK & Kantor', accountType: 'Expense' },
-  { id: 'coa-9-6', accountCode: '6-1600', accountName: 'Biaya Admin Platform', accountType: 'Expense' },
-  { id: 'coa-9-7', accountCode: '6-1700', accountName: 'Ongkos Kirim Pembelian', accountType: 'Expense' },
-  { id: 'coa-9-9', accountCode: '6-9000', accountName: 'Beban Operasional Lainnya', accountType: 'Expense' },
+export const COA_SEED: any[] = [
+  {
+    "id": "coa-1",
+    "accountCode": "1-1000",
+    "accountName": "Kas di Tangan (Petty Cash)",
+    "accountType": "Asset"
+  },
+  {
+    "id": "coa-1-2",
+    "accountCode": "1-1200",
+    "accountName": "Bank BCA - Utama",
+    "accountType": "Asset"
+  },
+  {
+    "id": "coa-1-3",
+    "accountCode": "1-1300",
+    "accountName": "Bank Mandiri - Operasional",
+    "accountType": "Asset"
+  },
+  {
+    "id": "coa-1-5",
+    "accountCode": "1-1500",
+    "accountName": "Uang Muka Karyawan (Advance)",
+    "accountType": "Asset"
+  },
+  {
+    "id": "coa-2",
+    "accountCode": "1-2000",
+    "accountName": "Piutang Usaha (Klien)",
+    "accountType": "Asset"
+  },
+  {
+    "id": "coa-3",
+    "accountCode": "1-3000",
+    "accountName": "Persediaan Barang Dagang",
+    "accountType": "Asset"
+  },
+  {
+    "id": "coa-4",
+    "accountCode": "1-4000",
+    "accountName": "Aset Tetap (Kendaraan/Alat)",
+    "accountType": "Asset"
+  },
+  {
+    "id": "coa-5",
+    "accountCode": "1-4999",
+    "accountName": "Akumulasi Penyusutan Aset",
+    "accountType": "Asset"
+  },
+  {
+    "id": "coa-10",
+    "accountCode": "2-1000",
+    "accountName": "Utang Usaha (Vendor)",
+    "accountType": "Liability"
+  },
+  {
+    "id": "coa-10-2",
+    "accountCode": "2-2000",
+    "accountName": "Utang Gaji & Honor",
+    "accountType": "Liability"
+  },
+  {
+    "id": "coa-10-3",
+    "accountCode": "2-3000",
+    "accountName": "Utang Pajak (PPN/PPh)",
+    "accountType": "Liability"
+  },
+  {
+    "id": "coa-11",
+    "accountCode": "3-1000",
+    "accountName": "Modal Pemilik (Owner Capital)",
+    "accountType": "Equity"
+  },
+  {
+    "id": "coa-11-2",
+    "accountCode": "3-2000",
+    "accountName": "Prive / Penarikan Pribadi",
+    "accountType": "Equity"
+  },
+  {
+    "id": "coa-12",
+    "accountCode": "4-1000",
+    "accountName": "Pendapatan Penjualan Produk",
+    "accountType": "Revenue"
+  },
+  {
+    "id": "coa-12-2",
+    "accountCode": "4-2000",
+    "accountName": "Pendapatan Lain-lain",
+    "accountType": "Revenue"
+  },
+  {
+    "id": "coa-13",
+    "accountCode": "5-1000",
+    "accountName": "Harga Pokok Penjualan (HPP)",
+    "accountType": "Expense"
+  },
+  {
+    "id": "coa-14",
+    "accountCode": "5-2000",
+    "accountName": "Beban Kerusakan/Retur Barang",
+    "accountType": "Expense"
+  },
+  {
+    "id": "coa-15",
+    "accountCode": "6-1000",
+    "accountName": "Beban Gaji & Tunjangan",
+    "accountType": "Expense"
+  },
+  {
+    "id": "coa-15-2",
+    "accountCode": "6-1100",
+    "accountName": "Beban Sewa Gedung/Workshop",
+    "accountType": "Expense"
+  },
+  {
+    "id": "coa-9-2",
+    "accountCode": "6-1200",
+    "accountName": "Beban Listrik, Air & Internet",
+    "accountType": "Expense"
+  },
+  {
+    "id": "coa-9-3",
+    "accountCode": "6-1300",
+    "accountName": "Beban Marketing & Iklan",
+    "accountType": "Expense"
+  },
+  {
+    "id": "coa-9-4",
+    "accountCode": "6-1400",
+    "accountName": "Beban Transportasi & BBM",
+    "accountType": "Expense"
+  },
+  {
+    "id": "coa-9-5",
+    "accountCode": "6-1500",
+    "accountName": "Beban ATK & Kantor",
+    "accountType": "Expense"
+  },
+  {
+    "id": "coa-9-6",
+    "accountCode": "6-1600",
+    "accountName": "Biaya Admin Platform",
+    "accountType": "Expense"
+  },
+  {
+    "id": "coa-9-7",
+    "accountCode": "6-1700",
+    "accountName": "Ongkos Kirim Pembelian",
+    "accountType": "Expense"
+  },
+  {
+    "id": "coa-9-9",
+    "accountCode": "6-9000",
+    "accountName": "Beban Operasional Lainnya",
+    "accountType": "Expense"
+  },
+  {
+    "id": "coa-16",
+    "accountCode": "6-2000",
+    "accountName": "Beban Penyusutan Aset",
+    "accountType": "Expense"
+  },
+  {
+    "id": "coa-4-2",
+    "accountCode": "2-4000",
+    "accountName": "Pinjaman Bank (Utang)",
+    "accountType": "Liability"
+  }
 ];
 
 export const STATUS_COLORS: Record<string, string> = {
@@ -72,15 +254,15 @@ export const STATUS_COLORS: Record<string, string> = {
 
 export { CLIENTS_SEED } from './clients_seed';
 
-export const VENDORS_SEED: Vendor[] = [
+export const VENDORS_SEED: any[] = [
   {
-    id: 'v1',
-    companyName: 'Supplier Sayur Segar',
-    picName: 'Pak Rahman',
-    email: 'rahman@sayursegar.com',
-    phone: '081122334455',
-    address: 'Pasar Induk Kramat Jati',
-    createdAt: new Date().toISOString()
+    "id": "v1",
+    "email": "rahman@sayursegar.com",
+    "phone": "081122334455",
+    "address": "Pasar Induk Kramat Jati",
+    "picName": "Pak Rahman",
+    "createdAt": "2026-03-30T11:06:08.973Z",
+    "companyName": "Supplier Sayur Segar"
   }
 ];
 

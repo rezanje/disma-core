@@ -14,6 +14,7 @@ import {
   CheckCircle2
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useAppStore, clearAllOperationalCaches } from "@/lib/store"
 import { 
   Dialog,
   DialogContent,
@@ -70,6 +71,9 @@ const DATA_CATEGORIES = [
 ]
 
 export default function MaintenancePage() {
+  const resetSimulation = useAppStore(state => state.resetSimulation)
+  const resetDb = useAppStore(state => state.resetDb)
+
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
   const [isDoubleConfirmOpen, setIsDoubleConfirmOpen] = useState(false)
@@ -111,6 +115,8 @@ export default function MaintenancePage() {
         "Fixed Assets": ['fixed_assets'],
         "MASTER DATA (WARNING)": ['clients', 'products', 'vendors']
       };
+
+      const hasMasterData = selectedCategories.includes("MASTER DATA (WARNING)");
       const tablesToClear = selectedCategories.flatMap(cat => categoryMap[cat] || []);
 
       const res = await fetch('/api/db/reset', {
@@ -119,6 +125,9 @@ export default function MaintenancePage() {
          body: JSON.stringify({ action: 'custom', tables: tablesToClear })
       });
       if (!res.ok) throw new Error('Reset failed');
+
+      // Crucial: Clear local cache so it doesn't restore from localStorage on next init
+      clearAllOperationalCaches();
 
       toast.success("Database has been reset successfully.")
       setIsDoubleConfirmOpen(false)
@@ -150,19 +159,7 @@ export default function MaintenancePage() {
 
   const handleQuickWipeTransactions = async () => {
     if (!confirm("HAPUS SEMUA data transaksi (PO, Order, Invoice, Jurnal)? Katalog Produk & Client akan tetap aman.")) return
-
-    try {
-      const res = await fetch('/api/db/reset', {
-         method: 'POST',
-         headers: { 'Content-Type': 'application/json' },
-         body: JSON.stringify({ action: 'simulation' })
-      });
-      if (!res.ok) throw new Error('Reset failed');
-      toast.success("Semua data transaksi berhasil dibersihkan!")
-      setTimeout(() => window.location.reload(), 1500)
-    } catch {
-      toast.error("Gagal membersihkan data transaksi.")
-    }
+    await resetSimulation();
   }
 
   return (

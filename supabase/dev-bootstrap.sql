@@ -35,6 +35,11 @@ create table if not exists public.products (
   uom text not null,
   base_price numeric not null default 0,
   selling_price numeric not null default 0,
+  tier1_price numeric not null default 0,
+  tier2_price numeric not null default 0,
+  tier3_price numeric not null default 0,
+  tier4_price numeric not null default 0,
+  tier5_price numeric not null default 0,
   current_stock numeric not null default 0,
   price_history jsonb not null default '[]'::jsonb,
   weekly_price_range jsonb not null default '{}'::jsonb
@@ -368,6 +373,16 @@ create table if not exists public.app_settings (
   role_permissions jsonb not null default '{}'::jsonb
 );
 
+create table if not exists public.client_prices (
+  id text primary key,
+  client_id text not null,
+  product_id text not null,
+  agreed_price numeric not null default 0,
+  tier text not null,
+  last_updated text not null,
+  updated_by_user_id text
+);
+
 alter table public.users disable row level security;
 alter table public.clients disable row level security;
 alter table public.vendors disable row level security;
@@ -397,5 +412,6 @@ alter table public.fixed_assets disable row level security;
 alter table public.pending_returns disable row level security;
 alter table public.rejected_items disable row level security;
 alter table public.app_settings disable row level security;
+alter table public.client_prices disable row level security;
 
 commit;

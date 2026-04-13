@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useAppStore } from "@/lib/store"
 import { formatRupiah, formatNumber, parseNumber } from "@/lib/utils"
-import { Plus, Pencil, Package, Hash, Trash2, Download, Upload, RotateCcw, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, History } from "lucide-react"
+import { Plus, Pencil, Package, Hash, Trash2, Download, Upload, RotateCcw, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, History, Sparkles } from "lucide-react"
 import { v4 as uuidv4 } from "uuid"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -51,6 +51,11 @@ export default function ProductsPage() {
     uom: "kg",
     basePrice: 0,
     sellingPrice: 0,
+    tier1Price: 0,
+    tier2Price: 0,
+    tier3Price: 0,
+    tier4Price: 0,
+    tier5Price: 0,
     currentStock: 0
   })
 
@@ -119,14 +124,68 @@ export default function ProductsPage() {
     setEditingProduct(null)
   }
 
+  const CATEGORY_KEYWORDS: Record<string, string[]> = {
+    "Sayur": ["sayur", "bayam", "kangkung", "wortel", "tomat", "cabe", "cabai", "bawang", "kentang", "kol", "jagung", "timun", "sawi", "labu", "daun", "seledri", "brokoli", "jamur"],
+    "Daging & Protein": ["ayam", "sapi", "ikan", "daging", "telur", "bebek", "udang", "cumi", "kepiting", "fillet", "karkas", "baso", "bakso", "sosis", "kornet"],
+    "Buah": ["buah", "apel", "jeruk", "pisang", "mangga", "anggur", "melon", "semangka", "nanas", "pepaya", "alpukat", "lemon", "jeruk nipis"],
+    "Sembako & Bumbu": ["beras", "minyak", "gula", "garam", "terigu", "kecap", "saos", "saus", "merica", "lada", "mie", "susu", "teh", "kopi", "mentega", "keju", "santan", "penyedap", "masako", "royco"],
+    "ATK": ["kertas", "pen", "pulpen", "buku", "pensil", "penghapus", "penggaris", "spidol", "tinta", "kertas", "map", "amplop", "lakban", "solasi", "gunting", "stapler"],
+    "Kebersihan": ["sabun", "shampoo", "odol", "detergen", "rinso", "pewangi", "pel", "sapu", "tisu", "tissue", "masker", "handsanity", "sunlight", "clink"]
+  }
+
+  const inferCategory = (name: string): string => {
+    const lowName = name.toLowerCase()
+    for (const [cat, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+      if (keywords.some(k => lowName.includes(k))) return cat
+    }
+    return "Lain-lain"
+  }
+
+  const handleAutoCategorize = async () => {
+    const uncategorizedItems = products.filter(p => !p.category || p.category === "Lain-lain" || p.category === "")
+    if (uncategorizedItems.length === 0) {
+      toast.info("Semua barang sudah memiliki kategori.")
+      return
+    }
+
+    if (!confirm(`Otomatis deteksi kategori untuk ${uncategorizedItems.length} produk berdasarkan nama barang?`)) return
+
+    toast.loading(`Menganalisis ${uncategorizedItems.length} produk...`, { id: "auto_cat" })
+    
+    try {
+      let count = 0
+      const chunkSize = 50
+      for (let i = 0; i < uncategorizedItems.length; i += chunkSize) {
+        const chunk = uncategorizedItems.slice(i, i + chunkSize)
+        await Promise.all(chunk.map(p => {
+            const suggested = inferCategory(p.name)
+            if (suggested !== "Lain-lain") {
+               count++
+               return updateProduct(p.id, { category: suggested })
+            }
+            return Promise.resolve()
+        }))
+      }
+      toast.success(`Selesai! Berhasil mengklasifikasikan ${count} produk ke kategori baru.`, { id: "auto_cat" })
+    } catch (err) {
+      toast.error("Gagal melakukan kategorisasi otomatis", { id: "auto_cat" })
+    }
+  }
+
   const handleEdit = (product: Product) => {
     setEditingProduct(product)
     setFormData({
       skuCode: product.skuCode || "",
       name: product.name || "",
+      category: product.category || "",
       uom: product.uom || "kg",
       basePrice: product.basePrice || 0,
       sellingPrice: product.sellingPrice || 0,
+      tier1Price: product.tier1Price || 0,
+      tier2Price: product.tier2Price || 0,
+      tier3Price: product.tier3Price || 0,
+      tier4Price: product.tier4Price || 0,
+      tier5Price: product.tier5Price || 0,
       currentStock: product.currentStock || 0
     })
     setIsOpen(true)
@@ -163,7 +222,16 @@ export default function ProductsPage() {
         </div>
         
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => {
+          <Button 
+            variant="outline" 
+            size="sm"
+            className="h-9 border-indigo-200 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-100 font-bold"
+            onClick={handleAutoCategorize}
+          >
+            <Sparkles className="mr-2 h-4 w-4" /> Auto-Categorize
+          </Button>
+
+          <Button variant="outline" size="sm" className="h-9 font-bold border-slate-200" onClick={() => {
             const headers = "skuCode,name,uom,basePrice,sellingPrice,currentStock\n"
             const example = "SAY-WRT-001,Wortel Lokal Super,kg,8000,12000,0\n"
             const blob = new Blob([headers + example], { type: 'text/csv' })
@@ -273,6 +341,8 @@ export default function ProductsPage() {
                       product.sellingPrice = Number(cleanVal.replace(/[^0-9.-]+/g,"")) || 0
                     } else if (h === 'CURRENTSTOCK' || h === 'STOK' || h === 'STOCK') {
                       product.currentStock = Number(cleanVal.replace(/[^0-9.-]+/g,"")) || 0
+                    } else if (h === 'CATEGORY' || h === 'KATEGORI') {
+                      product.category = cleanVal || inferCategory(product.name || "")
                     }
                   })
 
@@ -337,14 +407,25 @@ export default function ProductsPage() {
                   />
                 </div>
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="name">Product Name</Label>
-                <Input 
-                  id="name" 
-                  value={formData.name}
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  placeholder="Wortel Lokal Super" 
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="name">Product Name</Label>
+                  <Input 
+                    id="name" 
+                    value={formData.name}
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    placeholder="Wortel Lokal Super" 
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="category">Category</Label>
+                  <Input 
+                    id="category" 
+                    value={formData.category}
+                    onChange={(e) => setFormData({...formData, category: e.target.value})}
+                    placeholder="Sayur, Daging, ATK..." 
+                  />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
@@ -374,6 +455,46 @@ export default function ProductsPage() {
                       onChange={(e) => setFormData({...formData, sellingPrice: parseNumber(e.target.value)})}
                     />
                   </div>
+                </div>
+              </div>
+              <div className="grid gap-4 mt-2 border-t pt-4">
+                <div className="flex justify-between items-center mb-2">
+                  <Label className="text-emerald-700 font-bold">Harga Bertingkat (Tiers)</Label>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    type="button"
+                    className="h-7 text-[10px] uppercase tracking-widest"
+                    onClick={() => {
+                       const base = formData.basePrice;
+                       // Automatic margin examples
+                        setFormData({
+                          ...formData,
+                          tier1Price: Math.round(base * 1.50), // B2C (+50%)
+                          tier2Price: Math.round(base * 1.30), // General (+30%)
+                          tier3Price: Math.round(base * 1.20), // Cash (+20%)
+                          tier4Price: Math.round(base * 1.15), // Bottom (+15%)
+                          tier5Price: Math.round(base * 1.10)  // Special Request (+10%)
+                        });
+                        toast.info("Tiers dihitung ulang (50%, 30%, 20%, 15%, 10%)");
+                    }}
+                  >
+                    Auto-Calc Margins
+                  </Button>
+                </div>
+                <div className="grid grid-cols-5 gap-2">
+                  {[1, 2, 3, 4, 5].map(t => (
+                    <div key={`tier${t}`} className="grid gap-1">
+                      <Label className="text-[10px] text-slate-500">Tier {t}</Label>
+                      <Input 
+                        type="text"
+                        inputMode="numeric"
+                        className="h-8 text-xs px-2"
+                        value={formatNumber((formData as any)[`tier${t}Price`])}
+                        onChange={(e) => setFormData({...formData, [`tier${t}Price`]: parseNumber(e.target.value)})}
+                      />
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
