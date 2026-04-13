@@ -1505,6 +1505,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       },
       deleteClientPrice: async (id) => {
         set((state) => ({ clientPrices: state.clientPrices.filter(c => c.id !== id) }));
+        if (typeof window !== 'undefined') window.localStorage.setItem('disma_core_client_prices_cache', JSON.stringify(get().clientPrices));
         await fetch('/api/db', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
@@ -1514,6 +1515,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       deleteMultipleClientPrices: async (ids) => {
         if (!ids || ids.length === 0) return;
         set((state) => ({ clientPrices: state.clientPrices.filter(c => !ids.includes(c.id)) }));
+        if (typeof window !== 'undefined') window.localStorage.setItem('disma_core_client_prices_cache', JSON.stringify(get().clientPrices));
         await fetch('/api/db', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
