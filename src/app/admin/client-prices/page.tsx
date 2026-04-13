@@ -4,6 +4,7 @@ import React, { useState, useMemo, useEffect } from "react"
 import { useAppStore } from "@/lib/store"
 import { formatRupiah, parseNumber, formatNumber } from "@/lib/utils"
 import { v4 as uuidv4 } from "uuid"
+import { Product, ClientPriceTier } from "@/types"
 import { Search, Download, Calculator, Check, Plus, Trash2, ChevronsUpDown, FileText, Eye } from "lucide-react"
 
 import { Button } from "@/components/ui/button"

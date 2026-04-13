@@ -3,6 +3,7 @@ import { format } from "date-fns"
 import { useAppStore } from "./store"
 import { formatRupiah, formatRupiahValue } from "./utils"
 import { DISMA_LOGO_BASE64 } from "./logo"
+import { Product } from "@/types"
 
 // Basic standardized branding
 const BRANDING = {
