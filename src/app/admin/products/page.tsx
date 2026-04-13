@@ -32,8 +32,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { toast } from "sonner"
-import { Product } from "@/types"
 import { format } from "date-fns"
 
 export default function ProductsPage() {
