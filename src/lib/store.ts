@@ -18,6 +18,7 @@ const LOCAL_SALES_ORDERS_CACHE_KEY = 'disma_local_sales_orders_cache';
 const LOCAL_SALES_ORDER_ITEMS_CACHE_KEY = 'disma_local_sales_order_items_cache';
 const LOCAL_PURCHASES_CACHE_KEY = 'disma_local_purchases_cache';
 const LOCAL_PURCHASE_ITEMS_CACHE_KEY = 'disma_local_purchase_items_cache';
+const LOCAL_CLIENT_PRICES_CACHE_KEY = 'disma_core_client_prices_cache';
 
 const loadLocalProductsCache = (): Product[] => {
   if (typeof window === 'undefined') return [];
@@ -152,6 +153,7 @@ export const clearAllOperationalCaches = () => {
   window.localStorage.removeItem(LOCAL_PURCHASE_ITEMS_CACHE_KEY);
   window.localStorage.removeItem(LOCAL_PRODUCTS_CACHE_KEY);
   window.localStorage.removeItem(LOCAL_CLIENTS_CACHE_KEY);
+  window.localStorage.removeItem(LOCAL_CLIENT_PRICES_CACHE_KEY);
 };
 
 export interface NavItemConfig {
@@ -656,7 +658,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             });
              let localClientPricesCache = [];
              try {
-               const localClientPricesStr = typeof window !== 'undefined' ? window.localStorage.getItem('disma_core_client_prices_cache') : null;
+               const localClientPricesStr = typeof window !== 'undefined' ? window.localStorage.getItem(LOCAL_CLIENT_PRICES_CACHE_KEY) : null;
                if (localClientPricesStr) localClientPricesCache = JSON.parse(localClientPricesStr);
              } catch (e) {
                console.warn("[Storage] Failed to parse client prices cache", e);
@@ -760,7 +762,7 @@ export const useAppStore = create<AppState>((set, get) => ({
               if (mergedSalesOrderItems.length > 0) saveLocalSalesOrderItemsCache(get().salesOrderItems);
               if (mergedPurchases.length > 0) saveLocalPurchasesCache(get().purchases);
               if (mergedItems.length > 0) saveLocalPurchaseItemsCache(get().purchaseItems);
-              if (mergedClientPrices.length > 0) window.localStorage.setItem('disma_core_client_prices_cache', JSON.stringify(get().clientPrices));
+              if (mergedClientPrices.length > 0) window.localStorage.setItem(LOCAL_CLIENT_PRICES_CACHE_KEY, JSON.stringify(get().clientPrices));
                
               if (isServerResponseEmpty && hasLocalData) {
                  console.warn("[Storage] Server seems empty, but Local Data exists. Preserving Local Cache.");
@@ -1505,7 +1507,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       },
       deleteClientPrice: async (id) => {
         set((state) => ({ clientPrices: state.clientPrices.filter(c => c.id !== id) }));
-        if (typeof window !== 'undefined') window.localStorage.setItem('disma_core_client_prices_cache', JSON.stringify(get().clientPrices));
+        if (typeof window !== 'undefined') window.localStorage.setItem(LOCAL_CLIENT_PRICES_CACHE_KEY, JSON.stringify(get().clientPrices));
         await fetch('/api/db', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
@@ -1515,7 +1517,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       deleteMultipleClientPrices: async (ids) => {
         if (!ids || ids.length === 0) return;
         set((state) => ({ clientPrices: state.clientPrices.filter(c => !ids.includes(c.id)) }));
-        if (typeof window !== 'undefined') window.localStorage.setItem('disma_core_client_prices_cache', JSON.stringify(get().clientPrices));
+        if (typeof window !== 'undefined') window.localStorage.setItem(LOCAL_CLIENT_PRICES_CACHE_KEY, JSON.stringify(get().clientPrices));
         await fetch('/api/db', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
@@ -1686,14 +1688,10 @@ export const useAppStore = create<AppState>((set, get) => ({
           deliveries: [], expenses: [], invoices: [], journalEntries: [],
           journalLines: [], stockMovements: [], leads: [], tasks: [], notifications: [],
           pendingReturns: [], rejectedItems: [], reimbursements: [], cashTransactions: [],
-          bankAccounts: INITIAL_BANK_ACCOUNTS, fixedAssets: []
+          bankAccounts: INITIAL_BANK_ACCOUNTS, fixedAssets: [], clientPrices: []
         });
-        saveLocalClientsCache(get().clients);
-        saveLocalProductsCache(get().products);
-        saveLocalSalesOrdersCache([]);
-        saveLocalSalesOrderItemsCache([]);
-        saveLocalPurchasesCache([]);
-        saveLocalPurchaseItemsCache([]);
+        
+        clearAllOperationalCaches();
 
         toast.success("Simulation Reset Selesai! Me-reload halaman...");
         setTimeout(() => window.location.reload(), 800);
@@ -1748,14 +1746,10 @@ export const useAppStore = create<AppState>((set, get) => ({
           journalLines: [], stockMovements: [], coas: COA_SEED, users: MOCK_USERS, leads: [],
           tasks: [], notifications: [], bankAccounts: INITIAL_BANK_ACCOUNTS,
           rejectedItems: [],
-          cashTransactions: [], reimbursements: [], fixedAssets: []
+          cashTransactions: [], reimbursements: [], fixedAssets: [], clientPrices: []
         });
-        saveLocalClientsCache(CLIENTS_SEED);
-        saveLocalProductsCache(PRODUCTS_SEED);
-        saveLocalSalesOrdersCache([]);
-        saveLocalSalesOrderItemsCache([]);
-        saveLocalPurchasesCache([]);
-        saveLocalPurchaseItemsCache([]);
+        
+        clearAllOperationalCaches();
 
         toast.success("Database Reset Berhasil! Me-reload halaman...");
         setTimeout(() => window.location.reload(), 1000);

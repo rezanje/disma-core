@@ -113,7 +113,7 @@ export default function MaintenancePage() {
         "Performance & HR": ['kpis', 'employees'],
         "Tasks & Notifications": ['disma_tasks', 'notifications'],
         "Fixed Assets": ['fixed_assets'],
-        "MASTER DATA (WARNING)": ['clients', 'products', 'vendors']
+        "MASTER DATA (WARNING)": ['clients', 'products', 'vendors', 'client_prices']
       };
 
       const hasMasterData = selectedCategories.includes("MASTER DATA (WARNING)");
@@ -150,6 +150,10 @@ export default function MaintenancePage() {
          body: JSON.stringify({ action: 'reset_stock' })
       });
       if (!res.ok) throw new Error('Reset failed');
+      
+      // Clear product cache so it fetches fresh stock: 0 from DB
+      clearAllOperationalCaches();
+      
       toast.success("Semua stok barang berhasil di-reset ke 0!")
       setTimeout(() => window.location.reload(), 1500)
     } catch {

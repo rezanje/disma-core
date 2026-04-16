@@ -23,6 +23,7 @@ import {
 import { toast } from "sonner"
 
 import { getNavItemsForUser } from "@/lib/navigation"
+import type { AccessKey } from "@/types"
 
 interface NavItem {
   key: string
@@ -49,6 +50,7 @@ export default function Sidebar({ roleName }: SidebarProps) {
   const rolePermissions = useAppStore(state => state.rolePermissions) || {}
   const isMinimized = useAppStore(state => state.isSidebarMinimized)
   const toggleSidebar = useAppStore(state => state.toggleSidebar)
+  const notifications = useAppStore(state => state.notifications)
 
   const handleLogout = () => {
     setCurrentUser(null)
@@ -56,8 +58,8 @@ export default function Sidebar({ roleName }: SidebarProps) {
     router.push("/login")
   }
 
-  const permissions = currentUser?.role ? rolePermissions[currentUser.role] || [] : []
-  const initialItems = getNavItemsForUser(permissions as any)
+  const permissions: AccessKey[] = currentUser?.role ? rolePermissions[currentUser.role] || [] : []
+  const initialItems = getNavItemsForUser(permissions)
   const navConfigs = useAppStore(state => state.navConfigs) || {}
   const roleConfig = navConfigs[currentUser?.role || 'default']?.desktop || { order: [], hidden: [] }
   
@@ -106,6 +108,9 @@ export default function Sidebar({ roleName }: SidebarProps) {
     'Courier': 'Logistics',
     'Global': 'System'
   }
+
+  const userNotifications = notifications.filter(n => n.userId === currentUser?.id)
+  const unreadNotifications = userNotifications.filter(n => !n.read)
 
   return (
     <div 
@@ -170,7 +175,7 @@ export default function Sidebar({ roleName }: SidebarProps) {
             isMinimized ? "w-10 h-10 flex items-center justify-center" : ""
           )}>
             <Bell className="w-4 h-4" />
-            {useAppStore(state => state.notifications).filter(n => n.userId === currentUser?.id && !n.read).length > 0 && (
+            {unreadNotifications.length > 0 && (
               <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border border-white ring-2 ring-rose-500/20 animate-pulse"></span>
             )}
           </DropdownMenuTrigger>
@@ -179,8 +184,7 @@ export default function Sidebar({ roleName }: SidebarProps) {
                 <h4 className="text-xs font-black uppercase tracking-widest text-slate-800">Notifications</h4>
                 <button 
                   onClick={() => {
-                    useAppStore.getState().notifications
-                      .filter(n => n.userId === currentUser?.id && !n.read)
+                    unreadNotifications
                       .forEach(n => useAppStore.getState().markNotificationRead(n.id))
                   }}
                   className="text-[10px] font-bold text-emerald-600 hover:underline"
@@ -189,15 +193,13 @@ export default function Sidebar({ roleName }: SidebarProps) {
                 </button>
              </div>
              <div className="max-h-[300px] overflow-y-auto">
-                {useAppStore(state => state.notifications).filter(n => n.userId === currentUser?.id).length === 0 ? (
+                {userNotifications.length === 0 ? (
                   <div className="p-8 text-center text-slate-400">
                      <Bell className="w-8 h-8 mx-auto mb-2 opacity-20" />
                      <p className="text-[10px] font-bold uppercase tracking-widest">No notifications yet</p>
                   </div>
                 ) : (
-                  useAppStore(state => state.notifications)
-                    .filter(n => n.userId === currentUser?.id)
-                    .map((n) => (
+                  userNotifications.map((n) => (
                       <div 
                         key={n.id} 
                         onClick={() => useAppStore.getState().markNotificationRead(n.id)}
