@@ -42,7 +42,8 @@ create table if not exists public.products (
   tier5_price numeric not null default 0,
   current_stock numeric not null default 0,
   price_history jsonb not null default '[]'::jsonb,
-  weekly_price_range jsonb not null default '{}'::jsonb
+  weekly_price_range jsonb not null default '{}'::jsonb,
+  category text
 );
 
 create table if not exists public.coas (

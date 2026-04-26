@@ -53,6 +53,8 @@ interface LineItem {
   productName: string
   qty: number
   unitPrice: number
+  isCustomPrice?: boolean
+  priceSource?: string
 }
 
 export default function SalesOrdersPage() {
@@ -88,6 +90,8 @@ export default function SalesOrdersPage() {
   const [newLineProductId, setNewLineProductId] = useState("")
   const [newLineQty, setNewLineQty] = useState(1)
   const [newLinePrice, setNewLinePrice] = useState(0)
+  const [newLineIsCustomPrice, setNewLineIsCustomPrice] = useState(false)
+  const [newLinePriceSource, setNewLinePriceSource] = useState("")
 
   const addClient = useAppStore(state => state.addClient)
   const addProduct = useAppStore(state => state.addProduct)
@@ -198,40 +202,73 @@ export default function SalesOrdersPage() {
     toast.success("Product added and selected")
   }
 
-  const handleProductSelect = (pid: string) => {
-    setNewLineProductId(pid)
+  const resolveClientPrice = (pid: string, targetClientId: string) => {
     const product = products.find(p => p.id === pid)
-    
-    if (clientId && pid && product) {
-      // 1. PRIORITY: Check for Active Price List Tier or Custom Price
-      const activeRecord = clientPrices.find(cp => cp.clientId === clientId && cp.productId === pid)
+    if (!product) return { price: 0, isCustom: false, source: "" }
+
+    if (targetClientId) {
+      const activeRecord = clientPrices.find(cp => cp.clientId === targetClientId && cp.productId === pid)
       if (activeRecord) {
         let specializedPrice = product.sellingPrice
         if (activeRecord.tier === 'Custom') specializedPrice = activeRecord.agreedPrice
-        else if (activeRecord.tier === 'Tier 1') specializedPrice = product.tier1Price || product.sellingPrice
-        else if (activeRecord.tier === 'Tier 2') specializedPrice = product.tier2Price || product.sellingPrice
-        else if (activeRecord.tier === 'Tier 3') specializedPrice = product.tier3Price || product.sellingPrice
-        else if (activeRecord.tier === 'Tier 4') specializedPrice = product.tier4Price || product.sellingPrice
-        else if (activeRecord.tier === 'Tier 5') specializedPrice = product.tier5Price || product.sellingPrice
-
-        setNewLinePrice(specializedPrice)
-        toast.info(`Harga diisi otomatis dari ${activeRecord.tier === 'Custom' ? 'Price List Kustom' : 'Price List ' + activeRecord.tier} Klien ini.`, {
-           style: { background: '#ecfdf5', color: '#047857', border: '1px solid #10b981' },
-           duration: 4000
-        })
-        return
+        else if (activeRecord.tier === 'Tier 1') specializedPrice = product.tier1Price || Math.round(product.basePrice * 1.5) || product.sellingPrice
+        else if (activeRecord.tier === 'Tier 2') specializedPrice = product.tier2Price || Math.round(product.basePrice * 1.3) || product.sellingPrice
+        else if (activeRecord.tier === 'Tier 3') specializedPrice = product.tier3Price || Math.round(product.basePrice * 1.2) || product.sellingPrice
+        else if (activeRecord.tier === 'Tier 4') specializedPrice = product.tier4Price || Math.round(product.basePrice * 1.15) || product.sellingPrice
+        else if (activeRecord.tier === 'Tier 5') specializedPrice = product.tier5Price || Math.round(product.basePrice * 1.1) || product.sellingPrice
+        
+        return { price: specializedPrice, isCustom: true, source: activeRecord.tier }
       }
 
-      // 2. FALLBACK: Check for historical price
-      const historicalPrice = getHistoricalClientPrice(clientId, pid)
+      const historicalPrice = getHistoricalClientPrice(targetClientId, pid)
       if (historicalPrice) {
-        setNewLinePrice(historicalPrice)
-        return
+        return { price: historicalPrice, isCustom: false, source: "History" }
       }
     }
 
-    if (product) {
-      setNewLinePrice(product.sellingPrice)
+    return { price: product.sellingPrice, isCustom: false, source: "" }
+  }
+
+  const recalculatePricesForClient = (newClientId: string) => {
+    // 1. Update lineItems in cart
+    if (lineItems.length > 0) {
+      let pricesChanged = false
+      const updatedLines = lineItems.map(item => {
+        const { price, isCustom, source } = resolveClientPrice(item.productId, newClientId)
+        if (price !== item.unitPrice) pricesChanged = true
+        return { ...item, unitPrice: price, isCustomPrice: isCustom, priceSource: source }
+      })
+
+      if (pricesChanged) {
+        setLineItems(updatedLines)
+        toast.info("Harga di keranjang otomatis disesuaikan dengan Price List Klien ini.", {
+          style: { background: '#f8fafc', border: '1px solid #cbd5e1' }
+        })
+      }
+    }
+
+    // 2. Update the new line draft if it has a product selected
+    if (newLineProductId) {
+      const { price, isCustom, source } = resolveClientPrice(newLineProductId, newClientId)
+      setNewLinePrice(price)
+      setNewLineIsCustomPrice(isCustom)
+      setNewLinePriceSource(source)
+    }
+  }
+
+  const handleProductSelect = (pid: string) => {
+    setNewLineProductId(pid)
+    const { price, isCustom, source } = resolveClientPrice(pid, clientId)
+    
+    setNewLinePrice(price)
+    setNewLineIsCustomPrice(isCustom)
+    setNewLinePriceSource(source)
+    
+    if (isCustom) {
+      toast.info(`Harga diisi otomatis dari ${source === 'Custom' ? 'Price List Kustom' : 'Price List ' + source} Klien ini.`, {
+         style: { background: '#ecfdf5', color: '#047857', border: '1px solid #10b981' },
+         duration: 4000
+      })
     }
   }
 
@@ -246,12 +283,16 @@ export default function SalesOrdersPage() {
       productId: product.id,
       productName: product.name,
       qty: newLineQty,
-      unitPrice: newLinePrice
+      unitPrice: newLinePrice,
+      isCustomPrice: newLineIsCustomPrice,
+      priceSource: newLinePriceSource
     }])
 
     setNewLineProductId("")
     setNewLineQty(1)
     setNewLinePrice(0)
+    setNewLineIsCustomPrice(false)
+    setNewLinePriceSource("")
   }
 
   const removeLineItem = (id: string) => {
@@ -399,6 +440,7 @@ export default function SalesOrdersPage() {
                                 setClientId(c.id)
                                 setIsClientSearchOpen(false)
                                 setClientSearch("")
+                                recalculatePricesForClient(c.id)
                               }}
                             >
                               <span className="absolute left-3 top-3.5 flex h-4 w-4 items-center justify-center">
@@ -584,7 +626,16 @@ export default function SalesOrdersPage() {
                         <TableBody>
                           {lineItems.map(item => (
                             <TableRow key={item.id}>
-                              <TableCell className="font-medium text-sm py-2">{item.productName}</TableCell>
+                              <TableCell className="font-medium text-sm py-2">
+                                <div className="flex flex-col gap-0.5">
+                                  <span>{item.productName}</span>
+                                  {item.isCustomPrice && (
+                                    <span className="text-[8px] font-bold text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded w-fit border border-emerald-200 uppercase">
+                                      {item.priceSource === 'Custom' ? 'HARGA KUSTOM' : `PRICE LIST: ${item.priceSource}`}
+                                    </span>
+                                  )}
+                                </div>
+                              </TableCell>
                               <TableCell className="text-right text-sm py-2">{item.qty}</TableCell>
                               <TableCell className="text-center text-xs py-2 text-slate-500">{products.find(p => p.id === item.productId)?.uom ?? '-'}</TableCell>
                               <TableCell className="text-right text-sm py-2">{formatRupiah(item.unitPrice)}</TableCell>

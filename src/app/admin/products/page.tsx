@@ -149,26 +149,30 @@ export default function ProductsPage() {
       return
     }
 
-    if (!confirm(`Otomatis deteksi kategori untuk ${uncategorizedItems.length} produk berdasarkan nama barang?`)) return
+    if (!window.confirm(`Otomatis deteksi kategori untuk ${uncategorizedItems.length} produk berdasarkan nama barang?`)) return
 
-    toast.loading(`Menganalisis ${uncategorizedItems.length} produk...`, { id: "auto_cat" })
+    toast.loading(`Menganalisis dan mengategorikan ${uncategorizedItems.length} produk...`, { id: "auto_cat" })
     
     try {
-      let count = 0
-      const chunkSize = 50
-      for (let i = 0; i < uncategorizedItems.length; i += chunkSize) {
-        const chunk = uncategorizedItems.slice(i, i + chunkSize)
-        await Promise.all(chunk.map(p => {
-            const suggested = inferCategory(p.name)
-            if (suggested !== "Lain-lain") {
-               count++
-               return updateProduct(p.id, { category: suggested })
-            }
-            return Promise.resolve()
-        }))
+      const updates: { id: string, data: Partial<Product> }[] = []
+      
+      uncategorizedItems.forEach(p => {
+        const suggested = inferCategory(p.name)
+        if (suggested !== "Lain-lain") {
+          updates.push({ id: p.id, data: { category: suggested } })
+        }
+      })
+
+      if (updates.length > 0) {
+        // Use bulk update to avoid thrashing the UI/Server
+        const { updateMultipleProducts } = useAppStore.getState()
+        await updateMultipleProducts(updates)
+        toast.success(`Selesai! Berhasil mengklasifikasikan ${updates.length} produk ke kategori baru.`, { id: "auto_cat" })
+      } else {
+        toast.info("Tidak ada kategori baru yang cocok ditemukan.", { id: "auto_cat" })
       }
-      toast.success(`Selesai! Berhasil mengklasifikasikan ${count} produk ke kategori baru.`, { id: "auto_cat" })
     } catch (err) {
+      console.error(err)
       toast.error("Gagal melakukan kategorisasi otomatis", { id: "auto_cat" })
     }
   }

@@ -207,6 +207,7 @@ interface AppState {
   addProducts: (products: Product[]) => void;
   clearProducts: () => Promise<void>;
   updateProduct: (id: string, data: Partial<Product>) => void;
+  updateMultipleProducts: (updates: { id: string, data: Partial<Product> }[]) => Promise<void>;
   stockMovements: StockMovement[];
   addStockMovement: (movement: StockMovement) => Promise<void>;
   
@@ -1071,8 +1072,34 @@ export const useAppStore = create<AppState>((set, get) => ({
         const updatedProducts = get().products.map(p => p.id === id ? { ...p, ...data } : p);
         set({ products: updatedProducts });
         saveLocalProductsCache(updatedProducts);
-        const updated = get().products.find(p => p.id === id);
+        const updated = updatedProducts.find(p => p.id === id);
         if (updated) await get().syncTable('products', updated);
+      },
+      updateMultipleProducts: async (updates) => {
+        if (!updates.length) return;
+        set({ isSyncing: true });
+        try {
+          const productMap = new Map((get().products || []).map(p => [p.id, p]));
+          updates.forEach(update => {
+            const p = productMap.get(update.id);
+            if (p) productMap.set(update.id, { ...p, ...update.data });
+          });
+          const updatedProducts = Array.from(productMap.values());
+          set({ products: updatedProducts });
+          saveLocalProductsCache(updatedProducts);
+
+          // Bulk sync to DB
+          await fetch('/api/db', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              table: 'products', 
+              data: updates.map(u => ({ id: u.id, ...u.data })) // Supabase upsert will handle this
+            })
+          });
+        } finally {
+          set({ isSyncing: false });
+        }
       },
       stockMovements: [],
       addStockMovement: async (movement) => {
