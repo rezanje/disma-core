@@ -634,7 +634,7 @@ export default function InvoicesPage() {
 
             <div className="space-y-2">
               <label className="text-sm font-semibold">Rekening Bank Tujuan</label>
-              <Select value={paymentBankAccountId} onValueChange={setPaymentBankAccountId}>
+              <Select value={paymentBankAccountId} onValueChange={(val) => setPaymentBankAccountId(val || "")}>
                 <SelectTrigger className="h-12">
                   <SelectValue placeholder="Pilih rekening bank..." />
                 </SelectTrigger>

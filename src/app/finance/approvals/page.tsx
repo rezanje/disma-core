@@ -84,6 +84,9 @@ export default function FinanceHubPage() {
   }).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   const pendingExpensesLain = expenses.filter(e => e.status === 'Pending Audit' && !e.purchaseId && e.category !== 'Belanja Online' && e.category !== 'Sourcing (HPP)');
+  const pendingReimbs = reimbursements.filter(r => r.status === 'Pending')
+  const awaitingVerification = sourcingSettlements
+  const pendingReturns = expenses.filter(e => e.category === 'Setoran Pengembalian' && e.status === 'Pending Audit')
   const awaitingOnlineAudit = expenses.filter(e => e.status === 'Pending Audit' && (e.category === 'Belanja Online' || e.category === 'Sourcing (HPP)'));
   const awaitingDeliveryAudit = deliveries.filter(d => d.status === 'Awaiting Audit')
 
@@ -468,11 +471,11 @@ export default function FinanceHubPage() {
           </TabsContent>
 
           <TabsContent value="audit" className="space-y-6 text-center">
-            {pendingExpenses.length === 0 ? (
+            {pendingExpensesLain.length === 0 ? (
               <EmptyState title="Audit Operasional Clear" desc="Semua pengajuan penda sudah diaudit." />
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-left">
-                  {pendingExpenses.map(exp => {
+                  {pendingExpensesLain.map(exp => {
                     const reporter = users.find(u => u.id === exp.reporterId)
                     return (
                         <Card key={exp.id} className="border-none shadow-xl rounded-[2.5rem] bg-white group hover:shadow-slate-500/5 transition-all">
