@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc:*)",
+      "Bash(curl -s -X POST https://plzkrzzmqatjgsitvmfd.supabase.co/storage/v1/bucket -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsemtyenptcWF0amdzaXR2bWZkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDgwMzQ1OCwiZXhwIjoyMDkwMzc5NDU4fQ.xaSluKpM8JQiBZwbEX-Vrx8d-cIXcAGey8uKBDDsGtQ' -H 'Content-Type: application/json' -d '{\"id\": \"uploads\", \"name\": \"uploads\", \"public\": true, \"fileSizeLimit\": 10485760}')",
+      "Bash(curl -s https://plzkrzzmqatjgsitvmfd.supabase.co/storage/v1/bucket -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsemtyenptcWF0amdzaXR2bWZkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDgwMzQ1OCwiZXhwIjoyMDkwMzc5NDU4fQ.xaSluKpM8JQiBZwbEX-Vrx8d-cIXcAGey8uKBDDsGtQ')",
+      "Bash(curl -s -X POST https://plzkrzzmqatjgsitvmfd.supabase.co/rest/v1/rpc/exec_sql -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsemtyenptcWF0amdzaXR2bWZkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDgwMzQ1OCwiZXhwIjoyMDkwMzc5NDU4fQ.xaSluKpM8JQiBZwbEX-Vrx8d-cIXcAGey8uKBDDsGtQ' -H 'Content-Type: application/json' -d '{\"query\": \"INSERT INTO storage.policies \\(name, bucket_id, definition, check_expression\\) VALUES \\(\\\\\"Allow public read\\\\\", \\\\\"uploads\\\\\", \\\\\"true\\\\\", null\\) ON CONFLICT DO NOTHING\"}')",
+      "Bash(curl -s -X PUT https://plzkrzzmqatjgsitvmfd.supabase.co/storage/v1/bucket/uploads -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsemtyenptcWF0amdzaXR2bWZkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDgwMzQ1OCwiZXhwIjoyMDkwMzc5NDU4fQ.xaSluKpM8JQiBZwbEX-Vrx8d-cIXcAGey8uKBDDsGtQ' -H 'Content-Type: application/json' -d '{\"public\": true, \"fileSizeLimit\": 10485760}')",
+      "Bash(curl -s -X POST https://plzkrzzmqatjgsitvmfd.supabase.co/storage/v1/object/uploads/test/ping.txt -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsemtyenptcWF0amdzaXR2bWZkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDgwMzQ1OCwiZXhwIjoyMDkwMzc5NDU4fQ.xaSluKpM8JQiBZwbEX-Vrx8d-cIXcAGey8uKBDDsGtQ' -H 'Content-Type: text/plain' -d ok)"
+    ]
+  }
+}
