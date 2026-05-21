@@ -569,6 +569,13 @@ export const useAppStore = create<AppState>((set, get) => ({
               const { toast } = await import('sonner');
               toast.error(`⚠️ Gagal menyimpan ${table} ke server! Data tersimpan lokal saja. Coba sync lagi nanti.`, { duration: 8000 });
             }
+            // CRITICAL: accounting tables MUST propagate failure so callers (e.g. createAccountingEntry)
+            // can abort and prevent silent data corruption (transaction marked done without journal).
+            const CRITICAL_TABLES = ['journal_entries', 'journal_lines', 'cash_transactions', 'bank_accounts'];
+            if (CRITICAL_TABLES.includes(table)) {
+              set({ isSyncing: false });
+              throw retryError;
+            }
           }
         } finally {
           set({ isSyncing: false });
