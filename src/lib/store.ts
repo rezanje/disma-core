@@ -1579,6 +1579,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       deleteTask: async (id) => {
         const before = get().tasks.find(t => t.id === id);
         set((state) => ({ tasks: state.tasks.filter(t => t.id !== id) }));
+        await fetch('/api/db', { method: 'DELETE', body: JSON.stringify({ table: 'disma_tasks', id }) });
         if (before) await get().logHistory({ table: 'disma_tasks', recordId: id, action: 'delete', oldData: before, newData: null });
       },
       

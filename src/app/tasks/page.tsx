@@ -48,6 +48,25 @@ const STATUS_COLORS = {
   Cancelled: "bg-rose-100 text-rose-600",
 }
 
+function TaskProgressSlider({ task, updateTask }: { task: AppTask, updateTask: (id: string, data: Partial<AppTask>) => void }) {
+  const [val, setVal] = useState(task.progress || 0)
+  
+  return (
+    <div className="pt-2 flex items-center gap-3">
+       <input 
+         type="range" 
+         min="0" max="100" 
+         className="w-full max-w-[150px] h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-500" 
+         value={val}
+         onChange={(e) => setVal(Number(e.target.value))}
+         onPointerUp={() => updateTask(task.id, { progress: val })}
+         onTouchEnd={() => updateTask(task.id, { progress: val })}
+       />
+       <span className="text-[10px] font-black text-slate-500 w-8">{val}%</span>
+    </div>
+  )
+}
+
 export default function TaskTrackerPage() {
   const tasks = useAppStore(state => state.tasks)
   const users = useAppStore(state => state.users)
@@ -362,16 +381,7 @@ export default function TaskTrackerPage() {
                       </div>
                       
                       {/* Progress Slider */}
-                      <div className="pt-2 flex items-center gap-3">
-                         <input 
-                           type="range" 
-                           min="0" max="100" 
-                           className="w-full max-w-[150px] h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-500" 
-                           value={task.progress || 0}
-                           onChange={(e) => updateTask(task.id, { progress: Number(e.target.value) })}
-                         />
-                         <span className="text-[10px] font-black text-slate-500 w-8">{task.progress || 0}%</span>
-                      </div>
+                      <TaskProgressSlider task={task} updateTask={updateTask} />
                     </div>
                   </div>
 

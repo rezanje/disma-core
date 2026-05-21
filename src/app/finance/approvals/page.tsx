@@ -470,7 +470,7 @@ export default function FinanceHubPage() {
           id: `ops-${Date.now()}-${uuidv4().slice(0, 4)}`,
           purchaseId: directSettleId,
           amount: op.amount,
-          category: op.category,
+          category: op.category as any,
           description: op.note || `Biaya Operasional Sourcing (${op.category})`,
           date: now,
           status: 'Pending Audit',
