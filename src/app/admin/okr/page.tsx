@@ -18,6 +18,44 @@ import { v4 as uuidv4 } from "uuid"
 import { toast } from "sonner"
 import { OkrObjective, OkrKeyResult } from "@/types"
 
+function KRProgressUpdater({ kr, okrId, updateOkr, okrs }: any) {
+  const [val, setVal] = useState(kr.currentValue || 0)
+  
+  const saveValue = (newVal: number) => {
+      const targetOkr = okrs.find((o: any) => o.id === okrId)
+      if (!targetOkr) return
+      const updatedKRs = targetOkr.keyResults.map((k: any) => k.id === kr.id ? { ...k, currentValue: newVal } : k)
+      let totalProgress = 0;
+      updatedKRs.forEach((k: any) => {
+          const prog = (k.currentValue / k.targetValue) * 100;
+          totalProgress += Math.min(prog, 100);
+      });
+      const newParentProgress = updatedKRs.length > 0 ? (totalProgress / updatedKRs.length) : 0;
+      updateOkr(okrId, { keyResults: updatedKRs, progress: newParentProgress });
+  }
+
+  return (
+    <div className="flex items-center gap-2 mt-2">
+       <input 
+         type="range" 
+         min="0" max={kr.targetValue} 
+         className="w-full max-w-[100px] h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-500" 
+         value={val}
+         onChange={(e) => setVal(Number(e.target.value))}
+         onPointerUp={() => saveValue(val)}
+         onTouchEnd={() => saveValue(val)}
+       />
+       <input 
+         type="number" 
+         className="w-16 h-6 text-xs text-center border border-slate-200 rounded bg-white text-slate-700" 
+         value={val} 
+         onChange={e => setVal(Number(e.target.value))}
+         onBlur={() => saveValue(val)}
+       />
+    </div>
+  )
+}
+
 export default function OkrFrameworkPage() {
   const okrs = useAppStore(state => state.okrObjectives) || []
   const kpis = useAppStore(state => state.kpiObjectives) || []
@@ -217,6 +255,9 @@ export default function OkrFrameworkPage() {
                                             {isKpiLinked && <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />}
                                             <p className="text-[10px] uppercase font-black tracking-wide text-slate-400">{linkedTitle}</p>
                                          </div>
+                                         {!isKpiLinked && (
+                                            <KRProgressUpdater kr={kr} okrId={okr.id} updateOkr={updateOkr} okrs={okrs} />
+                                         )}
                                       </div>
                                    </div>
                                    

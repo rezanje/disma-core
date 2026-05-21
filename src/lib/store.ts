@@ -350,6 +350,7 @@ interface AppState {
   announcement: Announcement | null;
   addLead: (lead: Lead) => void;
   updateLead: (id: string, updates: Partial<Lead>) => void;
+  deleteLead: (id: string) => void;
   updateAnnouncement: (announcement: Announcement | null) => void;
 
   // Task Tracker
@@ -1558,6 +1559,12 @@ export const useAppStore = create<AppState>((set, get) => ({
           if (before) await get().logHistory({ table: 'leads', recordId: id, action: 'update', oldData: before, newData: updated });
         }
       },
+      deleteLead: async (id) => {
+        const before = get().leads.find(l => l.id === id);
+        set((state) => ({ leads: state.leads.filter(l => l.id !== id) }));
+        await fetch('/api/db', { method: 'DELETE', body: JSON.stringify({ table: 'leads', id }) });
+        if (before) await get().logHistory({ table: 'leads', recordId: id, action: 'delete', oldData: before, newData: null });
+      },
       updateAnnouncement: (announcement) => set({ announcement }),
 
       tasks: [],
@@ -1639,7 +1646,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       okrObjectives: [],
       addOkr: async (okr) => {
         set((state) => ({ okrObjectives: [...state.okrObjectives, okr] }));
-        await get().syncTable('okr_objectives', okr);
+        const { keyResults, ...objectiveData } = okr;
+        await get().syncTable('okr_objectives', objectiveData);
       },
       updateOkr: async (id, data) => {
         const before = get().okrObjectives.find(o => o.id === id);
@@ -1648,7 +1656,14 @@ export const useAppStore = create<AppState>((set, get) => ({
         }));
         const updated = get().okrObjectives.find(o => o.id === id);
         if (updated) {
-          await get().syncTable('okr_objectives', updated);
+          const { keyResults, ...objectiveData } = updated;
+          await get().syncTable('okr_objectives', objectiveData);
+          if (data.keyResults && data.keyResults.length > 0) {
+              await fetch('/api/db', {
+                  method: 'POST',
+                  body: JSON.stringify({ table: 'okr_key_results', data: data.keyResults })
+              });
+          }
           if (before) await get().logHistory({ table: 'okr_objectives', recordId: id, action: 'update', oldData: before, newData: updated });
         }
       },

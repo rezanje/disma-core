@@ -12,7 +12,8 @@ import {
   Layers,
   Search,
   Users,
-  Briefcase
+  Briefcase,
+  Trash2
 } from "lucide-react"
 import { 
   Dialog,
@@ -41,6 +42,7 @@ export default function CRMPipelinePage() {
   const leads = useAppStore(state => state.leads)
   const addLead = useAppStore(state => state.addLead)
   const updateLead = useAppStore(state => state.updateLead)
+  const deleteLead = useAppStore(state => state.deleteLead)
 
   const [isAddLeadOpen, setIsAddLeadOpen] = useState(false)
   const [newLead, setNewLead] = useState({ companyName: "", contactName: "", value: "0", status: "Lead" as LeadStatus })
@@ -72,8 +74,8 @@ export default function CRMPipelinePage() {
   }
 
   const filteredLeads = leads.filter(l => 
-    l.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    l.contactName.toLowerCase().includes(searchTerm.toLowerCase())
+    l.companyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    l.contactName?.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
   const pipelineValue = leads.reduce((sum, l) => sum + (l.status !== 'Closed' ? l.value : 0), 0)
@@ -200,20 +202,35 @@ export default function CRMPipelinePage() {
                                <CardContent className="p-4">
                                   <div className="flex justify-between items-start mb-2">
                                      <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{lead.companyName}</p>
-                                     <Select 
-                                        value={lead.status} 
-                                        onValueChange={(val) => handleStatusChange(lead.id, val as LeadStatus)}
-                                      >
-                                        <SelectTrigger className="w-8 h-8 p-0 border-none bg-slate-50 dark:bg-slate-800 shadow-none hover:bg-slate-100 rounded-full flex items-center justify-center">
-                                           <ArrowUpRight className="w-3.5 h-3.5 text-slate-400" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                           <SelectItem value="Lead">Move to Lead</SelectItem>
-                                           <SelectItem value="Meeting">Move to Meeting</SelectItem>
-                                           <SelectItem value="Quotation">Move to Quotation</SelectItem>
-                                           <SelectItem value="Closed">Mark as Closed/Deal</SelectItem>
-                                        </SelectContent>
-                                     </Select>
+                                     <div className="flex items-center gap-1">
+                                        <Button
+                                           variant="ghost"
+                                           size="icon"
+                                           className="w-8 h-8 rounded-full text-slate-300 hover:text-rose-500 hover:bg-rose-50"
+                                           onClick={() => {
+                                              if (confirm("Hapus lead ini permanen?")) {
+                                                 deleteLead(lead.id)
+                                                 toast.success("Lead berhasil dihapus")
+                                              }
+                                           }}
+                                        >
+                                           <Trash2 className="w-3.5 h-3.5" />
+                                        </Button>
+                                        <Select 
+                                           value={lead.status} 
+                                           onValueChange={(val) => handleStatusChange(lead.id, val as LeadStatus)}
+                                         >
+                                           <SelectTrigger className="w-8 h-8 p-0 border-none bg-slate-50 dark:bg-slate-800 shadow-none hover:bg-slate-100 rounded-full flex items-center justify-center">
+                                              <ArrowUpRight className="w-3.5 h-3.5 text-slate-400" />
+                                           </SelectTrigger>
+                                           <SelectContent>
+                                              <SelectItem value="Lead">Move to Lead</SelectItem>
+                                              <SelectItem value="Meeting">Move to Meeting</SelectItem>
+                                              <SelectItem value="Quotation">Move to Quotation</SelectItem>
+                                              <SelectItem value="Closed">Mark as Closed/Deal</SelectItem>
+                                           </SelectContent>
+                                        </Select>
+                                     </div>
                                   </div>
                                   <div className="flex items-center gap-1.5 mb-3">
                                      <Users className="w-3 h-3 text-slate-400" />
