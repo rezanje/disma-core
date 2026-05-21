@@ -13,7 +13,7 @@ import { format, differenceInDays, parseISO } from "date-fns"
 import { id as localeId } from "date-fns/locale"
 import { formatRupiah } from "@/lib/utils"
 import type { Invoice, Client } from "@/types"
-import AuthGuard from "@/components/auth/AuthGuard"
+import AuthGuard from "@/components/auth/auth-guard"
 
 type AgingBucket = 'current' | '1-30' | '31-60' | '61-90' | '90+'
 

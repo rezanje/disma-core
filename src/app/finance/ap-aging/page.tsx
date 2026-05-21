@@ -18,7 +18,9 @@ import { formatRupiah, formatNumber, parseNumber } from "@/lib/utils"
 import { createAccountingEntry } from "@/lib/accounting"
 import { v4 as uuidv4 } from "uuid"
 import type { VendorBill, VendorBillPayment } from "@/types"
-import AuthGuard from "@/components/auth/AuthGuard"
+import AuthGuard from "@/components/auth/auth-guard"
+
+type VendorBillWithAging = VendorBill & { outstanding: number; agingDays: number; bucket: APBucket }
 
 type APBucket = 'current' | '1-30' | '31-60' | '61-90' | '90+'
 
@@ -66,7 +68,7 @@ export default function APAgingPage() {
   const isSyncing = useAppStore(s => s.isSyncing)
 
   const [isAddOpen, setIsAddOpen] = useState(false)
-  const [payingBill, setPayingBill] = useState<VendorBill | null>(null)
+  const [payingBill, setPayingBill] = useState<VendorBillWithAging | null>(null)
   const [search, setSearch] = useState('')
   const [bucketFilter, setBucketFilter] = useState<'all' | APBucket>('all')
 
@@ -478,7 +480,7 @@ export default function APAgingPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Vendor</Label>
-                <Select value={fVendorId} onValueChange={setFVendorId}>
+                <Select value={fVendorId} onValueChange={v => v && setFVendorId(v)}>
                   <SelectTrigger className="h-11 rounded-xl">
                     <SelectValue placeholder="Pilih vendor">
                       {vendors.find(v => v.id === fVendorId)?.companyName}
@@ -494,7 +496,7 @@ export default function APAgingPage() {
               </div>
               <div className="space-y-2">
                 <Label>Kategori</Label>
-                <Select value={fCategory} onValueChange={setFCategory}>
+                <Select value={fCategory} onValueChange={v => v && setFCategory(v)}>
                   <SelectTrigger className="h-11 rounded-xl">
                     <SelectValue>{fCategory}</SelectValue>
                   </SelectTrigger>
@@ -554,7 +556,7 @@ export default function APAgingPage() {
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label>Bayar Dari (Bank)</Label>
-              <Select value={pBankId} onValueChange={setPBankId}>
+              <Select value={pBankId} onValueChange={v => v && setPBankId(v)}>
                 <SelectTrigger className="h-11 rounded-xl">
                   <SelectValue placeholder="Pilih bank">
                     {bankAccounts.find(b => b.id === pBankId)?.name}

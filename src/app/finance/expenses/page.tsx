@@ -18,7 +18,7 @@ import { formatRupiah, formatNumber, parseNumber } from "@/lib/utils"
 import { createAccountingEntry } from "@/lib/accounting"
 import ReceiptUpload from "@/components/ui/receipt-upload"
 import { v4 as uuidv4 } from "uuid"
-import AuthGuard from "@/components/auth/AuthGuard"
+import AuthGuard from "@/components/auth/auth-guard"
 
 const EXPENSE_CATEGORIES = [
   { value: 'Beban Gaji', label: '👥 Beban Gaji Karyawan', coa: '6-1000' },
@@ -231,7 +231,7 @@ export default function PengeluaranUmumPage() {
                   onChange={e => setSearch(e.target.value)}
                 />
               </div>
-              <Select value={filterBank} onValueChange={v => setFilterBank(v === 'all' ? '' : v)}>
+              <Select value={filterBank} onValueChange={v => setFilterBank(!v || v === 'all' ? '' : v)}>
                 <SelectTrigger className="h-10 rounded-xl w-48">
                   <SelectValue placeholder="Semua Bank" />
                 </SelectTrigger>
@@ -310,7 +310,7 @@ export default function PengeluaranUmumPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Bank / Sumber Dana</Label>
-                <Select value={fBankId} onValueChange={v => setFBankId(v)}>
+                <Select value={fBankId} onValueChange={v => v && setFBankId(v)}>
                   <SelectTrigger className="h-11 rounded-xl">
                     <SelectValue placeholder="Pilih bank">{bankAccounts.find(b => b.id === fBankId)?.name}</SelectValue>
                   </SelectTrigger>
@@ -323,7 +323,7 @@ export default function PengeluaranUmumPage() {
               </div>
               <div className="space-y-2">
                 <Label>Kategori</Label>
-                <Select value={fCategory} onValueChange={v => setFCategory(v)}>
+                <Select value={fCategory} onValueChange={v => v && setFCategory(v)}>
                   <SelectTrigger className="h-11 rounded-xl">
                     <SelectValue placeholder="Pilih kategori">{fCategory}</SelectValue>
                   </SelectTrigger>
