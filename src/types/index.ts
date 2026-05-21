@@ -334,7 +334,7 @@ export interface CashTransaction {
   receiptUrl?: string;
 }
 
-export type LeadStatus = 'Lead' | 'Meeting' | 'Quotation' | 'Closed';
+export type LeadStatus = 'Lead' | 'Contacted' | 'Meeting' | 'Quotation' | 'Deal' | 'Repeat' | 'Sudah Berhenti';
 
 export interface Lead {
   id: string;
@@ -343,6 +343,14 @@ export interface Lead {
   value: number;
   status: LeadStatus;
   notes?: string;
+  channel?: string;
+  jabatan?: string;
+  noHp?: string;
+  email?: string;
+  picDisma?: string;
+  priority?: 'High' | 'Medium' | 'Low';
+  lastContact?: string;
+  nextStepContact?: string;
   createdAt: string;
 }
 export interface Announcement {

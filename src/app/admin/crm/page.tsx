@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useAppStore } from "@/lib/store"
 import { formatRupiah } from "@/lib/utils"
-import { LeadStatus } from "@/types"
+import { Lead, LeadStatus } from "@/types"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { 
   Target,
@@ -45,7 +45,13 @@ export default function CRMPipelinePage() {
   const deleteLead = useAppStore(state => state.deleteLead)
 
   const [isAddLeadOpen, setIsAddLeadOpen] = useState(false)
-  const [newLead, setNewLead] = useState({ companyName: "", contactName: "", value: "0", status: "Lead" as LeadStatus })
+  const initialLeadState = { 
+    companyName: "", contactName: "", value: "0", status: "Lead" as LeadStatus,
+    channel: "", jabatan: "", noHp: "", email: "", picDisma: "", priority: "Medium" as "High" | "Medium" | "Low", lastContact: "", nextStepContact: ""
+  }
+  const [newLead, setNewLead] = useState(initialLeadState)
+  const [editingLead, setEditingLead] = useState<Lead | null>(null)
+  const [isEditOpen, setIsEditOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
 
   const handleAddLead = () => {
@@ -60,12 +66,27 @@ export default function CRMPipelinePage() {
       contactName: newLead.contactName,
       value: parseFloat(newLead.value),
       status: newLead.status,
+      channel: newLead.channel,
+      jabatan: newLead.jabatan,
+      noHp: newLead.noHp,
+      email: newLead.email,
+      picDisma: newLead.picDisma,
+      priority: newLead.priority,
+      lastContact: newLead.lastContact,
+      nextStepContact: newLead.nextStepContact,
       createdAt: new Date().toISOString()
     })
     
     setIsAddLeadOpen(false)
-    setNewLead({ companyName: "", contactName: "", value: "0", status: "Lead" })
+    setNewLead(initialLeadState)
     toast.success("Lead baru berhasil didaftarkan.")
+  }
+
+  const handleEditLead = () => {
+    if (!editingLead) return
+    updateLead(editingLead.id, editingLead)
+    setIsEditOpen(false)
+    toast.success("Lead berhasil diupdate.")
   }
 
   const handleStatusChange = (leadId: string, newStatus: LeadStatus) => {
@@ -78,8 +99,9 @@ export default function CRMPipelinePage() {
     l.contactName?.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
-  const pipelineValue = leads.reduce((sum, l) => sum + (l.status !== 'Closed' ? l.value : 0), 0)
-  const closedValue = leads.filter(l => l.status === 'Closed').reduce((sum, l) => sum + l.value, 0)
+  const pipelineValue = leads.reduce((sum, l) => sum + (l.status !== 'Deal' && l.status !== 'Repeat' && l.status !== 'Sudah Berhenti' ? l.value : 0), 0)
+  const closedValue = leads.filter(l => l.status === 'Deal' || l.status === 'Repeat').reduce((sum, l) => sum + l.value, 0)
+  const activeLeadsCount = leads.filter(l => l.status !== 'Deal' && l.status !== 'Repeat' && l.status !== 'Sudah Berhenti').length
 
   return (
     <AuthGuard allowedRoles={['ceo', 'super_admin', 'cmo']}>
@@ -166,7 +188,7 @@ export default function CRMPipelinePage() {
            <Card className="border-none shadow-sm bg-white dark:bg-slate-900 border-l-4 border-l-rose-500">
               <CardContent className="p-4">
                  <p className="text-[10px] font-black uppercase text-slate-400 mb-1">Active Leads</p>
-                 <h4 className="text-xl font-black text-rose-600">{leads.filter(l => l.status !== 'Closed').length}</h4>
+                 <h4 className="text-xl font-black text-rose-600">{activeLeadsCount}</h4>
               </CardContent>
            </Card>
            <Card className="border-none shadow-sm bg-white dark:bg-slate-900 border-l-4 border-l-emerald-500">
@@ -178,11 +200,11 @@ export default function CRMPipelinePage() {
         </div>
 
         {/* The Pipeline Board */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {['Lead', 'Meeting', 'Quotation', 'Closed'].map((status) => {
+        <div className="flex gap-4 overflow-x-auto pb-4">
+          {(['Lead', 'Contacted', 'Meeting', 'Quotation', 'Deal', 'Repeat', 'Sudah Berhenti'] as LeadStatus[]).map((status) => {
              const currentLeads = filteredLeads.filter(l => l.status === status)
              return (
-                <div key={status} className="space-y-3">
+                <div key={status} className="space-y-3 min-w-[300px] shrink-0">
                    <div className="flex items-center justify-between px-2">
                       <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-1">
                          <Layers className="w-3 h-3" /> {status}
@@ -197,12 +219,19 @@ export default function CRMPipelinePage() {
                          </div>
                       ) : (
                          currentLeads.map(lead => (
-                            <Card key={lead.id} className="border-none shadow-sm hover:shadow-xl transition-all duration-300 group rounded-2xl bg-white dark:bg-slate-900 overflow-hidden">
-                               <div className={`h-1 w-full ${status === 'Closed' ? 'bg-emerald-500' : 'bg-emerald-400'}`} />
+                            <Card 
+                               key={lead.id} 
+                               onClick={() => {
+                                 setEditingLead(lead)
+                                 setIsEditOpen(true)
+                               }}
+                               className="border-none shadow-sm hover:shadow-xl transition-all duration-300 group rounded-2xl bg-white dark:bg-slate-900 overflow-hidden cursor-pointer"
+                            >
+                               <div className={`h-1 w-full ${['Deal', 'Repeat'].includes(status) ? 'bg-emerald-500' : status === 'Sudah Berhenti' ? 'bg-rose-500' : 'bg-emerald-400'}`} />
                                <CardContent className="p-4">
                                   <div className="flex justify-between items-start mb-2">
                                      <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{lead.companyName}</p>
-                                     <div className="flex items-center gap-1">
+                                     <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                                         <Button
                                            variant="ghost"
                                            size="icon"
@@ -224,17 +253,28 @@ export default function CRMPipelinePage() {
                                               <ArrowUpRight className="w-3.5 h-3.5 text-slate-400" />
                                            </SelectTrigger>
                                            <SelectContent>
-                                              <SelectItem value="Lead">Move to Lead</SelectItem>
-                                              <SelectItem value="Meeting">Move to Meeting</SelectItem>
-                                              <SelectItem value="Quotation">Move to Quotation</SelectItem>
-                                              <SelectItem value="Closed">Mark as Closed/Deal</SelectItem>
+                                              <SelectItem value="Lead">Lead</SelectItem>
+                                              <SelectItem value="Contacted">Contacted</SelectItem>
+                                              <SelectItem value="Meeting">Meeting</SelectItem>
+                                              <SelectItem value="Quotation">Quotation</SelectItem>
+                                              <SelectItem value="Deal">Deal</SelectItem>
+                                              <SelectItem value="Repeat">Repeat</SelectItem>
+                                              <SelectItem value="Sudah Berhenti">Sudah Berhenti</SelectItem>
                                            </SelectContent>
                                         </Select>
                                      </div>
                                   </div>
-                                  <div className="flex items-center gap-1.5 mb-3">
-                                     <Users className="w-3 h-3 text-slate-400" />
-                                     <p className="text-[10px] text-slate-500 font-medium truncate">{lead.contactName}</p>
+                                  <div className="flex flex-col gap-1.5 mb-3">
+                                     <div className="flex items-center gap-1.5">
+                                        <Users className="w-3 h-3 text-slate-400" />
+                                        <p className="text-[10px] text-slate-500 font-medium truncate">{lead.contactName}</p>
+                                     </div>
+                                     {lead.picDisma && (
+                                       <div className="flex items-center gap-1.5">
+                                          <Target className="w-3 h-3 text-indigo-400" />
+                                          <p className="text-[10px] text-indigo-500 font-bold truncate">PIC: {lead.picDisma}</p>
+                                       </div>
+                                     )}
                                   </div>
                                   <div className="flex items-center justify-between mt-auto">
                                      <p className="text-sm font-black text-emerald-600">{formatRupiah(lead.value)}</p>
@@ -252,6 +292,111 @@ export default function CRMPipelinePage() {
           })}
         </div>
       </div>
+
+      {/* Edit Lead Dialog */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Detail / Edit Lead</DialogTitle>
+            <DialogDescription>Update informasi detail tentang lead ini.</DialogDescription>
+          </DialogHeader>
+          {editingLead && (
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
+               {/* Kolom Kiri */}
+               <div className="space-y-4">
+                  <div className="grid gap-2">
+                    <Label>Nama Perusahaan / Klien</Label>
+                    <Input value={editingLead.companyName} onChange={e => setEditingLead({...editingLead, companyName: e.target.value})} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Nama PIC / Kontak</Label>
+                    <Input value={editingLead.contactName} onChange={e => setEditingLead({...editingLead, contactName: e.target.value})} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Jabatan PIC</Label>
+                    <Input value={editingLead.jabatan || ""} onChange={e => setEditingLead({...editingLead, jabatan: e.target.value})} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>No. HP / WhatsApp</Label>
+                    <Input value={editingLead.noHp || ""} onChange={e => setEditingLead({...editingLead, noHp: e.target.value})} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Email</Label>
+                    <Input type="email" value={editingLead.email || ""} onChange={e => setEditingLead({...editingLead, email: e.target.value})} />
+                  </div>
+               </div>
+               
+               {/* Kolom Kanan */}
+               <div className="space-y-4">
+                  <div className="grid gap-2">
+                    <Label>Estimasi Nilai Proyek (Rp)</Label>
+                    <Input type="number" value={editingLead.value} onChange={e => setEditingLead({...editingLead, value: parseFloat(e.target.value) || 0})} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Status</Label>
+                    <Select value={editingLead.status} onValueChange={val => setEditingLead({...editingLead, status: val as LeadStatus})}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih Status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Lead">Lead</SelectItem>
+                        <SelectItem value="Contacted">Contacted</SelectItem>
+                        <SelectItem value="Meeting">Meeting</SelectItem>
+                        <SelectItem value="Quotation">Quotation</SelectItem>
+                        <SelectItem value="Deal">Deal</SelectItem>
+                        <SelectItem value="Repeat">Repeat</SelectItem>
+                        <SelectItem value="Sudah Berhenti">Sudah Berhenti</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Prioritas</Label>
+                    <Select value={editingLead.priority || "Medium"} onValueChange={val => setEditingLead({...editingLead, priority: val as "High"|"Medium"|"Low"})}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih Prioritas" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="High">High</SelectItem>
+                        <SelectItem value="Medium">Medium</SelectItem>
+                        <SelectItem value="Low">Low</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Channel (Asal Lead)</Label>
+                    <Input value={editingLead.channel || ""} placeholder="Misal: LinkedIn, Ref..." onChange={e => setEditingLead({...editingLead, channel: e.target.value})} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>PIC Disma</Label>
+                    <Input value={editingLead.picDisma || ""} placeholder="Tim internal yang handle" onChange={e => setEditingLead({...editingLead, picDisma: e.target.value})} />
+                  </div>
+               </div>
+               
+               {/* Kolom Bawah (Full Width) */}
+               <div className="md:col-span-2 space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label>Last Contact</Label>
+                      <Input type="date" value={editingLead.lastContact || ""} onChange={e => setEditingLead({...editingLead, lastContact: e.target.value})} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Next Step</Label>
+                      <Input value={editingLead.nextStepContact || ""} placeholder="Rencana selanjutnya..." onChange={e => setEditingLead({...editingLead, nextStepContact: e.target.value})} />
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Notes Tambahan</Label>
+                    <Input value={editingLead.notes || ""} onChange={e => setEditingLead({...editingLead, notes: e.target.value})} />
+                  </div>
+               </div>
+             </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditOpen(false)}>Batal</Button>
+            <Button onClick={handleEditLead} className="bg-emerald-600">Simpan Perubahan</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AuthGuard>
   )
 }
