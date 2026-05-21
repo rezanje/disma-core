@@ -68,6 +68,10 @@ export default function SalesOrdersPage() {
   const updateSalesOrderItem = useAppStore(state => state.updateSalesOrderItem)
   const getHistoricalClientPrice = useAppStore(state => state.getHistoricalClientPrice)
   const clientPrices = useAppStore(state => state.clientPrices) || []
+  const invoices = useAppStore(state => state.invoices)
+  const addDelivery = useAppStore(state => state.addDelivery)
+  const addInvoice = useAppStore(state => state.addInvoice)
+  const currentUser = useAppStore(state => state.currentUser)
   
   const [isOpen, setIsOpen] = useState(false)
   const [clientId, setClientId] = useState("")
@@ -341,14 +345,66 @@ export default function SalesOrdersPage() {
   }
 
   const advanceStatus = (soId: string, currentStatus: string) => {
-    const nextStatus = 
+    const nextStatus =
       currentStatus === 'Draft' ? 'Belanja' :
       currentStatus === 'Belanja' ? 'Packing' :
       currentStatus === 'Packing' ? 'Dikirim' :
       currentStatus === 'Dikirim' ? 'Terkirim' : currentStatus;
-      
+
     updateSalesOrder(soId, { status: nextStatus as SalesOrderStatus })
     toast.success(`Status updated to ${nextStatus}`)
+  }
+
+  // Fast-track: skip QC/gudang/kurir steps → jump directly to Awaiting Audit
+  // Creates delivery + invoice records so Finance Approvals can proceed normally
+  const FAST_TRACKABLE = ['Belanja', 'QC', 'Sourcing', 'Packing', 'Siap Kirim', 'Dikirim']
+
+  const handleFastTrack = async (soId: string) => {
+    const so = salesOrders.find(s => s.id === soId)
+    const client = clients.find(c => c.id === so?.clientId)
+    if (!so || !client) return
+
+    const soItems = salesOrderItems.filter(i => i.salesOrderId === soId)
+    const totalRevenue = soItems.reduce((sum, item) => {
+      const finalQty = item.qtyFinal ?? item.qty
+      return sum + (finalQty * item.unitPrice)
+    }, 0)
+
+    const deliveryId = uuidv4()
+    const invoiceId = uuidv4()
+    const dueDate = new Date()
+    dueDate.setDate(dueDate.getDate() + (client.paymentTermDays || 30))
+
+    toast.loading("Fast-track pengiriman...", { id: "fast_track" })
+    try {
+      await addDelivery({
+        id: deliveryId,
+        salesOrderId: soId,
+        courierId: currentUser?.id || 'admin',
+        status: 'Awaiting Audit',
+        deliveryDate: new Date().toISOString(),
+        invoiceId,
+        notes: `Fast-track by ${currentUser?.name || 'Admin'} (bypass QC/gudang/kurir)`
+      })
+
+      await addInvoice({
+        id: invoiceId,
+        salesOrderId: soId,
+        clientId: client.id,
+        issueDate: new Date().toISOString(),
+        dueDate: dueDate.toISOString(),
+        totalAmount: totalRevenue,
+        amountPaid: 0,
+        status: 'Unpaid'
+      })
+
+      await updateSalesOrder(soId, { status: 'Awaiting Audit' })
+
+      toast.success(`${so.poNumber} siap diaudit Finance. Cek tab Delivery di Finance Approvals.`, { id: "fast_track" })
+    } catch (e) {
+      console.error(e)
+      toast.error("Fast-track gagal", { id: "fast_track" })
+    }
   }
 
   const selectedSO = salesOrders.find(so => so.id === detailSOId)
@@ -807,6 +863,17 @@ export default function SalesOrdersPage() {
                           )}
                           {so.status === 'Dikirim' && (
                             <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 border-emerald-200">DALAM PERJALANAN</Badge>
+                          )}
+                          {FAST_TRACKABLE.includes(so.status) && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-amber-600 border-amber-300 hover:bg-amber-50 font-black text-[10px] uppercase tracking-wider"
+                              title="Fast-track: skip QC/gudang/kurir, langsung ke Awaiting Audit Finance"
+                              onClick={() => handleFastTrack(so.id)}
+                            >
+                              ⚡ Fast Track
+                            </Button>
                           )}
                         </TableCell>
                       </TableRow>
