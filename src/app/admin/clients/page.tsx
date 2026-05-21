@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
-import { Client, SalesOrder, SalesOrderItem, Invoice } from "@/types"
+import { Client, SalesOrder, SalesOrderItem, Invoice, Product, Purchase, PurchaseItem } from "@/types"
 
 export default function ClientsPage() {
   const clients: Client[] = useAppStore(state => state.clients)
@@ -36,6 +36,9 @@ export default function ClientsPage() {
   const salesOrders: SalesOrder[] = useAppStore(state => state.salesOrders)
   const salesOrderItems: SalesOrderItem[] = useAppStore(state => state.salesOrderItems)
   const invoices: Invoice[] = useAppStore(state => state.invoices)
+  const products: Product[] = useAppStore(state => state.products)
+  const purchases: Purchase[] = useAppStore(state => state.purchases)
+  const purchaseItems: PurchaseItem[] = useAppStore(state => state.purchaseItems)
   
   const [isOpen, setIsOpen] = useState(false)
   const [editingClient, setEditingClient] = useState<Client | null>(null)
@@ -443,7 +446,9 @@ export default function ClientsPage() {
                     return sum + (finalQty * item.unitPrice)
                   }, 0)
                 
-                // Exclude original invoices that have been superseded by a Tukar Faktur
+                // Exclude original invoices that have been superseded by a Tukar Faktur.
+                // Source of truth: explicit `supersededByInvoiceId`. Fallback to salesOrderIds membership
+                // in any consolidated invoice for data written before that field existed.
                 const clientInvoices = invoices.filter((inv: Invoice) => inv.clientId === client.id)
                 const consolidatedSOIds = new Set(
                   clientInvoices
@@ -451,7 +456,7 @@ export default function ClientsPage() {
                     .flatMap((inv: any) => inv.salesOrderIds)
                 )
                 const activeInvoices = clientInvoices.filter((inv: Invoice) => {
-                  // If this is an original (non-TF) invoice AND its SO has been absorbed into a TF, skip it
+                  if ((inv as any).supersededByInvoiceId) return false
                   if (inv.salesOrderId && consolidatedSOIds.has(inv.salesOrderId) && !(inv as any).isConsolidated) {
                     return false
                   }
@@ -542,7 +547,7 @@ export default function ClientsPage() {
 
       {/* DIALOG: CLIENT HISTORY & DOCUMENT ARCHIVE */}
       <Dialog open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col p-0 rounded-[2.5rem] border-none shadow-2xl">
+        <DialogContent className="max-w-5xl sm:max-w-5xl w-[95vw] max-h-[92vh] overflow-hidden flex flex-col p-0 rounded-[2.5rem] border-none shadow-2xl">
           <DialogHeader className="p-8 bg-slate-900 text-white shrink-0">
              <div className="flex items-center gap-4">
                 <div className="w-14 h-14 rounded-3xl bg-white/10 flex items-center justify-center text-emerald-400 shadow-inner">
@@ -561,11 +566,17 @@ export default function ClientsPage() {
              <Tabs defaultValue="orders" className="w-full">
                 <div className="px-8 pt-6 pb-0 bg-white border-b border-slate-100 flex justify-center">
                    <TabsList className="bg-slate-100 p-1 rounded-2xl h-12 w-fit mb-4">
-                      <TabsTrigger value="orders" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                         Order & Dokumen
+                      <TabsTrigger value="orders" className="rounded-xl px-6 font-black uppercase text-[10px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                         Order & Item
                       </TabsTrigger>
-                      <TabsTrigger value="billing" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                         Riwayat Penagihan
+                      <TabsTrigger value="purchases" className="rounded-xl px-6 font-black uppercase text-[10px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                         Belanja
+                      </TabsTrigger>
+                      <TabsTrigger value="billing" className="rounded-xl px-6 font-black uppercase text-[10px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                         Invoice
+                      </TabsTrigger>
+                      <TabsTrigger value="payments" className="rounded-xl px-6 font-black uppercase text-[10px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                         Riwayat Pembayaran
                       </TabsTrigger>
                    </TabsList>
                 </div>
@@ -582,25 +593,57 @@ export default function ClientsPage() {
                           .sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime())
                           .map(so => {
                              const hasDocs = so.archivedSuratJalanUrl || so.archivedBaUrl;
+                             const items = salesOrderItems.filter(it => it.salesOrderId === so.id)
+                             const soTotal = items.reduce((s, it) => s + ((it.qtyFinal ?? it.qty) * it.unitPrice), 0)
+                             const productName = (id: string) => products.find(p => p.id === id)?.name || id.slice(0,8)
                              return (
-                               <div key={so.id} className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300">
+                               <div key={so.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300">
                                   <div className="flex justify-between items-start mb-4">
                                      <div>
                                         <span className="text-[10px] font-black tracking-widest uppercase text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">{so.poNumber}</span>
                                         <p className="text-xs font-black text-slate-400 uppercase tracking-tight mt-2">{new Date(so.orderDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                                      </div>
-                                     <Badge variant="outline" className="font-black text-[10px] uppercase rounded-full">
-                                       {so.status}
-                                     </Badge>
+                                     <div className="flex flex-col items-end gap-1">
+                                        <Badge variant="outline" className="font-black text-[10px] uppercase rounded-full">
+                                          {so.status}
+                                        </Badge>
+                                        <span className="text-lg font-black text-emerald-700 tracking-tight">{formatRupiah(soTotal)}</span>
+                                     </div>
                                   </div>
-                                  
+
+                                  {/* LINE ITEMS */}
+                                  {items.length > 0 && (
+                                    <div className="mb-4 bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2">Item ({items.length})</p>
+                                      <div className="space-y-1.5">
+                                        {items.map(it => {
+                                          const qty = it.qtyFinal ?? it.qty
+                                          const sub = qty * it.unitPrice
+                                          const adjusted = it.qtyFinal != null && it.qtyFinal !== it.qty
+                                          return (
+                                            <div key={it.id} className="flex justify-between items-center text-xs">
+                                              <span className="font-bold text-slate-700">{productName(it.productId)}</span>
+                                              <div className="flex items-center gap-3">
+                                                <span className="text-slate-500 font-mono">
+                                                  {qty} × {formatRupiah(it.unitPrice)}
+                                                  {adjusted && <span className="text-amber-600 ml-1">(adj from {it.qty})</span>}
+                                                </span>
+                                                <span className="font-black text-slate-800 min-w-[110px] text-right">{formatRupiah(sub)}</span>
+                                              </div>
+                                            </div>
+                                          )
+                                        })}
+                                      </div>
+                                    </div>
+                                  )}
+
                                   {hasDocs ? (
                                     <div className="flex gap-2">
                                      {so.archivedSuratJalanUrl && (
                                        <div className="flex flex-col items-center gap-1">
-                                         <Button 
-                                           size="sm" 
-                                           variant="outline" 
+                                         <Button
+                                           size="sm"
+                                           variant="outline"
                                            className="h-8 w-8 rounded-lg p-0 border-emerald-100 text-emerald-600 hover:bg-emerald-50"
                                            onClick={() => setPdfPreview({ url: so.archivedSuratJalanUrl!, title: `Surat Jalan - ${so.poNumber}` })}
                                          >
@@ -611,9 +654,9 @@ export default function ClientsPage() {
                                      )}
                                      {so.archivedBaUrl && (
                                        <div className="flex flex-col items-center gap-1">
-                                         <Button 
-                                           size="sm" 
-                                           variant="outline" 
+                                         <Button
+                                           size="sm"
+                                           variant="outline"
                                            className="h-8 w-8 rounded-lg p-0 border-indigo-100 text-indigo-600 hover:bg-indigo-50"
                                            onClick={() => setPdfPreview({ url: so.archivedBaUrl!, title: `Berita Acara - ${so.poNumber}` })}
                                          >
@@ -635,16 +678,135 @@ export default function ClientsPage() {
                    </div>
                 </TabsContent>
 
+                {/* PURCHASES TAB — show every Purchase that contains a PurchaseItem linked to this client's SOs */}
+                <TabsContent value="purchases" className="p-8 space-y-6 mt-0">
+                   <div className="space-y-4">
+                      {(() => {
+                        if (!selectedHistoryClient) return null
+                        const clientSOIds = new Set(salesOrders.filter(so => so.clientId === selectedHistoryClient.id).map(so => so.id))
+                        const relevantItems = purchaseItems.filter(pi => pi.salesOrderId && clientSOIds.has(pi.salesOrderId))
+                        const relevantPurchaseIds = new Set(relevantItems.map(pi => pi.purchaseId))
+                        const relevantPurchases = purchases.filter(p => relevantPurchaseIds.has(p.id))
+                                                          .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                        if (relevantPurchases.length === 0) {
+                          return (
+                            <div className="text-center py-10">
+                              <p className="text-slate-400 font-bold uppercase text-xs tracking-widest italic">Belum ada riwayat belanja terkait order client ini.</p>
+                            </div>
+                          )
+                        }
+                        const productName = (id: string) => products.find(p => p.id === id)?.name || id.slice(0,8)
+                        const poNumberOf = (soId?: string) => soId ? (salesOrders.find(s => s.id === soId)?.poNumber || soId.slice(0,8)) : '—'
+                        return relevantPurchases.map(p => {
+                          const itemsForP = purchaseItems.filter(pi => pi.purchaseId === p.id && pi.salesOrderId && clientSOIds.has(pi.salesOrderId))
+                          const actual = itemsForP.reduce((s, it) => s + (it.actualUnitPrice * it.qtyPurchased), 0)
+                          const target = itemsForP.reduce((s, it) => s + (it.estimatedUnitPrice * it.qtyTarget), 0)
+                          return (
+                            <div key={p.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+                              <div className="flex justify-between items-start mb-4">
+                                <div>
+                                  <span className="text-[10px] font-black tracking-widest uppercase text-violet-600 bg-violet-50 px-3 py-1 rounded-full">{p.id.slice(0,8)}</span>
+                                  <p className="text-xs font-black text-slate-400 uppercase tracking-tight mt-2">{new Date(p.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                                </div>
+                                <div className="flex flex-col items-end gap-1">
+                                  <Badge variant="outline" className="font-black text-[10px] uppercase rounded-full">{p.status}</Badge>
+                                  <span className="text-[10px] font-bold text-slate-400">Target {formatRupiah(target)} → Actual {formatRupiah(actual)}</span>
+                                </div>
+                              </div>
+                              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2">Item Belanja ({itemsForP.length})</p>
+                                <div className="space-y-1.5">
+                                  {itemsForP.map(it => (
+                                    <div key={it.id} className="flex justify-between items-center text-xs">
+                                      <div className="flex flex-col">
+                                        <span className="font-bold text-slate-700">{productName(it.productId)}</span>
+                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">via {poNumberOf(it.salesOrderId)} {it.purchaseMethod ? `· ${it.purchaseMethod}` : ''}</span>
+                                      </div>
+                                      <div className="flex items-center gap-3">
+                                        <span className="text-slate-500 font-mono">{it.qtyPurchased}/{it.qtyTarget} × {formatRupiah(it.actualUnitPrice || it.estimatedUnitPrice)}</span>
+                                        <span className="font-black text-slate-800 min-w-[110px] text-right">{formatRupiah(it.actualUnitPrice * it.qtyPurchased)}</span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })
+                      })()}
+                   </div>
+                </TabsContent>
+
+                {/* PAYMENTS TAB — flatten payments[] from every (active) invoice */}
+                <TabsContent value="payments" className="p-8 space-y-4 mt-0">
+                   {(() => {
+                      if (!selectedHistoryClient) return null
+                      const clientInvs = invoices.filter(i => i.clientId === selectedHistoryClient.id)
+                      type Row = { invId: string; isConsol: boolean; date: string; amount: number; method?: string; note?: string }
+                      const rows: Row[] = []
+                      for (const inv of clientInvs) {
+                        for (const p of (inv.payments || [])) {
+                          rows.push({ invId: inv.id, isConsol: !!inv.isConsolidated, date: p.date, amount: p.amount, method: p.method, note: p.note })
+                        }
+                      }
+                      rows.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                      if (rows.length === 0) {
+                        return (
+                          <div className="text-center py-10">
+                            <p className="text-slate-400 font-bold uppercase text-xs tracking-widest italic">Belum ada pembayaran tercatat.</p>
+                          </div>
+                        )
+                      }
+                      const total = rows.reduce((s, r) => s + r.amount, 0)
+                      return (
+                        <>
+                          <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 flex justify-between items-center">
+                             <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700">Total Terbayar</span>
+                             <span className="text-2xl font-black text-emerald-700 tracking-tight">{formatRupiah(total)}</span>
+                          </div>
+                          <div className="space-y-3">
+                            {rows.map((r, idx) => (
+                              <div key={idx} className="bg-white p-4 rounded-2xl border border-slate-100 flex justify-between items-center">
+                                <div className="flex flex-col">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-black tracking-widest uppercase text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">{r.invId.startsWith('TF-') ? r.invId : r.invId.slice(0,8)}</span>
+                                    {r.isConsol && <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none text-[8px] font-black uppercase">Tukar Faktur</Badge>}
+                                  </div>
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">{format(new Date(r.date), 'dd MMM yyyy')} {r.method ? `· ${r.method}` : ''} {r.note ? `· ${r.note}` : ''}</p>
+                                </div>
+                                <span className="font-black text-emerald-700">{formatRupiah(r.amount)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      )
+                   })()}
+                </TabsContent>
+
                 <TabsContent value="billing" className="p-8 space-y-6 mt-0">
                    <div className="space-y-4">
-                      {selectedHistoryClient && invoices.filter(inv => inv.clientId === selectedHistoryClient.id).length === 0 ? (
-                         <div className="text-center py-10">
-                            <p className="text-slate-400 font-bold uppercase text-xs tracking-widest italic">Belum ada riwayat invoice untuk client ini.</p>
-                         </div>
-                      ) : (
-                         invoices
-                           .filter(inv => inv.clientId === selectedHistoryClient?.id)
-                           .sort((a,b) => new Date(b.issueDate).getTime() - new Date(a.issueDate).getTime())
+                      {(() => {
+                         // Match the filter logic used for the totals row so the archive list is
+                         // internally consistent: hide superseded standalone invoices that have been
+                         // absorbed into a Tukar Faktur.
+                         const archivedInvoices = invoices.filter(inv => inv.clientId === selectedHistoryClient?.id)
+                         const archivedConsolidatedSOIds = new Set(
+                           archivedInvoices
+                             .filter((inv: any) => inv.isConsolidated && inv.salesOrderIds?.length > 0)
+                             .flatMap((inv: any) => inv.salesOrderIds)
+                         )
+                         const visibleArchive = archivedInvoices.filter((inv: any) => {
+                            if (inv.supersededByInvoiceId) return false
+                            if (inv.salesOrderId && archivedConsolidatedSOIds.has(inv.salesOrderId) && !inv.isConsolidated) return false
+                            return true
+                         })
+                         return visibleArchive.length === 0 ? (
+                            <div className="text-center py-10">
+                               <p className="text-slate-400 font-bold uppercase text-xs tracking-widest italic">Belum ada riwayat invoice untuk client ini.</p>
+                            </div>
+                         ) : (
+                            visibleArchive
+                              .sort((a,b) => new Date(b.issueDate).getTime() - new Date(a.issueDate).getTime())
                            .map(inv => (
                              <div key={inv.id} className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300">
                                 <div className="flex justify-between items-start">
@@ -680,7 +842,8 @@ export default function ClientsPage() {
                                 </div>
                              </div>
                            ))
-                      )}
+                         )
+                      })()}
                    </div>
                 </TabsContent>
              </Tabs>
@@ -732,24 +895,25 @@ export default function ClientsPage() {
              )}
           </div>
           <div className="p-4 bg-slate-900 border-t border-white/5 flex justify-center sticky bottom-0">
-             <Button 
+             <Button
                 className="rounded-2xl bg-white text-slate-900 font-black px-12 h-12 uppercase text-[10px] tracking-widest"
                 onClick={() => setPdfPreview(null)}
              >
                 Tutup Preview
              </Button>
-            {/* Global Invoice Preview Modal for Clients */}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Global Invoice Preview Modal for Clients — top-level so it survives independent of pdfPreview Dialog */}
       {invoicePreview && (
-        <UniversalPDFPreview 
+        <UniversalPDFPreview
           isOpen={!!invoicePreview}
           onClose={() => setInvoicePreview(null)}
           invoiceId={invoicePreview.id}
           isConsolidated={invoicePreview.isConsolidated}
         />
       )}
-    </div>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

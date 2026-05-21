@@ -97,11 +97,12 @@ export async function GET(request: Request) {
 
     // --- GROUP 3: Finance ---
     if (group === '3') {
-      const [coas, bankAccounts, cashTransactions, journalEntries, journalLines, invoices, expenses, reimbursements] = await Promise.all([
+      const [coas, bankAccounts, cashTransactions, journalEntries, journalLines, invoices, expenses, reimbursements, vendorBills] = await Promise.all([
         fetchTable('coas'), fetchTable('bank_accounts'),
         fetchTable('cash_transactions'), fetchTable('journal_entries'),
         fetchTable('journal_lines'), fetchTable('invoices'),
-        fetchTable('expenses'), fetchTable('reimbursements')
+        fetchTable('expenses'), fetchTable('reimbursements'),
+        fetchTable('vendor_bills')
       ]);
       return NextResponse.json({
         coas: toCamel(coas),
@@ -112,6 +113,7 @@ export async function GET(request: Request) {
         invoices: toCamel(invoices),
         expenses: toCamel(expenses),
         reimbursements: toCamel(reimbursements),
+        vendorBills: toCamel(vendorBills),
       }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
     }
 

@@ -5,7 +5,7 @@ import {
   ArrowUpToLine, ShieldCheck, ShoppingCart, Users, 
   Boxes, FileDigit, Briefcase, Target, Shield, 
   Search, ScrollText, CheckCircle2, History, Archive,
-  Receipt, Landmark as Bank, UserPlus, Cog, ListChecks, RefreshCw
+  Receipt, Landmark as Bank, UserPlus, Cog, ListChecks, RefreshCw, TrendingDown, AlertTriangle, ClipboardList
 } from "lucide-react"
 import { AccessKey } from "@/types"
 
@@ -68,8 +68,11 @@ export const APP_PAGES: NavItemConfig[] = [
     ]
   },
   { key: 'finance_cash_bank', title: 'Cash & Bank', href: '/finance/cash-bank', icon: <Bank className="h-4 w-4" />, category: 'Finance' },
+  { key: 'finance_expenses', title: 'Pengeluaran Umum', href: '/finance/expenses', icon: <TrendingDown className="h-4 w-4" />, category: 'Finance' },
   { key: 'finance_reports', title: 'Financial Reports', href: '/finance/reports', icon: <FileSpreadsheet className="h-4 w-4" />, category: 'Finance' },
   { key: 'finance_invoices', title: 'Invoices (AR/AP)', href: '/finance/invoices', icon: <ScrollText className="h-4 w-4" />, category: 'Finance' },
+  { key: 'finance_ar_aging', title: 'AR Aging (Piutang)', href: '/finance/ar-aging', icon: <AlertTriangle className="h-4 w-4 text-rose-500" />, category: 'Finance' },
+  { key: 'finance_ap_aging', title: 'AP Aging (Hutang)', href: '/finance/ap-aging', icon: <ClipboardList className="h-4 w-4 text-purple-500" />, category: 'Finance' },
   { key: 'finance_ledger', title: 'General Ledger', href: '/finance/ledger', icon: <ArrowRightLeft className="h-4 w-4" />, category: 'Finance' },
   { key: 'finance_online_purchase', title: 'Online Purchase', href: '/finance/online-purchase', icon: <ShoppingBag className="h-4 w-4" />, category: 'Finance' },
   { key: 'finance_assets', title: 'Asset Audit', href: '/finance/assets', icon: <Briefcase className="h-4 w-4" />, category: 'Finance' },

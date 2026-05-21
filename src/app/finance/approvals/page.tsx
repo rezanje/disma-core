@@ -33,6 +33,7 @@ export default function FinanceHubPage() {
   const expenses = useAppStore(state => state.expenses)
   const products = useAppStore(state => state.products)
   const bankAccounts = useAppStore(state => state.bankAccounts)
+  const isSyncing = useAppStore(state => state.isSyncing)
   const users = useAppStore(state => state.users)
   const currentUser = useAppStore(state => state.currentUser)
   const deliveries = useAppStore(state => state.deliveries)
@@ -350,20 +351,24 @@ export default function FinanceHubPage() {
               </div>
            </div>
            
-           <div className="grid grid-cols-2 gap-4 w-full md:w-auto">
+           <div className="grid grid-cols-3 gap-2 w-full md:w-auto">
               {bankAccounts.map(bank => (
-                 <button 
+                 <button
                    key={bank.id}
                    onClick={() => setSelectedBank(bank.id)}
                    className={cn(
-                     "p-4 rounded-3xl text-left border-2 transition-all",
+                     "p-2.5 rounded-2xl text-left border-2 transition-all",
                      selectedBank === bank.id ? "bg-slate-950 border-slate-950 text-white shadow-2xl scale-105" : "bg-slate-50 border-transparent text-slate-400 hover:bg-white hover:border-slate-100"
                    )}
                  >
-                    <p className="text-[9px] font-black uppercase tracking-widest opacity-60 flex items-center gap-2">
-                       {selectedBank === bank.id ? <Landmark className="w-3 h-3" /> : <Clock className="w-3 h-3" />} {bank.name}
+                    <p className="text-[8px] font-black uppercase tracking-widest opacity-60 flex items-center gap-1">
+                       {selectedBank === bank.id ? <Landmark className="w-2.5 h-2.5" /> : <Clock className="w-2.5 h-2.5" />} {bank.name}
                     </p>
-                    <p className="text-xl font-black mt-1 leading-none">{formatRupiah(bank.balance)}</p>
+                    {isSyncing ? (
+                      <div className="h-4 w-16 bg-slate-200/60 rounded animate-pulse mt-0.5" />
+                    ) : (
+                      <p className="text-sm font-black mt-0.5 leading-none">{formatRupiah(bank.balance)}</p>
+                    )}
                  </button>
               ))}
            </div>

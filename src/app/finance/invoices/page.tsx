@@ -58,9 +58,16 @@ export default function InvoicesPage() {
       .flatMap(inv => inv.salesOrderIds || [])
   )
 
+  // Invoice rendered as "regular" iff: not consolidated, not marked superseded, and its SO has not
+  // been absorbed by any consolidated invoice. The explicit `supersededByInvoiceId` flag is the
+  // source of truth going forward; the salesOrderIds fallback preserves correctness for legacy data
+  // written before the supersede field existed.
+  const isSuperseded = (inv: Invoice) =>
+    !!inv.supersededByInvoiceId ||
+    (!inv.isConsolidated && !!inv.salesOrderId && consolidatedInvoiceSalesOrderIds.has(inv.salesOrderId))
+
   const regularInvoices = filteredInvoices.filter(inv =>
-    !inv.isConsolidated &&
-    (!inv.salesOrderId || !consolidatedInvoiceSalesOrderIds.has(inv.salesOrderId))
+    !inv.isConsolidated && !isSuperseded(inv)
   )
   const consolidatedInvoices = filteredInvoices.filter(inv => inv.isConsolidated)
   const visibleInvoices = [...regularInvoices, ...consolidatedInvoices]
@@ -144,15 +151,41 @@ export default function InvoicesPage() {
     isOutstandingSalesOrder(so.id)
   )
 
-  const handleCreateConsolidatedInvoice = () => {
+  const handleCreateConsolidatedInvoice = async () => {
     if (!tfClientId || selectedPOIds.length === 0) return
-    
+
+    const selectedSOs = salesOrders.filter(so => selectedPOIds.includes(so.id))
+
+    // GUARD 1: every selected SO must belong to the chosen client (no cross-client leakage)
+    const foreignSOs = selectedSOs.filter(so => so.clientId !== tfClientId)
+    if (foreignSOs.length > 0) {
+      toast.error(`Gagal: ${foreignSOs.length} SO bukan milik client ini (${foreignSOs.map(s => s.poNumber).join(', ')}). Tukar Faktur dibatalkan.`)
+      return
+    }
+    if (selectedSOs.length !== selectedPOIds.length) {
+      toast.error("Gagal: ada SO yang tidak ditemukan. Refresh halaman.")
+      return
+    }
+
     setIsConsolidating(true)
     const now = new Date().toISOString()
     const invId = `TF-${uuidv4().substring(0,8)}`
-    const selectedSOs = salesOrders.filter(so => selectedPOIds.includes(so.id))
     const totalAmount = selectedPOIds.reduce((sum, id) => sum + calculateSOTotal(id), 0)
-    
+
+    // Carry over payments already received against the standalone invoices being absorbed.
+    // Without this, the TF shows full outstanding even though AR has already been credited by
+    // those partial payments, causing the invoice list total to diverge from the GL.
+    const supersedeTargets = invoices.filter(inv =>
+      !inv.isConsolidated &&
+      inv.salesOrderId &&
+      selectedPOIds.includes(inv.salesOrderId) &&
+      !inv.supersededByInvoiceId
+    )
+    const carriedPayments = supersedeTargets.flatMap(inv => inv.payments || [])
+    const carriedAmount = supersedeTargets.reduce((sum, inv) => sum + (inv.amountPaid || 0), 0)
+    const carriedStatus: Invoice['status'] =
+      carriedAmount >= totalAmount ? 'Paid' : carriedAmount > 0 ? 'Partial' : 'Unpaid'
+
     const newInvoice: Invoice = {
       id: invId,
       clientId: tfClientId,
@@ -162,14 +195,23 @@ export default function InvoicesPage() {
       issueDate: now,
       dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
       totalAmount,
-      amountPaid: 0,
-      status: 'Unpaid',
-      payments: []
+      amountPaid: carriedAmount,
+      status: carriedStatus,
+      payments: carriedPayments,
+      paidDate: carriedStatus === 'Paid' ? now : undefined,
     }
-    
+
     addInvoice(newInvoice)
+
+    // Mark every standalone (non-consolidated) invoice for the absorbed SOs as superseded.
+    // Revenue/AR already posted via these originals; the consolidated invoice carries only the
+    // settlement journal — leaving the originals in 'Unpaid' would misrepresent the receivables.
+    for (const orig of supersedeTargets) {
+      await updateInvoice(orig.id, { supersededByInvoiceId: invId })
+    }
+
     generateTukarFakturBundle(invId)
-    toast.success("Tukar Faktur (Consolidated Invoice) Berhasil Dibuat!")
+    toast.success(`Tukar Faktur berhasil${supersedeTargets.length ? `, ${supersedeTargets.length} invoice asli ditandai superseded` : ''}.`)
     setIsConsolidating(false)
     setIsTukarFakturOpen(false)
     setSelectedPOIds([])
