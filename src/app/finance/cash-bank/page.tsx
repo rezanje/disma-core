@@ -121,7 +121,7 @@ export default function CashAndBankPage() {
           category: `Penyesuaian: ${editingBank.adjCategory}`,
           description: `Koreksi Saldo Manual (${editingBank.adjCategory})`,
           counterpartName: 'Adjustment System',
-          referenceType: 'Adjustment'
+          referenceType: 'Adjustment' as any
         })
 
         // 2. Journal Entry (Accounting Ledger)

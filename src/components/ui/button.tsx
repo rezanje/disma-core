@@ -87,7 +87,7 @@ function Button({
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     setIsClicked(true)
     if (onClick) {
-      onClick(e)
+      onClick(e as any)
     }
   }
 

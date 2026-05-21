@@ -1259,7 +1259,7 @@ export default function FinanceHubPage() {
                                value={op.category} 
                                onValueChange={(val) => {
                                  const newOps = [...settlementOps]
-                                 newOps[index].category = val
+                                 newOps[index].category = val as any
                                  setSettlementOps(newOps)
                                }}
                              >
