@@ -35,3 +35,18 @@ export function parseNumber(val: string): number {
   const clean = val.replace(/[^\d]/g, '')
   return parseInt(clean) || 0
 }
+
+export function getWeekRange(dateStr: string) {
+  const date = new Date(dateStr)
+  const day = date.getDay()
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1) // Start from Monday
+  const monday = new Date(date.setDate(diff))
+  const sunday = new Date(monday)
+  sunday.setDate(monday.getDate() + 6)
+  
+  return {
+    start: monday.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }),
+    end: sunday.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }),
+    label: `Minggu: ${monday.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })} - ${sunday.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}`
+  }
+}

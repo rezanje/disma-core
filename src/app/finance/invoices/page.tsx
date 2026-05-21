@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Receipt, Search, History, Calendar as CalendarIcon, ChevronDown, ChevronRight, FileText, Download, Share2, Mail, Send, CheckCircle2, Eye, Printer, Plus } from "lucide-react"
+import { Receipt, Search, History, Calendar as CalendarIcon, ChevronDown, ChevronRight, FileText, Download, Share2, Mail, Send, CheckCircle2, Eye, Printer, Plus, Loader2 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { generateInvoicePDF, generateTukarFakturBundle } from "@/lib/pdf"
@@ -43,6 +43,7 @@ export default function InvoicesPage() {
   const [tfClientSearch, setTfClientSearch] = useState("")
   const [selectedPOIds, setSelectedPOIds] = useState<string[]>([])
   const [isConsolidating, setIsConsolidating] = useState(false)
+  const [isRecordingPayment, setIsRecordingPayment] = useState(false)
   const [pdfPreview, setPdfPreview] = useState<{ url: string, title: string } | null>(null)
   
   const addInvoice = useAppStore(state => state.addInvoice)
@@ -76,35 +77,37 @@ export default function InvoicesPage() {
       return
     }
 
-    const newAmountPaid = activeInvoice.amountPaid + paymentAmount
-    const status = newAmountPaid >= activeInvoice.totalAmount ? 'Paid' : 'Partial'
+    setIsRecordingPayment(true)
+    try {
+      const newAmountPaid = activeInvoice.amountPaid + paymentAmount
+      const status = newAmountPaid >= activeInvoice.totalAmount ? 'Paid' : 'Partial'
 
-    // Create new payment record
-    const paymentRecord = {
-      id: uuidv4(),
-      amount: paymentAmount,
-      date: new Date(paymentDate).toISOString(),
-      note: "Pembayaran diterima"
-    }
+      const paymentRecord = {
+        id: uuidv4(),
+        amount: paymentAmount,
+        date: new Date(paymentDate).toISOString(),
+        note: "Pembayaran diterima"
+      }
 
-    // Update Invoice State with Payment History
-    updateInvoice(activeInvoice.id, {
-      amountPaid: newAmountPaid,
-      status: status,
-      payments: [...(activeInvoice.payments || []), paymentRecord]
-    })
+      updateInvoice(activeInvoice.id, {
+        amountPaid: newAmountPaid,
+        status: status,
+        payments: [...(activeInvoice.payments || []), paymentRecord]
+      })
 
-    // Auto Journal: Debit Cash, Credit AR
-    const success = await recordPaymentReceived(activeInvoice.id, paymentAmount, new Date(paymentDate).toISOString(), paymentBankAccountId)
+      const success = await recordPaymentReceived(activeInvoice.id, paymentAmount, new Date(paymentDate).toISOString(), paymentBankAccountId)
 
-    if (success) {
-      toast.success(`Pembayaran ${formatRupiah(paymentAmount)} berhasil dicatat ke rekening tujuan.`)
-      setActiveInvoice(null)
-      setPaymentAmount(0)
-      setPaymentDate(new Date().toISOString().split('T')[0])
-      setPaymentBankAccountId("")
-    } else {
-      toast.error("Gagal mencatat jurnal pembayaran.")
+      if (success) {
+        toast.success(`Pembayaran ${formatRupiah(paymentAmount)} berhasil dicatat ke rekening tujuan.`)
+        setActiveInvoice(null)
+        setPaymentAmount(0)
+        setPaymentDate(new Date().toISOString().split('T')[0])
+        setPaymentBankAccountId("")
+      } else {
+        toast.error("Gagal mencatat jurnal pembayaran.")
+      }
+    } finally {
+      setIsRecordingPayment(false)
     }
   }
 
@@ -658,8 +661,9 @@ export default function InvoicesPage() {
             <Button
               className="w-full h-14 bg-emerald-600 hover:bg-emerald-700 text-lg font-black tracking-wide shadow-lg shadow-emerald-200 dark:shadow-none mt-2 rounded-2xl border-none"
               onClick={handleRecordPayment}
+              disabled={isRecordingPayment}
             >
-              Konfirmasi Pembayaran
+              {isRecordingPayment ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" />Mencatat...</> : "Konfirmasi Pembayaran"}
             </Button>
           </div>
         </DialogContent>

@@ -1,9 +1,12 @@
 "use client"
 
+import * as React from "react"
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
+import { Loader2 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { useAppStore } from "@/lib/store"
 
 const buttonVariants = cva(
   "group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
@@ -46,14 +49,61 @@ function Button({
   className,
   variant = "default",
   size = "default",
+  children,
+  onClick,
+  disabled,
   ...props
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+  const [isClicked, setIsClicked] = React.useState(false)
+  const isSyncing = useAppStore(state => state.isSyncing)
+
+  // Reset when syncing finishes
+  React.useEffect(() => {
+    if (!isSyncing && isClicked) {
+      // Small delay so the spinner doesn't flash off instantly
+      const timer = setTimeout(() => setIsClicked(false), 150)
+      return () => clearTimeout(timer)
+    }
+  }, [isSyncing, isClicked])
+
+  // If clicked but sync never starts (e.g. validation failed), reset after 1.5s
+  React.useEffect(() => {
+    if (isClicked && !isSyncing) {
+      const timer = setTimeout(() => {
+        setIsClicked(false)
+      }, 1500)
+      return () => clearTimeout(timer)
+    }
+  }, [isClicked, isSyncing])
+
+  // Safety: max 15s loading to prevent infinite spinner
+  React.useEffect(() => {
+    if (isClicked) {
+      const timer = setTimeout(() => setIsClicked(false), 15000)
+      return () => clearTimeout(timer)
+    }
+  }, [isClicked])
+
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    setIsClicked(true)
+    if (onClick) {
+      onClick(e)
+    }
+  }
+
+  const isLoading = isClicked && isSyncing
+
   return (
     <ButtonPrimitive
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
+      onClick={handleClick}
+      disabled={disabled || isLoading}
       {...props}
-    />
+    >
+      {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+      {children}
+    </ButtonPrimitive>
   )
 }
 

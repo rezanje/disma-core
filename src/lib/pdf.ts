@@ -7,7 +7,7 @@ import { Product } from "@/types"
 
 // Basic standardized branding
 const BRANDING = {
-  companyName: "PT DISMA DISTRIBUSI",
+  companyName: "PT Disma Permata Sejahtera",
   address: "Kawasan Industri Pulo Gadung, Jakarta Timur",
   phone: "021-99887766",
   email: "finance@disma-distribusi.com"
@@ -312,7 +312,7 @@ function drawInvoiceOnDoc(doc: jsPDF, invoiceId: string) {
   doc.text(formatRupiah(inv.totalAmount), 170, y)
 
   y += 30; doc.setFontSize(10); doc.text("Instruksi Pembayaran:", 14, y)
-  doc.setFont("helvetica", "normal"); doc.text("Bank BCA: 1234567890 a/n PT DISMA DISTRIBUSI", 14, y + 6)
+  doc.setFont("helvetica", "normal"); doc.text(`Bank BCA: 1234567890 a/n ${BRANDING.companyName}`, 14, y + 6)
   
   // Finance signature with a simulated stamp
   y += 30
@@ -322,7 +322,7 @@ function drawInvoiceOnDoc(doc: jsPDF, invoiceId: string) {
   doc.setTextColor(50, 50, 200) // Blue-ish for stamp
   doc.setDrawColor(50, 50, 200)
   doc.rect(145, y + 2, 35, 12)
-  doc.text("PT DISMA DISTRIBUSI", 148, y + 7)
+  doc.text(BRANDING.companyName, 148, y + 7)
   doc.text("PAID & VERIFIED", 152, y + 12)
   doc.setTextColor(0, 0, 0)
   doc.setFontSize(10)
@@ -376,7 +376,7 @@ export function generateTukarFakturBundle(invoiceId: string, outputType: 'save' 
   doc.save(`Tukar_Faktur_${inv.id.substring(0,8)}.pdf`)
 }
 
-export function generateShoppingListPDF(items: Array<{productId: string, productName: string, skuCode: string, totalQty: number, estimatedPrice: number}>) {
+function buildShoppingListPDF(items: Array<{productId: string, productName: string, skuCode: string, totalQty: number, estimatedPrice: number}>) {
   // OPTIMIZATION: Enable compression
   const doc = new jsPDF({ compress: true })
   drawHeader(doc, "MASTER SHOPPING LIST (DAFTAR BELANJA)", `SL-${format(new Date(), 'yyyyMMdd-HHmm')}`, new Date())
@@ -415,7 +415,15 @@ export function generateShoppingListPDF(items: Array<{productId: string, product
     }
   })
 
-  doc.save(`Daftar_Belanja_${format(new Date(), 'dd_MMM_yyyy')}.pdf`)
+  return doc
+}
+
+export function generateShoppingListPDFDataUrl(items: Array<{productId: string, productName: string, skuCode: string, totalQty: number, estimatedPrice: number}>) {
+  return buildShoppingListPDF(items).output('datauristring')
+}
+
+export function generateShoppingListPDF(items: Array<{productId: string, productName: string, skuCode: string, totalQty: number, estimatedPrice: number}>) {
+  buildShoppingListPDF(items).save(`Daftar_Belanja_${format(new Date(), 'dd_MMM_yyyy')}.pdf`)
 }
 
 export function generateFinancialReportPDF(data: {

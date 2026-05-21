@@ -195,6 +195,7 @@ const saveLocalBankAccountsCache = (bankAccounts: BankAccount[]) => {
 };
 
 // --- Generic localStorage cache helpers for remaining tables ---
+
 const loadLocalCache = <T>(key: string): T[] => {
   if (typeof window === 'undefined') return [];
   try {
@@ -221,6 +222,12 @@ export const clearAllOperationalCaches = () => {
   window.localStorage.removeItem(LOCAL_CLIENT_PRICES_CACHE_KEY);
   window.localStorage.removeItem(LOCAL_BANK_ACCOUNTS_CACHE_KEY);
   window.localStorage.removeItem(LOCAL_JOURNAL_ENTRIES_CACHE_KEY);
+  // Clear shopping list UI state
+  window.localStorage.removeItem('shopping_manualItems');
+  window.localStorage.removeItem('shopping_customPrices');
+  window.localStorage.removeItem('shopping_onlineProductIds');
+  window.localStorage.removeItem('shopping_shoppingDate');
+  window.localStorage.removeItem('shopping_lastGeneratedDoc');
   window.localStorage.removeItem(LOCAL_JOURNAL_LINES_CACHE_KEY);
   window.localStorage.removeItem(LOCAL_CASH_TRANSACTIONS_CACHE_KEY);
   window.localStorage.removeItem(LOCAL_INVOICES_CACHE_KEY);
@@ -255,6 +262,15 @@ interface AppState {
   forceSync: () => Promise<void>;
   saveToHdd: () => Promise<void>;
   syncTable: (table: string, data: any, silent?: boolean) => Promise<void>;
+  logHistory: (params: {
+    table: string;
+    recordId: string;
+    action: 'create' | 'update' | 'delete' | 'rollback';
+    oldData: any | null;
+    newData: any | null;
+    parentHistoryId?: string;
+    reason?: string;
+  }) => Promise<void>;
 
   // Sidebar State
   isSidebarMinimized: boolean;
@@ -301,11 +317,13 @@ interface AppState {
   purchases: Purchase[];
   addPurchase: (p: Purchase) => void;
   updatePurchase: (id: string, data: Partial<Purchase>) => void;
+  deletePurchase: (id: string) => Promise<void>;
 
   purchaseItems: PurchaseItem[];
   addPurchaseItem: (item: PurchaseItem) => void;
   addPurchaseItems: (items: PurchaseItem[]) => void;
   updatePurchaseItem: (id: string, data: Partial<PurchaseItem>) => void;
+  deletePurchaseItem: (id: string) => Promise<void>;
 
   deliveries: Delivery[];
   addDelivery: (d: Delivery) => void;
@@ -370,6 +388,7 @@ interface AppState {
   bankAccounts: BankAccount[];
   addBankAccount: (acc: BankAccount) => void;
   updateBankAccount: (id: string, data: Partial<BankAccount>) => void;
+  deleteBankAccount: (id: string) => Promise<void>;
   updateBankBalance: (id: string, amount: number) => void;
   cashTransactions: CashTransaction[];
   addCashTransaction: (tx: CashTransaction) => void;
@@ -453,21 +472,18 @@ const initialCOAs: ChartOfAccount[] = [
 ];
 
 const INITIAL_BANK_ACCOUNTS: BankAccount[] = [
-  { id: 'bank-1', name: 'BCA (Utama)', accountNumber: '8001234455', accountCode: '1-1200', balance: 0 },
-  { id: 'bank-2', name: 'Mandiri (Ops)', accountNumber: '123000998877', accountCode: '1-1300', balance: 0 },
-  { id: 'bank-3', name: 'BRI (Simpanan)', accountNumber: '001122334455', accountCode: '1-1000', balance: 0 },
-  { id: 'bank-4', name: 'Petty Cash', accountCode: '1-1000', balance: 0 },
-  { id: 'bank-advance-sourcing', name: 'Kas Sourcing (Hilman)', accountCode: '1-1500', balance: 0 },
-  { id: 'bank-advance-sourcing-sandi', name: 'Kas Sourcing (Sandi)', accountCode: '1-1500', balance: 0 },
-  { id: 'bank-advance-sourcing-rifai', name: 'Kas Sourcing (Rifai)', accountCode: '1-1500', balance: 0 },
-  { id: 'bank-advance-courier', name: 'Kas Kurir (Ops)', accountCode: '1-1510', balance: 0 }
+  { id: 'bank-1', name: 'BCA (UTAMA)', accountNumber: '8001234455', accountCode: '1-1200', balance: 0 },
+  { id: 'bank-2', name: 'MANDIRI (OPS)', accountNumber: '123000998877', accountCode: '1-1300', balance: 0 },
+  { id: 'bank-3', name: 'BRI (SIMPANAN)', accountNumber: '001122334455', accountCode: '1-1000', balance: 0 },
+  { id: 'bank-4', name: 'PETTY CASH', accountCode: '1-1000', balance: 0 },
+  { id: 'bank-advance-sourcing', name: 'KAS SOURCING (HILMAN)', accountCode: '1-1500', balance: 0 }
 ];
 
 const initialRolePermissions: RolePermissionMap = {
   super_admin: [
-    'admin_dashboard', 'admin_vendors', 'admin_clients', 'admin_products', 
-    'admin_sales_orders', 'admin_shopping_list', 'admin_assets', 'admin_hr', 'admin_crm', 
-    'admin_documents', 'admin_okr', 'admin_users', 'admin_settings', 'admin_tasks', 'admin_maintenance', 'admin_price_lists',
+    'admin_dashboard', 'admin_vendors', 'admin_clients', 'admin_products',
+    'admin_sales_orders', 'admin_shopping_list', 'admin_assets', 'admin_hr', 'admin_crm',
+    'admin_documents', 'admin_okr', 'admin_users', 'admin_settings', 'admin_tasks', 'admin_maintenance', 'admin_price_lists', 'admin_activity_log',
     'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets', 
     'finance_budget', 'finance_cash_bank', 'finance_ledger', 'finance_invoices', 
     'finance_reconciliation', 'finance_reimbursements', 'finance_online_purchase', 'finance_audit', 'finance_documents',
@@ -477,25 +493,29 @@ const initialRolePermissions: RolePermissionMap = {
     'tasks_global', 'settings_global'
   ],
   ceo: [
-    'admin_dashboard', 'admin_vendors', 'admin_clients', 'admin_products', 
-    'admin_sales_orders', 'admin_shopping_list', 'admin_assets', 'admin_hr', 'admin_crm', 
-    'admin_documents', 'admin_okr', 'admin_users', 'admin_settings', 'admin_tasks', 'admin_price_lists',
+    'admin_dashboard', 'admin_vendors', 'admin_clients', 'admin_products',
+    'admin_sales_orders', 'admin_shopping_list', 'admin_assets', 'admin_hr', 'admin_crm',
+    'admin_documents', 'admin_okr', 'admin_users', 'admin_settings', 'admin_tasks', 'admin_price_lists', 'admin_activity_log',
     'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets', 
-    'finance_budget', 'finance_cash_bank', 'finance_ledger', 'finance_invoices',
+    'finance_budget', 'finance_cash_bank', 'finance_ledger', 'finance_invoices', 'finance_collections',
     'finance_audit', 'finance_documents',
     'warehouse_dashboard', 'warehouse_catalog', 'tasks_global', 'settings_global'
   ],
-  cmo: [
-    'admin_dashboard', 'admin_vendors', 'admin_clients', 'admin_products', 
-    'admin_sales_orders', 'admin_shopping_list', 'admin_crm', 
-    'admin_documents', 'admin_okr', 'admin_tasks', 'admin_price_lists',
-    'finance_dashboard', 'finance_reports', 'tasks_global', 'settings_global'
+  cmo: [], // Archived for Phase 1
+  finance: [
+    'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets', 
+    'finance_budget', 'finance_cash_bank', 'finance_ledger', 'finance_invoices', 
+    'finance_reconciliation', 'finance_reimbursements', 'finance_online_purchase', 'finance_collections',
+    'finance_audit', 'finance_documents', 'tasks_global', 'admin_price_lists'
   ],
-  finance: ['finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets', 'finance_budget', 'finance_cash_bank', 'finance_ledger', 'finance_invoices', 'finance_reconciliation', 'finance_reimbursements', 'finance_online_purchase', 'finance_audit', 'finance_documents', 'tasks_global', 'admin_price_lists'],
-  gudang: ['warehouse_dashboard', 'warehouse_catalog', 'warehouse_inbound', 'warehouse_outbound', 'warehouse_qc', 'warehouse_reject_monitor', 'tasks_global'],
-  sourcing: ['sourcing_dashboard', 'sourcing_list', 'sourcing_expenses', 'tasks_global'],
-  kurir: ['courier_dashboard', 'courier_list', 'courier_handover', 'courier_history', 'courier_expenses', 'tasks_global'],
-  admin_po: ['admin_dashboard', 'admin_sales_orders', 'admin_shopping_list', 'admin_clients', 'admin_products', 'warehouse_catalog', 'tasks_global', 'admin_price_lists'],
+  gudang: [], // Archived for Phase 1
+  sourcing: [], // Archived for Phase 1
+  kurir: [], // Archived for Phase 1
+  admin_po: [
+    'admin_dashboard', 'admin_sales_orders', 'admin_shopping_list', 
+    'admin_clients', 'admin_products', 'warehouse_catalog', 'tasks_global', 'admin_price_lists',
+    'finance_invoices' // Added for Tukar Faktur compilation
+  ],
 };
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -512,11 +532,15 @@ export const useAppStore = create<AppState>((set, get) => ({
         await get().syncTable('users', user);
       },
       updateUser: async (id, data) => {
+        const before = get().users.find(u => u.id === id);
         set((state) => ({
           users: state.users.map(u => u.id === id ? { ...u, ...data } : u)
         }));
         const updated = get().users.find(u => u.id === id);
-        if (updated) await get().syncTable('users', updated);
+        if (updated) {
+          await get().syncTable('users', updated);
+          if (before) await get().logHistory({ table: 'users', recordId: id, action: 'update', oldData: before, newData: updated });
+        }
       },
 
       isSyncing: false,
@@ -575,6 +599,41 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
       },
 
+      logHistory: async (params) => {
+        try {
+          const user = get().currentUser;
+          let changedFields: string[] = [];
+          if (params.oldData && params.newData) {
+            const keys = new Set([...Object.keys(params.oldData), ...Object.keys(params.newData)]);
+            keys.forEach(k => {
+              if (JSON.stringify(params.oldData[k]) !== JSON.stringify(params.newData[k])) {
+                changedFields.push(k);
+              }
+            });
+          }
+          if (params.action === 'update' && changedFields.length === 0) return;
+
+          const row = {
+            id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            tableName: params.table,
+            recordId: params.recordId,
+            action: params.action,
+            changedFields,
+            oldData: params.oldData,
+            newData: params.newData,
+            userId: user?.id ?? null,
+            userName: user?.name ?? null,
+            userRole: user?.role ?? null,
+            reason: params.reason ?? null,
+            parentHistoryId: params.parentHistoryId ?? null,
+            createdAt: new Date().toISOString(),
+          };
+          await get().syncTable('record_history', row, true);
+        } catch (e) {
+          console.warn('[Audit] logHistory failed (non-fatal):', e);
+        }
+      },
+
       init: async () => {
         if (get().isSyncing) return; // Prevent overwriting in-flight changes
         
@@ -624,6 +683,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
         // === PHASE 2: SEQUENTIAL API FETCH (one group at a time, no timeout) ===
         try {
+          set({ isSyncing: true });
           console.log('[INIT] Phase 2: Fetching data via API (5 sequential groups)...');
           const ts = Date.now();
           
@@ -717,29 +777,44 @@ export const useAppStore = create<AppState>((set, get) => ({
             }
 
             // --- INTELLIGENT BANK RE-HYDRATION ---
-            // DB is authoritative for balance. Local additions (not yet in DB) are preserved.
             const localBanks = get().bankAccounts;
-            let mergedBanks: BankAccount[];
+            let mergedBanks: BankAccount[] = [];
 
-            if (data.bankAccounts && Array.isArray(data.bankAccounts) && data.bankAccounts.length > 0) {
-              // Use DB data as source of truth (has correct balances)
+            const hasServerData = data.bankAccounts && Array.isArray(data.bankAccounts) && data.bankAccounts.length > 0;
+            
+            if (hasServerData) {
+              // DB is truth.
               mergedBanks = [...data.bankAccounts];
-              // Preserve any local banks not yet synced to DB
-              localBanks.forEach((localBank: BankAccount) => {
-                if (!mergedBanks.find((b: BankAccount) => b.id === localBank.id)) {
-                  mergedBanks.push(localBank);
+              // Sync local to DB only if we have NEW local banks added during this session
+              localBanks.forEach(lb => {
+                if (!mergedBanks.find(b => b.id === lb.id)) {
+                   // This is likely a bank added in a concurrent tab or just now
+                   mergedBanks.push(lb);
                 }
               });
             } else {
-              // No DB data yet: fall back to local or seed
-              mergedBanks = localBanks.length > 0 ? [...localBanks] : [...INITIAL_BANK_ACCOUNTS];
+              // DB is empty. Check if we have local data from previous sessions
+              if (localBanks.length > 0) {
+                mergedBanks = localBanks;
+              } else {
+                // Completely fresh: Seed
+                mergedBanks = [...INITIAL_BANK_ACCOUNTS];
+                mergedBanks.forEach(b => get().syncTable('bank_accounts', b, true));
+              }
             }
-
-            const missingSeedBanks = INITIAL_BANK_ACCOUNTS.filter((seedBank) => !mergedBanks.find((bank) => bank.id === seedBank.id));
-            if (missingSeedBanks.length > 0) {
-              mergedBanks = [...mergedBanks, ...missingSeedBanks];
-              missingSeedBanks.forEach((bank) => get().syncTable('bank_accounts', bank, true));
-            }
+            
+            // Final Deduplication based on ID
+            const finalUniqueBanks: BankAccount[] = [];
+            const seenIds = new Set();
+            mergedBanks.forEach(b => {
+              if (!seenIds.has(b.id)) {
+                seenIds.add(b.id);
+                finalUniqueBanks.push(b);
+              }
+            });
+            mergedBanks = finalUniqueBanks;
+            saveLocalBankAccountsCache(mergedBanks);
+            set({ bankAccounts: mergedBanks });
 
             // --- USER SEEDING & SHIELD ---
             let mergedUsers = data.users || [];
@@ -1035,6 +1110,8 @@ export const useAppStore = create<AppState>((set, get) => ({
           }
         } catch (error) {
           console.error('Store Init Error:', error);
+        } finally {
+          set({ isSyncing: false });
         }
       },
 
@@ -1106,11 +1183,15 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
       },
       updateClient: async (id, data) => {
+        const before = get().clients.find(c => c.id === id);
         const updatedClients = get().clients.map(c => c.id === id ? { ...c, ...data } : c);
         set({ clients: updatedClients });
         saveLocalClientsCache(updatedClients);
         const updated = get().clients.find(c => c.id === id);
-        if (updated) await get().syncTable('clients', updated);
+        if (updated) {
+          await get().syncTable('clients', updated);
+          if (before) await get().logHistory({ table: 'clients', recordId: id, action: 'update', oldData: before, newData: updated });
+        }
       },
 
       vendors: VENDORS_SEED,
@@ -1119,11 +1200,15 @@ export const useAppStore = create<AppState>((set, get) => ({
         await get().syncTable('vendors', vendor);
       },
       updateVendor: async (id, data) => {
+        const before = get().vendors.find(v => v.id === id);
         set((state) => ({
           vendors: state.vendors.map(v => v.id === id ? { ...v, ...data } : v)
         }));
         const updated = get().vendors.find(v => v.id === id);
-        if (updated) await get().syncTable('vendors', updated);
+        if (updated) {
+          await get().syncTable('vendors', updated);
+          if (before) await get().logHistory({ table: 'vendors', recordId: id, action: 'update', oldData: before, newData: updated });
+        }
       },
 
       products: PRODUCTS_SEED,
@@ -1163,11 +1248,15 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
       },
       updateProduct: async (id, data) => {
+        const before = get().products.find(p => p.id === id);
         const updatedProducts = get().products.map(p => p.id === id ? { ...p, ...data } : p);
         set({ products: updatedProducts });
         saveLocalProductsCache(updatedProducts);
         const updated = updatedProducts.find(p => p.id === id);
-        if (updated) await get().syncTable('products', updated);
+        if (updated) {
+          await get().syncTable('products', updated);
+          if (before) await get().logHistory({ table: 'products', recordId: id, action: 'update', oldData: before, newData: updated });
+        }
       },
       updateMultipleProducts: async (updates) => {
         if (!updates.length) return;
@@ -1216,11 +1305,15 @@ export const useAppStore = create<AppState>((set, get) => ({
         await get().syncTable('sales_orders', so);
       },
       updateSalesOrder: async (id, data) => {
+        const before = get().salesOrders.find(so => so.id === id);
         const updatedSalesOrders = get().salesOrders.map(so => so.id === id ? { ...so, ...data } : so);
         set({ salesOrders: updatedSalesOrders });
         saveLocalSalesOrdersCache(updatedSalesOrders);
         const updated = get().salesOrders.find(so => so.id === id);
-        if (updated) await get().syncTable('sales_orders', updated);
+        if (updated) {
+          await get().syncTable('sales_orders', updated);
+          if (before) await get().logHistory({ table: 'sales_orders', recordId: id, action: 'update', oldData: before, newData: updated });
+        }
       },
 
       salesOrderItems: [],
@@ -1237,11 +1330,15 @@ export const useAppStore = create<AppState>((set, get) => ({
         await get().syncTable('sales_order_items', items);
       },
       updateSalesOrderItem: async (id, data) => {
+        const before = get().salesOrderItems.find(item => item.id === id);
         const updatedSalesOrderItems = get().salesOrderItems.map(item => item.id === id ? { ...item, ...data } : item);
         set({ salesOrderItems: updatedSalesOrderItems });
         saveLocalSalesOrderItemsCache(updatedSalesOrderItems);
         const updated = get().salesOrderItems.find(item => item.id === id);
-        if (updated) await get().syncTable('sales_order_items', updated);
+        if (updated) {
+          await get().syncTable('sales_order_items', updated);
+          if (before) await get().logHistory({ table: 'sales_order_items', recordId: id, action: 'update', oldData: before, newData: updated });
+        }
       },
 
       purchases: [],
@@ -1252,11 +1349,67 @@ export const useAppStore = create<AppState>((set, get) => ({
         await get().syncTable('purchases', p);
       },
       updatePurchase: async (id, data) => {
+        const before = get().purchases.find(p => p.id === id);
         const updatedPurchases = get().purchases.map(p => p.id === id ? { ...p, ...data } : p);
         set({ purchases: updatedPurchases });
         saveLocalPurchasesCache(updatedPurchases);
         const updated = get().purchases.find(p => p.id === id);
-        if (updated) await get().syncTable('purchases', updated);
+        if (updated) {
+          await get().syncTable('purchases', updated);
+          if (before) await get().logHistory({ table: 'purchases', recordId: id, action: 'update', oldData: before, newData: updated });
+        }
+      },
+      deletePurchase: async (id: string) => {
+        // Cascade: remove related purchase_items + unlink salesOrders shoppingListDocumentId
+        const purchaseBefore = get().purchases.find(p => p.id === id);
+        const itemsToDelete = get().purchaseItems.filter(pi => pi.purchaseId === id);
+        const itemIds = itemsToDelete.map(pi => pi.id);
+
+        const remainingPurchases = get().purchases.filter(p => p.id !== id);
+        const remainingItems = get().purchaseItems.filter(pi => pi.purchaseId !== id);
+        set({ purchases: remainingPurchases, purchaseItems: remainingItems });
+        saveLocalPurchasesCache(remainingPurchases);
+        saveLocalPurchaseItemsCache(remainingItems);
+
+        // Unlink sales orders referencing this purchase as shopping list doc
+        const affectedSOs = get().salesOrders.filter(so => so.shoppingListDocumentId === id);
+        const sosBeforeMap = new Map(affectedSOs.map(so => [so.id, { ...so }]));
+        if (affectedSOs.length > 0) {
+          const updatedSOs = get().salesOrders.map(so =>
+            so.shoppingListDocumentId === id
+              ? { ...so, status: 'Draft' as const, shoppingListDocumentId: null as any, shoppingListCompiledAt: null as any, shoppingListCompiledBy: null as any }
+              : so
+          );
+          set({ salesOrders: updatedSOs });
+          saveLocalSalesOrdersCache(updatedSOs);
+          for (const so of affectedSOs) {
+            const after = updatedSOs.find(s => s.id === so.id)!;
+            await get().syncTable('sales_orders', after);
+            const beforeSO = sosBeforeMap.get(so.id);
+            if (beforeSO) await get().logHistory({ table: 'sales_orders', recordId: so.id, action: 'update', oldData: beforeSO, newData: after, reason: `Auto-unlink (deletePurchase ${id.slice(0,8)})` });
+          }
+        }
+
+        try {
+          if (itemIds.length > 0) {
+            await fetch('/api/db', {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ table: 'purchase_items', id: itemIds })
+            });
+            for (const pi of itemsToDelete) {
+              await get().logHistory({ table: 'purchase_items', recordId: pi.id, action: 'delete', oldData: pi, newData: null, reason: `Cascade from deletePurchase ${id.slice(0,8)}` });
+            }
+          }
+          await fetch('/api/db', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ table: 'purchases', id })
+          });
+          if (purchaseBefore) await get().logHistory({ table: 'purchases', recordId: id, action: 'delete', oldData: purchaseBefore, newData: null });
+        } catch (e) {
+          console.error("Failed to delete purchase from server:", e);
+        }
       },
 
       purchaseItems: [],
@@ -1273,11 +1426,31 @@ export const useAppStore = create<AppState>((set, get) => ({
         await get().syncTable('purchase_items', items);
       },
       updatePurchaseItem: async (id, data) => {
+        const before = get().purchaseItems.find(pi => pi.id === id);
         const updatedPurchaseItems = get().purchaseItems.map(pi => pi.id === id ? { ...pi, ...data } : pi);
         set({ purchaseItems: updatedPurchaseItems });
         saveLocalPurchaseItemsCache(updatedPurchaseItems);
         const updated = get().purchaseItems.find(pi => pi.id === id);
-        if (updated) await get().syncTable('purchase_items', updated);
+        if (updated) {
+          await get().syncTable('purchase_items', updated);
+          if (before) await get().logHistory({ table: 'purchase_items', recordId: id, action: 'update', oldData: before, newData: updated });
+        }
+      },
+      deletePurchaseItem: async (id: string) => {
+        const before = get().purchaseItems.find(pi => pi.id === id);
+        const remaining = get().purchaseItems.filter(pi => pi.id !== id);
+        set({ purchaseItems: remaining });
+        saveLocalPurchaseItemsCache(remaining);
+        try {
+          await fetch('/api/db', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ table: 'purchase_items', id })
+          });
+          if (before) await get().logHistory({ table: 'purchase_items', recordId: id, action: 'delete', oldData: before, newData: null });
+        } catch (e) {
+          console.error("Failed to delete purchase item from server:", e);
+        }
       },
 
       deliveries: [],
@@ -1286,11 +1459,15 @@ export const useAppStore = create<AppState>((set, get) => ({
         await get().syncTable('deliveries', d);
       },
       updateDelivery: async (id, data) => {
+        const before = get().deliveries.find(d => d.id === id);
         set((state) => ({
           deliveries: state.deliveries.map(d => d.id === id ? { ...d, ...data } : d)
         }));
         const updated = get().deliveries.find(d => d.id === id);
-        if (updated) await get().syncTable('deliveries', updated);
+        if (updated) {
+          await get().syncTable('deliveries', updated);
+          if (before) await get().logHistory({ table: 'deliveries', recordId: id, action: 'update', oldData: before, newData: updated });
+        }
       },
 
       expenses: [],
@@ -1299,11 +1476,15 @@ export const useAppStore = create<AppState>((set, get) => ({
         await get().syncTable('expenses', e);
       },
       updateExpense: async (id, data) => {
+        const before = get().expenses.find(e => e.id === id);
         set((state) => ({
           expenses: state.expenses.map(e => e.id === id ? { ...e, ...data } : e)
         }));
         const updated = get().expenses.find(e => e.id === id);
-        if (updated) await get().syncTable('expenses', updated);
+        if (updated) {
+          await get().syncTable('expenses', updated);
+          if (before) await get().logHistory({ table: 'expenses', recordId: id, action: 'update', oldData: before, newData: updated });
+        }
       },
 
       invoices: [],
@@ -1312,11 +1493,15 @@ export const useAppStore = create<AppState>((set, get) => ({
         await get().syncTable('invoices', inv);
       },
       updateInvoice: async (id, data) => {
+        const before = get().invoices.find(inv => inv.id === id);
         set((state) => ({
           invoices: state.invoices.map(inv => inv.id === id ? { ...inv, ...data } : inv)
         }));
         const updated = get().invoices.find(inv => inv.id === id);
-        if (updated) await get().syncTable('invoices', updated);
+        if (updated) {
+          await get().syncTable('invoices', updated);
+          if (before) await get().logHistory({ table: 'invoices', recordId: id, action: 'update', oldData: before, newData: updated });
+        }
       },
 
       journalEntries: [],
@@ -1325,6 +1510,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         await get().syncTable('journal_entries', entry);
       },
       updateJournalEntry: async (id: string, updates: Partial<JournalEntry>, newLines: JournalLine[]) => {
+        const beforeEntry = get().journalEntries.find(e => e.id === id);
+        const beforeLines = get().journalLines.filter(l => l.journalEntryId === id);
         set((state) => ({
           journalEntries: state.journalEntries.map(e => e.id === id ? { ...e, ...updates } : e),
           journalLines: [
@@ -1333,7 +1520,10 @@ export const useAppStore = create<AppState>((set, get) => ({
           ]
         }));
         const updatedEntry = get().journalEntries.find(e => e.id === id);
-        if (updatedEntry) await get().syncTable('journal_entries', updatedEntry);
+        if (updatedEntry) {
+          await get().syncTable('journal_entries', updatedEntry);
+          if (beforeEntry) await get().logHistory({ table: 'journal_entries', recordId: id, action: 'update', oldData: { ...beforeEntry, lines: beforeLines }, newData: { ...updatedEntry, lines: newLines } });
+        }
         await get().syncTable('journal_lines', newLines);
       },
 
@@ -1358,11 +1548,15 @@ export const useAppStore = create<AppState>((set, get) => ({
         await get().syncTable('leads', lead);
       },
       updateLead: async (id, updates) => {
+        const before = get().leads.find(l => l.id === id);
         set((state) => ({
           leads: state.leads.map((l) => (l.id === id ? { ...l, ...updates } : l)),
         }));
         const updated = get().leads.find(l => l.id === id);
-        if (updated) await get().syncTable('leads', updated);
+        if (updated) {
+          await get().syncTable('leads', updated);
+          if (before) await get().logHistory({ table: 'leads', recordId: id, action: 'update', oldData: before, newData: updated });
+        }
       },
       updateAnnouncement: (announcement) => set({ announcement }),
 
@@ -1372,14 +1566,20 @@ export const useAppStore = create<AppState>((set, get) => ({
         await get().syncTable('disma_tasks', task);
       },
       updateTask: async (id, data) => {
+        const before = get().tasks.find(t => t.id === id);
         set((state) => ({
           tasks: state.tasks.map(t => t.id === id ? { ...t, ...data } : t)
         }));
         const updated = get().tasks.find(t => t.id === id);
-        if (updated) await get().syncTable('disma_tasks', updated);
+        if (updated) {
+          await get().syncTable('disma_tasks', updated);
+          if (before) await get().logHistory({ table: 'disma_tasks', recordId: id, action: 'update', oldData: before, newData: updated });
+        }
       },
       deleteTask: async (id) => {
+        const before = get().tasks.find(t => t.id === id);
         set((state) => ({ tasks: state.tasks.filter(t => t.id !== id) }));
+        if (before) await get().logHistory({ table: 'disma_tasks', recordId: id, action: 'delete', oldData: before, newData: null });
       },
       
       notifications: [],
@@ -1402,11 +1602,15 @@ export const useAppStore = create<AppState>((set, get) => ({
         await get().syncTable('employees', emp);
       },
       updateEmployee: async (id, data) => {
+        const before = get().employees.find(e => e.id === id);
         set((state) => ({
           employees: state.employees.map(e => e.id === id ? { ...e, ...data } : e)
         }));
         const updated = get().employees.find(e => e.id === id);
-        if (updated) await get().syncTable('employees', updated);
+        if (updated) {
+          await get().syncTable('employees', updated);
+          if (before) await get().logHistory({ table: 'employees', recordId: id, action: 'update', oldData: before, newData: updated });
+        }
       },
       
       kpiObjectives: KPI_SEED,
@@ -1415,13 +1619,21 @@ export const useAppStore = create<AppState>((set, get) => ({
         await get().syncTable('kpis', kpi);
       },
       updateKpi: async (id, data) => {
+        const before = get().kpiObjectives.find(k => k.id === id);
         set((state) => ({
           kpiObjectives: state.kpiObjectives.map(k => k.id === id ? { ...k, ...data } : k)
         }));
         const updated = get().kpiObjectives.find(k => k.id === id);
-        if (updated) await get().syncTable('kpis', updated);
+        if (updated) {
+          await get().syncTable('kpis', updated);
+          if (before) await get().logHistory({ table: 'kpis', recordId: id, action: 'update', oldData: before, newData: updated });
+        }
       },
-      deleteKpi: (id) => set((state) => ({ kpiObjectives: state.kpiObjectives.filter(k => k.id !== id) })),
+      deleteKpi: (id) => {
+        const before = get().kpiObjectives.find(k => k.id === id);
+        set((state) => ({ kpiObjectives: state.kpiObjectives.filter(k => k.id !== id) }));
+        if (before) { void get().logHistory({ table: 'kpis', recordId: id, action: 'delete', oldData: before, newData: null }); }
+      },
       
       okrObjectives: [],
       addOkr: async (okr) => {
@@ -1429,11 +1641,15 @@ export const useAppStore = create<AppState>((set, get) => ({
         await get().syncTable('okr_objectives', okr);
       },
       updateOkr: async (id, data) => {
+        const before = get().okrObjectives.find(o => o.id === id);
         set((state) => ({
           okrObjectives: state.okrObjectives.map(o => o.id === id ? { ...o, ...data } : o)
         }));
         const updated = get().okrObjectives.find(o => o.id === id);
-        if (updated) await get().syncTable('okr_objectives', updated);
+        if (updated) {
+          await get().syncTable('okr_objectives', updated);
+          if (before) await get().logHistory({ table: 'okr_objectives', recordId: id, action: 'update', oldData: before, newData: updated });
+        }
       },
 
       fixedAssets: [],
@@ -1442,25 +1658,55 @@ export const useAppStore = create<AppState>((set, get) => ({
         await get().syncTable('fixed_assets', asset);
       },
       updateFixedAsset: async (id: string, updates: Partial<FixedAsset>) => {
+        const before = get().fixedAssets.find(a => a.id === id);
         set((state) => ({
           fixedAssets: state.fixedAssets.map(a => a.id === id ? { ...a, ...updates } : a)
         }));
         const updated = get().fixedAssets.find(a => a.id === id);
-        if (updated) await get().syncTable('fixed_assets', updated);
+        if (updated) {
+          await get().syncTable('fixed_assets', updated);
+          if (before) await get().logHistory({ table: 'fixed_assets', recordId: id, action: 'update', oldData: before, newData: updated });
+        }
       },
-      deleteFixedAsset: (id: string) => set((state) => ({ fixedAssets: state.fixedAssets.filter(a => a.id !== id) })),
+      deleteFixedAsset: (id: string) => {
+        const before = get().fixedAssets.find(a => a.id === id);
+        set((state) => ({ fixedAssets: state.fixedAssets.filter(a => a.id !== id) }));
+        if (before) { void get().logHistory({ table: 'fixed_assets', recordId: id, action: 'delete', oldData: before, newData: null }); }
+      },
 
-      bankAccounts: INITIAL_BANK_ACCOUNTS,
+      bankAccounts: [],
       addBankAccount: async (acc) => {
         set((state) => ({ bankAccounts: [...state.bankAccounts, acc] }));
         await get().syncTable('bank_accounts', acc);
       },
       updateBankAccount: async (id: string, data: Partial<BankAccount>) => {
+        const before = get().bankAccounts.find(b => b.id === id);
         set((state) => ({
           bankAccounts: state.bankAccounts.map(b => b.id === id ? { ...b, ...data } : b)
         }));
         const updated = get().bankAccounts.find(b => b.id === id);
-        if (updated) await get().syncTable('bank_accounts', updated);
+        if (updated) {
+          await get().syncTable('bank_accounts', updated);
+          if (before) await get().logHistory({ table: 'bank_accounts', recordId: id, action: 'update', oldData: before, newData: updated });
+        }
+      },
+      deleteBankAccount: async (id: string) => {
+        const before = get().bankAccounts.find(b => b.id === id);
+        const newBanks = get().bankAccounts.filter(b => b.id !== id);
+        set({ bankAccounts: newBanks });
+        saveLocalBankAccountsCache(newBanks);
+
+        // HARD DELETE from Supabase
+        try {
+          await fetch('/api/db', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ table: 'bank_accounts', id })
+          });
+          if (before) await get().logHistory({ table: 'bank_accounts', recordId: id, action: 'delete', oldData: before, newData: null });
+        } catch (e) {
+          console.error("Failed to delete bank account from server:", e);
+        }
       },
       updateBankBalance: async (id, amount) => {
         set((state) => ({
@@ -1527,6 +1773,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
         await get().syncTable('cash_transactions', newTx);
         for (const b of banksToSync) await get().syncTable('bank_accounts', b);
+        await get().logHistory({ table: 'cash_transactions', recordId: id, action: 'update', oldData: existing, newData: newTx });
       },
 
       deleteCashTransaction: async (id) => {
@@ -1554,8 +1801,9 @@ export const useAppStore = create<AppState>((set, get) => ({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ table: 'cash_transactions', id })
         });
-        
+
         if (accountToSync) await get().syncTable('bank_accounts', accountToSync);
+        await get().logHistory({ table: 'cash_transactions', recordId: id, action: 'delete', oldData: existing, newData: null });
       },
 
       bulkDeleteCashTransactions: async (ids) => {
@@ -1594,6 +1842,9 @@ export const useAppStore = create<AppState>((set, get) => ({
            const b = updatedBanks.find(x => x.id === bankId);
            if (b) await get().syncTable('bank_accounts', b);
         }
+        for (const tx of txsToDelete) {
+          await get().logHistory({ table: 'cash_transactions', recordId: tx.id, action: 'delete', oldData: tx, newData: null, reason: 'Bulk delete' });
+        }
       },
 
       reimbursements: [],
@@ -1602,11 +1853,15 @@ export const useAppStore = create<AppState>((set, get) => ({
         await get().syncTable('reimbursements', r);
       },
       updateReimbursement: async (id, data) => {
+        const before = get().reimbursements.find(r => r.id === id);
         set((state) => ({
           reimbursements: state.reimbursements.map(r => r.id === id ? { ...r, ...data } : r)
         }));
         const updated = get().reimbursements.find(r => r.id === id);
-        if (updated) await get().syncTable('reimbursements', updated);
+        if (updated) {
+          await get().syncTable('reimbursements', updated);
+          if (before) await get().logHistory({ table: 'reimbursements', recordId: id, action: 'update', oldData: before, newData: updated });
+        }
       },
 
       updateNavConfig: async (role, config) => {
@@ -1620,13 +1875,18 @@ export const useAppStore = create<AppState>((set, get) => ({
         await get().syncTable('client_prices', cp);
       },
       updateClientPrice: async (id, data) => {
+        const before = get().clientPrices.find(c => c.id === id);
         set((state) => ({
           clientPrices: state.clientPrices.map(c => c.id === id ? { ...c, ...data } : c)
         }));
         const updated = get().clientPrices.find(c => c.id === id);
-        if (updated) await get().syncTable('client_prices', updated);
+        if (updated) {
+          await get().syncTable('client_prices', updated);
+          if (before) await get().logHistory({ table: 'client_prices', recordId: id, action: 'update', oldData: before, newData: updated });
+        }
       },
       deleteClientPrice: async (id) => {
+        const before = get().clientPrices.find(c => c.id === id);
         set((state) => ({ clientPrices: state.clientPrices.filter(c => c.id !== id) }));
         if (typeof window !== 'undefined') window.localStorage.setItem(LOCAL_CLIENT_PRICES_CACHE_KEY, JSON.stringify(get().clientPrices));
         await fetch('/api/db', {
@@ -1634,9 +1894,11 @@ export const useAppStore = create<AppState>((set, get) => ({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ table: 'client_prices', id })
         });
+        if (before) await get().logHistory({ table: 'client_prices', recordId: id, action: 'delete', oldData: before, newData: null });
       },
       deleteMultipleClientPrices: async (ids) => {
         if (!ids || ids.length === 0) return;
+        const beforeMap = new Map(get().clientPrices.filter(c => ids.includes(c.id)).map(c => [c.id, { ...c }]));
         set((state) => ({ clientPrices: state.clientPrices.filter(c => !ids.includes(c.id)) }));
         if (typeof window !== 'undefined') window.localStorage.setItem(LOCAL_CLIENT_PRICES_CACHE_KEY, JSON.stringify(get().clientPrices));
         await fetch('/api/db', {
@@ -1644,6 +1906,10 @@ export const useAppStore = create<AppState>((set, get) => ({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ table: 'client_prices', id: ids })
         });
+        for (const id of ids) {
+          const before = beforeMap.get(id);
+          if (before) await get().logHistory({ table: 'client_prices', recordId: id, action: 'delete', oldData: before, newData: null, reason: 'Bulk delete' });
+        }
       },
 
       pendingReturns: [],

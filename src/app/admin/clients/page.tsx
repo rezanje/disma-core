@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useAppStore } from "@/lib/store"
-import { Plus, Pencil, Trash2, Share2, DollarSign, Receipt, TrendingUp, History, FileText, Download, Upload, Eye, Search, Filter, Printer, Mail, ChevronRight, ChevronDown, CheckCircle2, X } from "lucide-react"
+import { Plus, Pencil, Trash2, Share2, DollarSign, Receipt, TrendingUp, History, FileText, Download, Upload, Eye, Search, Filter, Printer, Mail, ChevronRight, ChevronDown, CheckCircle2, X, Loader2 } from "lucide-react"
 import { v4 as uuidv4 } from "uuid"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,6 +17,7 @@ import UniversalPDFPreview from "@/components/finance/UniversalPDFPreview"
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog"
+import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Select,
@@ -39,15 +40,15 @@ export default function ClientsPage() {
   
   const [isOpen, setIsOpen] = useState(false)
   const [editingClient, setEditingClient] = useState<Client | null>(null)
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false)
-  const [selectedClientForHistory, setSelectedClientForHistory] = useState<Client | null>(null)
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
   const [pdfPreview, setPdfPreview] = useState<{ url: string, title: string } | null>(null)
   const [invoicePreview, setInvoicePreview] = useState<{ id: string, isConsolidated: boolean } | null>(null)
   const [search, setSearch] = useState("")
   const [sortBy, setSortBy] = useState<"name" | "value" | "debt">("name")
   const [filterDebt, setFilterDebt] = useState<"all" | "has_debt">("all")
+  const [isSaving, setIsSaving] = useState(false)
   
-  const [selectedHistoryClient, setSelectedHistoryClient] = useState<Client | null>(null)
+  const selectedClient = clients.find(c => c.id === selectedClientId)
   
   const [formData, setFormData] = useState({
     companyName: "",
@@ -83,6 +84,7 @@ export default function ClientsPage() {
       return
     }
 
+    setIsSaving(true)
     try {
       if (editingClient) {
         await updateClient(editingClient.id, formData)
@@ -95,12 +97,14 @@ export default function ClientsPage() {
         })
         toast.success("Client added successfully")
       }
-      
+
       setIsOpen(false)
       resetForm()
     } catch (err: any) {
       console.error("[Clients] Save failed:", err)
       toast.error("Gagal menyimpan client: " + err.message)
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -139,6 +143,305 @@ export default function ClientsPage() {
       return 0
     })
 
+  const getClientHealth = (clientId: string) => {
+    const clientInvoices = invoices.filter(inv => inv.clientId === clientId)
+    const now = new Date()
+    
+    const overdue = clientInvoices.some(inv => inv.status !== 'Paid' && new Date(inv.dueDate) < now)
+    if (overdue) return { label: 'Overdue', color: 'bg-rose-100 text-rose-700 border-rose-200', icon: '🔴' }
+    
+    const hasBeenLate = clientInvoices.some(inv => inv.status === 'Paid' && inv.paidDate && new Date(inv.paidDate) > new Date(inv.dueDate))
+    if (hasBeenLate) return { label: 'Late', color: 'bg-amber-100 text-amber-700 border-amber-200', icon: '🟡' }
+    
+    return { label: 'Good', color: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: '🟢' }
+  }
+
+  const getNearestDueDate = (clientId: string) => {
+    const unpaid = invoices.filter(inv => inv.clientId === clientId && inv.status !== 'Paid')
+    if (unpaid.length === 0) return null
+    const sorted = [...unpaid].sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
+    return new Date(sorted[0].dueDate)
+  }
+
+  if (selectedClient) {
+    const clientInvoices = invoices.filter(inv => inv.clientId === selectedClient.id)
+    const clientOrders = salesOrders.filter(so => so.clientId === selectedClient.id)
+    const totalLifetimeRevenue = clientInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0)
+    const totalOutstanding = clientInvoices.reduce((sum, inv) => sum + (inv.totalAmount - inv.amountPaid), 0)
+    const nearestDue = getNearestDueDate(selectedClient.id)
+    
+    const paidInvoices = clientInvoices.filter(inv => inv.status === 'Paid' && inv.paidDate)
+    const avgDaysToPay = paidInvoices.length > 0 
+      ? Math.round(paidInvoices.reduce((sum, inv) => {
+          const days = (new Date(inv.paidDate!).getTime() - new Date(inv.issueDate).getTime()) / (1000 * 60 * 60 * 24)
+          return sum + days
+        }, 0) / paidInvoices.length)
+      : selectedClient.paymentTermDays
+
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <Button variant="ghost" className="rounded-full font-bold hover:bg-slate-100" onClick={() => setSelectedClientId(null)}>
+             <ChevronRight className="rotate-180 mr-2 h-4 w-4" /> Kembali ke Daftar
+          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" className="rounded-full h-10 font-bold border-slate-200" onClick={() => handleEdit(selectedClient)}>
+              <Pencil className="mr-2 h-4 w-4" /> Edit Profil
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card className="liquid-card border-none bg-slate-900 text-white shadow-xl">
+            <CardContent className="p-6">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Lifetime Revenue</p>
+              <h3 className="text-2xl font-black">{formatRupiah(totalLifetimeRevenue)}</h3>
+            </CardContent>
+          </Card>
+          <Card className="liquid-card border-none shadow-xl">
+            <CardContent className="p-6">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Active Outstanding</p>
+              <h3 className="text-2xl font-black text-rose-600">{formatRupiah(totalOutstanding)}</h3>
+            </CardContent>
+          </Card>
+          <Card className="liquid-card border-none shadow-xl">
+            <CardContent className="p-6">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Jatuh Tempo Terdekat</p>
+              <h3 className="text-lg font-black">{nearestDue ? format(nearestDue, 'dd MMM yyyy') : '-'}</h3>
+            </CardContent>
+          </Card>
+          <Card className="liquid-card border-none shadow-xl">
+            <CardContent className="p-6">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Avg Payment Cycle</p>
+              <h3 className="text-2xl font-black text-emerald-600">{avgDaysToPay} Hari</h3>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="bg-white rounded-[2.5rem] shadow-xl overflow-hidden min-h-[600px] flex flex-col border border-slate-100">
+          <div className="p-8 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-white shadow-sm flex items-center justify-center text-2xl border border-slate-100">
+                {getClientHealth(selectedClient.id).icon}
+              </div>
+              <div>
+                <h2 className="text-2xl font-black tracking-tight text-slate-900">{selectedClient.companyName}</h2>
+                <div className="flex items-center gap-2 mt-1">
+                   <Badge className={cn("text-[9px] font-black uppercase px-2 py-0.5 rounded-full border shadow-sm", getClientHealth(selectedClient.id).color)}>
+                     {getClientHealth(selectedClient.id).label}
+                   </Badge>
+                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Client ID: {selectedClient.id.substring(0,8)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <Tabs defaultValue="profile" className="flex-1 flex flex-col">
+            <div className="px-8 border-b border-slate-100 flex justify-center bg-white">
+               <TabsList className="bg-transparent h-16 gap-8">
+                  {['Profile', 'Purchase Orders', 'Invoices', 'Payment History', 'Notes'].map(tab => (
+                    <TabsTrigger 
+                      key={tab} 
+                      value={tab.toLowerCase().replace(' ', '-')} 
+                      className="rounded-none border-b-2 border-transparent data-[state=active]:border-emerald-500 data-[state=active]:bg-transparent data-[state=active]:text-emerald-600 font-black uppercase text-[10px] tracking-[0.2em] px-0 h-full transition-all"
+                    >
+                      {tab}
+                    </TabsTrigger>
+                  ))}
+               </TabsList>
+            </div>
+
+            <TabsContent value="profile" className="p-8 flex-1">
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                  <div className="space-y-6">
+                    <div>
+                      <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-4">Contact Information</h4>
+                      <div className="space-y-4">
+                        <div className="flex justify-between border-b border-slate-50 pb-2">
+                           <span className="text-sm font-bold text-slate-500">PIC Name</span>
+                           <span className="text-sm font-black text-slate-900">{selectedClient.picName}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-slate-50 pb-2">
+                           <span className="text-sm font-bold text-slate-500">Email Address</span>
+                           <span className="text-sm font-black text-slate-900">{selectedClient.email || '-'}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-slate-50 pb-2">
+                           <span className="text-sm font-bold text-slate-500">Phone Number</span>
+                           <span className="text-sm font-black text-slate-900">{selectedClient.phone || '-'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-6">
+                    <div>
+                      <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-4">Billing Address</h4>
+                      <div className="p-6 rounded-3xl bg-slate-50 border border-slate-100 text-sm font-bold text-slate-600 leading-relaxed">
+                        {selectedClient.address}
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-4">Account Settings</h4>
+                      <div className="flex justify-between border-b border-slate-50 pb-2">
+                         <span className="text-sm font-bold text-slate-500">Payment Terms</span>
+                         <span className="text-sm font-black text-emerald-600">{selectedClient.paymentTermDays} Days</span>
+                      </div>
+                    </div>
+                  </div>
+               </div>
+            </TabsContent>
+            
+            <TabsContent value="purchase-orders" className="p-0 flex-1">
+               <Table>
+                 <TableHeader className="bg-slate-50">
+                    <TableRow>
+                       <TableHead className="font-black text-[10px] uppercase pl-8 py-4">PO Number</TableHead>
+                       <TableHead className="font-black text-[10px] uppercase">Order Date</TableHead>
+                       <TableHead className="font-black text-[10px] uppercase">Target Delivery</TableHead>
+                       <TableHead className="font-black text-[10px] uppercase text-right">Value</TableHead>
+                       <TableHead className="font-black text-[10px] uppercase text-center">Status</TableHead>
+                    </TableRow>
+                 </TableHeader>
+                 <TableBody>
+                    {clientOrders.length === 0 ? (
+                      <TableRow><TableCell colSpan={5} className="h-32 text-center text-slate-400 italic">No PO history found.</TableCell></TableRow>
+                    ) : (
+                      clientOrders.sort((a,b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime()).map(so => {
+                         const items = salesOrderItems.filter(item => item.salesOrderId === so.id)
+                         const total = items.reduce((sum, item) => sum + item.subtotal, 0)
+                         
+                         // Determine Financial Status
+                         const relatedInvoice = invoices.find(inv => 
+                           inv.salesOrderId === so.id || (inv.salesOrderIds && inv.salesOrderIds.includes(so.id))
+                         )
+                         
+                         let finStatus = { label: 'Belum Terbit', color: 'bg-slate-100 text-slate-500 border-slate-200' }
+                         if (so.status === 'Batal') {
+                           finStatus = { label: 'Batal', color: 'bg-rose-100 text-rose-800 border-rose-200' }
+                         } else if (relatedInvoice) {
+                            if (relatedInvoice.status === 'Paid') {
+                              finStatus = { label: 'Lunas', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' }
+                            } else {
+                              finStatus = { label: 'Outstanding', color: 'bg-amber-100 text-amber-800 border-amber-200' }
+                            }
+                         }
+
+                         return (
+                           <TableRow key={so.id} className="hover:bg-slate-50 transition-colors">
+                              <TableCell className="pl-8 py-5 font-black text-slate-900 text-xs">{so.poNumber}</TableCell>
+                              <TableCell className="text-xs font-bold text-slate-600">{format(new Date(so.orderDate), 'dd MMM yyyy')}</TableCell>
+                              <TableCell className="text-xs font-bold text-slate-600">{format(new Date(so.targetDeliveryDate), 'dd MMM yyyy')}</TableCell>
+                              <TableCell className="text-right font-black text-slate-900">{formatRupiah(total)}</TableCell>
+                              <TableCell className="text-center">
+                                 <div className="flex flex-col items-center gap-1">
+                                    <Badge className={cn("text-[9px] font-black uppercase rounded-full px-2 py-0.5 border shadow-sm", finStatus.color)}>
+                                      {finStatus.label}
+                                    </Badge>
+                                    {so.status !== 'Terkirim' && so.status !== 'Selesai' && so.status !== 'Batal' && (
+                                       <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Status: {so.status}</span>
+                                    )}
+                                 </div>
+                              </TableCell>
+                           </TableRow>
+                         )
+                      })
+                    )}
+                 </TableBody>
+               </Table>
+            </TabsContent>
+
+            <TabsContent value="invoices" className="p-0 flex-1">
+               <Table>
+                 <TableHeader className="bg-slate-50">
+                    <TableRow>
+                       <TableHead className="font-black text-[10px] uppercase pl-8 py-4">Invoice ID</TableHead>
+                       <TableHead className="font-black text-[10px] uppercase">Issue Date</TableHead>
+                       <TableHead className="font-black text-[10px] uppercase">Due Date</TableHead>
+                       <TableHead className="font-black text-[10px] uppercase text-right">Total</TableHead>
+                       <TableHead className="font-black text-[10px] uppercase text-right">Remaining</TableHead>
+                       <TableHead className="font-black text-[10px] uppercase text-center">Status</TableHead>
+                    </TableRow>
+                 </TableHeader>
+                 <TableBody>
+                    {clientInvoices.length === 0 ? (
+                      <TableRow><TableCell colSpan={6} className="h-32 text-center text-slate-400 italic">No invoices found.</TableCell></TableRow>
+                    ) : (
+                      clientInvoices.sort((a,b) => new Date(b.issueDate).getTime() - new Date(a.issueDate).getTime()).map(inv => (
+                        <TableRow key={inv.id} className="hover:bg-slate-50 cursor-pointer transition-colors" onClick={() => setInvoicePreview({ id: inv.id, isConsolidated: inv.isConsolidated || false })}>
+                           <TableCell className="pl-8 py-5 font-black text-indigo-600 uppercase text-xs">{inv.id.substring(0,8)}</TableCell>
+                           <TableCell className="text-xs font-bold text-slate-600">{format(new Date(inv.issueDate), 'dd MMM yyyy')}</TableCell>
+                           <TableCell className="text-xs font-bold text-slate-600">{format(new Date(inv.dueDate), 'dd MMM yyyy')}</TableCell>
+                           <TableCell className="text-right font-black text-slate-900">{formatRupiah(inv.totalAmount)}</TableCell>
+                           <TableCell className="text-right font-black text-rose-600">{formatRupiah(inv.totalAmount - inv.amountPaid)}</TableCell>
+                           <TableCell className="text-center">
+                              <Badge className={cn(
+                                "text-[9px] font-black uppercase rounded-full px-2 py-0.5 border shadow-sm",
+                                inv.status === 'Paid' ? "bg-emerald-100 text-emerald-700 border-emerald-200" : "bg-rose-100 text-rose-700 border-rose-200"
+                              )}>
+                                {inv.status}
+                              </Badge>
+                           </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                 </TableBody>
+               </Table>
+            </TabsContent>
+
+            <TabsContent value="payment-history" className="p-0 flex-1">
+               <Table>
+                 <TableHeader className="bg-slate-50">
+                    <TableRow>
+                       <TableHead className="font-black text-[10px] uppercase pl-8 py-4">Payment Date</TableHead>
+                       <TableHead className="font-black text-[10px] uppercase">Amount</TableHead>
+                       <TableHead className="font-black text-[10px] uppercase">Method</TableHead>
+                       <TableHead className="font-black text-[10px] uppercase">Notes</TableHead>
+                    </TableRow>
+                 </TableHeader>
+                 <TableBody>
+                    {clientInvoices.flatMap(inv => (inv.payments || []).map(p => ({ ...p, invId: inv.id }))).length === 0 ? (
+                      <TableRow><TableCell colSpan={4} className="h-32 text-center text-slate-400 italic">No payment history found.</TableCell></TableRow>
+                    ) : (
+                      clientInvoices
+                        .flatMap(inv => (inv.payments || []).map(p => ({ ...p, invId: inv.id })))
+                        .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                        .map((p, idx) => (
+                        <TableRow key={idx}>
+                           <TableCell className="pl-8 py-5 font-bold text-xs text-slate-600">{format(new Date(p.date), 'dd MMM yyyy')}</TableCell>
+                           <TableCell className="font-black text-emerald-600 text-base">{formatRupiah(p.amount)}</TableCell>
+                           <TableCell className="text-xs font-black uppercase text-slate-500 bg-slate-100 px-2 py-0.5 rounded-lg w-fit">{p.method || '-'}</TableCell>
+                           <TableCell className="text-xs text-slate-400 italic font-medium">{p.note || '-'}</TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                 </TableBody>
+               </Table>
+            </TabsContent>
+
+            <TabsContent value="notes" className="p-8 flex-1 flex flex-col gap-4">
+               <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Internal Collection Notes</Label>
+               <textarea 
+                  className="flex-1 w-full min-h-[300px] p-6 rounded-3xl bg-slate-50 border border-slate-100 text-sm font-bold text-slate-700 leading-relaxed focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all"
+                  placeholder="Catatan untuk tim collection Sifa... (contoh: 'Owner susah dihubungi tiap Jumat', 'Minta invoice dipisah per unit')"
+                  value={selectedClient.notes || ""}
+                  onChange={(e) => updateClient(selectedClient.id, { notes: e.target.value })}
+               />
+               <p className="text-[10px] text-slate-400 italic font-bold uppercase tracking-widest">* Catatan ini hanya terlihat oleh tim admin/finance internal.</p>
+            </TabsContent>
+          </Tabs>
+        </div>
+
+        {invoicePreview && (
+          <UniversalPDFPreview 
+            isOpen={!!invoicePreview}
+            onClose={() => setInvoicePreview(null)}
+            invoiceId={invoicePreview.id}
+            isConsolidated={invoicePreview.isConsolidated}
+          />
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -151,30 +454,6 @@ export default function ClientsPage() {
         </div>
         
         <div className="flex gap-2">
-          <Button 
-            variant="ghost" 
-            className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded-full h-12 px-6 font-bold"
-            onClick={async () => {
-              if (confirm("Bersihkan SEMUA data client? Ini akan menghapus Client agar import masal lo lancar (Pesanan/Nota tetap aman kecuali kliennya dihapus). Lanjut?")) {
-                toast.loading("Membersihkan database client...", { id: "client_wipe" });
-                try {
-                  const res = await fetch('/api/db/reset', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'clients_only' })
-                  });
-                  if (!res.ok) throw new Error("Gagal membersihkan data client");
-                  toast.success("Data client bersih total!", { id: "client_wipe" });
-                  window.location.reload();
-                } catch (err: any) {
-                  toast.error("Gagal: " + err.message, { id: "client_wipe" });
-                }
-              }
-            }}
-          >
-            <Trash2 className="mr-2 h-4 w-4" /> Bersihkan Klien
-          </Button>
-
           <Button 
             variant="outline" 
             className="rounded-full h-12 px-6 font-bold border-slate-200 hover:bg-slate-50 transition-all shadow-sm"
@@ -197,7 +476,6 @@ export default function ClientsPage() {
                   let headerRowIndex = -1
                   let delimiter = ','
                   
-                  // Find true header row
                   for (let i = 0; i < allLines.length; i++) {
                     const line = allLines[i].trim()
                     if (!line) continue
@@ -237,11 +515,9 @@ export default function ClientsPage() {
 
                       if (h.includes('COMPANY') || h.includes('PERUSAHAAN') || h.includes('PELANGGAN')) {
                         client.companyName = cleanVal
-                        if (!client.picName) client.picName = cleanVal // Default PIC to client name
+                        if (!client.picName) client.picName = cleanVal
                       } else if (h.includes('PIC') || h.includes('NAMA ORANG')) {
                         client.picName = cleanVal
-                      } else if (h === 'KODE' || h === 'CODE' || h === 'ID') {
-                        // ignore literal ID column to avoid postgres UUID errors
                       } else if (h.includes('EMAIL')) {
                         client.email = cleanVal
                       } else if (h.includes('PHONE') || h.includes('TELPON') || h.includes('TELEPON') || h.includes('WA')) {
@@ -253,11 +529,10 @@ export default function ClientsPage() {
                       }
                     })
 
-                    // Handle missing ID mapping safely with UUID format
                     if (client.companyName) {
                       const existing = clients.find(c => c.companyName.toLowerCase() === client.companyName.toLowerCase());
                       client.id = existing ? existing.id : uuidv4();
-                      itemMap.set(client.companyName, client); // deduplicate by company name instead of fake ID
+                      itemMap.set(client.companyName, client);
                     }
                   }
 
@@ -287,18 +562,20 @@ export default function ClientsPage() {
             setIsOpen(open)
             if (!open) resetForm()
           }}>
-            <DialogTrigger render={
-              <Button className="bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-full h-12 px-6 shadow-[0_10px_30px_rgba(16,185,129,0.3)] hover:-translate-y-1 transition-all">
+            <DialogTrigger render={<Button className="bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-full h-12 px-6 shadow-[0_10px_30px_rgba(16,185,129,0.3)] hover:-translate-y-1 transition-all" />}>
+              <div className="flex items-center">
                 <Plus className="mr-2 h-5 w-5" /> Add New Client
-              </Button>
-            } />
-            <DialogContent className="sm:max-w-[500px] rounded-3xl">
+              </div>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[500px] rounded-3xl border-none shadow-2xl">
               <form onSubmit={async (e) => {
                 e.preventDefault();
                 await handleSave();
               }}>
                 <DialogHeader>
-                  <DialogTitle className="text-xl font-black">{editingClient ? "Edit Client" : "Add New Client"}</DialogTitle>
+                  <DialogTitle className="text-xl font-black">
+                    {editingClient ? "Edit Client" : "Add New Client"}
+                  </DialogTitle>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                   <div className="grid gap-2">
@@ -307,7 +584,7 @@ export default function ClientsPage() {
                       id="companyName" 
                       required
                       value={formData.companyName}
-                      className="h-11 rounded-xl border-slate-200"
+                      className="h-11 rounded-xl border-slate-200 focus:ring-emerald-500/10"
                       onChange={(e) => setFormData({...formData, companyName: e.target.value})}
                       placeholder="PT Maju Bersama" 
                     />
@@ -366,8 +643,10 @@ export default function ClientsPage() {
                   </div>
                 </div>
                 <div className="flex justify-end gap-3 mt-4">
-                  <Button type="button" variant="outline" className="rounded-full h-12 px-6 font-bold" onClick={() => setIsOpen(false)}>Cancel</Button>
-                  <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-full h-12 px-6">Save Client</Button>
+                  <Button type="button" variant="outline" className="rounded-full h-12 px-6 font-bold" onClick={() => setIsOpen(false)} disabled={isSaving}>Cancel</Button>
+                  <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-full h-12 px-6 shadow-lg shadow-emerald-500/20" disabled={isSaving}>
+                    {isSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Menyimpan...</> : "Save Client"}
+                  </Button>
                 </div>
               </form>
             </DialogContent>
@@ -375,7 +654,6 @@ export default function ClientsPage() {
         </div>
       </div>
 
-      {/* SEARCH AND FILTERS */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         <div className="md:col-span-2 relative">
             <Input 
@@ -384,8 +662,8 @@ export default function ClientsPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-            <DollarSign className="w-4 h-4" />
+          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+            <Search className="w-5 h-5" />
           </div>
         </div>
         <div>
@@ -393,7 +671,7 @@ export default function ClientsPage() {
             <SelectTrigger className="h-14 rounded-full bg-white border-none shadow-[0_8px_30px_rgba(0,0,0,0.06)] font-bold text-slate-700 focus:ring-emerald-500/20">
               <SelectValue placeholder="Sort By" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="rounded-2xl border-none shadow-2xl">
               <SelectItem value="name">Sort: Nama Client</SelectItem>
               <SelectItem value="value">Sort: Total Transaksi</SelectItem>
               <SelectItem value="debt">Sort: Sisa Hutang</SelectItem>
@@ -405,7 +683,7 @@ export default function ClientsPage() {
             <SelectTrigger className="h-14 rounded-full bg-white border-none shadow-[0_8px_30px_rgba(0,0,0,0.06)] font-bold text-slate-700 focus:ring-emerald-500/20">
               <SelectValue placeholder="Filter Hutang" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="rounded-2xl border-none shadow-2xl">
               <SelectItem value="all">Semua Client</SelectItem>
               <SelectItem value="has_debt">Ada Hutang Saja</SelectItem>
             </SelectContent>
@@ -413,124 +691,70 @@ export default function ClientsPage() {
         </div>
       </div>
 
-      <div className="liquid-card overflow-hidden mt-6">
+      <div className="liquid-card overflow-hidden mt-6 bg-white border border-slate-100 shadow-xl">
         <Table>
-          <TableHeader className="bg-slate-50 border-b border-slate-100">
-            <TableRow className="hover:bg-slate-50">
-              <TableHead className="font-black text-[10px] uppercase tracking-widest text-emerald-600 py-6 h-auto">Company Info</TableHead>
-              <TableHead className="font-black text-[10px] uppercase tracking-widest text-slate-400 h-auto">Contact Info</TableHead>
+          <TableHeader className="bg-slate-50/50 border-b border-slate-100">
+            <TableRow>
+              <TableHead className="font-black text-[10px] uppercase tracking-widest text-emerald-600 py-6 pl-8 h-auto">Company Info</TableHead>
+              <TableHead className="font-black text-[10px] uppercase tracking-widest text-slate-400 h-auto">PIC / Contact</TableHead>
               <TableHead className="text-right font-black text-[10px] uppercase tracking-widest text-slate-400 h-auto">Total Revenue</TableHead>
               <TableHead className="text-right font-black text-[10px] uppercase tracking-widest text-slate-400 h-auto">Outstanding AR</TableHead>
-              <TableHead className="w-[100px] text-center font-black text-[10px] uppercase tracking-widest text-slate-400 h-auto">Ops</TableHead>
+              <TableHead className="text-center font-black text-[10px] uppercase tracking-widest text-slate-400 h-auto">Nearest Due</TableHead>
+              <TableHead className="text-center font-black text-[10px] uppercase tracking-widest text-slate-400 h-auto">Health</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {processedClients.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="h-32 text-center text-slate-400 italic">
+                <TableCell colSpan={6} className="h-48 text-center text-slate-400 italic font-bold uppercase tracking-widest">
                   Belum ada data client yang sesuai...
                 </TableCell>
               </TableRow>
             ) : (
               processedClients.map((client: Client) => {
-                // CALCULATE TOTALS
-                const clientOrders = salesOrders.filter((so: SalesOrder) => so.clientId === client.id)
-                const clientOrderIds = clientOrders.map((so: SalesOrder) => so.id)
-                const totalOrdersVal = salesOrderItems
-                  .filter((item: SalesOrderItem) => clientOrderIds.includes(item.salesOrderId))
-                  .reduce((sum: number, item: SalesOrderItem) => {
-                    const finalQty = item.qtyFinal ?? item.qty
-                    return sum + (finalQty * item.unitPrice)
-                  }, 0)
-                
-                // Exclude original invoices that have been superseded by a Tukar Faktur
                 const clientInvoices = invoices.filter((inv: Invoice) => inv.clientId === client.id)
-                const consolidatedSOIds = new Set(
-                  clientInvoices
-                    .filter((inv: any) => inv.isConsolidated && inv.salesOrderIds?.length > 0)
-                    .flatMap((inv: any) => inv.salesOrderIds)
-                )
-                const activeInvoices = clientInvoices.filter((inv: Invoice) => {
-                  // If this is an original (non-TF) invoice AND its SO has been absorbed into a TF, skip it
-                  if (inv.salesOrderId && consolidatedSOIds.has(inv.salesOrderId) && !(inv as any).isConsolidated) {
-                    return false
-                  }
-                  return true
-                })
-                const totalDebt = activeInvoices.reduce((sum: number, inv: Invoice) => sum + (inv.totalAmount - inv.amountPaid), 0)
+                const totalRevenue = clientInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0)
+                const totalDebt = clientInvoices.reduce((sum, inv) => sum + (inv.totalAmount - inv.amountPaid), 0)
+                const nearestDue = getNearestDueDate(client.id)
+                const health = getClientHealth(client.id)
 
                 return (
-                  <TableRow key={client.id} className="hover:bg-slate-50/50 transition-colors group border-b border-slate-100 text-sm">
-                    <TableCell className="py-5">
+                  <TableRow 
+                    key={client.id} 
+                    className="hover:bg-slate-50/80 transition-colors group border-b border-slate-50 text-sm cursor-pointer"
+                    onClick={() => setSelectedClientId(client.id)}
+                  >
+                    <TableCell className="py-6 pl-8">
                       <div className="flex flex-col">
-                        <span className="font-black text-slate-800 tracking-tight text-base leading-none mb-1">{client.companyName}</span>
+                        <span className="font-black text-slate-800 tracking-tight text-base leading-none mb-2">{client.companyName}</span>
                         <div className="flex items-center gap-1.5">
-                           <Badge variant="outline" className="text-[9px] font-black border-slate-200 text-slate-500 bg-slate-50 h-5 px-1.5">
+                           <Badge variant="outline" className="text-[9px] font-black border-slate-200 text-slate-500 bg-slate-50 h-5 px-2 rounded-full uppercase">
                               {client.paymentTermDays}D Terms
                            </Badge>
-                           <span className="text-[10px] text-slate-400 font-bold uppercase truncate max-w-[150px]">{client.address}</span>
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col">
                         <span className="font-bold text-slate-700">{client.picName}</span>
-                        <span className="text-[10px] text-slate-400 font-bold">{client.phone || '-'}</span>
+                        <span className="text-[10px] text-slate-400 font-black uppercase mt-0.5 tracking-tighter">{client.phone || '-'}</span>
                       </div>
+                    </TableCell>
+                    <TableCell className="text-right font-black text-slate-900 text-base">
+                      {formatRupiah(totalRevenue)}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex flex-col items-end gap-1">
-                        <span className="font-black text-emerald-600 text-base">{formatRupiah(totalOrdersVal)}</span>
-                        <div className="flex items-center gap-1 text-[10px] font-black uppercase text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
-                          <TrendingUp className="w-2.5 h-2.5" />
-                          {clientOrders.length} Order
-                        </div>
-                      </div>
+                      <span className={cn("font-black text-base", totalDebt > 0 ? "text-rose-600" : "text-emerald-600")}>
+                        {formatRupiah(totalDebt)}
+                      </span>
                     </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex flex-col items-end">
-                        <span className={cn("font-black", totalDebt > 0 ? "text-rose-600" : "text-emerald-600")}>
-                          {formatRupiah(totalDebt)}
-                        </span>
-                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Receivable</span>
-                      </div>
+                    <TableCell className="text-center font-black text-xs text-slate-500">
+                      {nearestDue ? format(nearestDue, 'dd MMM yyyy') : '-'}
                     </TableCell>
-                    <TableCell>
-                      <div className="flex items-center justify-center gap-1">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-10 w-10 rounded-full text-indigo-600 hover:bg-indigo-50 hover:scale-110 transition-all"
-                          title="Lihat Arsip Dokumen"
-                          onClick={() => {
-                            setSelectedHistoryClient(client)
-                            setIsHistoryOpen(true)
-                          }}
-                        >
-                          <History className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-10 w-10 rounded-full text-emerald-600 hover:bg-emerald-50 hover:scale-110 transition-all"
-                          title="Copy Order Link"
-                          onClick={() => {
-                            const link = `${window.location.origin}/order/${client.id}`
-                            navigator.clipboard.writeText(link)
-                            toast.success(`Link order untuk ${client.companyName} disalin!`)
-                          }}
-                        >
-                          <Share2 className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-9 w-9 rounded-xl text-slate-400 hover:text-slate-600 hover:scale-110 transition-all"
-                          onClick={() => handleEdit(client)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                      </div>
+                    <TableCell className="text-center">
+                       <Badge className={cn("text-[9px] font-black uppercase rounded-full px-2 py-0.5 border shadow-sm", health.color)}>
+                         {health.label}
+                       </Badge>
                     </TableCell>
                   </TableRow>
                 )
@@ -540,205 +764,6 @@ export default function ClientsPage() {
         </Table>
       </div>
 
-      {/* DIALOG: CLIENT HISTORY & DOCUMENT ARCHIVE */}
-      <Dialog open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col p-0 rounded-[2.5rem] border-none shadow-2xl">
-          <DialogHeader className="p-8 bg-slate-900 text-white shrink-0">
-             <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-3xl bg-white/10 flex items-center justify-center text-emerald-400 shadow-inner">
-                  <History className="w-8 h-8" />
-                </div>
-                <div>
-                   <DialogTitle className="text-2xl font-black tracking-tight">{selectedHistoryClient?.companyName}</DialogTitle>
-                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400 mt-1 flex items-center gap-2">
-                     <FileText className="w-3 h-3" /> Arsip Dokumen & Riwayat Transaksi
-                   </p>
-                </div>
-             </div>
-          </DialogHeader>
-          
-          <div className="flex-1 overflow-y-auto bg-slate-50/50">
-             <Tabs defaultValue="orders" className="w-full">
-                <div className="px-8 pt-6 pb-0 bg-white border-b border-slate-100 flex justify-center">
-                   <TabsList className="bg-slate-100 p-1 rounded-2xl h-12 w-fit mb-4">
-                      <TabsTrigger value="orders" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                         Order & Dokumen
-                      </TabsTrigger>
-                      <TabsTrigger value="billing" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                         Riwayat Penagihan
-                      </TabsTrigger>
-                   </TabsList>
-                </div>
-
-                <TabsContent value="orders" className="p-8 space-y-6 mt-0">
-                   <div className="space-y-4">
-                      {selectedHistoryClient && salesOrders.filter(so => so.clientId === selectedHistoryClient.id).length === 0 ? (
-                        <div className="text-center py-10">
-                           <p className="text-slate-400 font-bold uppercase text-xs tracking-widest italic">Belum ada riwayat order untuk client ini.</p>
-                        </div>
-                      ) : (
-                        salesOrders
-                          .filter(so => so.clientId === selectedHistoryClient?.id)
-                          .sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime())
-                          .map(so => {
-                             const hasDocs = so.archivedSuratJalanUrl || so.archivedBaUrl;
-                             return (
-                               <div key={so.id} className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300">
-                                  <div className="flex justify-between items-start mb-4">
-                                     <div>
-                                        <span className="text-[10px] font-black tracking-widest uppercase text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">{so.poNumber}</span>
-                                        <p className="text-xs font-black text-slate-400 uppercase tracking-tight mt-2">{new Date(so.orderDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-                                     </div>
-                                     <Badge variant="outline" className="font-black text-[10px] uppercase rounded-full">
-                                       {so.status}
-                                     </Badge>
-                                  </div>
-                                  
-                                  {hasDocs ? (
-                                    <div className="flex gap-2">
-                                     {so.archivedSuratJalanUrl && (
-                                       <div className="flex flex-col items-center gap-1">
-                                         <Button 
-                                           size="sm" 
-                                           variant="outline" 
-                                           className="h-8 w-8 rounded-lg p-0 border-emerald-100 text-emerald-600 hover:bg-emerald-50"
-                                           onClick={() => setPdfPreview({ url: so.archivedSuratJalanUrl!, title: `Surat Jalan - ${so.poNumber}` })}
-                                         >
-                                           <Eye className="w-3.5 h-3.5" />
-                                         </Button>
-                                         <span className="text-[7px] font-black uppercase text-emerald-600/50">SJ</span>
-                                       </div>
-                                     )}
-                                     {so.archivedBaUrl && (
-                                       <div className="flex flex-col items-center gap-1">
-                                         <Button 
-                                           size="sm" 
-                                           variant="outline" 
-                                           className="h-8 w-8 rounded-lg p-0 border-indigo-100 text-indigo-600 hover:bg-indigo-50"
-                                           onClick={() => setPdfPreview({ url: so.archivedBaUrl!, title: `Berita Acara - ${so.poNumber}` })}
-                                         >
-                                           <Eye className="w-3.5 h-3.5" />
-                                         </Button>
-                                         <span className="text-[7px] font-black uppercase text-indigo-600/50">BA</span>
-                                       </div>
-                                     )}
-                                   </div>
-                                  ) : (
-                                    <div className="py-3 px-4 rounded-2xl bg-slate-50 border border-dashed border-slate-200">
-                                       <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center italic">Dokumen belum diarsipkan (Order {so.status})</p>
-                                    </div>
-                                  )}
-                               </div>
-                             )
-                          })
-                      )}
-                   </div>
-                </TabsContent>
-
-                <TabsContent value="billing" className="p-8 space-y-6 mt-0">
-                   <div className="space-y-4">
-                      {selectedHistoryClient && invoices.filter(inv => inv.clientId === selectedHistoryClient.id).length === 0 ? (
-                         <div className="text-center py-10">
-                            <p className="text-slate-400 font-bold uppercase text-xs tracking-widest italic">Belum ada riwayat invoice untuk client ini.</p>
-                         </div>
-                      ) : (
-                         invoices
-                           .filter(inv => inv.clientId === selectedHistoryClient?.id)
-                           .sort((a,b) => new Date(b.issueDate).getTime() - new Date(a.issueDate).getTime())
-                           .map(inv => (
-                             <div key={inv.id} className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300">
-                                <div className="flex justify-between items-start">
-                                   <div>
-                                      <div className="flex items-center gap-2">
-                                         <span className="text-[10px] font-black tracking-widest uppercase text-blue-600 bg-blue-50 px-3 py-1 rounded-full">{inv.id.substring(0,8)}</span>
-                                         {inv.isConsolidated && <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none text-[8px] font-black uppercase">Consolidated</Badge>}
-                                      </div>
-                                      <p className="text-sm font-black text-slate-700 uppercase tracking-tight mt-2">{formatRupiah(inv.totalAmount)}</p>
-                                      {inv.isConsolidated && inv.consolidatedOrderNumbers && (
-                                          <p className="text-[9px] font-black text-emerald-600 uppercase tracking-tight bg-emerald-50 w-fit px-2 py-0.5 rounded-lg mt-1 border border-emerald-100 italic">
-                                            {inv.consolidatedOrderNumbers.join(', ')}
-                                          </p>
-                                       )}
-                                      <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">Tempo: {format(new Date(inv.dueDate), 'dd MMM yyyy')}</p>
-                                   </div>
-                                   <div className="flex flex-col items-end gap-2">
-                                      <Badge className={cn(
-                                         "font-black text-[9px] uppercase rounded-full shadow-sm",
-                                         inv.status === 'Paid' ? "bg-emerald-500 hover:bg-emerald-500" : "bg-rose-500 hover:bg-rose-500"
-                                      )}>
-                                         {inv.status}
-                                      </Badge>
-                                      <Button 
-                                         size="sm" 
-                                         variant="outline" 
-                                         className="h-8 gap-2 rounded-xl border-slate-200 font-bold text-[10px] uppercase px-4"
-                                         onClick={() => setInvoicePreview({ id: inv.id, isConsolidated: inv.isConsolidated || false })}
-                                      >
-                                         <Eye className="w-3.5 h-3.5" /> Preview
-                                      </Button>
-                                   </div>
-                                </div>
-                             </div>
-                           ))
-                      )}
-                   </div>
-                </TabsContent>
-             </Tabs>
-          </div>
-          
-          <div className="p-6 bg-white border-t border-slate-100 shrink-0">
-             <Button className="w-full h-14 bg-slate-900 text-white font-black uppercase tracking-[0.2em] rounded-2xl" onClick={() => setIsHistoryOpen(false)}>
-                Tutup Arsip
-             </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* PDF PREVIEW MODAL */}
-       <Dialog open={!!pdfPreview} onOpenChange={(open) => !open && setPdfPreview(null)}>
-        <DialogContent className="max-w-5xl h-[90vh] p-0 rounded-[2rem] overflow-hidden border-none bg-slate-900 shadow-2xl flex flex-col">
-          <DialogHeader className="p-6 bg-slate-900 text-white flex flex-row items-center justify-between shrink-0">
-             <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400">
-                   <FileText className="w-5 h-5" />
-                </div>
-                <div>
-                   <DialogTitle className="text-lg font-black tracking-tight">{pdfPreview?.title}</DialogTitle>
-                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Client Archive Preview</p>
-                </div>
-             </div>
-             <Button 
-                variant="ghost" 
-                className="text-slate-400 hover:text-white hover:bg-white/10 rounded-xl"
-                onClick={() => {
-                  if (pdfPreview) {
-                    const link = document.createElement('a');
-                    link.href = pdfPreview.url;
-                    link.download = `${pdfPreview.title}.pdf`;
-                    link.click();
-                  }
-                }}
-             >
-                <Download className="w-4 h-4 mr-2" /> Download PDF
-             </Button>
-          </DialogHeader>
-          <div className="flex-1 bg-slate-800 relative">
-             {pdfPreview && (
-                <iframe 
-                   src={pdfPreview.url} 
-                   className="w-full h-full border-none"
-                   title="PDF Preview"
-                />
-             )}
-          </div>
-          <div className="p-4 bg-slate-900 border-t border-white/5 flex justify-center sticky bottom-0">
-             <Button 
-                className="rounded-2xl bg-white text-slate-900 font-black px-12 h-12 uppercase text-[10px] tracking-widest"
-                onClick={() => setPdfPreview(null)}
-             >
-                Tutup Preview
-             </Button>
-            {/* Global Invoice Preview Modal for Clients */}
       {invoicePreview && (
         <UniversalPDFPreview 
           isOpen={!!invoicePreview}
@@ -747,9 +772,6 @@ export default function ClientsPage() {
           isConsolidated={invoicePreview.isConsolidated}
         />
       )}
-    </div>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

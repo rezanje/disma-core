@@ -24,9 +24,7 @@ export const ADVANCE_WALLETS = {
 } as const;
 
 export const USER_WALLETS: Record<string, { bankAccountId: string, accountCode: string, label: string }> = {
-  '22222222-2222-2222-2222-222222222222': { bankAccountId: 'bank-advance-sourcing', accountCode: '1-1500', label: 'Kas Sourcing (Hilman)' },
-  '33333333-3333-3333-3333-333333333333': { bankAccountId: 'bank-advance-sourcing-sandi', accountCode: '1-1500', label: 'Kas Sourcing (Sandi)' },
-  '44444444-4444-4444-4444-444444444444': { bankAccountId: 'bank-advance-sourcing-rifai', accountCode: '1-1500', label: 'Kas Sourcing (Rifai)' },
+  '22222222-2222-2222-2222-222222222222': { bankAccountId: 'bank-advance-sourcing', accountCode: '1-1500', label: 'KAS SOURCING (HILMAN)' },
 };
 
 const resolveExpenseAccountCode = (category?: string) => {
@@ -518,11 +516,17 @@ export const recordReimbursementPayment = async (reimbId: string, amount: number
   const bank = store.bankAccounts.find(b => b.id === bankAccountId);
   const bankCode = bank?.accountCode || '1-1000';
 
+  // Jika ini adalah reimburse defisit dari Sourcing, kita potong utang (2-1000)
+  // karena HPP/Ops-nya sudah diakui saat settlement.
+  // Jika reimburse biasa, masuk Beban Operasional Lainnya (6-9000)
+  const isDefisitSourcing = description.toLowerCase().includes('talangan sourcing') || description.toLowerCase().includes('defisit sourcing');
+  const debitAccountCode = isDefisitSourcing ? '2-1000' : '6-9000';
+
   const success = await createAccountingEntry(
     `Pembayaran Reimburse: ${description} (${userName})`,
     'Reimbursement',
     reimbId,
-    [{ accountCode: '6-9000', amount: amount }],
+    [{ accountCode: debitAccountCode, amount: amount }],
     [{ accountCode: bankCode, amount: amount }]
   );
 
@@ -629,6 +633,14 @@ export const recordReconciliationSettlement = async (
     const purchase = store.purchases.find(p => p.id === purchaseId);
     const wallet = getAdvanceWalletByUserId(purchase?.purchaserId);
     const targetBankId = wallet?.bankAccountId || 'bank-advance-sourcing';
+    const defisitShop = actualShopCost - settledAmount;
+
+    const credits = [{ accountCode: '1-1500', amount: settledAmount }];
+
+    // Jika HPP > Advance, sisanya jadi Utang Usaha (karena ditomboki sourcer)
+    if (defisitShop > 0) {
+      credits.push({ accountCode: '2-1000', amount: defisitShop });
+    }
 
     await createAccountingEntry(
       `Penyelesaian Belanja Sourcing - Ref: ${purchaseRef}`,
@@ -636,13 +648,26 @@ export const recordReconciliationSettlement = async (
       purchaseId,
       // Belanja sourcing yang disetujui harus masuk ke HPP agar muncul di laba rugi.
       [{ accountCode: HPP_ACCOUNT_CODE, amount: actualShopCost }],
-      [{ accountCode: '1-1500', amount: settledAmount }]
+      credits
     );
-    // Out dari Kas Sourcing — uang dipakai belanja (dicatat saat finance approve rekon)
+    // Jika sourcer talangin, catat In dulu (Talangan Sourcer) supaya kas keluar HPP = actualShopCost utuh
+    if (defisitShop > 0) {
+      await store.addCashTransaction({
+        id: uuidv4(),
+        date: now,
+        amount: defisitShop,
+        type: 'In',
+        category: 'Talangan Sourcer',
+        description: `Talangan Sourcer (Defisit HPP) - Ref: ${purchaseRef}`,
+        bankAccountId: targetBankId,
+        referenceId: purchaseId
+      });
+    }
+    // Out dari Kas Sourcing — uang dipakai belanja (full actualShopCost agar match summary settlement)
     await store.addCashTransaction({
       id: uuidv4(),
       date: now,
-      amount: settledAmount,
+      amount: actualShopCost,
       type: 'Out',
       category: 'Sourcing (HPP)',
       description: `Belanja Pasar disetujui - Ref: ${purchaseRef}`,
@@ -659,12 +684,20 @@ export const recordReconciliationSettlement = async (
       const wallet = getAdvanceWalletByUserId(purchase?.purchaserId);
       const targetBankId = wallet?.bankAccountId || 'bank-advance-sourcing';
 
+      const opsCredits = [{ accountCode: '1-1500', amount: settleFromAdvance }];
+      
+      // Jika masih kurang, jadi Utang Usaha
+      const defisitOps = actualOpsCost - settleFromAdvance;
+      if (defisitOps > 0) {
+        opsCredits.push({ accountCode: '2-1000', amount: defisitOps });
+      }
+
       await createAccountingEntry(
         `Penyelesaian Ops Sourcing - Ref: ${purchaseRef}`,
         'Expense',
         purchaseId,
-        [{ accountCode: '6-1400', amount: settleFromAdvance }],
-        [{ accountCode: '1-1500', amount: settleFromAdvance }]
+        [{ accountCode: '6-1400', amount: actualOpsCost }],
+        opsCredits
       );
       await store.addCashTransaction({
         id: uuidv4(),

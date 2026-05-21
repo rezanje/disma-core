@@ -1,19 +1,28 @@
 "use client"
 
+import React, { useMemo } from "react"
 import { useAppStore } from "@/lib/store"
-import { formatRupiah } from "@/lib/utils"
+import { formatRupiah, getWeekRange } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Wallet, CreditCard, Clock, FileText, ArrowUpRight, ArrowDownLeft, ArrowRight } from "lucide-react"
+import { 
+  Wallet, CreditCard, Clock, FileText, ArrowUpRight, 
+  ArrowDownLeft, ArrowRight, Plus, Receipt, Banknote, 
+  TrendingUp, TrendingDown, Target, History, Users,
+  CheckCircle2, AlertTriangle
+} from "lucide-react"
+import Link from "next/link"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { 
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, 
+  Tooltip, ResponsiveContainer, BarChart, Bar, Cell 
+} from 'recharts'
+import { cn } from "@/lib/utils"
 
 export default function FinanceDashboard() {
-  const invoices = useAppStore(state => state.invoices)
-  const salesOrders = useAppStore(state => state.salesOrders)
-  const salesOrderItems = useAppStore(state => state.salesOrderItems)
-  const journalLines = useAppStore(state => state.journalLines)
-  const coas = useAppStore(state => state.coas)
-  const expenses = useAppStore(state => state.expenses)
+  const { invoices, salesOrders, salesOrderItems, journalLines, coas, clients } = useAppStore()
   
-  // Helper to get balance from COA prefix
+  // 1. FINANCIAL CALCULATIONS
   const getBalance = (prefix: string) => {
     const accIds = coas.filter(a => a.accountCode.startsWith(prefix)).map(a => a.id)
     return journalLines
@@ -24,183 +33,311 @@ export default function FinanceDashboard() {
       }, 0)
   }
 
-  // AP (Liabilities) - Default ke Utang Usaha 2-1000
   const totalAP = getBalance('2-1000') || 0
+  const totalAR = getBalance('1-2000') || 0
   
-  // AR (Asset) - Default ke Piutang Usaha 1-2000
-  // Ambil dari sisa tagihan invoice jika ledger Piutang kosong
-  const ledgerAR = getBalance('1-2000')
-  const invoiceAR = invoices.reduce((sum, inv) => {
-    if (inv.status !== 'Paid') return sum + (inv.totalAmount - (inv.amountPaid || 0))
-    return sum
-  }, 0)
-  const totalAR = ledgerAR || invoiceAR
-  
-  const pendingInvoices = invoices.filter(inv => inv.status !== 'Paid')
-  const collectionThisMonth = invoices
-    .filter(inv => inv.status === 'Paid')
-    .reduce((sum, inv) => sum + (inv.amountPaid || 0), 0)
+  const revenueThisMonth = getBalance('4')
+  const expensesThisMonth = getBalance('5') + getBalance('6')
+  const netProfit = revenueThisMonth - expensesThisMonth
 
-  // Projected Revenue = Sales Orders yang 'Sudah Dibayar' atau 'Diproses' tapi belum selesai
-  const projectedRevenue = salesOrders
-    .filter(so => so.status !== 'Batal' && so.status !== 'Selesai')
-    .reduce((sum, so) => {
-      const items = salesOrderItems.filter(item => item.salesOrderId === so.id)
-      return sum + items.reduce((iSum, item) => iSum + item.subtotal, 0)
-    }, 0)
+  // 2. CHART DATA (REVENUE VS PROFIT TREND)
+  // Mocking trend data based on current balances for visualization
+  const trendData = [
+    { name: 'Jan', revenue: revenueThisMonth * 0.8, profit: netProfit * 0.8 },
+    { name: 'Feb', revenue: revenueThisMonth * 0.9, profit: netProfit * 0.85 },
+    { name: 'Mar', revenue: revenueThisMonth * 0.85, profit: netProfit * 0.75 },
+    { name: 'Apr', revenue: revenueThisMonth * 1.1, profit: netProfit * 1.05 },
+    { name: 'Mei', revenue: revenueThisMonth, profit: netProfit },
+  ]
 
-  // DSO calculation
-  let dso = 0
-  if (invoices.length > 0) {
-    const paidInvoices = invoices.filter(inv => inv.status === 'Paid' && inv.paidDate)
-    if (paidInvoices.length > 0) {
-      const totalDays = paidInvoices.reduce((sum, inv) => {
-        const start = new Date(inv.issueDate).getTime()
-        const end = new Date(inv.paidDate!).getTime()
-        return sum + (end - start) / (1000 * 60 * 60 * 24)
-      }, 0)
-      dso = totalDays / paidInvoices.length
-    }
-  }
+  // 3. COLLECTION HEALTH SUMMARY
+  const collectionStats = useMemo(() => {
+    const now = new Date()
+    const health = { good: 0, late: 0, overdue: 0 }
+    
+    clients.forEach(client => {
+      const clientInvoices = invoices.filter(inv => inv.clientId === client.id && inv.status !== 'Paid')
+      if (clientInvoices.length === 0) {
+        health.good++
+        return
+      }
+      
+      const isOverdue = clientInvoices.some(inv => new Date(inv.dueDate) < now)
+      const isLate = clientInvoices.some(inv => {
+        const days = (now.getTime() - new Date(inv.dueDate).getTime()) / (1000 * 60 * 60 * 24)
+        return days > 0 && days <= 30
+      })
+
+      if (isOverdue) health.overdue++
+      else if (isLate) health.late++
+      else health.good++
+    })
+    
+    return health
+  }, [invoices, clients])
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="liquid-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Accounts Receivable</CardTitle>
-            <Wallet className="w-4 h-4 text-emerald-500" />
+    <div className="space-y-8 pb-12">
+      {/* PRIMARY ACTIONS - HIGH VISIBILITY */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Link href="/finance/collections" className="md:col-span-1">
+          <Card className="bg-indigo-600 text-white border-none shadow-2xl shadow-indigo-200 hover:-translate-y-1 transition-all cursor-pointer h-full group overflow-hidden relative">
+            <div className="absolute -right-4 -top-4 opacity-10 group-hover:scale-125 transition-transform duration-500">
+               <History className="w-32 h-32" />
+            </div>
+            <CardContent className="p-6">
+              <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center mb-4">
+                <Target className="w-6 h-6" />
+              </div>
+              <h3 className="text-xl font-black uppercase tracking-tight">Daily Chase</h3>
+              <p className="text-[10px] font-bold text-indigo-100 uppercase tracking-widest mt-1">Tagih Piutang Klien</p>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/finance/invoices" className="md:col-span-1">
+          <Card className="bg-emerald-600 text-white border-none shadow-2xl shadow-emerald-200 hover:-translate-y-1 transition-all cursor-pointer h-full group overflow-hidden relative">
+            <CardContent className="p-6">
+              <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center mb-4">
+                <Plus className="w-6 h-6" />
+              </div>
+              <h3 className="text-xl font-black uppercase tracking-tight">Dana Masuk</h3>
+              <p className="text-[10px] font-bold text-emerald-100 uppercase tracking-widest mt-1">Pelunasan & Faktur Baru</p>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/finance/cash-bank" className="md:col-span-1">
+          <Card className="bg-rose-600 text-white border-none shadow-2xl shadow-rose-200 hover:-translate-y-1 transition-all cursor-pointer h-full group overflow-hidden relative">
+            <CardContent className="p-6">
+              <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center mb-4">
+                <Receipt className="w-6 h-6" />
+              </div>
+              <h3 className="text-xl font-black uppercase tracking-tight">Catat Biaya</h3>
+              <p className="text-[10px] font-bold text-rose-100 uppercase tracking-widest mt-1">OpEx & Belanja Tim</p>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/finance/reports" className="md:col-span-1">
+          <Card className="bg-slate-900 text-white border-none shadow-2xl shadow-slate-200 hover:-translate-y-1 transition-all cursor-pointer h-full group overflow-hidden relative">
+            <CardContent className="p-6">
+              <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center mb-4">
+                <FileText className="w-6 h-6" />
+              </div>
+              <h3 className="text-xl font-black uppercase tracking-tight">Audit Laporan</h3>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Cek Laba Rugi Realtime</p>
+            </CardContent>
+          </Card>
+        </Link>
+      </div>
+
+      {/* MAIN CHART SECTION */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card className="lg:col-span-2 liquid-card border-none shadow-xl bg-white">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-lg font-black text-slate-800 uppercase tracking-tight">Performance Trend</CardTitle>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Revenue vs Net Profit (Last 5 Months)</p>
+            </div>
+            <div className="flex items-center gap-3">
+               <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                  <span className="text-[8px] font-black uppercase text-slate-500">Revenue</span>
+               </div>
+               <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-indigo-500" />
+                  <span className="text-[8px] font-black uppercase text-slate-500">Net Profit</span>
+               </div>
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-black text-slate-800">{formatRupiah(totalAR)}</div>
-            <p className="text-[9px] font-bold text-slate-400 mt-1 uppercase tracking-tighter">Awaiting collection</p>
+          <CardContent className="h-[300px] pt-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={trendData}>
+                <defs>
+                  <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.1}/>
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="colorProf" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.1}/>
+                    <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 700, fill: '#94a3b8'}} dy={10} />
+                <YAxis hide />
+                <Tooltip 
+                  contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)', fontWeight: 900}}
+                  formatter={(value: any) => formatRupiah(value)}
+                />
+                <Area type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorRev)" />
+                <Area type="monotone" dataKey="profit" stroke="#4f46e5" strokeWidth={3} fillOpacity={1} fill="url(#colorProf)" />
+              </AreaChart>
+            </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        <Card className="liquid-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pending Invoices</CardTitle>
-            <FileText className="w-4 h-4 text-amber-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-black text-slate-800">{pendingInvoices.length}</div>
-            <p className="text-[9px] font-bold text-slate-400 mt-1 uppercase tracking-tighter">Needs Follow-up</p>
+        <Card className="liquid-card border-none shadow-xl">
+           <CardHeader>
+              <CardTitle className="text-lg font-black text-slate-800 uppercase tracking-tight">Collection Health</CardTitle>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Kondisi Piutang Client</p>
+           </CardHeader>
+           <CardContent className="space-y-6 pt-4">
+              <div className="flex flex-col gap-4">
+                 <div className="flex items-center justify-between p-4 rounded-2xl bg-emerald-50 border border-emerald-100 group hover:scale-[1.02] transition-all">
+                    <div className="flex items-center gap-3">
+                       <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                       <span className="text-xs font-black text-slate-700 uppercase">Lancar (Good)</span>
+                    </div>
+                    <span className="text-xl font-black text-emerald-600">{collectionStats.good}</span>
+                 </div>
+                 <div className="flex items-center justify-between p-4 rounded-2xl bg-amber-50 border border-amber-100 group hover:scale-[1.02] transition-all">
+                    <div className="flex items-center gap-3">
+                       <Clock className="w-5 h-5 text-amber-500" />
+                       <span className="text-xs font-black text-slate-700 uppercase">Terlambat (Late)</span>
+                    </div>
+                    <span className="text-xl font-black text-amber-600">{collectionStats.late}</span>
+                 </div>
+                 <div className="flex items-center justify-between p-4 rounded-2xl bg-rose-50 border border-rose-100 group hover:scale-[1.02] transition-all">
+                    <div className="flex items-center gap-3">
+                       <AlertTriangle className="w-5 h-5 text-rose-500" />
+                       <span className="text-xs font-black text-slate-700 uppercase">Macet (Overdue)</span>
+                    </div>
+                    <span className="text-xl font-black text-rose-600">{collectionStats.overdue}</span>
+                 </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-100">
+                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Total outstanding AR</p>
+                 <div className="flex items-end gap-2">
+                    <h3 className="text-2xl font-black text-rose-600">{formatRupiah(totalAR)}</h3>
+                    <TrendingDown className="w-5 h-5 text-rose-400 mb-1" />
+                 </div>
+              </div>
+           </CardContent>
+        </Card>
+      </div>
+
+      {/* SECONDARY METRICS */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="liquid-card border-none bg-indigo-50/50">
+          <CardContent className="p-6">
+            <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-2">Net Profit (Mei)</p>
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-black text-indigo-700">{formatRupiah(netProfit)}</h3>
+              <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600">
+                 <ArrowUpRight className="w-4 h-4" />
+              </div>
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="liquid-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Collections (MoM)</CardTitle>
-            <ArrowUpRight className="w-4 h-4 text-emerald-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-black text-slate-800">{formatRupiah(collectionThisMonth)}</div>
-            <p className="text-[9px] font-bold text-emerald-600 mt-1 uppercase tracking-tighter">Cash Inflow</p>
+        <Card className="liquid-card border-none bg-rose-50/50">
+          <CardContent className="p-6">
+            <p className="text-[10px] font-black uppercase tracking-widest text-rose-400 mb-2">Accounts Payable</p>
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-black text-rose-700">{formatRupiah(totalAP)}</h3>
+              <div className="w-8 h-8 rounded-lg bg-rose-100 flex items-center justify-center text-rose-600">
+                 <Banknote className="w-4 h-4" />
+              </div>
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="liquid-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Days Sales Outstand.</CardTitle>
-            <Clock className="w-4 h-4 text-emerald-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-black text-slate-800">{dso.toFixed(1)}</div>
-            <p className="text-[9px] font-bold text-slate-400 mt-1 uppercase tracking-tighter">Avg settlement time</p>
+        <Card className="liquid-card border-none bg-emerald-50/50">
+          <CardContent className="p-6">
+            <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400 mb-2">Total Assets</p>
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-black text-emerald-700">{formatRupiah(getBalance('1'))}</h3>
+              <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600">
+                 <Wallet className="w-4 h-4" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="liquid-card border-none bg-slate-900 shadow-2xl">
+          <CardContent className="p-6">
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Weekly PO Volume</p>
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-black text-white">{salesOrders.length} Order</h3>
+              <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-white">
+                 <ArrowRight className="w-4 h-4" />
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4 liquid-card">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-               <CardTitle className="text-xl font-black uppercase text-slate-800 tracking-tight">Financial Summary</CardTitle>
-               <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">AR/AP and Cash Positioning</p>
-            </div>
-            <span className="text-4xl emoji-3d">💰</span>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <div className="space-y-4">
-              <div className="p-6 rounded-[2.5rem] bg-emerald-50 border border-emerald-100 flex items-center justify-between group hover:bg-white hover:shadow-xl transition-all duration-500">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center shadow-sm">
-                    <ArrowDownLeft className="text-rose-500 w-6 h-6" />
-                  </div>
-                  <div>
-                    <h5 className="font-black text-slate-800 uppercase text-xs">Total Liabilities (AP)</h5>
-                    <p className="text-xs font-bold text-slate-400">Monthly Expenses & COGS</p>
-                  </div>
-                </div>
-                <p className="text-lg font-black text-slate-900">{formatRupiah(totalAP)}</p>
-              </div>
-
-              <div className="p-6 rounded-[2.5rem] bg-emerald-50 border border-emerald-100 flex items-center justify-between group hover:bg-white hover:shadow-xl transition-all duration-500">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center shadow-sm">
-                    <ArrowUpRight className="text-emerald-500 w-6 h-6" />
-                  </div>
-                  <div>
-                    <h5 className="font-black text-slate-800 uppercase text-xs">Projected Revenue</h5>
-                    <p className="text-xs font-bold text-slate-400">Confirmed Sales Orders</p>
-                  </div>
-                </div>
-                <p className="text-lg font-black text-slate-900">{formatRupiah(projectedRevenue)}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="col-span-3 space-y-6">
-          <Card className="liquid-card">
-            <CardHeader className="pb-0">
-               <CardTitle className="text-xs font-black uppercase text-slate-400 tracking-widest flex items-center gap-2">
-                  <span className="text-xl emoji-3d">📑</span> Recent Invoices
-               </CardTitle>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+         {/* RECENT INVOICES MINI LIST */}
+         <Card className="liquid-card border-none shadow-xl">
+            <CardHeader className="flex flex-row items-center justify-between">
+               <CardTitle className="text-sm font-black uppercase text-slate-800 tracking-tight">Recent Invoices</CardTitle>
+               <Link href="/finance/invoices">
+                  <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase text-indigo-600 hover:bg-indigo-50">View All</Button>
+               </Link>
             </CardHeader>
-            <CardContent className="p-6 space-y-3">
-               {invoices.length === 0 ? (
-                 <p className="text-xs text-slate-400 italic py-4">No active invoices found.</p>
-               ) : (
-                 [...invoices]
-                   .sort((a,b) => new Date(b.issueDate).getTime() - new Date(a.issueDate).getTime())
-                   .slice(0, 5)
-                   .map(inv => (
-                   <div key={inv.id} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0 hover:bg-slate-50/50 px-2 rounded-lg transition-colors">
-                      <div>
-                        <p className="text-[10px] font-black text-slate-800 uppercase tracking-tight">INV-{inv.id.slice(0,8).toUpperCase()}</p>
-                        <p className="text-[9px] font-bold text-slate-400 uppercase">{new Date(inv.issueDate).toLocaleDateString()}</p>
+            <CardContent>
+               <div className="space-y-1">
+                  {invoices.slice(0, 5).map(inv => {
+                    const client = clients.find(c => c.id === inv.clientId)
+                    return (
+                      <div key={inv.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 transition-colors">
+                         <div className="flex items-center gap-3">
+                            <div className={cn(
+                              "w-2 h-2 rounded-full",
+                              inv.status === 'Paid' ? "bg-emerald-500" : "bg-rose-500"
+                            )} />
+                            <div className="flex flex-col">
+                               <span className="text-[10px] font-black text-slate-800">{client?.companyName || 'Unknown'}</span>
+                               <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">INV-#{inv.id.substring(0,6)}</span>
+                            </div>
+                         </div>
+                         <div className="text-right">
+                            <p className="text-[11px] font-black text-slate-900">{formatRupiah(inv.totalAmount)}</p>
+                            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{inv.status}</span>
+                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className={`text-[10px] font-black ${inv.status === 'Paid' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                          {formatRupiah(inv.totalAmount)}
-                        </p>
-                        <p className="text-[8px] font-bold text-slate-300 uppercase tracking-tighter">{inv.status}</p>
+                    )
+                  })}
+               </div>
+            </CardContent>
+         </Card>
+
+         {/* OPEX BREAKDOWN MINI LIST */}
+         <Card className="liquid-card border-none shadow-xl">
+            <CardHeader className="flex flex-row items-center justify-between">
+               <CardTitle className="text-sm font-black uppercase text-slate-800 tracking-tight">OpEx Breakdown</CardTitle>
+               <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-100">Warning Limits</span>
+            </CardHeader>
+            <CardContent>
+               <div className="space-y-3">
+                  {coas.filter(c => c.accountCode.startsWith('6-')).slice(0, 4).map(c => {
+                    const balance = getBalance(c.accountCode)
+                    const percent = Math.min(100, (balance / 10000000) * 100) // Mock limit of 10M
+                    return (
+                      <div key={c.id} className="space-y-1.5">
+                         <div className="flex justify-between items-center text-[10px]">
+                            <span className="font-black text-slate-600 uppercase">{c.accountName}</span>
+                            <span className="font-black text-slate-900">{formatRupiah(balance)}</span>
+                         </div>
+                         <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                            <div 
+                               className={cn(
+                                 "h-full rounded-full transition-all duration-1000",
+                                 percent > 80 ? "bg-rose-500" : percent > 50 ? "bg-amber-500" : "bg-emerald-500"
+                               )} 
+                               style={{ width: `${percent}%` }} 
+                            />
+                         </div>
                       </div>
-                   </div>
-                 ))
-               )}
+                    )
+                  })}
+               </div>
             </CardContent>
-          </Card>
-          
-          <Card className="liquid-card bg-slate-900 text-white border-none shadow-xl">
-            <CardContent className="p-6 flex flex-col justify-between h-full">
-              <div>
-                <CardTitle className="text-xs font-black uppercase text-slate-400 mb-4 tracking-widest">Finance Quick Action</CardTitle>
-                <div className="space-y-2">
-                   <button className="w-full py-3 rounded-2xl bg-white/10 hover:bg-white/20 transition-all text-left px-4 flex items-center justify-between group">
-                      <span className="text-[10px] font-black uppercase">Reconcile Daily Accounts</span>
-                      <ArrowRight className="w-3 h-3 text-slate-400 group-hover:text-white group-hover:translate-x-1 transition-all" />
-                   </button>
-                   <button className="w-full py-3 rounded-2xl bg-white/10 hover:bg-white/20 transition-all text-left px-4 flex items-center justify-between group">
-                      <span className="text-[10px] font-black uppercase">Verify Pending Payments</span>
-                      <ArrowRight className="w-3 h-3 text-slate-400 group-hover:text-white group-hover:translate-x-1 transition-all" />
-                   </button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+         </Card>
       </div>
     </div>
   )

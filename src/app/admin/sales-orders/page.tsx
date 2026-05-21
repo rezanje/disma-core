@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { useAppStore } from "@/lib/store"
 import { cn, formatRupiah, formatNumber, parseNumber } from "@/lib/utils"
-import { Plus, Trash2, ShoppingCart, Search, ChevronsUpDown, Check, Eye, FileText, Download } from "lucide-react"
+import { Plus, Trash2, ShoppingCart, Search, ChevronsUpDown, Check, Eye, FileText, Download, Loader2 } from "lucide-react"
 import { v4 as uuidv4 } from "uuid"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -62,12 +62,16 @@ export default function SalesOrdersPage() {
   const salesOrderItems = useAppStore(state => state.salesOrderItems)
   const clients = useAppStore(state => state.clients)
   const products = useAppStore(state => state.products)
+  const invoices = useAppStore(state => state.invoices)
   const addSalesOrder = useAppStore(state => state.addSalesOrder)
   const addSalesOrderItems = useAppStore(state => state.addSalesOrderItems)
   const updateSalesOrder = useAppStore(state => state.updateSalesOrder)
   const updateSalesOrderItem = useAppStore(state => state.updateSalesOrderItem)
   const getHistoricalClientPrice = useAppStore(state => state.getHistoricalClientPrice)
   const clientPrices = useAppStore(state => state.clientPrices) || []
+  const addDelivery = useAppStore(state => state.addDelivery)
+  const addInvoice = useAppStore(state => state.addInvoice)
+  const currentUser = useAppStore(state => state.currentUser)
   
   const [isOpen, setIsOpen] = useState(false)
   const [clientId, setClientId] = useState("")
@@ -103,6 +107,7 @@ export default function SalesOrdersPage() {
   const [isClientSearchOpen, setIsClientSearchOpen] = useState(false)
   const [isProductSearchOpen, setIsProductSearchOpen] = useState(false)
   const [poNumberDraft, setPoNumberDraft] = useState("")
+  const [isSavingOrder, setIsSavingOrder] = useState(false)
 
   // Generate initial PO number when opening dialog
   useEffect(() => {
@@ -146,6 +151,30 @@ export default function SalesOrdersPage() {
       setEditingItems(editingObj)
     }
   }, [detailSOId])
+
+  const getFinancialStatus = (so: any) => {
+    if (so.status === 'Batal') return { label: 'Batal', color: 'bg-rose-100 text-rose-800' }
+    
+    // Check for any invoice (single or consolidated)
+    const relatedInvoice = invoices.find(inv => 
+      inv.salesOrderId === so.id || (inv.salesOrderIds && inv.salesOrderIds.includes(so.id))
+    )
+
+    if (!relatedInvoice) {
+      return { 
+        label: 'Invoice Pending', // "Belum Terbit Tukar Faktur" too long? Let's use user's term but maybe with tooltips? 
+        // User asked: "belum terbit tukar faktur"
+        fullLabel: 'Belum Terbit Tukar Faktur',
+        color: 'bg-slate-100 text-slate-500 border-slate-200' 
+      }
+    }
+
+    if (relatedInvoice.status === 'Paid') {
+      return { label: 'Lunas', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' }
+    }
+
+    return { label: 'Outstanding', color: 'bg-amber-100 text-amber-800 border-amber-200' }
+  }
 
   const handleUpdateItem = (itemId: string, field: 'qty' | 'price', value: number) => {
     setEditingItems(prev => ({
@@ -310,45 +339,105 @@ export default function SalesOrdersPage() {
       return
     }
 
-    const soId = uuidv4()
-    
-    // Create SO FIRST (Sequential)
-    await addSalesOrder({
-      id: soId,
-      poNumber: poNumberDraft || generateDocumentNumber('PO'),
-      clientId,
-      orderDate: new Date().toISOString(),
-      targetDeliveryDate: new Date(targetDate).toISOString(),
-      status: 'Draft' // Start as Draft for manual approval
-    })
+    setIsSavingOrder(true)
+    try {
+      const soId = uuidv4()
 
-    // Create Line Items in Batch (Sequential after SO)
-    const itemsToAdd: SalesOrderItem[] = lineItems.map(item => ({
-      id: uuidv4(),
-      salesOrderId: soId,
-      productId: item.productId,
-      qty: item.qty,
-      unitPrice: item.unitPrice,
-      subtotal: item.qty * item.unitPrice
-    }))
+      // Create SO FIRST (Sequential)
+      await addSalesOrder({
+        id: soId,
+        poNumber: poNumberDraft || generateDocumentNumber('PO'),
+        clientId,
+        orderDate: new Date().toISOString(),
+        targetDeliveryDate: new Date(targetDate).toISOString(),
+        status: 'Draft' // Start as Draft for manual approval
+      })
 
-    await addSalesOrderItems(itemsToAdd)
+      // Create Line Items in Batch (Sequential after SO)
+      const itemsToAdd: SalesOrderItem[] = lineItems.map(item => ({
+        id: uuidv4(),
+        salesOrderId: soId,
+        productId: item.productId,
+        qty: item.qty,
+        unitPrice: item.unitPrice,
+        subtotal: item.qty * item.unitPrice
+      }))
 
-    toast.success("Sales Order created successfully")
-    setIsOpen(false)
-    setClientId("")
-    setLineItems([])
+      await addSalesOrderItems(itemsToAdd)
+
+      toast.success("Sales Order created successfully")
+      setIsOpen(false)
+      setClientId("")
+      setLineItems([])
+    } finally {
+      setIsSavingOrder(false)
+    }
   }
 
   const advanceStatus = (soId: string, currentStatus: string) => {
-    const nextStatus = 
+    const nextStatus =
       currentStatus === 'Draft' ? 'Belanja' :
       currentStatus === 'Belanja' ? 'Packing' :
       currentStatus === 'Packing' ? 'Dikirim' :
       currentStatus === 'Dikirim' ? 'Terkirim' : currentStatus;
-      
+
     updateSalesOrder(soId, { status: nextStatus as SalesOrderStatus })
     toast.success(`Status updated to ${nextStatus}`)
+  }
+
+  // Fast-track: skip QC/gudang/kurir steps → jump directly to Awaiting Audit
+  // Creates delivery + invoice records so Finance Approvals can proceed normally
+  const FAST_TRACKABLE = ['Belanja', 'QC', 'Sourcing', 'Packing', 'Siap Kirim', 'Dikirim']
+
+  const handleFastTrack = async (soId: string) => {
+    const so = salesOrders.find(s => s.id === soId)
+    const client = clients.find(c => c.id === so?.clientId)
+    if (!so || !client) return
+
+    const soItems = salesOrderItems.filter(i => i.salesOrderId === soId)
+    const totalRevenue = soItems.reduce((sum, item) => {
+      const finalQty = item.qtyFinal ?? item.qty
+      return sum + (finalQty * item.unitPrice)
+    }, 0)
+
+    const deliveryId = uuidv4()
+    const invoiceId = uuidv4()
+    const dueDate = new Date()
+    dueDate.setDate(dueDate.getDate() + (client.paymentTermDays || 30))
+
+    toast.loading("Fast-track pengiriman...", { id: "fast_track" })
+    try {
+      // 1. Create delivery record (Awaiting Audit)
+      await addDelivery({
+        id: deliveryId,
+        salesOrderId: soId,
+        courierId: currentUser?.id || 'admin',
+        status: 'Awaiting Audit',
+        deliveryDate: new Date().toISOString(),
+        invoiceId,
+        notes: `Fast-track by ${currentUser?.name || 'Admin'} (bypass QC/gudang/kurir)`
+      })
+
+      // 2. Create invoice record
+      await addInvoice({
+        id: invoiceId,
+        salesOrderId: soId,
+        clientId: client.id,
+        issueDate: new Date().toISOString(),
+        dueDate: dueDate.toISOString(),
+        totalAmount: totalRevenue,
+        amountPaid: 0,
+        status: 'Unpaid'
+      })
+
+      // 3. Advance SO to Awaiting Audit
+      await updateSalesOrder(soId, { status: 'Awaiting Audit' })
+
+      toast.success(`${so.poNumber} siap diaudit Finance. Cek tab Delivery di Finance Approvals.`, { id: "fast_track" })
+    } catch (e) {
+      console.error(e)
+      toast.error("Fast-track gagal", { id: "fast_track" })
+    }
   }
 
   const selectedSO = salesOrders.find(so => so.id === detailSOId)
@@ -663,8 +752,10 @@ export default function SalesOrdersPage() {
 
             </div>
             <div className="flex justify-end gap-3 mt-4 border-t pt-4">
-              <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
-              <Button onClick={handleSaveSO}>Create Sales Order</Button>
+              <Button variant="outline" onClick={() => setIsOpen(false)} disabled={isSavingOrder}>Cancel</Button>
+              <Button onClick={handleSaveSO} disabled={isSavingOrder}>
+                {isSavingOrder ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Menyimpan...</> : "Create Sales Order"}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -718,9 +809,21 @@ export default function SalesOrdersPage() {
                         <TableCell>{format(new Date(so.targetDeliveryDate), 'dd MMM yyyy')}</TableCell>
                         <TableCell className="font-semibold">{formatRupiah(total)}</TableCell>
                         <TableCell>
-                          <Badge variant="outline" className={STATUS_COLORS[so.status] || ''}>
-                            {so.status}
-                          </Badge>
+                          {(() => {
+                            const finStatus = getFinancialStatus(so)
+                            return (
+                              <div className="flex flex-col items-start gap-1">
+                                <Badge variant="outline" className={cn("font-black text-[9px] uppercase tracking-wider", finStatus.color)}>
+                                  {finStatus.fullLabel || finStatus.label}
+                                </Badge>
+                                {so.status !== 'Draft' && so.status !== 'Terkirim' && so.status !== 'Selesai' && (
+                                  <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">
+                                    Status: {so.status}
+                                  </span>
+                                )}
+                              </div>
+                            )
+                          })()}
                         </TableCell>
                         <TableCell className="text-right flex justify-end gap-2">
                           <Button 
@@ -796,17 +899,16 @@ export default function SalesOrdersPage() {
                               Approve (Go to Sourcing)
                             </Button>
                           )}
-                          {so.status === 'Belanja' && (
-                            <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-200">TIM PASAR</Badge>
-                          )}
-                          {so.status === 'Packing' && (
-                            <Badge variant="secondary" className="bg-blue-100 text-blue-800 border-blue-200">DI GUDANG</Badge>
-                          )}
-                          {so.status === 'Terkirim' && (
-                            <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 border-emerald-200">SELESAI</Badge>
-                          )}
-                          {so.status === 'Dikirim' && (
-                            <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 border-emerald-200">DALAM PERJALANAN</Badge>
+                          {FAST_TRACKABLE.includes(so.status) && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-amber-600 border-amber-300 hover:bg-amber-50 font-black text-[10px] uppercase tracking-wider"
+                              title="Fast-track: skip QC/gudang/kurir, langsung ke Awaiting Audit Finance"
+                              onClick={() => handleFastTrack(so.id)}
+                            >
+                              ⚡ Fast Track
+                            </Button>
                           )}
                         </TableCell>
                       </TableRow>

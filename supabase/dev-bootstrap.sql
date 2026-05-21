@@ -75,7 +75,10 @@ create table if not exists public.sales_orders (
   handover_by text,
   received_by text,
   courier_signature text,
-  client_signature text
+  client_signature text,
+  shopping_list_document_id text,
+  shopping_list_compiled_at text,
+  shopping_list_compiled_by text
 );
 
 create table if not exists public.sales_order_items (
@@ -106,7 +109,10 @@ create table if not exists public.purchases (
   change_returned numeric,
   reconciliation_note text,
   reconciliation_status text,
-  reconciliation_proof_url text
+  reconciliation_proof_url text,
+  advance_code text,
+  shopping_list_document_id text,
+  shopping_list_compiled_by text
 );
 
 create table if not exists public.purchase_items (
@@ -416,5 +422,27 @@ alter table public.pending_returns disable row level security;
 alter table public.rejected_items disable row level security;
 alter table public.app_settings disable row level security;
 alter table public.client_prices disable row level security;
+
+create table if not exists public.record_history (
+  id                text primary key,
+  table_name        text not null,
+  record_id         text not null,
+  action            text not null,
+  changed_fields    jsonb not null default '[]'::jsonb,
+  old_data          jsonb,
+  new_data          jsonb,
+  user_id           text,
+  user_name         text,
+  user_role         text,
+  reason            text,
+  parent_history_id text,
+  created_at        timestamptz not null default now()
+);
+
+create index if not exists idx_record_history_table_record on public.record_history (table_name, record_id, created_at desc);
+create index if not exists idx_record_history_user         on public.record_history (user_id, created_at desc);
+create index if not exists idx_record_history_created      on public.record_history (created_at desc);
+
+alter table public.record_history disable row level security;
 
 commit;

@@ -1,14 +1,18 @@
 "use client"
 
 import { useEffect, useRef } from "react"
+import { usePathname } from "next/navigation"
 import { useAppStore } from "@/lib/store"
 
 export default function StoreSync() {
+  const pathname = usePathname()
   const init = useAppStore((state) => state.init)
   const saveToHdd = useAppStore((state) => state.saveToHdd)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
+    if (pathname?.startsWith("/tri-chess")) return
+
     // 1. Initial load from Supabase
     init()
 
@@ -53,7 +57,7 @@ export default function StoreSync() {
         clearInterval(pollInterval);
         if (timerRef.current) clearTimeout(timerRef.current);
     }
-  }, [init, saveToHdd])
+  }, [init, pathname, saveToHdd])
 
   return null
 }

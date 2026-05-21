@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Minus, Landmark, ArrowUpRight, ArrowDownRight, Search, History, Wallet, Wallet2, Building2, Receipt, FileText, Pencil, Settings2, Trash2, CheckCircle2, AlertCircle } from "lucide-react"
+import { Plus, Minus, Landmark, ArrowUpRight, ArrowDownRight, Search, History, Wallet, Wallet2, Building2, Receipt, FileText, Pencil, Settings2, Trash2, CheckCircle2, AlertCircle, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { format } from "date-fns"
 import { formatRupiah, formatNumber, parseNumber } from "@/lib/utils"
@@ -28,6 +28,7 @@ export default function CashAndBankPage() {
   const updateCashTransaction = useAppStore(state => state.updateCashTransaction)
   const deleteCashTransaction = useAppStore(state => state.deleteCashTransaction)
   const bulkDeleteCashTransactions = useAppStore(state => state.bulkDeleteCashTransactions)
+  const deleteBankAccount = useAppStore(state => state.deleteBankAccount)
   const coas = useAppStore(state => state.coas)
 
   const [isAddTxOpen, setIsAddTxOpen] = useState(false)
@@ -51,17 +52,26 @@ export default function CashAndBankPage() {
   const [selectedTxIds, setSelectedTxIds] = useState<string[]>([])
   const [isBulkDeleteConfirmOpen, setIsBulkDeleteConfirmOpen] = useState(false)
   const [txToDelete, setTxToDelete] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // Build index map for tiebreaker: store prepends new tx, so lower index = newer.
+  const txIndex = new Map(cashTransactions.map((tx, i) => [tx.id, i]))
   const filteredTxs = cashTransactions.filter(tx => {
-    const matchSearch = tx.description.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    const matchSearch = tx.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
       tx.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
       tx.counterpartName?.toLowerCase().includes(searchTerm.toLowerCase())
     const matchBank = selectedBankFilter ? tx.bankAccountId === selectedBankFilter : true;
     return matchSearch && matchBank;
-  }).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+  }).sort((a,b) => {
+    const dt = new Date(b.date).getTime() - new Date(a.date).getTime()
+    if (dt !== 0) return dt
+    // Tiebreaker: lower store index = newer (prepend pattern in addCashTransaction)
+    return (txIndex.get(a.id) ?? 0) - (txIndex.get(b.id) ?? 0)
+  })
 
   const handleCreateBank = async () => {
     if (!bankForm.name) return toast.error("Nama bank harus diisi!")
+    setIsSubmitting(true)
     const loadingToast = toast.loading("Mendaftarkan akun bank baru...")
     try {
       await addBankAccount({
@@ -76,6 +86,8 @@ export default function CashAndBankPage() {
       toast.success(`${bankForm.name} berhasil didaftarkan!`, { id: loadingToast })
     } catch (e: any) {
       toast.error("Gagal mendaftarkan bank: " + e.message, { id: loadingToast })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -84,19 +96,37 @@ export default function CashAndBankPage() {
     const original = bankAccounts.find(b => b.id === editingBank.id)
     if (!original) return
 
+    setIsSubmitting(true)
     const loadingToast = toast.loading("Memperbarui info bank & menyesuaikan saldo...")
     const diff = Number(editingBank.balance) - original.balance
     
     try {
-      // Create adjustment journal if balance changed
+      // Create adjustment transaction & journal if balance changed
       if (diff !== 0) {
         if (!editingBank.adjCategory) {
           return toast.error("Pilih kategori penyesuaian untuk selisih saldo!", { id: loadingToast })
         }
 
-        let adjAccountCode = '6-9000' // Default other expense
+        const absDiff = Math.abs(diff)
+        const now = new Date().toISOString()
+        const txId = `adj-${Date.now()}`
+
+        // 1. Record in History (Cash Transaction)
+        await addCashTransaction({
+          id: txId,
+          date: now,
+          type: diff > 0 ? 'In' : 'Out',
+          amount: absDiff,
+          bankAccountId: editingBank.id,
+          category: `Penyesuaian: ${editingBank.adjCategory}`,
+          description: `Koreksi Saldo Manual (${editingBank.adjCategory})`,
+          counterpartName: 'Adjustment System',
+          referenceType: 'Adjustment'
+        })
+
+        // 2. Journal Entry (Accounting Ledger)
+        let adjAccountCode = '6-9000'
         if (diff > 0) {
-          // Increase: Debit Bank, Credit Source
           switch(editingBank.adjCategory) {
             case 'Investasi': adjAccountCode = '3-1000'; break;
             case 'Pendapatan': adjAccountCode = '4-2000'; break;
@@ -106,14 +136,12 @@ export default function CashAndBankPage() {
           await createAccountingEntry(
             `Penyesuaian Saldo (Kenaikan): ${editingBank.name}`,
             'Adjustment',
-            `adj-${Date.now()}`,
+            txId,
             [{ accountCode: editingBank.accountCode || '1-1000', amount: diff }],
             [{ accountCode: adjAccountCode, amount: diff }],
-            new Date().toISOString()
+            now
           )
         } else {
-          // Decrease: Debit Purpose, Credit Bank
-          const absDiff = Math.abs(diff)
           switch(editingBank.adjCategory) {
             case 'Beban': adjAccountCode = '6-9000'; break;
             case 'Prive': adjAccountCode = '3-2000'; break;
@@ -123,10 +151,10 @@ export default function CashAndBankPage() {
           await createAccountingEntry(
             `Penyesuaian Saldo (Penurunan): ${editingBank.name}`,
             'Adjustment',
-            `adj-${Date.now()}`,
+            txId,
             [{ accountCode: adjAccountCode, amount: absDiff }],
             [{ accountCode: editingBank.accountCode || '1-1000', amount: absDiff }],
-            new Date().toISOString()
+            now
           )
         }
       }
@@ -135,17 +163,20 @@ export default function CashAndBankPage() {
         name: editingBank.name,
         accountNumber: editingBank.accountNumber,
         accountCode: editingBank.accountCode,
-        balance: Number(editingBank.balance)
+        // Balance is NOT updated here because addCashTransaction already updated it
       })
       setEditingBank(null)
       toast.success("Info bank & Jurnal penyesuaian berhasil diperbarui!", { id: loadingToast })
     } catch (e: any) {
       toast.error("Gagal memperbarui bank: " + e.message, { id: loadingToast })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
   const handleSaveEditTx = async () => {
     if (!editingTx) return
+    setIsSubmitting(true)
     const loadingToast = toast.loading("Menyimpan perubahan transaksi...")
     try {
       await updateCashTransaction(editingTx.id, {
@@ -159,11 +190,14 @@ export default function CashAndBankPage() {
       toast.success("Transaksi berhasil diperbarui!", { id: loadingToast })
     } catch (e: any) {
       toast.error("Gagal memperbarui: " + e.message, { id: loadingToast })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
   const handleConfirmDelete = async () => {
     if (!txToDelete) return
+    setIsSubmitting(true)
     const loadingToast = toast.loading("Menghapus transaksi...")
     try {
       await deleteCashTransaction(txToDelete)
@@ -171,10 +205,13 @@ export default function CashAndBankPage() {
       toast.success("Transaksi berhasil dihapus!", { id: loadingToast })
     } catch (e: any) {
       toast.error("Gagal menghapus: " + e.message, { id: loadingToast })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
   const handleBulkDelete = async () => {
+    setIsSubmitting(true)
     const loadingToast = toast.loading(`Menghapus ${selectedTxIds.length} transaksi...`)
     try {
        await bulkDeleteCashTransactions(selectedTxIds)
@@ -183,6 +220,8 @@ export default function CashAndBankPage() {
        toast.success("Transaksi berhasil dihapus massal!", { id: loadingToast })
     } catch (e: any) {
        toast.error("Gagal menghapus massal: " + e.message, { id: loadingToast })
+    } finally {
+       setIsSubmitting(false)
     }
   }
 
@@ -196,7 +235,8 @@ export default function CashAndBankPage() {
         toast.error("Akun sumber dan tujuan tidak boleh sama.")
         return
       }
-      
+
+      setIsSubmitting(true)
       const loadingToast = toast.loading("Memproses transfer internal...")
       
       try {
@@ -258,6 +298,8 @@ export default function CashAndBankPage() {
         }
       } catch (e: any) {
         toast.error("Gagal memproses transaksi: " + e.message, { id: loadingToast })
+      } finally {
+        setIsSubmitting(false)
       }
       return;
     }
@@ -267,6 +309,7 @@ export default function CashAndBankPage() {
       return
     }
 
+    setIsSubmitting(true)
     const loadingToast = toast.loading(`Mencatat transaksi kas ${txType === 'In' ? 'Masuk' : 'Keluar'}...`)
     
     try {
@@ -287,6 +330,7 @@ export default function CashAndBankPage() {
         }
       } else {
         switch (category) {
+          case 'Belanja Barang (HPP)': targetAccountCode = '5-1000'; break;
           case 'Beban Gaji': targetAccountCode = '6-1000'; break;
           case 'Sewa Gedung': targetAccountCode = '6-1100'; break;
           case 'Listrik/Air': targetAccountCode = '6-1200'; break;
@@ -337,6 +381,8 @@ export default function CashAndBankPage() {
       }
     } catch (e: any) {
       toast.error("Gagal mencatat transaksi: " + e.message, { id: loadingToast })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -386,8 +432,8 @@ export default function CashAndBankPage() {
                            </SelectContent>
                         </Select>
                     </div>
-                    <Button onClick={handleCreateBank} className="w-full h-14 bg-slate-900 text-white rounded-[1.5rem] font-black uppercase text-[10px] tracking-widest shadow-xl mt-4">
-                       Buka Akun Kas/Bank
+                    <Button onClick={handleCreateBank} disabled={isSubmitting} className="w-full h-14 bg-slate-900 text-white rounded-[1.5rem] font-black uppercase text-[10px] tracking-widest shadow-xl mt-4">
+                       {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Buka Akun Kas/Bank"}
                     </Button>
                  </div>
               </DialogContent>
@@ -482,6 +528,7 @@ export default function CashAndBankPage() {
                                           </>
                                        ) : (
                                           <>
+                                             <SelectItem value="Belanja Barang (HPP)">🛒 Belanja Barang (HPP)</SelectItem>
                                              <SelectItem value="Beban Gaji">👥 Beban Gaji Karyawan</SelectItem>
                                              <SelectItem value="Sewa Gedung">🏢 Sewa Gedung/Gudang</SelectItem>
                                              <SelectItem value="Listrik/Air">🔌 Listrik & Air (Utilitas)</SelectItem>
@@ -554,8 +601,9 @@ export default function CashAndBankPage() {
                      <Button 
                         className={`w-full h-14 font-black text-lg rounded-2xl animate-in zoom-in-95 duration-200 ${txType === 'In' ? 'bg-emerald-600 hover:bg-emerald-700' : txType === 'Transfer' ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-rose-600 hover:bg-rose-700'}`}
                         onClick={handleSaveTx}
+                        disabled={isSubmitting}
                      >
-                        {txType === 'Transfer' ? 'Simpan Transfer Internal' : `Simpan Transaksi ${txType === 'In' ? 'Masuk' : 'Keluar'}`}
+                        {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : txType === 'Transfer' ? 'Simpan Transfer Internal' : `Simpan Transaksi ${txType === 'In' ? 'Masuk' : 'Keluar'}`}
                      </Button>
                   </DialogFooter>
                </DialogContent>
@@ -580,14 +628,29 @@ export default function CashAndBankPage() {
                         <Badge variant="outline" className="text-[10px] font-bold tracking-tighter opacity-70">
                            {b.accountNumber || 'PHYSICAL CASH'}
                         </Badge>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="w-8 h-8 rounded-full text-slate-300 hover:text-emerald-600 hover:bg-emerald-50 transition-all opacity-0 group-hover:opacity-100"
-                          onClick={() => setEditingBank({ ...b })}
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </Button>
+                        <div className="flex flex-row items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                           <Button 
+                             variant="ghost" 
+                             size="icon" 
+                             className="w-8 h-8 rounded-full text-slate-300 hover:text-emerald-600 hover:bg-emerald-50"
+                             onClick={(e) => { e.stopPropagation(); setEditingBank({ ...b }); }}
+                           >
+                             <Pencil className="w-3.5 h-3.5" />
+                           </Button>
+                           <Button 
+                             variant="ghost" 
+                             size="icon" 
+                             className="w-8 h-8 rounded-full text-slate-300 hover:text-rose-600 hover:bg-rose-50"
+                             onClick={(e) => { 
+                               e.stopPropagation();
+                               if (confirm(`Hapus akun ${b.name}? Data transaksi tidak akan hilang tapi link ke bank ini akan terputus.`)) {
+                                 deleteBankAccount(b.id);
+                               }
+                             }}
+                           >
+                             <Trash2 className="w-3.5 h-3.5" />
+                           </Button>
+                        </div>
                      </div>
                   </div>
                   <div className="mt-4">
@@ -683,8 +746,8 @@ export default function CashAndBankPage() {
                 </Select>
               </div>
             )}
-            <Button onClick={handleUpdateBank} className="w-full h-14 bg-emerald-600 text-white rounded-[1.5rem] font-black uppercase text-[10px] tracking-widest shadow-xl mt-4">
-              Simpan Perubahan
+            <Button onClick={handleUpdateBank} disabled={isSubmitting} className="w-full h-14 bg-emerald-600 text-white rounded-[1.5rem] font-black uppercase text-[10px] tracking-widest shadow-xl mt-4">
+              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Simpan Perubahan"}
             </Button>
           </div>
         </DialogContent>
@@ -885,8 +948,10 @@ export default function CashAndBankPage() {
                </DialogDescription>
             </DialogHeader>
             <DialogFooter className="flex-col gap-2 sm:flex-col mt-6">
-               <Button variant="destructive" className="w-full h-12 rounded-xl font-black uppercase text-xs tracking-widest" onClick={handleConfirmDelete}>Ya, Hapus Sekarang</Button>
-               <Button variant="ghost" className="w-full h-12 rounded-xl font-bold text-slate-400" onClick={() => setTxToDelete(null)}>Batalkan</Button>
+               <Button variant="destructive" className="w-full h-12 rounded-xl font-black uppercase text-xs tracking-widest" onClick={handleConfirmDelete} disabled={isSubmitting}>
+                 {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Ya, Hapus Sekarang"}
+               </Button>
+               <Button variant="ghost" className="w-full h-12 rounded-xl font-bold text-slate-400" onClick={() => setTxToDelete(null)} disabled={isSubmitting}>Batalkan</Button>
             </DialogFooter>
          </DialogContent>
       </Dialog>
@@ -904,8 +969,10 @@ export default function CashAndBankPage() {
                </DialogDescription>
             </DialogHeader>
             <DialogFooter className="flex-col gap-2 sm:flex-col mt-6">
-               <Button variant="destructive" className="w-full h-12 rounded-xl font-black uppercase text-xs tracking-widest" onClick={handleBulkDelete}>Hapus Semua Terpilih</Button>
-               <Button variant="ghost" className="w-full h-12 rounded-xl font-bold text-slate-400" onClick={() => setIsBulkDeleteConfirmOpen(false)}>Batalkan</Button>
+               <Button variant="destructive" className="w-full h-12 rounded-xl font-black uppercase text-xs tracking-widest" onClick={handleBulkDelete} disabled={isSubmitting}>
+                 {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Hapus Semua Terpilih"}
+               </Button>
+               <Button variant="ghost" className="w-full h-12 rounded-xl font-bold text-slate-400" onClick={() => setIsBulkDeleteConfirmOpen(false)} disabled={isSubmitting}>Batalkan</Button>
             </DialogFooter>
          </DialogContent>
       </Dialog>
@@ -989,8 +1056,10 @@ export default function CashAndBankPage() {
                 />
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setEditingTx(null)}>Batal</Button>
-                <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleSaveEditTx}>Simpan Perubahan</Button>
+                <Button variant="outline" onClick={() => setEditingTx(null)} disabled={isSubmitting}>Batal</Button>
+                <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleSaveEditTx} disabled={isSubmitting}>
+                  {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Menyimpan...</> : "Simpan Perubahan"}
+                </Button>
               </DialogFooter>
             </div>
           )}

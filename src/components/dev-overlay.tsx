@@ -1,12 +1,14 @@
 "use client"
 
 import React from "react"
+import { usePathname } from "next/navigation"
 import { useAppStore } from "@/lib/store"
 import { Button } from "@/components/ui/button"
 import { RefreshCcw, Undo2, Ban, Play, Plus } from "lucide-react"
 import { runAppendOutstandingSimulation, runResetSimulationScenario } from "@/lib/simulation"
 
 export default function DevOverlay() {
+  const pathname = usePathname()
   const [isVisible, setIsVisible] = React.useState(true)
   const [isDev, setIsDev] = React.useState(false)
   const [isRunningResetSimulation, setIsRunningResetSimulation] = React.useState(false)
@@ -21,6 +23,8 @@ export default function DevOverlay() {
   const resetSimulation = useAppStore(state => state.resetSimulation)
   const undoDevSnapshot = useAppStore(state => state.undoDevSnapshot)
   const historyCount = useAppStore(state => state.devHistoryStack.length)
+
+  if (pathname?.startsWith("/tri-chess")) return null
 
   if (!isDev) return null
 

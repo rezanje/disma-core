@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useAppStore } from "@/lib/store"
-import { recordOperationalExpense, recordOnlinePurchase } from "@/lib/accounting"
+import { recordOperationalExpense, recordOnlinePurchase, recordAdvanceExpense, getAdvanceWalletByUserId } from "@/lib/accounting"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
@@ -49,12 +49,25 @@ export default function AuditTransitionPage() {
       const pName = pItem ? (products.find(p => p.id === pItem.productId)?.name || expense.description) : expense.description
       success = await recordOnlinePurchase(expense.referenceId, expense.amount, pName)
     } else {
-      success = await recordOperationalExpense(
-        expense.id,
-        expense.amount,
-        `${expense.category}: ${expense.description}`,
-        expense.date
-      )
+      // Use advance wallet deduction for field staff (sourcing/courier), petty cash for others
+      const advanceWallet = getAdvanceWalletByUserId(expense.reporterId)
+      if (advanceWallet) {
+        success = await recordAdvanceExpense(
+          expense.id,
+          expense.reporterId,
+          expense.amount,
+          expense.description || '',
+          expense.date,
+          expense.category
+        )
+      } else {
+        success = await recordOperationalExpense(
+          expense.id,
+          expense.amount,
+          `${expense.category}: ${expense.description}`,
+          expense.date
+        )
+      }
     }
 
     if (success) {

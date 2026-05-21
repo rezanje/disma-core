@@ -4,9 +4,11 @@ import { useAppStore } from "@/lib/store"
 import { Megaphone, X, Bell } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useState, useEffect } from "react"
+import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 
 export default function GlobalAnnouncement() {
+  const pathname = usePathname()
   const announcement = useAppStore(state => state.announcement)
   const updateAnnouncement = useAppStore(state => state.updateAnnouncement)
   const [isVisible, setIsVisible] = useState(false)
@@ -16,6 +18,8 @@ export default function GlobalAnnouncement() {
       setIsVisible(true)
     }
   }, [announcement])
+
+  if (pathname?.startsWith("/tri-chess")) return null
 
   if (!announcement?.active || !isVisible) return null
 

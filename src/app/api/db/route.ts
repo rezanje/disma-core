@@ -10,6 +10,30 @@ const isMissingTableError = (error: unknown) => {
   return /could not find the table|schema cache/i.test(message);
 };
 
+const isNetworkError = (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error || '');
+  return /fetch failed|ECONNRESET|ETIMEDOUT|ENOTFOUND|socket hang up|network/i.test(message);
+};
+
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+// Retry wrapper for transient Supabase network errors
+async function withRetry<T>(fn: () => Promise<T>, label: string, maxAttempts = 4): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      if (!isNetworkError(err) || attempt === maxAttempts) throw err;
+      const backoff = Math.min(500 * Math.pow(2, attempt - 1), 4000);
+      console.warn(`[Retry] ${label} attempt ${attempt} failed (${(err as Error).message}). Retry in ${backoff}ms.`);
+      await sleep(backoff);
+    }
+  }
+  throw lastError;
+}
+
 // Helper to convert snake_case to camelCase for the frontend
 const toCamel = (obj: any): any => {
   if (Array.isArray(obj)) return obj.map(toCamel);
@@ -39,11 +63,11 @@ export async function GET(request: Request) {
           let from = 0;
           
           while (true) {
-            const { data, error } = await supabase.from(table)
-              .select('*')
-              .order('id')
-              .range(from, from + PAGE_SIZE - 1);
-            
+            const { data, error } = await withRetry(
+              async () => await supabase.from(table).select('*').order('id').range(from, from + PAGE_SIZE - 1),
+              `select ${table}`
+            );
+
             if (error) {
               if (isMissingTableError(error)) return [];
               console.error(`Error fetching ${table}:`, error.message);
@@ -192,40 +216,9 @@ export async function POST(request: Request) {
 
     let snakeData = table === 'app_settings' ? data : toSnake(data);
 
-    // CRITICAL FIX: Sanitize purchases table to avoid crashes if schema is not updated
-    if (table === 'purchases') {
-       const sanitize = (item: any) => {
-          const {
-            reconciliation_proof_url,
-            reconciliation_note,
-            reconciliation_status,
-            ...rest
-          } = item;
-          // For now, we only sync 'reconciliation_status' if we're sure it exists,
-          // or we just let it fail for that specific column if we can't sanitize.
-          // Since the user is getting errors specifically for 'reconciliation_proof_url',
-          // we'll omit the new fields to keep the system running.
-          return rest;
-       };
-       snakeData = Array.isArray(snakeData) ? snakeData.map(sanitize) : sanitize(snakeData);
-    }
+    // Sanitization blocks are removed for local development to allow all fields to sync
 
-    // CRITICAL FIX: Sanitize expenses table — target_bank_account_id column may not exist yet
-    if (table === 'expenses') {
-       const sanitize = (item: Record<string, unknown>) => {
-          const { target_bank_account_id, ...rest } = item;
-          return rest;
-       };
-       snakeData = Array.isArray(snakeData) ? snakeData.map(sanitize) : sanitize(snakeData);
-    }
 
-    if (table === 'deliveries') {
-       const sanitize = (item: Record<string, unknown>) => {
-          const { notes, invoice_id, ...rest } = item;
-          return rest;
-       };
-       snakeData = Array.isArray(snakeData) ? snakeData.map(sanitize) : sanitize(snakeData);
-    }
 
     if (table === 'stock_movements') {
        const sanitize = (item: Record<string, unknown>) => {
@@ -242,8 +235,11 @@ export async function POST(request: Request) {
     const CHUNK_SIZE = 500;
     for (let i = 0; i < items.length; i += CHUNK_SIZE) {
       const chunk = items.slice(i, i + CHUNK_SIZE);
-      const { error } = await supabase.from(table).upsert(chunk, { onConflict: 'id' });
-      
+      const { error } = await withRetry(
+        async () => await supabase.from(table).upsert(chunk, { onConflict: 'id' }),
+        `upsert ${table} chunk ${i}`
+      );
+
       if (error) {
         if (isMissingTableError(error)) {
           return NextResponse.json({ success: true, count: 0, skipped: true, missingTable: true });
@@ -270,7 +266,10 @@ export async function DELETE(request: Request) {
     if (!table || !id) return NextResponse.json({ error: 'Table and ID required' }, { status: 400 });
 
     const ids = Array.isArray(id) ? id : [id];
-    const { error } = await supabase.from(table).delete().in('id', ids);
+    const { error } = await withRetry(
+      async () => await supabase.from(table).delete().in('id', ids),
+      `delete ${table}`
+    );
 
     if (error) {
       if (isMissingTableError(error)) {

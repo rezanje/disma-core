@@ -30,12 +30,20 @@ export default function OnlinePurchasePage() {
     ref: string
   }>>({})
 
+  // Only show Online items belonging to a purchase that has been sent to Finance ("Belum Transfer" or further).
+  const sentPurchaseIds = new Set(
+    purchases
+      .filter(p => p.reconciliationStatus === 'Belum Transfer' || !!p.budgetTransferDate || p.reconciliationStatus === 'Laporan Masuk' || p.reconciliationStatus === 'Terverifikasi')
+      .map(p => p.id)
+  )
+
   // Pending Online Items
   const pendingOnlineItems = purchaseItems
-    .filter(pi => 
-       pi.purchaseMethod === 'Online' && 
+    .filter(pi =>
+       pi.purchaseMethod === 'Online' &&
        !pi.isOnlineOrdered &&
-       (products.find(p => p.id === pi.productId)?.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+       sentPurchaseIds.has(pi.purchaseId) &&
+       (products.find(p => p.id === pi.productId)?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         pi.notes?.toLowerCase().includes(searchTerm.toLowerCase()))
     )
     .map(item => ({

@@ -11,10 +11,10 @@ export type AccessKey =
   // Admin & CEO
   | 'admin_dashboard' | 'admin_vendors' | 'admin_clients' | 'admin_products' 
   | 'admin_sales_orders' | 'admin_shopping_list' | 'admin_assets' | 'admin_hr' | 'admin_crm' 
-  | 'admin_documents' | 'admin_okr' | 'admin_users' | 'admin_settings' | 'admin_tasks' | 'admin_maintenance' | 'admin_price_lists'
+  | 'admin_documents' | 'admin_okr' | 'admin_users' | 'admin_settings' | 'admin_tasks' | 'admin_maintenance' | 'admin_price_lists' | 'admin_activity_log'
   // Finance
   | 'finance_dashboard' | 'finance_approvals' | 'finance_reports' | 'finance_assets' 
-  | 'finance_budget' | 'finance_cash_bank' | 'finance_ledger' | 'finance_invoices' 
+  | 'finance_budget' | 'finance_cash_bank' | 'finance_ledger' | 'finance_invoices' | 'finance_collections'
   | 'finance_reconciliation' | 'finance_reimbursements' | 'finance_online_purchase' | 'finance_audit' | 'finance_documents'
   // Warehouse
   | 'warehouse_dashboard' | 'warehouse_catalog' | 'warehouse_inbound' | 'warehouse_outbound' | 'warehouse_qc' | 'warehouse_reject_monitor'
@@ -38,6 +38,7 @@ export interface Client {
   address: string;
   paymentTermDays: number;
   createdAt: string;
+  notes?: string;
 }
 
 export type ClientPriceTier = 'Standard' | 'Tier 1' | 'Tier 2' | 'Tier 3' | 'Tier 4' | 'Tier 5' | 'Custom';
@@ -123,6 +124,9 @@ export interface SalesOrder {
   status: SalesOrderStatus;
   archivedSuratJalanUrl?: string; // Full PDF signed archived
   archivedBaUrl?: string;         // Full PDF signed archived
+  shoppingListCompiledAt?: string; // Marker: PO has been included in a shopping-list document
+  shoppingListDocumentId?: string;
+  shoppingListCompiledBy?: string;
   proofOfDeliveryUrl?: string;    // Image/Photo proof (legacy/secondary)
   handoverDate?: string;
   handoverBy?: string; // User ID from Gudang
@@ -154,6 +158,9 @@ export interface Purchase {
   date: string;
   purchaserId: string;
   status: PurchaseStatus;
+  advanceCode?: string;
+  shoppingListDocumentId?: string;
+  shoppingListCompiledBy?: string;
   // Budget & Reconciliation
   budgetAmount?: number;        // Total estimated budget by Finance
   budgetTransferDate?: string;  // When Finance transferred funds
@@ -224,6 +231,7 @@ export interface Invoice {
   status: InvoiceStatus;
   payments?: PaymentRecord[];
   paidDate?: string;
+  lastRemindedAt?: string;
 }
 
 export type AccountType = 'Asset' | 'Liability' | 'Equity' | 'Revenue' | 'Expense';
@@ -488,4 +496,22 @@ export interface RejectedItem {
   referenceId?: string;
   reportedBy: string;
   imageUrl?: string;
+}
+
+export type HistoryAction = 'create' | 'update' | 'delete' | 'rollback';
+
+export interface RecordHistory {
+  id: string;
+  tableName: string;
+  recordId: string;
+  action: HistoryAction;
+  changedFields: string[];
+  oldData: Record<string, any> | null;
+  newData: Record<string, any> | null;
+  userId: string | null;
+  userName: string | null;
+  userRole: string | null;
+  reason: string | null;
+  parentHistoryId: string | null;
+  createdAt: string;
 }
