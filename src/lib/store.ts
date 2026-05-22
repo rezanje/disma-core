@@ -464,13 +464,10 @@ const initialCOAs: ChartOfAccount[] = [
   { id: 'coa-17', accountCode: '6-3000', accountName: 'Beban Bunga Pinjaman', accountType: 'Expense' },
 ];
 
-const INITIAL_BANK_ACCOUNTS: BankAccount[] = [
-  { id: 'bank-1', name: 'BCA (Utama)', accountNumber: '8001234455', accountCode: '1-1200', balance: 0 },
-  { id: 'bank-2', name: 'Mandiri (Ops)', accountNumber: '123000998877', accountCode: '1-1300', balance: 0 },
-  { id: 'bank-3', name: 'BRI (Simpanan)', accountNumber: '001122334455', accountCode: '1-1400', balance: 0 },
-  { id: 'bank-4', name: 'Petty Cash', accountCode: '1-1000', balance: 0 },
-  { id: 'bank-advance-sourcing', name: 'Kas Sourcing (Hilman)', accountCode: '1-1500', balance: 0 }
-];
+// NOTE: empty array — bank accounts must be created via UI (admin) or via import seed.
+// Previously this had hardcoded seed banks that auto-re-injected on every store init,
+// causing duplicates whenever a real-data import used different bank IDs.
+const INITIAL_BANK_ACCOUNTS: BankAccount[] = [];
 
 const initialRolePermissions: RolePermissionMap = {
   super_admin: [
@@ -971,27 +968,22 @@ export const useAppStore = create<AppState>((set, get) => ({
 
               if (!cashChanged && !journalChanged) return 0;
 
-              const recalculatedBanks = current.bankAccounts.map((bank) => {
-                const balance = dedupedCashTransactions
-                  .filter((tx) => tx.bankAccountId === bank.id)
-                  .reduce((sum, tx) => sum + (tx.type === 'In' ? tx.amount : -tx.amount), 0);
-
-                return { ...bank, balance };
-              });
-
+              // NOTE: Bank balance is DB-authoritative (set via opening balance + cumulative deltas).
+              // Recomputing balance = sum(In) - sum(Out) starting from 0 breaks imports / opening balances.
+              // We only dedup the cash_tx + JE records, leave bank balances untouched.
               set({
                 cashTransactions: dedupedCashTransactions,
                 journalEntries: dedupedJournalEntries,
                 journalLines: dedupedJournalLines,
-                bankAccounts: recalculatedBanks,
               });
 
+              // Only reset+reseed dedup-affected tables. Leave bank_accounts alone (DB-authoritative balance).
               await fetch('/api/db/reset', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   action: 'custom',
-                  tables: ['journal_lines', 'journal_entries', 'cash_transactions', 'bank_accounts'],
+                  tables: ['journal_lines', 'journal_entries', 'cash_transactions'],
                 })
               });
 
@@ -1004,7 +996,6 @@ export const useAppStore = create<AppState>((set, get) => ({
                     journal_entries: dedupedJournalEntries,
                     journal_lines: dedupedJournalLines,
                     cash_transactions: dedupedCashTransactions,
-                    bank_accounts: recalculatedBanks,
                   }
                 })
               });
