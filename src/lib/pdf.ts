@@ -270,11 +270,14 @@ function drawInvoiceOnDoc(doc: jsPDF, invoiceId: string) {
   const targetSoIds = inv.isConsolidated ? (inv.salesOrderIds || []) : (inv.salesOrderId ? [inv.salesOrderId] : [])
   const items = store.salesOrderItems.filter(i => targetSoIds.includes(i.salesOrderId))
 
-  drawHeader(doc, inv.isConsolidated ? "CONSOLIDATED INVOICE (TUKAR FAKTUR)" : "INVOICE (FAKTUR PENJUALAN)", `INV-${inv.id.substring(0,8)}`, new Date(inv.issueDate))
+  const isManualInvoice = !inv.isConsolidated && !inv.salesOrderId && !(inv.salesOrderIds?.length)
+  drawHeader(doc, inv.isConsolidated ? "CONSOLIDATED INVOICE (TUKAR FAKTUR)" : isManualInvoice ? "INVOICE (PIUTANG MANUAL)" : "INVOICE (FAKTUR PENJUALAN)", `INV-${inv.id.substring(0,8)}`, new Date(inv.issueDate))
 
   doc.setFontSize(10)
   if (inv.isConsolidated) {
     doc.text(`Ref PO: ${inv.consolidatedOrderNumbers?.join(', ')}`, 14, 65, { maxWidth: 100 })
+  } else if (isManualInvoice) {
+    doc.text(`Ref: ${inv.id}`, 14, 65)
   } else {
     const so = store.salesOrders.find(s => s.id === inv.salesOrderId)
     doc.text(`Ref PO: ${so?.poNumber}`, 14, 65)
@@ -294,16 +297,24 @@ function drawInvoiceOnDoc(doc: jsPDF, invoiceId: string) {
 
   doc.setFont("helvetica", "normal")
   y += 18
-  items.forEach(item => {
-    const product = store.products.find(p => p.id === item.productId)
-    const finalQty = item.qtyFinal ?? item.qty
-    const finalSubtotal = item.subtotalFinal ?? item.subtotal
-    doc.text(product?.name || '-', 16, y)
-    doc.text(`${finalQty} ${product?.uom}`, 100, y)
-    doc.text(formatRupiah(item.unitPrice), 130, y)
-    doc.text(formatRupiah(finalSubtotal), 170, y)
+  if (items.length === 0) {
+    doc.text("Piutang manual", 16, y)
+    doc.text("1", 100, y)
+    doc.text(formatRupiah(inv.totalAmount), 130, y)
+    doc.text(formatRupiah(inv.totalAmount), 170, y)
     y += 10
-  })
+  } else {
+    items.forEach(item => {
+      const product = store.products.find(p => p.id === item.productId)
+      const finalQty = item.qtyFinal ?? item.qty
+      const finalSubtotal = item.subtotalFinal ?? item.subtotal
+      doc.text(product?.name || '-', 16, y)
+      doc.text(`${finalQty} ${product?.uom}`, 100, y)
+      doc.text(formatRupiah(item.unitPrice), 130, y)
+      doc.text(formatRupiah(finalSubtotal), 170, y)
+      y += 10
+    })
+  }
 
   doc.setDrawColor(200, 200, 200); doc.line(130, y + 5, 196, y + 5)
   y += 15

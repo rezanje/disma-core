@@ -522,6 +522,28 @@ export const recordDeliveryAndInvoice = async (deliveryId: string, invoiceId: st
   return revSuccess;
 };
 
+export const recordManualReceivable = async (invoiceId: string, amount: number, date: string) => {
+  const store = useAppStore.getState();
+
+  const hasExistingInvoiceEntry = store.journalEntries.some(
+    entry => entry.referenceId === invoiceId && entry.referenceType === 'Invoice'
+  );
+
+  if (hasExistingInvoiceEntry) {
+    console.warn(`[Accounting] Manual receivable ${invoiceId} already recorded. Skipping.`);
+    return true;
+  }
+
+  return await createAccountingEntry(
+    `Input Piutang Manual - Ref: ${invoiceId}`,
+    'Invoice',
+    invoiceId,
+    [{ accountCode: '1-2000', amount }],
+    [{ accountCode: '4-1000', amount }],
+    date
+  );
+};
+
 export const recordReimbursementPayment = async (reimbId: string, amount: number, description: string, bankAccountId: string, userName: string) => {
   const store = useAppStore.getState();
   const bank = store.bankAccounts.find(b => b.id === bankAccountId);
