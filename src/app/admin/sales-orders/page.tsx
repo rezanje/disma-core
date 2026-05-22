@@ -69,6 +69,7 @@ export default function SalesOrdersPage() {
   const updateSalesOrderItem = useAppStore(state => state.updateSalesOrderItem)
   const getHistoricalClientPrice = useAppStore(state => state.getHistoricalClientPrice)
   const clientPrices = useAppStore(state => state.clientPrices) || []
+  const invoices = useAppStore(state => state.invoices)
   const addDelivery = useAppStore(state => state.addDelivery)
   const addInvoice = useAppStore(state => state.addInvoice)
   const currentUser = useAppStore(state => state.currentUser)
@@ -897,6 +898,17 @@ export default function SalesOrdersPage() {
                           {so.status === 'Draft' && (
                             <Button size="sm" onClick={() => advanceStatus(so.id, so.status)}>
                               Approve (Go to Sourcing)
+                            </Button>
+                          )}
+                          {FAST_TRACKABLE.includes(so.status) && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-amber-600 border-amber-300 hover:bg-amber-50 font-black text-[10px] uppercase tracking-wider"
+                              title="Fast-track: skip QC/gudang/kurir, langsung ke Awaiting Audit Finance"
+                              onClick={() => handleFastTrack(so.id)}
+                            >
+                              ⚡ Fast Track
                             </Button>
                           )}
                           {FAST_TRACKABLE.includes(so.status) && (

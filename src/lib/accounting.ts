@@ -86,8 +86,14 @@ export const createAccountingEntry = async (
     referenceId,
   };
 
-  // MUST AWAIT entry before lines to avoid FK violation
-  await store.addJournalEntry(entry);
+  // MUST AWAIT entry before lines to avoid FK violation.
+  // If sync fails (critical table now throws), abort to prevent silent corruption.
+  try {
+    await store.addJournalEntry(entry);
+  } catch (err) {
+    console.error('[Accounting] Failed to persist journal entry, aborting:', err);
+    return false;
+  }
 
   const lines: JournalLine[] = [];
 
@@ -126,7 +132,12 @@ export const createAccountingEntry = async (
   });
 
   if (lines.length > 0) {
-    await store.addJournalLines(lines);
+    try {
+      await store.addJournalLines(lines);
+    } catch (err) {
+      console.error('[Accounting] Failed to persist journal lines, aborting:', err);
+      return false;
+    }
   }
 
   return true;

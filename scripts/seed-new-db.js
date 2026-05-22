@@ -17,7 +17,7 @@ const COA_SEED = [
   { id: "coa-10", account_code: "2-1000", account_name: "Utang Usaha (Vendor)", account_type: "Liability" },
   { id: "coa-10-2", account_code: "2-2000", account_name: "Utang Gaji & Honor", account_type: "Liability" },
   { id: "coa-10-3", account_code: "2-3000", account_name: "Utang Pajak (PPN/PPh)", account_type: "Liability" },
-  { id: "coa-4-2", account_code: "2-4000", account_name: "Pinjaman Bank (Utang)", account_type: "Liability" },
+  { id: "coa-10-4", account_code: "2-4000", account_name: "Pinjaman Bank (Utang)", account_type: "Liability" },
   { id: "coa-11", account_code: "3-1000", account_name: "Modal Pemilik (Owner Capital)", account_type: "Equity" },
   { id: "coa-11-2", account_code: "3-2000", account_name: "Prive / Penarikan Pribadi", account_type: "Equity" },
   { id: "coa-12", account_code: "4-1000", account_name: "Pendapatan Penjualan Produk", account_type: "Revenue" },

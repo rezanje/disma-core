@@ -5,7 +5,8 @@ import {
   PurchaseItem, Delivery, Invoice, ChartOfAccount, JournalEntry, 
   JournalLine, OperationalExpense, User, Vendor, Role, Lead, Announcement, AppTask, AppNotification,
   BankAccount, CashTransaction, Reimbursement, FixedAsset,
-  Employee, SmartKpi, OkrObjective, RolePermissionMap, AccessKey, PendingReturn, RejectedItem, StockMovement, ClientPrice
+  Employee, SmartKpi, OkrObjective, RolePermissionMap, AccessKey, PendingReturn, RejectedItem, StockMovement, ClientPrice,
+  VendorBill, VendorBillPayment
 } from '@/types';
 import { COA_SEED, CLIENTS_SEED, VENDORS_SEED, MOCK_USERS, KPI_SEED } from './constants';
 import { PRODUCTS_SEED } from './products_seed';
@@ -338,6 +339,13 @@ interface AppState {
   addInvoice: (inv: Invoice) => void;
   updateInvoice: (id: string, data: Partial<Invoice>) => void;
 
+  // Accounts Payable (Vendor Bills)
+  vendorBills: VendorBill[];
+  addVendorBill: (bill: VendorBill) => Promise<void>;
+  updateVendorBill: (id: string, data: Partial<VendorBill>) => Promise<void>;
+  deleteVendorBill: (id: string) => Promise<void>;
+  payVendorBill: (billId: string, payment: VendorBillPayment) => Promise<void>;
+
   journalEntries: JournalEntry[];
   addJournalEntry: (entry: JournalEntry) => void;
   updateJournalEntry: (id: string, updates: Partial<JournalEntry>, newLines: JournalLine[]) => void;
@@ -434,11 +442,13 @@ const initialCOAs: ChartOfAccount[] = [
   { id: 'coa-1', accountCode: '1-1000', accountName: 'Kas di Tangan (Petty Cash)', accountType: 'Asset' },
   { id: 'coa-1-2', accountCode: '1-1200', accountName: 'Bank BCA - Utama', accountType: 'Asset' },
   { id: 'coa-1-3', accountCode: '1-1300', accountName: 'Bank Mandiri - Operasional', accountType: 'Asset' },
+  { id: 'coa-1-4', accountCode: '1-1400', accountName: 'Bank BRI - Simpanan', accountType: 'Asset' },
   { id: 'coa-1-5', accountCode: '1-1500', accountName: 'Uang Muka Karyawan (Advance)', accountType: 'Asset' },
   { id: 'coa-1-5-1', accountCode: '1-1510', accountName: 'Kas Operasional Kurir', accountType: 'Asset' },
   { id: 'coa-2', accountCode: '1-2000', accountName: 'Piutang Usaha (Klien)', accountType: 'Asset' },
   { id: 'coa-3', accountCode: '1-3000', accountName: 'Persediaan Barang Dagang', accountType: 'Asset' },
   { id: 'coa-4', accountCode: '1-4000', accountName: 'Aset Tetap (Kendaraan/Alat)', accountType: 'Asset' },
+  { id: 'coa-4-1', accountCode: '1-4100', accountName: 'Inventaris & Furnitur Kantor', accountType: 'Asset' },
   { id: 'coa-5', accountCode: '1-4999', accountName: 'Akumulasi Penyusutan Aset', accountType: 'Asset' },
   
   // 2-XXXX LIABILITIES
@@ -470,15 +480,13 @@ const initialCOAs: ChartOfAccount[] = [
   { id: 'coa-9-7', accountCode: '6-1700', accountName: 'Ongkos Kirim Pembelian', accountType: 'Expense' },
   { id: 'coa-9-9', accountCode: '6-9000', accountName: 'Beban Operasional Lainnya', accountType: 'Expense' },
   { id: 'coa-16', accountCode: '6-2000', accountName: 'Beban Penyusutan Aset', accountType: 'Expense' },
+  { id: 'coa-17', accountCode: '6-3000', accountName: 'Beban Bunga Pinjaman', accountType: 'Expense' },
 ];
 
-const INITIAL_BANK_ACCOUNTS: BankAccount[] = [
-  { id: 'bank-1', name: 'BCA (UTAMA)', accountNumber: '8001234455', accountCode: '1-1200', balance: 0 },
-  { id: 'bank-2', name: 'MANDIRI (OPS)', accountNumber: '123000998877', accountCode: '1-1300', balance: 0 },
-  { id: 'bank-3', name: 'BRI (SIMPANAN)', accountNumber: '001122334455', accountCode: '1-1000', balance: 0 },
-  { id: 'bank-4', name: 'PETTY CASH', accountCode: '1-1000', balance: 0 },
-  { id: 'bank-advance-sourcing', name: 'KAS SOURCING (HILMAN)', accountCode: '1-1500', balance: 0 }
-];
+// NOTE: empty array — bank accounts must be created via UI (admin) or via import seed.
+// Previously this had hardcoded seed banks that auto-re-injected on every store init,
+// causing duplicates whenever a real-data import used different bank IDs.
+const INITIAL_BANK_ACCOUNTS: BankAccount[] = [];
 
 const initialRolePermissions: RolePermissionMap = {
   super_admin: [
@@ -486,7 +494,7 @@ const initialRolePermissions: RolePermissionMap = {
     'admin_sales_orders', 'admin_shopping_list', 'admin_assets', 'admin_hr', 'admin_crm',
     'admin_documents', 'admin_okr', 'admin_users', 'admin_settings', 'admin_tasks', 'admin_maintenance', 'admin_price_lists', 'admin_activity_log',
     'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets', 
-    'finance_budget', 'finance_cash_bank', 'finance_ledger', 'finance_invoices', 
+    'finance_budget', 'finance_cash_bank', 'finance_expenses', 'finance_ledger', 'finance_invoices', 'finance_ar_aging', 'finance_ap_aging',
     'finance_reconciliation', 'finance_reimbursements', 'finance_online_purchase', 'finance_audit', 'finance_documents',
     'warehouse_dashboard', 'warehouse_catalog', 'warehouse_inbound', 'warehouse_outbound', 'warehouse_qc', 'warehouse_reject_monitor',
     'sourcing_dashboard', 'sourcing_list', 'sourcing_expenses',
@@ -497,26 +505,17 @@ const initialRolePermissions: RolePermissionMap = {
     'admin_dashboard', 'admin_vendors', 'admin_clients', 'admin_products',
     'admin_sales_orders', 'admin_shopping_list', 'admin_assets', 'admin_hr', 'admin_crm',
     'admin_documents', 'admin_okr', 'admin_users', 'admin_settings', 'admin_tasks', 'admin_price_lists', 'admin_activity_log',
-    'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets', 
-    'finance_budget', 'finance_cash_bank', 'finance_ledger', 'finance_invoices', 'finance_collections',
+    'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets',
+    'finance_budget', 'finance_cash_bank', 'finance_expenses', 'finance_ledger', 'finance_invoices', 'finance_ar_aging', 'finance_ap_aging', 'finance_collections',
     'finance_audit', 'finance_documents',
     'warehouse_dashboard', 'warehouse_catalog', 'tasks_global', 'settings_global'
   ],
   cmo: [], // Archived for Phase 1
-  finance: [
-    'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets', 
-    'finance_budget', 'finance_cash_bank', 'finance_ledger', 'finance_invoices', 
-    'finance_reconciliation', 'finance_reimbursements', 'finance_online_purchase', 'finance_collections',
-    'finance_audit', 'finance_documents', 'tasks_global', 'admin_price_lists'
-  ],
-  gudang: [], // Archived for Phase 1
-  sourcing: [], // Archived for Phase 1
-  kurir: [], // Archived for Phase 1
-  admin_po: [
-    'admin_dashboard', 'admin_sales_orders', 'admin_shopping_list', 
-    'admin_clients', 'admin_products', 'warehouse_catalog', 'tasks_global', 'admin_price_lists',
-    'finance_invoices' // Added for Tukar Faktur compilation
-  ],
+  finance: ['finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets', 'finance_budget', 'finance_cash_bank', 'finance_expenses', 'finance_ledger', 'finance_invoices', 'finance_ar_aging', 'finance_ap_aging', 'finance_reconciliation', 'finance_reimbursements', 'finance_online_purchase', 'finance_audit', 'finance_documents', 'tasks_global', 'admin_price_lists'],
+  gudang: ['warehouse_dashboard', 'warehouse_catalog', 'warehouse_inbound', 'warehouse_outbound', 'warehouse_qc', 'warehouse_reject_monitor', 'tasks_global'],
+  sourcing: ['sourcing_dashboard', 'sourcing_list', 'sourcing_expenses', 'tasks_global'],
+  kurir: ['courier_dashboard', 'courier_list', 'courier_handover', 'courier_history', 'courier_expenses', 'tasks_global'],
+  admin_po: ['admin_dashboard', 'admin_sales_orders', 'admin_shopping_list', 'admin_clients', 'admin_products', 'warehouse_catalog', 'tasks_global', 'admin_price_lists', 'finance_invoices'],
 };
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -593,6 +592,13 @@ export const useAppStore = create<AppState>((set, get) => ({
             if (!silent && typeof window !== 'undefined') {
               const { toast } = await import('sonner');
               toast.error(`⚠️ Gagal menyimpan ${table} ke server! Data tersimpan lokal saja. Coba sync lagi nanti.`, { duration: 8000 });
+            }
+            // CRITICAL: accounting tables MUST propagate failure so callers (e.g. createAccountingEntry)
+            // can abort and prevent silent data corruption (transaction marked done without journal).
+            const CRITICAL_TABLES = ['journal_entries', 'journal_lines', 'cash_transactions', 'bank_accounts'];
+            if (CRITICAL_TABLES.includes(table)) {
+              set({ isSyncing: false });
+              throw retryError;
             }
           }
         } finally {
@@ -896,6 +902,7 @@ export const useAppStore = create<AppState>((set, get) => ({
               journalEntries: data.journalEntries || [],
               journalLines: data.journalLines || [],
               invoices: data.invoices || [],
+              vendorBills: data.vendorBills || [],
               deliveries: data.deliveries || [],
               leads: data.leads || [],
               tasks: data.tasks || [],
@@ -1030,27 +1037,22 @@ export const useAppStore = create<AppState>((set, get) => ({
 
               if (!cashChanged && !journalChanged) return 0;
 
-              const recalculatedBanks = current.bankAccounts.map((bank) => {
-                const balance = dedupedCashTransactions
-                  .filter((tx) => tx.bankAccountId === bank.id)
-                  .reduce((sum, tx) => sum + (tx.type === 'In' ? tx.amount : -tx.amount), 0);
-
-                return { ...bank, balance };
-              });
-
+              // NOTE: Bank balance is DB-authoritative (set via opening balance + cumulative deltas).
+              // Recomputing balance = sum(In) - sum(Out) starting from 0 breaks imports / opening balances.
+              // We only dedup the cash_tx + JE records, leave bank balances untouched.
               set({
                 cashTransactions: dedupedCashTransactions,
                 journalEntries: dedupedJournalEntries,
                 journalLines: dedupedJournalLines,
-                bankAccounts: recalculatedBanks,
               });
 
+              // Only reset+reseed dedup-affected tables. Leave bank_accounts alone (DB-authoritative balance).
               await fetch('/api/db/reset', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   action: 'custom',
-                  tables: ['journal_lines', 'journal_entries', 'cash_transactions', 'bank_accounts'],
+                  tables: ['journal_lines', 'journal_entries', 'cash_transactions'],
                 })
               });
 
@@ -1063,7 +1065,6 @@ export const useAppStore = create<AppState>((set, get) => ({
                     journal_entries: dedupedJournalEntries,
                     journal_lines: dedupedJournalLines,
                     cash_transactions: dedupedCashTransactions,
-                    bank_accounts: recalculatedBanks,
                   }
                 })
               });
@@ -1505,6 +1506,43 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
       },
 
+      // === Vendor Bills (Accounts Payable) ===
+      vendorBills: [],
+      addVendorBill: async (bill: VendorBill) => {
+        set((state) => ({ vendorBills: [...state.vendorBills, bill] }));
+        await get().syncTable('vendor_bills', bill);
+      },
+      updateVendorBill: async (id: string, data: Partial<VendorBill>) => {
+        set((state) => ({
+          vendorBills: state.vendorBills.map(vb => vb.id === id ? { ...vb, ...data } : vb)
+        }));
+        const updated = get().vendorBills.find(vb => vb.id === id);
+        if (updated) await get().syncTable('vendor_bills', updated);
+      },
+      deleteVendorBill: async (id: string) => {
+        set((state) => ({ vendorBills: state.vendorBills.filter(vb => vb.id !== id) }));
+        try {
+          await fetch('/api/db', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ table: 'vendor_bills', id })
+          });
+        } catch (e) { console.warn('[deleteVendorBill] sync failed', e); }
+      },
+      payVendorBill: async (billId: string, payment: VendorBillPayment) => {
+        const bill = get().vendorBills.find(vb => vb.id === billId);
+        if (!bill) throw new Error('Vendor bill tidak ditemukan');
+        const newPayments = [...(bill.payments || []), payment];
+        const newAmountPaid = (bill.amountPaid || 0) + payment.amount;
+        const newStatus: VendorBill['status'] =
+          newAmountPaid >= bill.totalAmount ? 'Paid' : newAmountPaid > 0 ? 'Partial' : 'Unpaid';
+        await get().updateVendorBill(billId, {
+          payments: newPayments,
+          amountPaid: newAmountPaid,
+          status: newStatus,
+        });
+      },
+
       journalEntries: [],
       addJournalEntry: async (entry) => {
         set((state) => ({ journalEntries: [...state.journalEntries, entry] }));
@@ -1730,6 +1768,29 @@ export const useAppStore = create<AppState>((set, get) => ({
         }));
         const updated = get().bankAccounts.find(b => b.id === id);
         if (updated) await get().syncTable('bank_accounts', updated);
+      },
+      deleteBankAccount: async (id: string) => {
+        // Guardrail — caller (UI) should confirm preconditions, but enforce again here so the action
+        // cannot be invoked from the console with a non-zero balance or with referencing transactions.
+        const target = get().bankAccounts.find(b => b.id === id);
+        if (!target) throw new Error(`Bank account ${id} not found.`);
+        if (Math.abs(Number(target.balance) || 0) > 0.01) {
+          throw new Error(`Saldo ${target.name} = ${target.balance}. Wajib 0 sebelum dihapus.`);
+        }
+        const hasTx = get().cashTransactions.some(tx => tx.bankAccountId === id);
+        if (hasTx) {
+          throw new Error(`${target.name} masih punya cash transactions. Tidak bisa dihapus.`);
+        }
+        set((state) => ({ bankAccounts: state.bankAccounts.filter(b => b.id !== id) }));
+        const res = await fetch('/api/db', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ table: 'bank_accounts', id })
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(`Hapus bank account gagal: ${err.error || res.statusText}`);
+        }
       },
       cashTransactions: [],
       addCashTransaction: async (tx) => {
@@ -2094,7 +2155,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
         set({
           salesOrders: [], salesOrderItems: [], purchases: [], purchaseItems: [],
-          deliveries: [], expenses: [], invoices: [], journalEntries: [],
+          deliveries: [], expenses: [], invoices: [], vendorBills: [], journalEntries: [],
           journalLines: [], stockMovements: [], leads: [], tasks: [], notifications: [],
           pendingReturns: [], rejectedItems: [], reimbursements: [], cashTransactions: [],
           bankAccounts: INITIAL_BANK_ACCOUNTS, fixedAssets: [], clientPrices: []
@@ -2151,7 +2212,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         set({
           clients: CLIENTS_SEED, vendors: VENDORS_SEED, products: PRODUCTS_SEED, 
           salesOrders: [], salesOrderItems: [], purchases: [], purchaseItems: [],
-          deliveries: [], expenses: [], invoices: [], journalEntries: [],
+          deliveries: [], expenses: [], invoices: [], vendorBills: [], journalEntries: [],
           journalLines: [], stockMovements: [], coas: COA_SEED, users: MOCK_USERS, leads: [],
           tasks: [], notifications: [], bankAccounts: INITIAL_BANK_ACCOUNTS,
           rejectedItems: [],

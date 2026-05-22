@@ -79,10 +79,15 @@ export default function LedgerPage() {
     setEditLines(newLinesArr)
   }
 
+  const equityAccountsTotal = accountBalances.filter(a => a.accountType === 'Equity').reduce((sum, a) => sum + getBalance(a.id, a.accountType), 0)
+  const revenuesTotal = accountBalances.filter(a => a.accountType === 'Revenue').reduce((sum, a) => sum + getBalance(a.id, a.accountType), 0)
+  const expensesTotal = accountBalances.filter(a => a.accountType === 'Expense').reduce((sum, a) => sum + getBalance(a.id, a.accountType), 0)
+  const currentPeriodProfit = revenuesTotal - expensesTotal
+
   const totals = {
     assets: accountBalances.filter(a => a.accountType === 'Asset').reduce((sum, a) => sum + getBalance(a.id, a.accountType), 0),
     liabilities: accountBalances.filter(a => a.accountType === 'Liability').reduce((sum, a) => sum + getBalance(a.id, a.accountType), 0),
-    equity: accountBalances.filter(a => a.accountType === 'Equity').reduce((sum, a) => sum + getBalance(a.id, a.accountType), 0)
+    equity: equityAccountsTotal + currentPeriodProfit
   }
 
   const groupedCoas = useMemo(() => {

@@ -13,8 +13,9 @@ export type AccessKey =
   | 'admin_sales_orders' | 'admin_shopping_list' | 'admin_assets' | 'admin_hr' | 'admin_crm' 
   | 'admin_documents' | 'admin_okr' | 'admin_users' | 'admin_settings' | 'admin_tasks' | 'admin_maintenance' | 'admin_price_lists' | 'admin_activity_log'
   // Finance
-  | 'finance_dashboard' | 'finance_approvals' | 'finance_reports' | 'finance_assets' 
-  | 'finance_budget' | 'finance_cash_bank' | 'finance_ledger' | 'finance_invoices' | 'finance_collections'
+  | 'finance_dashboard' | 'finance_approvals' | 'finance_reports' | 'finance_assets'
+  | 'finance_budget' | 'finance_cash_bank' | 'finance_expenses' | 'finance_ledger' | 'finance_invoices' | 'finance_collections'
+  | 'finance_ar_aging' | 'finance_ap_aging'
   | 'finance_reconciliation' | 'finance_reimbursements' | 'finance_online_purchase' | 'finance_audit' | 'finance_documents'
   // Warehouse
   | 'warehouse_dashboard' | 'warehouse_catalog' | 'warehouse_inbound' | 'warehouse_outbound' | 'warehouse_qc' | 'warehouse_reject_monitor'
@@ -232,6 +233,39 @@ export interface Invoice {
   payments?: PaymentRecord[];
   paidDate?: string;
   lastRemindedAt?: string;
+  /** If set, this invoice was absorbed into a consolidated (Tukar Faktur) invoice and should be treated as superseded. */
+  supersededByInvoiceId?: string;
+}
+
+export type VendorBillStatus = 'Unpaid' | 'Partial' | 'Paid';
+
+export interface VendorBillPayment {
+  id: string;
+  date: string;
+  amount: number;
+  bankAccountId: string;
+  method?: string;
+  note?: string;
+}
+
+/** Accounts Payable — bill from a vendor that creates a debt obligation. */
+export interface VendorBill {
+  id: string;
+  billNumber: string;        // human-readable, e.g., "VB-2026-001"
+  vendorId: string;
+  vendorName: string;        // denormalized snapshot
+  issueDate: string;
+  dueDate: string;
+  description: string;       // e.g., "Belanja bahan baku 21 Mei"
+  category?: string;         // e.g., 'Bahan Baku', 'Operasional', 'Aset'
+  totalAmount: number;
+  amountPaid: number;
+  status: VendorBillStatus;
+  payments?: VendorBillPayment[];
+  receiptUrl?: string;
+  purchaseId?: string;       // optional link to a Purchase record
+  createdAt: string;
+  createdBy?: string;
 }
 
 export type AccountType = 'Asset' | 'Liability' | 'Equity' | 'Revenue' | 'Expense';

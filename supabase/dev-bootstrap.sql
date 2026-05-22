@@ -158,7 +158,30 @@ create table if not exists public.invoices (
   amount_paid numeric not null default 0,
   status text not null,
   payments jsonb not null default '[]'::jsonb,
-  paid_date text
+  paid_date text,
+  superseded_by_invoice_id text
+);
+
+-- Backfill column for existing DBs
+alter table public.invoices add column if not exists superseded_by_invoice_id text;
+
+create table if not exists public.vendor_bills (
+  id text primary key,
+  bill_number text not null,
+  vendor_id text not null,
+  vendor_name text not null,
+  issue_date text not null,
+  due_date text not null,
+  description text not null,
+  category text,
+  total_amount numeric not null default 0,
+  amount_paid numeric not null default 0,
+  status text not null,
+  payments jsonb not null default '[]'::jsonb,
+  receipt_url text,
+  purchase_id text,
+  created_at text not null,
+  created_by text
 );
 
 create table if not exists public.journal_entries (
@@ -404,6 +427,7 @@ alter table public.purchases disable row level security;
 alter table public.purchase_items disable row level security;
 alter table public.deliveries disable row level security;
 alter table public.invoices disable row level security;
+alter table public.vendor_bills disable row level security;
 alter table public.journal_entries disable row level security;
 alter table public.journal_lines disable row level security;
 alter table public.stock_movements disable row level security;
