@@ -41,6 +41,8 @@ export interface Client {
   totalOrderJanMay?: number;
   createdAt: string;
   notes?: string;
+  parentId?: string | null;
+  isBrand?: boolean;
 }
 
 export type ClientPriceTier = 'Standard' | 'Tier 1' | 'Tier 2' | 'Tier 3' | 'Tier 4' | 'Tier 5' | 'Custom';

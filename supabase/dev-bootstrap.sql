@@ -16,6 +16,8 @@ create table if not exists public.clients (
   address text not null default '',
   payment_term_days integer not null default 30,
   total_order_jan_may numeric not null default 0,
+  parent_id text,
+  is_brand boolean not null default false,
   created_at text not null
 );
 
