@@ -1049,7 +1049,11 @@ export default function ClientsPage() {
                           onValueChange={(val) => setFormData({ ...formData, parentId: (!val || val === "none") ? "" : val })}
                         >
                           <SelectTrigger id="parentId" className="h-11 rounded-xl bg-white border-slate-200 text-xs font-bold text-slate-700">
-                            <SelectValue placeholder="Pilih Brand..." />
+                            <SelectValue placeholder="Pilih Brand...">
+                              {formData.parentId ? (
+                                clients.find(c => c.id === formData.parentId)?.companyName || "Pilih Brand..."
+                              ) : undefined}
+                            </SelectValue>
                           </SelectTrigger>
                           <SelectContent className="rounded-2xl border-none shadow-2xl">
                             <SelectItem value="none">Independent (Tidak Ada)</SelectItem>
@@ -1147,7 +1151,15 @@ export default function ClientsPage() {
                 onValueChange={(val) => setBulkParentId(val || "")}
               >
                 <SelectTrigger className="h-10 rounded-xl bg-white border-slate-200 text-xs font-bold text-slate-700 shadow-sm">
-                  <SelectValue placeholder="Pilih Induk Brand..." />
+                  <SelectValue placeholder="Pilih Induk Brand...">
+                    {bulkParentId && bulkParentId !== "none" ? (
+                      clients.find(c => c.id === bulkParentId)?.companyName || "Pilih Induk Brand..."
+                    ) : bulkParentId === "none" ? (
+                      "Lepas dari Brand (Mandiri)"
+                    ) : (
+                      undefined
+                    )}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent className="rounded-2xl border-none shadow-2xl">
                   <SelectItem value="none">Lepas dari Brand (Mandiri)</SelectItem>
