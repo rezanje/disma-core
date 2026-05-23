@@ -392,8 +392,16 @@ export default function SalesOrdersPage() {
 
   const handleFastTrack = async (soId: string) => {
     const so = salesOrders.find(s => s.id === soId)
-    const client = clients.find(c => c.id === so?.clientId)
-    if (!so || !client) return
+    if (!so) {
+      toast.error("Sales Order tidak ditemukan.")
+      return
+    }
+
+    const client = clients.find(c => c.id === so.clientId)
+    if (!client) {
+      toast.error(`Gagal: Klien (ID: ${so.clientId}) tidak ditemukan di database. Pastikan klien belum dihapus.`)
+      return
+    }
 
     if (!window.confirm(`Apakah Anda yakin ingin mem-fast-track PO ${so.poNumber}?\nLangkah QC, Gudang, dan Kurir akan dilewatkan.`)) {
       return
