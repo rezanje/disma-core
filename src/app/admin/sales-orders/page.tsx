@@ -84,6 +84,7 @@ export default function SalesOrdersPage() {
   const [activeTab, setActiveTab] = useState("active")
   const [shareClientId, setShareClientId] = useState<string>("")
   const [isShareClientSearchOpen, setIsShareClientSearchOpen] = useState(false)
+  const [selectedSoIds, setSelectedSoIds] = useState<string[]>([])
   const [isClientQuickAddOpen, setIsClientQuickAddOpen] = useState(false)
   const [isProductQuickAddOpen, setIsProductQuickAddOpen] = useState(false)
   const [newClientData, setNewClientData] = useState({ companyName: "", picName: "", email: "", phone: "", address: "" })
@@ -394,6 +395,10 @@ export default function SalesOrdersPage() {
     const client = clients.find(c => c.id === so?.clientId)
     if (!so || !client) return
 
+    if (!window.confirm(`Apakah Anda yakin ingin mem-fast-track PO ${so.poNumber}?\nLangkah QC, Gudang, dan Kurir akan dilewatkan.`)) {
+      return
+    }
+
     const soItems = salesOrderItems.filter(i => i.salesOrderId === soId)
     const totalRevenue = soItems.reduce((sum, item) => {
       const finalQty = item.qtyFinal ?? item.qty
@@ -437,6 +442,107 @@ export default function SalesOrdersPage() {
     } catch (e) {
       console.error(e)
       toast.error("Fast-track gagal", { id: "fast_track" })
+    }
+  }
+
+  // Toggle selection helpers
+  const toggleSelectSo = (id: string) => {
+    setSelectedSoIds(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    )
+  }
+
+  const activeSos = salesOrders.filter(so => so.status !== 'Pending Approval')
+  const allSelected = activeSos.length > 0 && activeSos.every(so => selectedSoIds.includes(so.id))
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedSoIds(prev => prev.filter(id => !activeSos.some(so => so.id === id)))
+    } else {
+      const newIds = [...selectedSoIds]
+      activeSos.forEach(so => {
+        if (!newIds.includes(so.id)) newIds.push(so.id)
+      })
+      setSelectedSoIds(newIds)
+    }
+  }
+
+  // Bulk Fast-track
+  const handleBulkFastTrack = async () => {
+    const trackableSelected = salesOrders.filter(
+      so => selectedSoIds.includes(so.id) && FAST_TRACKABLE.includes(so.status)
+    )
+    if (trackableSelected.length === 0) {
+      toast.error("Tidak ada PO terpilih yang memenuhi syarat Fast Track.")
+      return
+    }
+
+    if (!window.confirm(`Apakah Anda yakin ingin mem-fast-track ${trackableSelected.length} PO yang terpilih?\nLangkah QC, Gudang, dan Kurir untuk PO ini akan dilewatkan.`)) {
+      return
+    }
+
+    const toastId = toast.loading(`Fast-tracking ${trackableSelected.length} PO...`)
+    let successCount = 0
+    let failCount = 0
+
+    for (const so of trackableSelected) {
+      const client = clients.find(c => c.id === so.clientId)
+      if (!client) {
+        failCount++
+        continue
+      }
+
+      const soItems = salesOrderItems.filter(i => i.salesOrderId === so.id)
+      const totalRevenue = soItems.reduce((sum, item) => {
+        const finalQty = item.qtyFinal ?? item.qty
+        return sum + (finalQty * item.unitPrice)
+      }, 0)
+
+      const deliveryId = uuidv4()
+      const invoiceId = uuidv4()
+      const dueDate = new Date()
+      dueDate.setDate(dueDate.getDate() + (client.paymentTermDays || 30))
+
+      try {
+        // 1. Create delivery record
+        await addDelivery({
+          id: deliveryId,
+          salesOrderId: so.id,
+          courierId: currentUser?.id || 'admin',
+          status: 'Awaiting Audit',
+          deliveryDate: new Date().toISOString(),
+          notes: `Bulk Fast-track by ${currentUser?.name || 'Admin'}`,
+          invoiceId
+        })
+
+        // 2. Create invoice record
+        await addInvoice({
+          id: invoiceId,
+          salesOrderId: so.id,
+          clientId: client.id,
+          issueDate: new Date().toISOString(),
+          dueDate: dueDate.toISOString(),
+          totalAmount: totalRevenue,
+          amountPaid: 0,
+          status: 'Unpaid'
+        })
+
+        // 3. Update SO status
+        await updateSalesOrder(so.id, { status: 'Awaiting Audit' })
+        successCount++
+      } catch (e) {
+        console.error(e)
+        failCount++
+      }
+    }
+
+    // Clear selection
+    setSelectedSoIds([])
+    
+    if (failCount > 0) {
+      toast.success(`Berhasil mem-fast-track ${successCount} PO. Gagal: ${failCount} PO.`, { id: toastId })
+    } else {
+      toast.success(`Berhasil mem-fast-track ${successCount} PO!`, { id: toastId })
     }
   }
 
@@ -775,10 +881,47 @@ export default function SalesOrdersPage() {
         </TabsList>
 
         <TabsContent value="active">
+          {selectedSoIds.length > 0 && (
+            <div className="flex items-center justify-between p-4 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 rounded-2xl mb-4 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-black text-emerald-800 dark:text-emerald-300 uppercase tracking-widest bg-emerald-100 dark:bg-emerald-900/50 px-3 py-1.5 rounded-full">
+                  {selectedSoIds.length} PO Terpilih
+                </span>
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-tight">Bulk Action:</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button 
+                  size="sm" 
+                  variant="default"
+                  className="bg-amber-600 hover:bg-amber-700 text-white font-black text-[10px] uppercase tracking-wider px-4 py-2"
+                  onClick={handleBulkFastTrack}
+                >
+                  ⚡ Bulk Fast Track
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="ghost"
+                  className="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 text-[10px] font-black uppercase tracking-wider"
+                  onClick={() => setSelectedSoIds([])}
+                >
+                  Batal
+                </Button>
+              </div>
+            </div>
+          )}
+
           <div className="rounded-md border bg-white dark:bg-slate-950">
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12 text-center">
+                    <input 
+                      type="checkbox" 
+                      className="rounded border-slate-300 h-4 w-4 accent-emerald-600 cursor-pointer"
+                      checked={allSelected}
+                      onChange={toggleSelectAll}
+                    />
+                  </TableHead>
                   <TableHead>PO Number</TableHead>
                   <TableHead>Client</TableHead>
                   <TableHead>Date</TableHead>
@@ -791,7 +934,7 @@ export default function SalesOrdersPage() {
               <TableBody>
                 {salesOrders.filter(so => so.status !== 'Pending Approval').length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
                       No active sales orders found.
                     </TableCell>
                   </TableRow>
@@ -800,9 +943,18 @@ export default function SalesOrdersPage() {
                     const client = clients.find(c => c.id === so.clientId)
                     const items = salesOrderItems.filter(item => item.salesOrderId === so.id)
                     const total = items.reduce((sum, item) => sum + item.subtotal, 0)
+                    const isRowSelected = selectedSoIds.includes(so.id)
                     
                     return (
-                      <TableRow key={so.id}>
+                      <TableRow key={so.id} className={cn(isRowSelected && "bg-emerald-50/10 hover:bg-emerald-50/20")}>
+                        <TableCell className="w-12 text-center">
+                          <input 
+                            type="checkbox" 
+                            className="rounded border-slate-300 h-4 w-4 accent-emerald-600 cursor-pointer"
+                            checked={isRowSelected}
+                            onChange={() => toggleSelectSo(so.id)}
+                          />
+                        </TableCell>
                         <TableCell className="font-medium">{so.poNumber}</TableCell>
                         <TableCell>{client?.companyName || 'Unknown Client'}</TableCell>
                         <TableCell>{format(new Date(so.orderDate), 'dd MMM yyyy')}</TableCell>
