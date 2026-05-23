@@ -288,6 +288,7 @@ interface AppState {
   addClients: (clients: Client[]) => void;
   clearClients: () => Promise<void>;
   updateClient: (id: string, data: Partial<Client>) => void;
+  updateMultipleClients: (updates: { id: string, data: Partial<Client> }[]) => Promise<void>;
 
   clientPrices: ClientPrice[];
   addClientPrice: (cp: ClientPrice) => Promise<void>;
@@ -1199,6 +1200,41 @@ export const useAppStore = create<AppState>((set, get) => ({
         if (updated) {
           await get().syncTable('clients', updated);
           if (before) await get().logHistory({ table: 'clients', recordId: id, action: 'update', oldData: before, newData: updated });
+        }
+      },
+      updateMultipleClients: async (updates) => {
+        if (!updates.length) return;
+        set({ isSyncing: true });
+        try {
+          const clientMap = new Map((get().clients || []).map(c => [c.id, c]));
+          updates.forEach(update => {
+            const c = clientMap.get(update.id);
+            if (c) clientMap.set(update.id, { ...c, ...update.data });
+          });
+          const updatedClients = Array.from(clientMap.values());
+          set({ clients: updatedClients });
+          saveLocalClientsCache(updatedClients);
+
+          await fetch('/api/db', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              table: 'clients', 
+              data: updates.map(u => ({ id: u.id, ...u.data }))
+            })
+          });
+
+          for (const u of updates) {
+            const before = get().clients.find(c => c.id === u.id);
+            const after = updatedClients.find(c => c.id === u.id);
+            if (before && after) {
+              await get().logHistory({ table: 'clients', recordId: u.id, action: 'update', oldData: before, newData: after });
+            }
+          }
+        } catch (e) {
+          console.error("Failed to update multiple clients:", e);
+        } finally {
+          set({ isSyncing: false });
         }
       },
 

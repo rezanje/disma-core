@@ -34,6 +34,7 @@ export default function ClientsPage() {
   const clients: Client[] = useAppStore(state => state.clients)
   const addClient = useAppStore(state => state.addClient)
   const updateClient = useAppStore(state => state.updateClient)
+  const updateMultipleClients = useAppStore(state => state.updateMultipleClients)
   const salesOrders: SalesOrder[] = useAppStore(state => state.salesOrders)
   const salesOrderItems: SalesOrderItem[] = useAppStore(state => state.salesOrderItems)
   const invoices: Invoice[] = useAppStore(state => state.invoices)
@@ -53,6 +54,8 @@ export default function ClientsPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
   const [selectedHistoryClient, setSelectedHistoryClient] = useState<Client | null>(null)
+  const [selectedClientIds, setSelectedClientIds] = useState<string[]>([])
+  const [bulkParentId, setBulkParentId] = useState<string>("")
   
   const selectedClient = clients.find(c => c.id === selectedClientId)
   
@@ -308,6 +311,60 @@ export default function ClientsPage() {
       return sortDirection === "asc" ? comparison : -comparison
     })
 
+  // Toggle selection helpers for bulk assignment
+  const toggleSelectClient = (id: string) => {
+    setSelectedClientIds(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    )
+  }
+
+  const allSelected = processedClients.length > 0 && processedClients.every(c => selectedClientIds.includes(c.id))
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedClientIds(prev => prev.filter(id => !processedClients.some(c => c.id === id)))
+    } else {
+      const newIds = [...selectedClientIds]
+      processedClients.forEach(c => {
+        if (!newIds.includes(c.id)) newIds.push(c.id)
+      })
+      setSelectedClientIds(newIds)
+    }
+  }
+
+  const handleBulkAssignBrand = async () => {
+    if (selectedClientIds.length === 0) {
+      toast.error("Pilih setidaknya satu client")
+      return
+    }
+
+    const targetParentId = (!bulkParentId || bulkParentId === "none") ? null : bulkParentId
+
+    // Check if parent client is itself selected (cannot be its own child)
+    if (targetParentId && selectedClientIds.includes(targetParentId)) {
+      toast.error("Induk Brand tidak boleh termasuk dalam daftar client yang dipilih!")
+      return
+    }
+
+    const updates = selectedClientIds.map(id => ({
+      id,
+      data: {
+        parentId: targetParentId
+      }
+    }))
+
+    const loadingToast = toast.loading(`Menghubungkan ${selectedClientIds.length} client ke Brand...`)
+    try {
+      await updateMultipleClients(updates)
+      toast.success(`Berhasil memperbarui ${selectedClientIds.length} client.`, { id: loadingToast })
+      setSelectedClientIds([])
+      setBulkParentId("")
+    } catch (e) {
+      console.error(e)
+      toast.error("Gagal melakukan pembaruan massal", { id: loadingToast })
+    }
+  }
+
   const handleSort = (field: "companyName" | "picName" | "totalRevenue" | "outstandingAR" | "nearestDue" | "health") => {
     if (sortField === field) {
       setSortDirection(prev => prev === "asc" ? "desc" : "asc")
@@ -333,7 +390,7 @@ export default function ClientsPage() {
           "h-auto py-6 select-none cursor-pointer hover:bg-slate-100/50 transition-colors font-black text-[10px] uppercase tracking-widest",
           align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left",
           isActive ? "text-emerald-600" : "text-slate-400",
-          field === "companyName" ? "pl-8" : ""
+          field === "companyName" ? "pl-4" : ""
         )}
         onClick={() => handleSort(field)}
       >
@@ -1075,10 +1132,69 @@ export default function ClientsPage() {
         </div>
       </div>
 
+      {selectedClientIds.length > 0 && (
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 p-5 bg-indigo-50/80 border border-indigo-100 rounded-3xl mt-6 animate-in fade-in slide-in-from-top-3 duration-300">
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-black text-indigo-800 uppercase tracking-widest bg-indigo-100 px-3 py-1.5 rounded-full shadow-sm">
+              {selectedClientIds.length} Client Terpilih
+            </span>
+            <span className="text-xs text-slate-500 font-bold uppercase tracking-tight">Massal Action:</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="w-56">
+              <Select 
+                value={bulkParentId || "none"}
+                onValueChange={(val) => setBulkParentId(val || "")}
+              >
+                <SelectTrigger className="h-10 rounded-xl bg-white border-slate-200 text-xs font-bold text-slate-700 shadow-sm">
+                  <SelectValue placeholder="Pilih Induk Brand..." />
+                </SelectTrigger>
+                <SelectContent className="rounded-2xl border-none shadow-2xl">
+                  <SelectItem value="none">Lepas dari Brand (Mandiri)</SelectItem>
+                  {clients
+                    .filter(c => c.isBrand)
+                    .map(c => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.companyName}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button 
+              size="sm" 
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[10px] uppercase tracking-wider px-5 py-2.5 rounded-xl shadow-lg shadow-indigo-500/20"
+              onClick={handleBulkAssignBrand}
+            >
+              Masukin ke Induk Brand
+            </Button>
+            <Button 
+              size="sm" 
+              variant="ghost"
+              className="text-slate-500 hover:text-slate-800 text-[10px] font-black uppercase tracking-wider px-3"
+              onClick={() => {
+                setSelectedClientIds([])
+                setBulkParentId("")
+              }}
+            >
+              Batal
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div className="liquid-card overflow-hidden mt-6 bg-white border border-slate-100 shadow-xl">
         <Table>
           <TableHeader className="bg-slate-50/50 border-b border-slate-100">
             <TableRow className="hover:bg-transparent">
+              <TableHead className="w-16 text-center pl-8 py-6">
+                <input 
+                  type="checkbox" 
+                  className="rounded border-slate-300 h-4 w-4 accent-indigo-600 cursor-pointer"
+                  checked={allSelected}
+                  onChange={toggleSelectAll}
+                />
+              </TableHead>
               {renderSortHeader("companyName", "Company Info", "left")}
               {renderSortHeader("picName", "PIC / Contact", "left")}
               {renderSortHeader("totalRevenue", "Total Revenue", "right")}
@@ -1090,7 +1206,7 @@ export default function ClientsPage() {
           <TableBody>
             {processedClients.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-48 text-center text-slate-400 italic font-bold uppercase tracking-widest">
+                <TableCell colSpan={7} className="h-48 text-center text-slate-400 italic font-bold uppercase tracking-widest">
                   Belum ada data client yang sesuai...
                 </TableCell>
               </TableRow>
@@ -1102,14 +1218,26 @@ export default function ClientsPage() {
                 const totalDebt = getClientOutstandingAR(client.id)
                 const parentClient = client.parentId ? clients.find(c => c.id === client.parentId) : null
                 const outletsCount = client.isBrand ? clients.filter(c => c.parentId === client.id).length : 0
+                const isSelected = selectedClientIds.includes(client.id)
 
                 return (
                   <TableRow 
                     key={client.id} 
-                    className="hover:bg-slate-50/80 transition-colors group border-b border-slate-50 text-sm cursor-pointer"
+                    className={cn(
+                      "hover:bg-slate-50/80 transition-colors group border-b border-slate-50 text-sm cursor-pointer",
+                      isSelected && "bg-indigo-50/20 hover:bg-indigo-50/30"
+                    )}
                     onClick={() => setSelectedClientId(client.id)}
                   >
-                    <TableCell className="py-6 pl-8">
+                    <TableCell className="w-16 text-center pl-8 py-6" onClick={(e) => e.stopPropagation()}>
+                      <input 
+                        type="checkbox" 
+                        className="rounded border-slate-300 h-4 w-4 accent-indigo-600 cursor-pointer"
+                        checked={isSelected}
+                        onChange={() => toggleSelectClient(client.id)}
+                      />
+                    </TableCell>
+                    <TableCell className="py-6 pl-4">
                       <div className="flex flex-col">
                         <div className="flex items-center gap-2 mb-2 flex-wrap">
                           <span className="font-black text-slate-800 tracking-tight text-base leading-none">{client.companyName}</span>
