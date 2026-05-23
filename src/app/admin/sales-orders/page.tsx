@@ -69,7 +69,6 @@ export default function SalesOrdersPage() {
   const updateSalesOrderItem = useAppStore(state => state.updateSalesOrderItem)
   const getHistoricalClientPrice = useAppStore(state => state.getHistoricalClientPrice)
   const clientPrices = useAppStore(state => state.clientPrices) || []
-  const invoices = useAppStore(state => state.invoices)
   const addDelivery = useAppStore(state => state.addDelivery)
   const addInvoice = useAppStore(state => state.addInvoice)
   const currentUser = useAppStore(state => state.currentUser)

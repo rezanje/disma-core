@@ -38,6 +38,7 @@ export interface Client {
   phone: string;
   address: string;
   paymentTermDays: number;
+  totalOrderJanMay?: number;
   createdAt: string;
   notes?: string;
 }

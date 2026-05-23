@@ -3,12 +3,12 @@
 import React, { useMemo } from "react"
 import { useAppStore } from "@/lib/store"
 import { formatRupiah, getWeekRange } from "@/lib/utils"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { 
   Wallet, CreditCard, Clock, FileText, ArrowUpRight, 
   ArrowDownLeft, ArrowRight, Plus, Receipt, Banknote, 
   TrendingUp, TrendingDown, Target, History, Users,
-  CheckCircle2, AlertTriangle
+  CheckCircle2, AlertTriangle, Award, Calendar, Coins
 } from "lucide-react"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
@@ -18,9 +18,22 @@ import {
   Tooltip, ResponsiveContainer, BarChart, Bar, Cell 
 } from 'recharts'
 import { cn } from "@/lib/utils"
+import { differenceInDays, parseISO, format } from "date-fns"
+import { id as localeId } from "date-fns/locale"
+
+const formatInvoiceId = (id: string) => {
+  if (!id) return ""
+  if (id.startsWith("inv-import-")) {
+    return `INV-#IMP-${id.replace("inv-import-", "").toUpperCase()}`
+  }
+  if (id.startsWith("inv-")) {
+    return `INV-#${id.replace("inv-", "").substring(0, 6).toUpperCase()}`
+  }
+  return `INV-#${id.substring(0, 6).toUpperCase()}`
+}
 
 export default function FinanceDashboard() {
-  const { invoices, salesOrders, salesOrderItems, journalLines, coas, clients } = useAppStore()
+  const { invoices = [], salesOrders = [], salesOrderItems = [], journalLines = [], coas = [], clients = [], vendorBills = [] } = useAppStore()
   
   // 1. FINANCIAL CALCULATIONS
   const getBalance = (prefix: string) => {
@@ -28,7 +41,7 @@ export default function FinanceDashboard() {
     return journalLines
       .filter(jl => accIds.includes(jl.accountId))
       .reduce((sum, jl) => {
-        if (prefix === '1' || prefix === '5' || prefix === '6') return sum + (jl.debitAmount - jl.creditAmount)
+        if (prefix.startsWith('1') || prefix.startsWith('5') || prefix.startsWith('6')) return sum + (jl.debitAmount - jl.creditAmount)
         return sum + (jl.creditAmount - jl.debitAmount)
       }, 0)
   }
@@ -75,6 +88,121 @@ export default function FinanceDashboard() {
     
     return health
   }, [invoices, clients])
+
+  // 1. TOP CLIENTS BY REVENUE (Jan-May Historical + Active Invoices)
+  const topClientsRevenue = useMemo(() => {
+    return clients.map(client => {
+      const totalJanMay = client.totalOrderJanMay || 0
+      const clientInvoices = invoices.filter(inv => inv.clientId === client.id)
+      const consolidatedSOIds = new Set(
+        clientInvoices
+          .filter((inv: any) => inv.isConsolidated && inv.salesOrderIds?.length > 0)
+          .flatMap((inv: any) => inv.salesOrderIds)
+      )
+      const activeInvoices = clientInvoices.filter((inv: any) => {
+        if (inv.supersededByInvoiceId) return false
+        if (inv.salesOrderId && consolidatedSOIds.has(inv.salesOrderId) && !inv.isConsolidated) return false
+        return true
+      })
+      const activeNonImported = activeInvoices.filter(inv => !inv.id.startsWith('inv-import-'))
+      const revenue = totalJanMay + activeNonImported.reduce((sum, inv) => sum + inv.totalAmount, 0)
+      return {
+        ...client,
+        revenue,
+      }
+    })
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 5)
+  }, [clients, invoices])
+
+  // 2. TOP CLIENTS BY OUTSTANDING AR (Active Unpaid Receivables)
+  const topClientsAR = useMemo(() => {
+    const today = new Date()
+    return clients.map(client => {
+      const clientInvoices = invoices.filter(inv => inv.clientId === client.id)
+      const consolidatedSOIds = new Set(
+        clientInvoices
+          .filter((inv: any) => inv.isConsolidated && inv.salesOrderIds?.length > 0)
+          .flatMap((inv: any) => inv.salesOrderIds)
+      )
+      const activeInvoices = clientInvoices.filter((inv: any) => {
+        if (inv.supersededByInvoiceId) return false
+        if (inv.salesOrderId && consolidatedSOIds.has(inv.salesOrderId) && !inv.isConsolidated) return false
+        return true
+      })
+      const unpaidInvoices = activeInvoices.filter(inv => inv.status !== 'Paid')
+      const outstanding = unpaidInvoices.reduce((sum, inv) => sum + (inv.totalAmount - inv.amountPaid), 0)
+      
+      const hasOverdue = unpaidInvoices.some(inv => new Date(inv.dueDate) < today)
+      const hasLate = unpaidInvoices.some(inv => {
+        const days = (today.getTime() - new Date(inv.dueDate).getTime()) / (1000 * 60 * 60 * 24)
+        return days > 0 && days <= 30
+      })
+      
+      let status = 'Good'
+      if (hasOverdue) status = 'Overdue'
+      else if (hasLate) status = 'Late'
+
+      return {
+        ...client,
+        outstanding,
+        unpaidCount: unpaidInvoices.length,
+        status
+      }
+    })
+    .filter(c => c.outstanding > 0)
+    .sort((a, b) => b.outstanding - a.outstanding)
+    .slice(0, 5)
+  }, [clients, invoices])
+
+  // 3. PRIORITAS PENAGIHAN KLIEN (Unpaid Invoices sorted by maturity)
+  const collectionPriorities = useMemo(() => {
+    const today = new Date()
+    const list = invoices
+      .filter(inv => inv.status !== 'Paid' && !(inv as any).supersededByInvoiceId)
+      .map(inv => {
+        const client = clients.find(c => c.id === inv.clientId)
+        const clientInvoices = invoices.filter(i => i.clientId === inv.clientId)
+        const consolidatedSOIds = new Set(
+          clientInvoices
+             .filter((i: any) => i.isConsolidated && i.salesOrderIds?.length > 0)
+             .flatMap((i: any) => i.salesOrderIds)
+        )
+        if (inv.salesOrderId && consolidatedSOIds.has(inv.salesOrderId) && !(inv as any).isConsolidated) return null
+
+        const outstanding = inv.totalAmount - inv.amountPaid
+        if (outstanding <= 0) return null
+
+        const daysOverdue = differenceInDays(today, parseISO(inv.dueDate))
+        return {
+          invoice: inv,
+          clientName: client?.companyName || 'Unknown Client',
+          outstanding,
+          daysOverdue,
+        }
+      })
+      .filter(Boolean) as { invoice: any; clientName: string; outstanding: number; daysOverdue: number }[]
+
+    return list.sort((a, b) => b.daysOverdue - a.daysOverdue)
+  }, [invoices, clients])
+
+  // 4. JATUH TEMPO PEMBAYARAN VENDOR (Active AP vendor bills by due date)
+  const vendorPaymentsPriorities = useMemo(() => {
+    const today = new Date()
+    return vendorBills
+      .filter(b => b.status !== 'Paid')
+      .map(b => {
+        const outstanding = b.totalAmount - (b.amountPaid || 0)
+        const daysOverdue = differenceInDays(today, parseISO(b.dueDate))
+        return {
+          bill: b,
+          outstanding,
+          daysOverdue,
+        }
+      })
+      .filter(b => b.outstanding > 0)
+      .sort((a, b) => b.daysOverdue - a.daysOverdue)
+  }, [vendorBills])
 
   return (
     <div className="space-y-8 pb-12">
@@ -270,6 +398,202 @@ export default function FinanceDashboard() {
         </Card>
       </div>
 
+      {/* Client Performance & Receivables Analysis */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Top Clients by Revenue */}
+        <Card className="liquid-card border-none shadow-xl bg-white">
+          <CardHeader className="p-8 pb-4">
+            <CardTitle className="text-lg font-black text-slate-900 flex items-center gap-2">
+              TOP Clients by Revenue <Award className="w-5 h-5 text-amber-500" />
+            </CardTitle>
+            <CardDescription className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
+              Top 5 Kontribusi Revenue Terbesar (Jan-Mei)
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="px-8 pb-8">
+            <div className="space-y-4 max-h-[350px] overflow-y-auto pr-2 scrollbar-thin">
+              {topClientsRevenue.map((c, idx) => (
+                <div key={c.id} className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 hover:bg-slate-100 transition-colors group">
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      "w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs",
+                      idx === 0 ? "bg-amber-500 text-slate-950" :
+                      idx === 1 ? "bg-slate-300 text-slate-800" :
+                      idx === 2 ? "bg-amber-600 text-white" : "bg-slate-200 text-slate-600"
+                    )}>
+                      {idx + 1}
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-black text-slate-800">{c.companyName}</span>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase">PIC: {c.picName}</span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-black text-emerald-600">{formatRupiah(c.revenue)}</p>
+                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">LIFETIME REVENUE</span>
+                  </div>
+                </div>
+              ))}
+              {topClientsRevenue.length === 0 && (
+                <p className="text-sm text-slate-400 italic text-center py-8">Belum ada data klien.</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Top Clients by Outstanding AR */}
+        <Card className="liquid-card border-none shadow-xl bg-white">
+          <CardHeader className="p-8 pb-4">
+            <CardTitle className="text-lg font-black text-slate-900 flex items-center gap-2">
+              TOP Outstanding Klien <Coins className="w-5 h-5 text-rose-500" />
+            </CardTitle>
+            <CardDescription className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
+              Top 5 Piutang Klien Terbanyak
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="px-8 pb-8">
+            <div className="space-y-4 max-h-[350px] overflow-y-auto pr-2 scrollbar-thin">
+              {topClientsAR.map((c, idx) => (
+                <div key={c.id} className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 hover:bg-slate-100 transition-colors group">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-slate-200 text-slate-600 flex items-center justify-center font-black text-xs">
+                      {idx + 1}
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-black text-slate-800">{c.companyName}</span>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase">{c.unpaidCount} invoice unpaid</span>
+                    </div>
+                  </div>
+                  <div className="text-right flex flex-col items-end gap-1">
+                    <p className="text-sm font-black text-rose-600">{formatRupiah(c.outstanding)}</p>
+                    <Badge variant="outline" className={cn(
+                      "text-[9px] font-black uppercase rounded-full px-2 py-0.5 border",
+                      c.status === 'Overdue' ? "bg-rose-50 text-rose-700 border-rose-200" :
+                      c.status === 'Late' ? "bg-amber-50 text-amber-700 border-amber-200" :
+                      "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    )}>
+                      {c.status}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+              {topClientsAR.length === 0 && (
+                <p className="text-sm text-slate-400 italic text-center py-8">Tidak ada piutang klien aktif 🎉</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Immediate Collections & Payments Action Center */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Client Invoice Collection Priority */}
+        <Card className="liquid-card border-none shadow-xl bg-white">
+          <CardHeader className="p-8 pb-4">
+            <CardTitle className="text-lg font-black text-slate-900 flex items-center gap-2">
+              Prioritas Penagihan Hari Ini <AlertTriangle className="w-5 h-5 text-rose-500" />
+            </CardTitle>
+            <CardDescription className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
+              Outstanding Piutang Terurut dari Terlama
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="px-8 pb-8">
+            <div className="space-y-4 max-h-[350px] overflow-y-auto pr-2 scrollbar-thin">
+              {collectionPriorities.map((item) => (
+                <div key={item.invoice.id} className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 hover:bg-slate-100 transition-colors group">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm font-black text-slate-800 truncate block max-w-[150px]">{item.clientName}</span>
+                      <Badge variant="outline" className="font-mono text-[9px] text-slate-400">
+                        {formatInvoiceId(item.invoice.id)}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-3 h-3 text-slate-400" />
+                      <span className="text-[10px] text-slate-400 font-bold">
+                        Jatuh Tempo: {format(parseISO(item.invoice.dueDate), 'd MMM yy', { locale: localeId })}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-right flex flex-col items-end gap-1">
+                    <p className="text-sm font-black text-slate-900">{formatRupiah(item.outstanding)}</p>
+                    {item.daysOverdue > 0 ? (
+                      <Badge className="bg-rose-500 text-white font-black text-[9px] rounded-full border-none">
+                        Lewat {item.daysOverdue} Hari (Segera Tagih)
+                      </Badge>
+                    ) : item.daysOverdue === 0 ? (
+                      <Badge className="bg-amber-500 text-slate-950 font-black text-[9px] rounded-full border-none">
+                        Jatuh Tempo Hari Ini
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-emerald-500 text-slate-950 font-black text-[9px] rounded-full border-none">
+                        H-{Math.abs(item.daysOverdue)} Hari
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {collectionPriorities.length === 0 && (
+                <p className="text-sm text-slate-400 italic text-center py-8">Tidak ada piutang jatuh tempo 🎉</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Vendor Payments Priority */}
+        <Card className="liquid-card border-none shadow-xl bg-white">
+          <CardHeader className="p-8 pb-4">
+            <CardTitle className="text-lg font-black text-slate-900 flex items-center gap-2">
+              Jatuh Tempo Pembayaran Vendor <Clock className="w-5 h-5 text-indigo-500" />
+            </CardTitle>
+            <CardDescription className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
+              Hutang Vendor Terurut dari Terlama
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="px-8 pb-8">
+            <div className="space-y-4 max-h-[350px] overflow-y-auto pr-2 scrollbar-thin">
+              {vendorPaymentsPriorities.map((item) => (
+                <div key={item.bill.id} className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 hover:bg-slate-100 transition-colors group">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm font-black text-slate-800 truncate block max-w-[150px]">{item.bill.vendorName}</span>
+                      <Badge variant="outline" className="font-mono text-[9px] text-slate-400">
+                        {item.bill.billNumber}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-3 h-3 text-slate-400" />
+                      <span className="text-[10px] text-slate-400 font-bold">
+                        Jatuh Tempo: {format(parseISO(item.bill.dueDate), 'd MMM yy', { locale: localeId })}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-right flex flex-col items-end gap-1">
+                    <p className="text-sm font-black text-slate-900">{formatRupiah(item.outstanding)}</p>
+                    {item.daysOverdue > 0 ? (
+                      <Badge className="bg-rose-500 text-white font-black text-[9px] rounded-full border-none">
+                        Lewat {item.daysOverdue} Hari (Bayar Segera)
+                      </Badge>
+                    ) : item.daysOverdue === 0 ? (
+                      <Badge className="bg-amber-500 text-slate-950 font-black text-[9px] rounded-full border-none">
+                        Bayar Hari Ini
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-emerald-500 text-slate-950 font-black text-[9px] rounded-full border-none">
+                        H-{Math.abs(item.daysOverdue)} Hari
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {vendorPaymentsPriorities.length === 0 && (
+                <p className="text-sm text-slate-400 italic text-center py-8">Tidak ada hutang vendor aktif 🎉</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
          {/* RECENT INVOICES MINI LIST */}
          <Card className="liquid-card border-none shadow-xl">
@@ -292,7 +616,7 @@ export default function FinanceDashboard() {
                             )} />
                             <div className="flex flex-col">
                                <span className="text-[10px] font-black text-slate-800">{client?.companyName || 'Unknown'}</span>
-                               <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">INV-#{inv.id.substring(0,6)}</span>
+                               <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{formatInvoiceId(inv.id)}</span>
                             </div>
                          </div>
                          <div className="text-right">

@@ -7,6 +7,14 @@ import { format } from 'date-fns';
  * Double-Entry Bookkeeping Helper functions
  */
 
+type PostingLineInput = { accountCode: string; amount: number };
+type PreparedPostingLine = PostingLineInput & { amount: number; accountId: string };
+type JournalPostResponse = {
+  entry?: JournalEntry;
+  lines?: JournalLine[];
+  error?: string;
+};
+
 export const HPP_ACCOUNT_CODE = '5-1000';
 export const ADVANCE_WALLETS = {
   sourcing: {
@@ -57,87 +65,181 @@ export const getAdvanceWalletByUserId = (userId?: string | null) => {
   return getAdvanceWalletByRole(user?.role);
 };
 
+const normalizePostingLine = (line: PostingLineInput, side: 'debit' | 'credit') => {
+  const amount = Number(line.amount);
+  if (!Number.isFinite(amount)) {
+    throw new Error(`${side} amount for account ${line.accountCode} is not a finite number.`);
+  }
+  if (amount < 0) {
+    throw new Error(`${side} amount for account ${line.accountCode} cannot be negative.`);
+  }
+  return { ...line, amount };
+};
+
+const cleanupJournalEntry = async (entryId: string, lineIds: string[] = []) => {
+  const idsToDelete = lineIds.length > 0
+    ? lineIds
+    : useAppStore.getState().journalLines
+      .filter((line) => line.journalEntryId === entryId)
+      .map((line) => line.id);
+
+  useAppStore.setState((state) => ({
+    journalEntries: state.journalEntries.filter((entry) => entry.id !== entryId),
+    journalLines: state.journalLines.filter((line) => line.journalEntryId !== entryId && !idsToDelete.includes(line.id)),
+  }));
+
+  try {
+    if (idsToDelete.length > 0) {
+      await fetch('/api/db', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ table: 'journal_lines', id: idsToDelete }),
+      });
+    }
+    await fetch('/api/db', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ table: 'journal_entries', id: entryId }),
+    });
+  } catch (cleanupError) {
+    console.error('[Accounting] Failed to cleanup partial journal entry:', cleanupError);
+  }
+};
+
+const cleanupCashTransactions = async (transactionIds: string[]) => {
+  for (const txId of transactionIds) {
+    try {
+      const existing = useAppStore.getState().cashTransactions.find((tx) => tx.id === txId);
+      if (existing) {
+        await useAppStore.getState().deleteCashTransaction(txId);
+      } else {
+        await fetch('/api/db', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ table: 'cash_transactions', id: txId }),
+        });
+      }
+    } catch (cleanupError) {
+      console.error(`[Accounting] Failed to cleanup cash transaction ${txId}:`, cleanupError);
+    }
+  }
+};
+
+const findPostedEntry = (referenceType: JournalEntry['referenceType'], referenceId: string, description: string) => {
+  return useAppStore.getState().journalEntries.find((entry) =>
+    entry.referenceType === referenceType &&
+    entry.referenceId === referenceId &&
+    entry.description === description
+  );
+};
+
 export const createAccountingEntry = async (
   description: string,
   referenceType: JournalEntry['referenceType'],
   referenceId: string,
-  debits: { accountCode: string; amount: number }[],
-  credits: { accountCode: string; amount: number }[],
+  debits: PostingLineInput[],
+  credits: PostingLineInput[],
   date?: string
 ) => {
   const store = useAppStore.getState();
+  let preparedDebits: PreparedPostingLine[] = [];
+  let preparedCredits: PreparedPostingLine[] = [];
+
+  try {
+    preparedDebits = debits
+      .map((line) => normalizePostingLine(line, 'debit'))
+      .filter((line) => line.amount > 0)
+      .map((line) => {
+        const coa = store.coas.find((c) => c.accountCode === line.accountCode);
+        if (!coa) throw new Error(`COA not found for debit account code: ${line.accountCode}`);
+        return { ...line, accountId: coa.id };
+      });
+
+    preparedCredits = credits
+      .map((line) => normalizePostingLine(line, 'credit'))
+      .filter((line) => line.amount > 0)
+      .map((line) => {
+        const coa = store.coas.find((c) => c.accountCode === line.accountCode);
+        if (!coa) throw new Error(`COA not found for credit account code: ${line.accountCode}`);
+        return { ...line, accountId: coa.id };
+      });
+  } catch (err) {
+    console.error('[Accounting] Invalid journal input, aborting:', err);
+    return false;
+  }
   
   // 1. Validate total debit = total credit
-  const totalDebit = debits.reduce((sum, d) => sum + Number(d.amount || 0), 0);
-  const totalCredit = credits.reduce((sum, c) => sum + Number(c.amount || 0), 0);
+  const totalDebit = preparedDebits.reduce((sum, d) => sum + d.amount, 0);
+  const totalCredit = preparedCredits.reduce((sum, c) => sum + c.amount, 0);
   
+  if (preparedDebits.length === 0 || preparedCredits.length === 0 || totalDebit <= 0 || totalCredit <= 0) {
+    console.error('[Accounting] Journal must have at least one positive debit and credit line.');
+    return false;
+  }
+
   if (Math.abs(totalDebit - totalCredit) > 0.01) {
     console.error(`Accounting Error: Debit (${totalDebit}) and Credit (${totalCredit}) do not balance!`);
     return false;
   }
 
-  // 2. Create Journal Entry
+  // 2. Post atomically through server/RPC: entry + lines succeed together or fail together.
   const entryId = uuidv4();
-  const entry: JournalEntry = {
-    id: entryId,
-    transactionDate: date || new Date().toISOString(),
-    description,
-    referenceType,
-    referenceId,
-  };
+  const postingDebits = preparedDebits.map((d) => ({
+    id: uuidv4(),
+    accountCode: d.accountCode,
+    amount: d.amount,
+  }));
+  const postingCredits = preparedCredits.map((c) => ({
+    id: uuidv4(),
+    accountCode: c.accountCode,
+    amount: c.amount,
+  }));
 
-  // MUST AWAIT entry before lines to avoid FK violation.
-  // If sync fails (critical table now throws), abort to prevent silent corruption.
   try {
-    await store.addJournalEntry(entry);
-  } catch (err) {
-    console.error('[Accounting] Failed to persist journal entry, aborting:', err);
-    return false;
-  }
-
-  const lines: JournalLine[] = [];
-
-  // 3. Create Journal Lines (Debits)
-  debits.forEach(d => {
-    const coa = store.coas.find(c => c.accountCode === d.accountCode);
-    if (!coa) {
-      console.error(`COA not found for code: ${d.accountCode}`);
-      return;
-    }
-    
-    lines.push({
-      id: uuidv4(),
-      journalEntryId: entryId,
-      accountId: coa.id,
-      debitAmount: d.amount,
-      creditAmount: 0
+    const response = await fetch('/api/accounting/journal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        entryId,
+        description,
+        referenceType,
+        referenceId,
+        date,
+        debits: postingDebits,
+        credits: postingCredits,
+      }),
     });
-  });
 
-  // 4. Create Journal Lines (Credits)
-  credits.forEach(c => {
-    const coa = store.coas.find(coa => coa.accountCode === c.accountCode);
-    if (!coa) {
-      console.error(`COA not found for code: ${c.accountCode}`);
-      return;
-    }
-
-    lines.push({
-      id: uuidv4(),
-      journalEntryId: entryId,
-      accountId: coa.id,
-      debitAmount: 0,
-      creditAmount: c.amount
-    });
-  });
-
-  if (lines.length > 0) {
-    try {
-      await store.addJournalLines(lines);
-    } catch (err) {
-      console.error('[Accounting] Failed to persist journal lines, aborting:', err);
+    const payload = await response.json().catch(() => ({})) as JournalPostResponse;
+    if (!response.ok) {
+      console.error('[Accounting] Failed to post journal entry:', payload.error || response.statusText);
       return false;
     }
+
+    if (!payload.entry || !Array.isArray(payload.lines) || payload.lines.length === 0) {
+      console.error('[Accounting] Journal API returned invalid payload:', payload);
+      return false;
+    }
+
+    const entry = payload.entry;
+    const lines = payload.lines.map((line) => ({
+      ...line,
+      debitAmount: Number(line.debitAmount || 0),
+      creditAmount: Number(line.creditAmount || 0),
+    }));
+
+    useAppStore.setState((state) => ({
+      journalEntries: state.journalEntries.some((candidate) => candidate.id === entry.id)
+        ? state.journalEntries.map((candidate) => candidate.id === entry.id ? entry : candidate)
+        : [...state.journalEntries, entry],
+      journalLines: [
+        ...state.journalLines.filter((line) => line.journalEntryId !== entry.id),
+        ...lines,
+      ],
+    }));
+  } catch (err) {
+    console.error('[Accounting] Failed to post journal entry, aborting:', err);
+    return false;
   }
 
   return true;
@@ -584,21 +686,21 @@ export const recordBudgetTransfer = async (purchaseId: string, amount: number, b
   const store = useAppStore.getState();
   const bank = store.bankAccounts.find(b => b.id === bankAccountId);
   const sourceBankCode = bank?.accountCode || '1-1200';
+  const purchaser = store.users.find(u => u.name === recipientName || u.id === recipientName);
+  const wallet = getAdvanceWalletByUserId(purchaser?.id);
+  const targetBankId = wallet?.bankAccountId || 'bank-advance-sourcing';
+  const targetAccountCode = wallet?.accountCode || '1-1500';
 
   const success = await createAccountingEntry(
     `Pencairan Budget Sourcing: ${recipientName} - Ref: ${purchaseId.slice(0,8)}`,
     'Transfer',
     purchaseId,
-    [{ accountCode: '1-1500', amount: amount }],
+    [{ accountCode: targetAccountCode, amount: amount }],
     [{ accountCode: sourceBankCode, amount: amount }]
   );
 
   if (success && amount > 0) {
     const now = new Date().toISOString();
-    // Resolve the dynamically correct wallet for this specific purchaser
-    const purchaser = store.users.find(u => u.name === recipientName || u.id === recipientName);
-    const wallet = getAdvanceWalletByUserId(purchaser?.id);
-    const targetBankId = wallet?.bankAccountId || 'bank-advance-sourcing';
 
     // Out dari bank perusahaan (BCA dll)
     await store.addCashTransaction({
@@ -637,12 +739,16 @@ export const recordReconciliationSettlement = async (
   const store = useAppStore.getState();
   const now = new Date().toISOString();
   const purchaseRef = purchaseId.slice(0,8);
+  const purchase = store.purchases.find(p => p.id === purchaseId);
+  const wallet = getAdvanceWalletByUserId(purchase?.purchaserId);
+  const targetBankId = wallet?.bankAccountId || 'bank-advance-sourcing';
+  const advanceAccountCode = wallet?.accountCode || '1-1500';
 
   const hasExistingShopSettlement = store.cashTransactions.some(tx =>
     tx.referenceId === purchaseId &&
     tx.type === 'Out' &&
     tx.category === 'Sourcing (HPP)' &&
-    tx.bankAccountId === 'bank-advance-sourcing'
+    tx.bankAccountId === targetBankId
   ) || store.journalEntries.some(entry =>
     entry.referenceId === purchaseId &&
     entry.referenceType === 'Purchase' &&
@@ -653,7 +759,7 @@ export const recordReconciliationSettlement = async (
     tx.referenceId === purchaseId &&
     tx.type === 'Out' &&
     tx.category === 'Operasional' &&
-    tx.bankAccountId === 'bank-advance-sourcing'
+    tx.bankAccountId === targetBankId
   ) || store.journalEntries.some(entry =>
     entry.referenceId === purchaseId &&
     entry.referenceType === 'Expense' &&
@@ -662,86 +768,118 @@ export const recordReconciliationSettlement = async (
 
   // 1. Settle Advance for Shop Cost (HPP) — journal + CashTransaction Out dari Kas Sourcing
   if (actualShopCost > 0 && !hasExistingShopSettlement) {
-    const settledAmount = Math.min(actualShopCost, advanceAmount);
-    const purchase = store.purchases.find(p => p.id === purchaseId);
-    const wallet = getAdvanceWalletByUserId(purchase?.purchaserId);
-    const targetBankId = wallet?.bankAccountId || 'bank-advance-sourcing';
+    const settledAmount = Math.min(actualShopCost, Math.max(0, advanceAmount));
     const defisitShop = actualShopCost - settledAmount;
 
-    const credits = [{ accountCode: '1-1500', amount: settledAmount }];
+    const credits: PostingLineInput[] = [];
+    if (settledAmount > 0) {
+      credits.push({ accountCode: advanceAccountCode, amount: settledAmount });
+    }
 
     // Jika HPP > Advance, sisanya jadi Utang Usaha (karena ditomboki sourcer)
     if (defisitShop > 0) {
       credits.push({ accountCode: '2-1000', amount: defisitShop });
     }
 
-    await createAccountingEntry(
-      `Penyelesaian Belanja Sourcing - Ref: ${purchaseRef}`,
+    const shopDescription = `Penyelesaian Belanja Sourcing - Ref: ${purchaseRef}`;
+    const shopJournalSuccess = await createAccountingEntry(
+      shopDescription,
       'Purchase',
       purchaseId,
       // Belanja sourcing yang disetujui harus masuk ke HPP agar muncul di laba rugi.
       [{ accountCode: HPP_ACCOUNT_CODE, amount: actualShopCost }],
       credits
     );
+
+    if (!shopJournalSuccess) {
+      return false;
+    }
+
+    const postedShopEntry = findPostedEntry('Purchase', purchaseId, shopDescription);
+    const createdCashIds: string[] = [];
+
     // Jika sourcer talangin, catat In dulu (Talangan Sourcer) supaya kas keluar HPP = actualShopCost utuh
-    if (defisitShop > 0) {
+    try {
+      if (defisitShop > 0) {
+        const txId = uuidv4();
+        await store.addCashTransaction({
+          id: txId,
+          date: now,
+          amount: defisitShop,
+          type: 'In',
+          category: 'Talangan Sourcer',
+          description: `Talangan Sourcer (Defisit HPP) - Ref: ${purchaseRef}`,
+          bankAccountId: targetBankId,
+          referenceId: purchaseId
+        });
+        createdCashIds.push(txId);
+      }
+      // Out dari Kas Sourcing — uang dipakai belanja (full actualShopCost agar match summary settlement)
+      const txId = uuidv4();
       await store.addCashTransaction({
-        id: uuidv4(),
+        id: txId,
         date: now,
-        amount: defisitShop,
-        type: 'In',
-        category: 'Talangan Sourcer',
-        description: `Talangan Sourcer (Defisit HPP) - Ref: ${purchaseRef}`,
+        amount: actualShopCost,
+        type: 'Out',
+        category: 'Sourcing (HPP)',
+        description: `Belanja Pasar disetujui - Ref: ${purchaseRef}`,
         bankAccountId: targetBankId,
         referenceId: purchaseId
       });
+      createdCashIds.push(txId);
+    } catch (err) {
+      console.error('[Accounting] Failed to persist shop settlement cash transaction, rolling back journal:', err);
+      await cleanupCashTransactions(createdCashIds);
+      if (postedShopEntry) await cleanupJournalEntry(postedShopEntry.id);
+      return false;
     }
-    // Out dari Kas Sourcing — uang dipakai belanja (full actualShopCost agar match summary settlement)
-    await store.addCashTransaction({
-      id: uuidv4(),
-      date: now,
-      amount: actualShopCost,
-      type: 'Out',
-      category: 'Sourcing (HPP)',
-      description: `Belanja Pasar disetujui - Ref: ${purchaseRef}`,
-      bankAccountId: targetBankId,
-      referenceId: purchaseId
-    });
   }
 
   // 2. Settle Advance for Ops Cost (journal + CashTransaction Out)
   if (actualOpsCost > 0 && !hasExistingOpsSettlement) {
     const settleFromAdvance = Math.min(actualOpsCost, Math.max(0, advanceAmount - actualShopCost));
+    const defisitOps = actualOpsCost - settleFromAdvance;
+    const opsCredits: PostingLineInput[] = [];
+
     if (settleFromAdvance > 0) {
-      const purchase = store.purchases.find(p => p.id === purchaseId);
-      const wallet = getAdvanceWalletByUserId(purchase?.purchaserId);
-      const targetBankId = wallet?.bankAccountId || 'bank-advance-sourcing';
+      opsCredits.push({ accountCode: advanceAccountCode, amount: settleFromAdvance });
+    }
+    if (defisitOps > 0) {
+      opsCredits.push({ accountCode: '2-1000', amount: defisitOps });
+    }
 
-      const opsCredits = [{ accountCode: '1-1500', amount: settleFromAdvance }];
-      
-      // Jika masih kurang, jadi Utang Usaha
-      const defisitOps = actualOpsCost - settleFromAdvance;
-      if (defisitOps > 0) {
-        opsCredits.push({ accountCode: '2-1000', amount: defisitOps });
+    const opsDescription = `Penyelesaian Ops Sourcing - Ref: ${purchaseRef}`;
+    const opsJournalSuccess = await createAccountingEntry(
+      opsDescription,
+      'Expense',
+      purchaseId,
+      [{ accountCode: '6-1400', amount: actualOpsCost }],
+      opsCredits
+    );
+
+    if (!opsJournalSuccess) {
+      return false;
+    }
+
+    if (settleFromAdvance > 0) {
+      const postedOpsEntry = findPostedEntry('Expense', purchaseId, opsDescription);
+      const txId = uuidv4();
+      try {
+        await store.addCashTransaction({
+          id: txId,
+          date: now,
+          amount: settleFromAdvance,
+          type: 'Out',
+          category: 'Operasional',
+          description: `Biaya Ops disetujui - Ref: ${purchaseRef}`,
+          bankAccountId: targetBankId,
+          referenceId: purchaseId
+        });
+      } catch (err) {
+        console.error('[Accounting] Failed to persist ops settlement cash transaction, rolling back journal:', err);
+        if (postedOpsEntry) await cleanupJournalEntry(postedOpsEntry.id);
+        return false;
       }
-
-      await createAccountingEntry(
-        `Penyelesaian Ops Sourcing - Ref: ${purchaseRef}`,
-        'Expense',
-        purchaseId,
-        [{ accountCode: '6-1400', amount: actualOpsCost }],
-        opsCredits
-      );
-      await store.addCashTransaction({
-        id: uuidv4(),
-        date: now,
-        amount: settleFromAdvance,
-        type: 'Out',
-        category: 'Operasional',
-        description: `Biaya Ops disetujui - Ref: ${purchaseRef}`,
-        bankAccountId: targetBankId,
-        referenceId: purchaseId
-      });
     }
   }
 

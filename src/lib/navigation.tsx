@@ -46,9 +46,12 @@ export const APP_PAGES: NavItemConfig[] = [
     ]
   },
   { key: 'finance_cash_bank', title: 'Cash & Bank', href: '/finance/cash-bank', icon: <Bank className="h-4 w-4" />, category: 'Finance' },
+  { key: 'finance_expenses', title: 'Pengeluaran Umum', href: '/finance/expenses', icon: <TrendingDown className="h-4 w-4" />, category: 'Finance' },
   { key: 'finance_reports', title: 'Financial Reports', href: '/finance/reports', icon: <FileSpreadsheet className="h-4 w-4" />, category: 'Finance' },
   { key: 'finance_invoices', title: 'Invoices (AR/AP)', href: '/finance/invoices', icon: <ScrollText className="h-4 w-4" />, category: 'Finance' },
   { key: 'finance_collections', title: 'AR Collections', href: '/finance/collections', icon: <History className="h-4 w-4" />, category: 'Finance' },
+  { key: 'finance_ar_aging', title: 'AR Aging (Piutang)', href: '/finance/ar-aging', icon: <AlertTriangle className="h-4 w-4 text-rose-500" />, category: 'Finance' },
+  { key: 'finance_ap_aging', title: 'AP Aging (Hutang)', href: '/finance/ap-aging', icon: <ClipboardList className="h-4 w-4 text-purple-500" />, category: 'Finance' },
   { key: 'finance_ledger', title: 'General Ledger', href: '/finance/ledger', icon: <ArrowRightLeft className="h-4 w-4" />, category: 'Finance' },
   { key: 'finance_online_purchase', title: 'Online Purchase', href: '/finance/online-purchase', icon: <ShoppingBag className="h-4 w-4" />, category: 'Finance' },
   { key: 'finance_assets', title: 'Asset Audit', href: '/finance/assets', icon: <Briefcase className="h-4 w-4" />, category: 'Finance' },
@@ -81,33 +84,6 @@ export const APP_PAGES: NavItemConfig[] = [
   { key: 'admin_settings', title: 'System Settings', href: '/admin/settings', icon: <Cog className="h-4 w-4" />, category: 'Admin' },
   { key: 'admin_tasks', title: 'Admin Tasks', href: '/admin/tasks', icon: <ListChecks className="h-4 w-4" />, category: 'Admin' },
   { key: 'admin_activity_log', title: 'Activity Log', href: '/admin/activity-log', icon: <History className="h-4 w-4" />, category: 'Admin' },
-
-  // Finance
-  { key: 'finance_dashboard', title: 'Finance Dashboard', href: '/finance', icon: <BarChart3 className="h-4 w-4" />, category: 'Finance' },
-  {
-    key: 'finance_approvals',
-    title: 'Finance Hub',
-    href: '/finance/approvals',
-    icon: <ShieldCheck className="h-4 w-4 text-emerald-500" />,
-    category: 'Finance',
-    children: [
-      { key: 'finance_pencairan', title: 'Pencairan PO', href: '/finance/approvals?tab=pencairan' },
-      { key: 'finance_audit', title: 'Audit Ops', href: '/finance/approvals?tab=audit' },
-      { key: 'finance_reimburse', title: 'Reimbursement', href: '/finance/approvals?tab=reimburse' },
-      { key: 'finance_rekon', title: 'Rekonsiliasi', href: '/finance/approvals?tab=rekon' },
-      { key: 'finance_delivery', title: 'Audit Delivery', href: '/finance/approvals?tab=delivery' },
-    ]
-  },
-  { key: 'finance_cash_bank', title: 'Cash & Bank', href: '/finance/cash-bank', icon: <Bank className="h-4 w-4" />, category: 'Finance' },
-  { key: 'finance_expenses', title: 'Pengeluaran Umum', href: '/finance/expenses', icon: <TrendingDown className="h-4 w-4" />, category: 'Finance' },
-  { key: 'finance_reports', title: 'Financial Reports', href: '/finance/reports', icon: <FileSpreadsheet className="h-4 w-4" />, category: 'Finance' },
-  { key: 'finance_invoices', title: 'Invoices (AR/AP)', href: '/finance/invoices', icon: <ScrollText className="h-4 w-4" />, category: 'Finance' },
-  { key: 'finance_ar_aging', title: 'AR Aging (Piutang)', href: '/finance/ar-aging', icon: <AlertTriangle className="h-4 w-4 text-rose-500" />, category: 'Finance' },
-  { key: 'finance_ap_aging', title: 'AP Aging (Hutang)', href: '/finance/ap-aging', icon: <ClipboardList className="h-4 w-4 text-purple-500" />, category: 'Finance' },
-  { key: 'finance_ledger', title: 'General Ledger', href: '/finance/ledger', icon: <ArrowRightLeft className="h-4 w-4" />, category: 'Finance' },
-  { key: 'finance_online_purchase', title: 'Online Purchase', href: '/finance/online-purchase', icon: <ShoppingBag className="h-4 w-4" />, category: 'Finance' },
-  { key: 'finance_assets', title: 'Asset Audit', href: '/finance/assets', icon: <Briefcase className="h-4 w-4" />, category: 'Finance' },
-  { key: 'finance_documents', title: 'Dokumen & Arsip', href: '/finance/documents', icon: <Archive className="h-4 w-4 text-emerald-500" />, category: 'Finance' },
 
   // ==========================================
   // PARKED MODULES (SECONDARY)

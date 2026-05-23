@@ -83,6 +83,18 @@ export const COA_SEED: any[] = [
     "accountType": "Asset"
   },
   {
+    "id": "coa-1-4",
+    "accountCode": "1-1400",
+    "accountName": "Bank BRI - Simpanan",
+    "accountType": "Asset"
+  },
+  {
+    "id": "coa-transfer-clearing",
+    "accountCode": "1-1999",
+    "accountName": "Transfer Antar Bank (Clearing)",
+    "accountType": "Asset"
+  },
+  {
     "id": "coa-1-5",
     "accountCode": "1-1500",
     "accountName": "Uang Muka Karyawan (Advance)",

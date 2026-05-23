@@ -90,38 +90,84 @@ export default function FinancialReportsPage() {
     if (period === 'yearly') setSelectedDate(prev => addYears(prev, 1))
   }
 
-  const filteredLines = useMemo(() => {
-    let start: Date, end: Date
+  const dateInterval = useMemo(() => {
+    let start: Date | null = null
+    let end: Date | null = null
 
     switch (period) {
-      case 'daily': start = startOfDay(selectedDate); end = endOfDay(selectedDate); break
-      case 'weekly': start = startOfWeek(selectedDate, { locale: id }); end = endOfWeek(selectedDate, { locale: id }); break
-      case 'monthly': start = startOfMonth(selectedDate); end = endOfMonth(selectedDate); break
-      case 'yearly': start = startOfYear(selectedDate); end = endOfYear(selectedDate); break
-      case 'custom': 
-        if (!dateRange?.from) return journalLines
-        start = startOfDay(dateRange.from)
-        end = endOfDay(dateRange.to || dateRange.from)
+      case 'daily':
+        start = startOfDay(selectedDate)
+        end = endOfDay(selectedDate)
         break
-      default: return journalLines
+      case 'weekly':
+        start = startOfWeek(selectedDate, { locale: id })
+        end = endOfWeek(selectedDate, { locale: id })
+        break
+      case 'monthly':
+        start = startOfMonth(selectedDate)
+        end = endOfMonth(selectedDate)
+        break
+      case 'yearly':
+        start = startOfYear(selectedDate)
+        end = endOfYear(selectedDate)
+        break
+      case 'custom':
+        if (dateRange?.from) {
+          start = startOfDay(dateRange.from)
+          end = endOfDay(dateRange.to || dateRange.from)
+        }
+        break
+      default:
+        // 'all'
+        break
     }
+    return { start, end }
+  }, [period, selectedDate, dateRange])
 
-    return journalLines.filter(line => {
+  const { pnlLines, balanceSheetLines, priorPeriodLines } = useMemo(() => {
+    const { start, end } = dateInterval
+    
+    // Create mapping of line to entry date
+    const linesWithDate = journalLines.map(line => {
       const entry = journalEntries.find(e => e.id === line.journalEntryId)
-      if (!entry) return false
-      const entryDate = new Date(entry.transactionDate)
-      return isWithinInterval(entryDate, { start, end })
+      const entryDate = entry ? new Date(entry.transactionDate) : null
+      return { line, entryDate }
+    }).filter(x => x.entryDate !== null) as { line: typeof journalLines[0], entryDate: Date }[]
+
+    const pnl: typeof journalLines = []
+    const bs: typeof journalLines = []
+    const prior: typeof journalLines = []
+
+    linesWithDate.forEach(({ line, entryDate }) => {
+      // 1. Prior Period Lines (strictly before start)
+      if (start && entryDate < start) {
+        prior.push(line)
+      }
+
+      // 2. P&L Lines (between start and end)
+      const isAfterStart = !start || entryDate >= start
+      const isBeforeEnd = !end || entryDate <= end
+      if (isAfterStart && isBeforeEnd) {
+        pnl.push(line)
+      }
+
+      // 3. Balance Sheet Lines (up to end)
+      if (isBeforeEnd) {
+        bs.push(line)
+      }
     })
-  }, [journalLines, journalEntries, period, selectedDate, dateRange])
+
+    return { pnlLines: pnl, balanceSheetLines: bs, priorPeriodLines: prior }
+  }, [journalLines, journalEntries, dateInterval])
 
   const filteredEntries = useMemo(() => {
-    const lineIds = new Set(filteredLines.map(l => l.journalEntryId))
+    const lineIds = new Set(pnlLines.map(l => l.journalEntryId))
     return journalEntries.filter(e => lineIds.has(e.id))
-  }, [filteredLines, journalEntries])
+  }, [pnlLines, journalEntries])
 
-  const getBalance = (accountId: string, type: string) => {
+  const getBalance = (lines: typeof journalLines, accountId: string, type: string) => {
     let balance = 0
-    filteredLines.filter(jl => jl.accountId === accountId).forEach(line => {
+    lines.filter(jl => jl.accountId === accountId).forEach(line => {
       if (['Asset', 'Expense'].includes(type)) {
         balance += line.debitAmount - line.creditAmount
       } else {
@@ -132,34 +178,47 @@ export default function FinancialReportsPage() {
   }
 
   // --- CALCULATIONS ---
-  const revenues = useMemo(() => coas.filter(a => a.accountType === 'Revenue').map(a => ({ ...a, balance: getBalance(a.id, a.accountType) })), [coas, filteredLines])
+  const revenues = useMemo(() => coas.filter(a => a.accountType === 'Revenue').map(a => ({ ...a, balance: getBalance(pnlLines, a.id, a.accountType) })), [coas, pnlLines])
   const totalRevenue = revenues.reduce((sum, a) => sum + a.balance, 0)
   
-  const expenses = useMemo(() => coas.filter(a => a.accountType === 'Expense').map(a => ({ ...a, balance: getBalance(a.id, a.accountType) })), [coas, filteredLines])
+  const expenses = useMemo(() => coas.filter(a => a.accountType === 'Expense').map(a => ({ ...a, balance: getBalance(pnlLines, a.id, a.accountType) })), [coas, pnlLines])
   const totalExpense = expenses.reduce((sum, a) => sum + a.balance, 0)
   const netIncome = totalRevenue - totalExpense
 
-  const assets = useMemo(() => coas.filter(a => a.accountType === 'Asset').map(a => ({ ...a, balance: getBalance(a.id, a.accountType) })), [coas, filteredLines])
+  const assets = useMemo(() => coas.filter(a => a.accountType === 'Asset').map(a => ({ ...a, balance: getBalance(balanceSheetLines, a.id, a.accountType) })), [coas, balanceSheetLines])
   const totalAssets = assets.reduce((sum, a) => sum + a.balance, 0)
   
-  const liabilities = useMemo(() => coas.filter(a => a.accountType === 'Liability').map(a => ({ ...a, balance: getBalance(a.id, a.accountType) })), [coas, filteredLines])
+  const liabilities = useMemo(() => coas.filter(a => a.accountType === 'Liability').map(a => ({ ...a, balance: getBalance(balanceSheetLines, a.id, a.accountType) })), [coas, balanceSheetLines])
   const totalLiabilities = liabilities.reduce((sum, a) => sum + a.balance, 0)
   
-  const equityAccounts = useMemo(() => coas.filter(a => a.accountType === 'Equity').map(a => ({ ...a, balance: getBalance(a.id, a.accountType) })), [coas, filteredLines])
-  const totalEquity = equityAccounts.reduce((sum, a) => sum + a.balance, 0) + netIncome
+  const priorPeriodNetIncome = useMemo(() => {
+    let priorRevenue = 0
+    let priorExpense = 0
+    coas.forEach(a => {
+      if (a.accountType === 'Revenue') {
+        priorRevenue += getBalance(priorPeriodLines, a.id, a.accountType)
+      } else if (a.accountType === 'Expense') {
+        priorExpense += getBalance(priorPeriodLines, a.id, a.accountType)
+      }
+    })
+    return priorRevenue - priorExpense
+  }, [coas, priorPeriodLines])
+
+  const equityAccounts = useMemo(() => coas.filter(a => a.accountType === 'Equity').map(a => ({ ...a, balance: getBalance(balanceSheetLines, a.id, a.accountType) })), [coas, balanceSheetLines])
+  const totalEquity = equityAccounts.reduce((sum, a) => sum + a.balance, 0) + priorPeriodNetIncome + netIncome
   
   const cashFlowDetail = useMemo(() => {
     // Detect cash/bank accounts by account code (starting with 1-1) rather than just name
     const cashAccounts = coas.filter(a => a.accountCode.startsWith('1-1'))
     const entries = filteredEntries.map(entry => {
-      const lines = filteredLines.filter(l => l.journalEntryId === entry.id)
+      const lines = pnlLines.filter(l => l.journalEntryId === entry.id)
       const cashLines = lines.filter(l => cashAccounts.some(ca => ca.id === l.accountId))
       const inAmount = cashLines.reduce((s, l) => s + l.debitAmount, 0)
       const outAmount = cashLines.reduce((s, l) => s + l.creditAmount, 0)
       return { ...entry, in: inAmount, out: outAmount, net: inAmount - outAmount }
     }).filter(e => e.net !== 0)
     return { entries, totalIn: entries.reduce((s, e) => s + e.in, 0), totalOut: entries.reduce((s, e) => s + e.out, 0) }
-  }, [coas, filteredEntries, filteredLines])
+  }, [coas, filteredEntries, pnlLines])
 
   // --- ACTION: DOWNLOAD HIGH FIDELITY PDF ---
   const handleDownload = async () => {
@@ -387,6 +446,12 @@ export default function FinancialReportsPage() {
                        {liabilities.map(l => <div key={l.id} className="flex justify-between text-xs py-2"><span>{l.accountName}</span><span>{formatRupiah(l.balance)}</span></div>)}
                        <p className="text-[10px] text-slate-300 uppercase mt-4">Equity</p>
                        {equityAccounts.map(e => <div key={e.id} className="flex justify-between text-xs py-2"><span>{e.accountName}</span><span>{formatRupiah(e.balance)}</span></div>)}
+                       {priorPeriodNetIncome !== 0 && (
+                           <div className="flex justify-between text-xs py-2 font-medium text-slate-500">
+                              <span>Laba Ditahan (Retained Earnings)</span>
+                              <span>{formatRupiah(priorPeriodNetIncome)}</span>
+                           </div>
+                       )}
                        <div className="flex justify-between text-xs py-2 font-black text-emerald-600"><span>Current Period Profit</span><span>{formatRupiah(netIncome)}</span></div>
                     </div>
                  </Card>
@@ -505,6 +570,12 @@ export default function FinancialReportsPage() {
                                <h4 className="text-[10px] font-black uppercase text-[#94a3b8] mb-4 border-b">LIABILITIES & EQUITY</h4>
                                {liabilities.map(l => <div key={l.id} className="flex justify-between py-1.5 text-[10px] font-bold"><span>{l.accountName}</span><span>{formatRupiah(l.balance)}</span></div>)}
                                {equityAccounts.map(e => <div key={e.id} className="flex justify-between py-1.5 text-[10px] font-bold"><span>{e.accountName}</span><span>{formatRupiah(e.balance)}</span></div>)}
+                               {priorPeriodNetIncome !== 0 && (
+                                  <div className="flex justify-between py-1.5 text-[10px] font-medium text-slate-500">
+                                     <span>Laba Ditahan (Retained Earnings)</span>
+                                     <span>{formatRupiah(priorPeriodNetIncome)}</span>
+                                  </div>
+                               )}
                                <div className="flex justify-between py-1.5 text-[10px] font-black italic text-[#059669]"><span>Current Profit (P&L)</span><span>{formatRupiah(netIncome)}</span></div>
                                <div className="flex justify-between py-3 font-black border-t-2 border-[#0f172a] mt-2 text-xs"><span>TOTAL PASIVA</span><span>{formatRupiah(totalLiabilities + totalEquity)}</span></div>
                             </div>

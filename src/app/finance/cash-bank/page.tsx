@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { useAppStore } from "@/lib/store"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -19,6 +19,25 @@ import { createAccountingEntry } from "@/lib/accounting"
 import ReceiptUpload from "@/components/ui/receipt-upload"
 import { Checkbox } from "@/components/ui/checkbox"
 
+const formatCategory = (cat: string) => {
+  const map: Record<string, string> = {
+    'BELANJA_BARANG_VENDOR': 'Belanja Barang (HPP)',
+    'GAJI_OPERASIONAL_KARYAWAN': 'Beban Gaji',
+    'MARKETING': 'Marketing',
+    'KENDARAAN': 'Beban Kendaraan',
+    'UTILITIES': 'Listrik/Air/Internet',
+    'OPERASIONAL_KANTOR': 'Operasional Kantor',
+    'ONGKIR_KIRIM': 'Ongkir Kirim',
+    'BIAYA_BANK': 'Biaya Admin Bank',
+    'LAINNYA': 'Lainnya',
+    'PEMASUKAN_PIUTANG': 'Pelunasan Piutang (AR)',
+    'PEMASUKAN_INVESTOR': 'Investasi Masuk',
+    'PENGEMBALIAN_INVESTOR': 'Pengembalian Investor',
+    'REFUND_MASUK': 'Refund Vendor',
+  }
+  return map[cat] || cat
+}
+
 export default function CashAndBankPage() {
   const bankAccounts = useAppStore(state => state.bankAccounts)
   const addBankAccount = useAppStore(state => state.addBankAccount)
@@ -29,7 +48,6 @@ export default function CashAndBankPage() {
   const updateCashTransaction = useAppStore(state => state.updateCashTransaction)
   const deleteCashTransaction = useAppStore(state => state.deleteCashTransaction)
   const bulkDeleteCashTransactions = useAppStore(state => state.bulkDeleteCashTransactions)
-  const deleteBankAccount = useAppStore(state => state.deleteBankAccount)
   const coas = useAppStore(state => state.coas)
   const isSyncing = useAppStore(state => state.isSyncing)
 
@@ -51,11 +69,23 @@ export default function CashAndBankPage() {
   const [searchTerm, setSearchTerm] = useState("")
 
   const [selectedBankFilter, setSelectedBankFilter] = useState<string | null>(null)
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string | null>(null)
   const [editingTx, setEditingTx] = useState<any>(null)
   const [selectedTxIds, setSelectedTxIds] = useState<string[]>([])
   const [isBulkDeleteConfirmOpen, setIsBulkDeleteConfirmOpen] = useState(false)
   const [txToDelete, setTxToDelete] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Extract unique categories from cash transactions for the filter dropdown
+  const uniqueCategories = useMemo(() => {
+    const cats = new Set<string>()
+    cashTransactions.forEach(tx => {
+      if (tx.category) {
+        cats.add(tx.category)
+      }
+    })
+    return Array.from(cats).sort()
+  }, [cashTransactions])
 
   // Build index map for tiebreaker: store prepends new tx, so lower index = newer.
   const txIndex = new Map(cashTransactions.map((tx, i) => [tx.id, i]))
@@ -64,7 +94,8 @@ export default function CashAndBankPage() {
       tx.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
       tx.counterpartName?.toLowerCase().includes(searchTerm.toLowerCase())
     const matchBank = selectedBankFilter ? tx.bankAccountId === selectedBankFilter : true;
-    return matchSearch && matchBank;
+    const matchCategory = selectedCategoryFilter ? tx.category === selectedCategoryFilter : true;
+    return matchSearch && matchBank && matchCategory;
   }).sort((a,b) => {
     const dt = new Date(b.date).getTime() - new Date(a.date).getTime()
     if (dt !== 0) return dt
@@ -77,13 +108,43 @@ export default function CashAndBankPage() {
     setIsSubmitting(true)
     const loadingToast = toast.loading("Mendaftarkan akun bank baru...")
     try {
+      const bankId = `bank-${Date.now()}`
       await addBankAccount({
-        id: `bank-${Date.now()}`,
+        id: bankId,
         name: bankForm.name,
         accountNumber: bankForm.number,
         accountCode: bankForm.accountCode,
         balance: bankForm.balance
       })
+
+      if (Number(bankForm.balance) > 0) {
+        const txId = `opb-${Date.now()}`
+        const now = new Date().toISOString()
+
+        // 1. Record Cash Transaction
+        await addCashTransaction({
+          id: txId,
+          date: now,
+          type: 'In',
+          amount: bankForm.balance,
+          bankAccountId: bankId,
+          category: 'Investasi',
+          description: `Saldo Awal: ${bankForm.name}`,
+          counterpartName: 'Owner Capital',
+          referenceType: 'Adjustment' as any
+        })
+
+        // 2. Create Journal Entry (Accounting Ledger)
+        await createAccountingEntry(
+          `Saldo Awal: ${bankForm.name}`,
+          'Adjustment',
+          txId,
+          [{ accountCode: bankForm.accountCode || '1-1000', amount: bankForm.balance }],
+          [{ accountCode: '3-1000', amount: bankForm.balance }], // Credit Owner Capital
+          now
+        )
+      }
+
       setIsAddBankOpen(false)
       setBankForm({ name: '', number: '', balance: 0, accountCode: '1-1000' })
       toast.success(`${bankForm.name} berhasil didaftarkan!`, { id: loadingToast })
@@ -853,7 +914,12 @@ export default function CashAndBankPage() {
                      History Transaksi Kas
                      {selectedBankFilter && (
                         <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 ml-2 animate-in fade-in zoom-in">
-                           Filter: {bankAccounts.find(b => b.id === selectedBankFilter)?.name}
+                           Bank: {bankAccounts.find(b => b.id === selectedBankFilter)?.name}
+                        </Badge>
+                     )}
+                     {selectedCategoryFilter && (
+                        <Badge variant="secondary" className="bg-blue-100 text-blue-700 ml-2 animate-in fade-in zoom-in">
+                           Kategori: {formatCategory(selectedCategoryFilter)}
                         </Badge>
                      )}
                   </CardTitle>
@@ -873,11 +939,29 @@ export default function CashAndBankPage() {
                         </Button>
                      </div>
                   )}
+                  <div className="w-56">
+                     <Select 
+                        value={selectedCategoryFilter || "all"} 
+                        onValueChange={(val) => setSelectedCategoryFilter(val === "all" ? null : val)}
+                     >
+                        <SelectTrigger className="h-10 rounded-xl bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-xs font-semibold">
+                           <SelectValue placeholder="Semua Kategori" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-80">
+                           <SelectItem value="all">📁 Semua Kategori</SelectItem>
+                           {uniqueCategories.map((cat) => (
+                              <SelectItem key={cat} value={cat} className="text-xs">
+                                 {formatCategory(cat)}
+                              </SelectItem>
+                           ))}
+                        </SelectContent>
+                     </Select>
+                  </div>
                   <div className="relative w-72">
                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                      <Input 
-                       placeholder="Filter transaksi..." 
-                       className="pl-9 bg-white dark:bg-slate-950 rounded-xl"
+                       placeholder="Cari transaksi..." 
+                       className="pl-9 h-10 bg-white dark:bg-slate-950 rounded-xl text-xs"
                        value={searchTerm}
                        onChange={(e) => setSearchTerm(e.target.value)}
                      />
@@ -981,7 +1065,7 @@ export default function CashAndBankPage() {
                               <TableCell>
                                  <div className="flex flex-col items-start gap-1.5">
                                     <Badge variant="outline" className={`text-[10px] font-bold uppercase ${tx.type === 'In' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
-                                       {tx.category}
+                                       {formatCategory(tx.category)}
                                     </Badge>
                                     {(() => {
                                        const isInternal = tx.category.toLowerCase().includes('uang muka') || tx.category.toLowerCase().includes('kembalian') || tx.category.toLowerCase().includes('pindah');

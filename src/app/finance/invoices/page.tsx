@@ -94,33 +94,43 @@ export default function InvoicesPage() {
 
     setIsRecordingPayment(true)
     try {
-      const newAmountPaid = activeInvoice.amountPaid + paymentAmount
-      const status = newAmountPaid >= activeInvoice.totalAmount ? 'Paid' : 'Partial'
-
-      const paymentRecord = {
-        id: uuidv4(),
-        amount: paymentAmount,
-        date: new Date(paymentDate).toISOString(),
-        note: "Pembayaran diterima"
-      }
-
-      updateInvoice(activeInvoice.id, {
-        amountPaid: newAmountPaid,
-        status: status,
-        payments: [...(activeInvoice.payments || []), paymentRecord]
-      })
-
-      const success = await recordPaymentReceived(activeInvoice.id, paymentAmount, new Date(paymentDate).toISOString(), paymentBankAccountId)
+      // 1. Record the double-entry accounting transaction first
+      const success = await recordPaymentReceived(
+        activeInvoice.id,
+        paymentAmount,
+        new Date(paymentDate).toISOString(),
+        paymentBankAccountId
+      )
 
       if (success) {
+        // 2. Only update the invoice status if the ledger write succeeded
+        const newAmountPaid = activeInvoice.amountPaid + paymentAmount
+        const status = newAmountPaid >= activeInvoice.totalAmount ? 'Paid' : 'Partial'
+
+        const paymentRecord = {
+          id: uuidv4(),
+          amount: paymentAmount,
+          date: new Date(paymentDate).toISOString(),
+          note: "Pembayaran diterima"
+        }
+
+        updateInvoice(activeInvoice.id, {
+          amountPaid: newAmountPaid,
+          status: status,
+          payments: [...(activeInvoice.payments || []), paymentRecord]
+        })
+
         toast.success(`Pembayaran ${formatRupiah(paymentAmount)} berhasil dicatat ke rekening tujuan.`)
         setActiveInvoice(null)
         setPaymentAmount(0)
         setPaymentDate(new Date().toISOString().split('T')[0])
         setPaymentBankAccountId("")
       } else {
-        toast.error("Gagal mencatat jurnal pembayaran.")
+        toast.error("Gagal mencatat jurnal pembayaran. Transaksi dibatalkan.")
       }
+    } catch (e) {
+      console.error(e)
+      toast.error("Terjadi kesalahan saat memproses pembayaran.")
     } finally {
       setIsRecordingPayment(false)
     }
@@ -236,7 +246,8 @@ export default function InvoicesPage() {
     setManualAmount(0)
   }
 
-  const handleManualClientChange = (clientId: string) => {
+  const handleManualClientChange = (clientId: string | null) => {
+    if (!clientId) return
     setManualClientId(clientId)
     const client = clients.find(c => c.id === clientId)
     const dueDate = new Date(manualIssueDate)

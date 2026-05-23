@@ -15,6 +15,7 @@ create table if not exists public.clients (
   phone text not null default '',
   address text not null default '',
   payment_term_days integer not null default 30,
+  total_order_jan_may numeric not null default 0,
   created_at text not null
 );
 
@@ -468,5 +469,356 @@ create index if not exists idx_record_history_user         on public.record_hist
 create index if not exists idx_record_history_created      on public.record_history (created_at desc);
 
 alter table public.record_history disable row level security;
+
+create or replace function public.post_journal_entry(
+  p_entry_id text,
+  p_transaction_date text,
+  p_description text,
+  p_reference_type text,
+  p_reference_id text,
+  p_debits jsonb,
+  p_credits jsonb
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_total_debit numeric := 0;
+  v_total_credit numeric := 0;
+  v_debit_lines jsonb := '[]'::jsonb;
+  v_credit_lines jsonb := '[]'::jsonb;
+  v_all_lines jsonb := '[]'::jsonb;
+  v_line jsonb;
+  v_amount numeric;
+  v_account_code text;
+  v_account_id text;
+  v_coa_count integer;
+  v_idx integer := 0;
+  v_existing_id text;
+  v_existing_line_count integer;
+  v_existing_entry jsonb;
+  v_existing_lines jsonb;
+begin
+  if nullif(trim(coalesce(p_entry_id, '')), '') is null then
+    raise exception 'journal entry id is required';
+  end if;
+
+  if nullif(trim(coalesce(p_transaction_date, '')), '') is null then
+    raise exception 'transaction date is required';
+  end if;
+
+  if nullif(trim(coalesce(p_description, '')), '') is null then
+    raise exception 'description is required';
+  end if;
+
+  if coalesce(jsonb_typeof(p_debits), 'null') <> 'array' then
+    raise exception 'debits must be a JSON array';
+  end if;
+
+  if coalesce(jsonb_typeof(p_credits), 'null') <> 'array' then
+    raise exception 'credits must be a JSON array';
+  end if;
+
+  select id
+    into v_existing_id
+    from public.journal_entries
+   where reference_type is not distinct from p_reference_type
+     and reference_id is not distinct from p_reference_id
+     and description = p_description
+   limit 1;
+
+  if v_existing_id is not null then
+    select count(*)
+      into v_existing_line_count
+      from public.journal_lines
+     where journal_entry_id = v_existing_id;
+
+    if v_existing_line_count = 0 then
+      raise exception 'existing journal entry % has no lines; repair required', v_existing_id;
+    end if;
+
+    select to_jsonb(je)
+      into v_existing_entry
+      from public.journal_entries je
+     where je.id = v_existing_id;
+
+    select coalesce(jsonb_agg(to_jsonb(jl) order by jl.id), '[]'::jsonb)
+      into v_existing_lines
+      from public.journal_lines jl
+     where jl.journal_entry_id = v_existing_id;
+
+    return jsonb_build_object(
+      'entry', v_existing_entry,
+      'lines', v_existing_lines,
+      'inserted', false
+    );
+  end if;
+
+  for v_line in select value from jsonb_array_elements(p_debits) loop
+    v_idx := v_idx + 1;
+    v_account_code := nullif(trim(coalesce(v_line->>'accountCode', v_line->>'account_code', '')), '');
+    if v_account_code is null then
+      raise exception 'debit account code is required';
+    end if;
+
+    v_amount := coalesce(nullif(v_line->>'amount', '')::numeric, 0);
+    if v_amount < 0 then
+      raise exception 'debit amount for account % cannot be negative', v_account_code;
+    end if;
+    if v_amount = 0 then
+      continue;
+    end if;
+
+    select count(*), min(id)
+      into v_coa_count, v_account_id
+      from public.coas
+     where account_code = v_account_code;
+
+    if v_coa_count = 0 then
+      raise exception 'COA not found for debit account code: %', v_account_code;
+    end if;
+    if v_coa_count > 1 then
+      raise exception 'COA account code % is duplicated; repair required', v_account_code;
+    end if;
+
+    v_total_debit := v_total_debit + v_amount;
+    v_debit_lines := v_debit_lines || jsonb_build_array(jsonb_build_object(
+      'id', coalesce(nullif(v_line->>'id', ''), p_entry_id || '-d-' || v_idx::text),
+      'journal_entry_id', p_entry_id,
+      'account_id', v_account_id,
+      'debit_amount', v_amount,
+      'credit_amount', 0
+    ));
+  end loop;
+
+  v_idx := 0;
+  for v_line in select value from jsonb_array_elements(p_credits) loop
+    v_idx := v_idx + 1;
+    v_account_code := nullif(trim(coalesce(v_line->>'accountCode', v_line->>'account_code', '')), '');
+    if v_account_code is null then
+      raise exception 'credit account code is required';
+    end if;
+
+    v_amount := coalesce(nullif(v_line->>'amount', '')::numeric, 0);
+    if v_amount < 0 then
+      raise exception 'credit amount for account % cannot be negative', v_account_code;
+    end if;
+    if v_amount = 0 then
+      continue;
+    end if;
+
+    select count(*), min(id)
+      into v_coa_count, v_account_id
+      from public.coas
+     where account_code = v_account_code;
+
+    if v_coa_count = 0 then
+      raise exception 'COA not found for credit account code: %', v_account_code;
+    end if;
+    if v_coa_count > 1 then
+      raise exception 'COA account code % is duplicated; repair required', v_account_code;
+    end if;
+
+    v_total_credit := v_total_credit + v_amount;
+    v_credit_lines := v_credit_lines || jsonb_build_array(jsonb_build_object(
+      'id', coalesce(nullif(v_line->>'id', ''), p_entry_id || '-c-' || v_idx::text),
+      'journal_entry_id', p_entry_id,
+      'account_id', v_account_id,
+      'debit_amount', 0,
+      'credit_amount', v_amount
+    ));
+  end loop;
+
+  if v_total_debit <= 0 or v_total_credit <= 0 then
+    raise exception 'journal must have positive debit and credit totals';
+  end if;
+
+  if abs(v_total_debit - v_total_credit) > 0.01 then
+    raise exception 'journal is not balanced: debit %, credit %', v_total_debit, v_total_credit;
+  end if;
+
+  v_all_lines := v_debit_lines || v_credit_lines;
+
+  insert into public.journal_entries (
+    id,
+    transaction_date,
+    description,
+    reference_type,
+    reference_id
+  ) values (
+    p_entry_id,
+    p_transaction_date,
+    p_description,
+    p_reference_type,
+    p_reference_id
+  );
+
+  for v_line in select value from jsonb_array_elements(v_all_lines) loop
+    insert into public.journal_lines (
+      id,
+      journal_entry_id,
+      account_id,
+      debit_amount,
+      credit_amount
+    ) values (
+      v_line->>'id',
+      v_line->>'journal_entry_id',
+      v_line->>'account_id',
+      (v_line->>'debit_amount')::numeric,
+      (v_line->>'credit_amount')::numeric
+    );
+  end loop;
+
+  return jsonb_build_object(
+    'entry', jsonb_build_object(
+      'id', p_entry_id,
+      'transaction_date', p_transaction_date,
+      'description', p_description,
+      'reference_type', p_reference_type,
+      'reference_id', p_reference_id
+    ),
+    'lines', v_all_lines,
+    'inserted', true
+  );
+end;
+$$;
+
+create or replace function public.post_cash_transaction(
+  p_transaction jsonb
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_id text;
+  v_date text;
+  v_type text;
+  v_amount numeric;
+  v_bank_account_id text;
+  v_category text;
+  v_description text;
+  v_reference_type text;
+  v_reference_id text;
+  v_counterpart_name text;
+  v_receipt_url text;
+  v_delta numeric;
+  v_tx jsonb;
+  v_bank jsonb;
+  v_tx_row public.cash_transactions%rowtype;
+  v_bank_row public.bank_accounts%rowtype;
+begin
+  if coalesce(jsonb_typeof(p_transaction), 'null') <> 'object' then
+    raise exception 'cash transaction must be a JSON object';
+  end if;
+
+  v_id := nullif(trim(coalesce(p_transaction->>'id', '')), '');
+  v_date := nullif(trim(coalesce(p_transaction->>'date', '')), '');
+  v_type := nullif(trim(coalesce(p_transaction->>'type', '')), '');
+  v_bank_account_id := nullif(trim(coalesce(p_transaction->>'bankAccountId', p_transaction->>'bank_account_id', '')), '');
+  v_category := nullif(trim(coalesce(p_transaction->>'category', '')), '');
+  v_description := nullif(trim(coalesce(p_transaction->>'description', '')), '');
+  v_reference_type := nullif(trim(coalesce(p_transaction->>'referenceType', p_transaction->>'reference_type', '')), '');
+  v_reference_id := nullif(trim(coalesce(p_transaction->>'referenceId', p_transaction->>'reference_id', '')), '');
+  v_counterpart_name := nullif(trim(coalesce(p_transaction->>'counterpartName', p_transaction->>'counterpart_name', '')), '');
+  v_receipt_url := nullif(trim(coalesce(p_transaction->>'receiptUrl', p_transaction->>'receipt_url', '')), '');
+  v_amount := coalesce(nullif(p_transaction->>'amount', '')::numeric, 0);
+
+  if v_id is null then
+    raise exception 'cash transaction id is required';
+  end if;
+  if v_date is null then
+    raise exception 'cash transaction date is required';
+  end if;
+  if v_type not in ('In', 'Out') then
+    raise exception 'cash transaction type must be In or Out';
+  end if;
+  if v_amount <= 0 then
+    raise exception 'cash transaction amount must be positive';
+  end if;
+  if v_bank_account_id is null then
+    raise exception 'bank account id is required';
+  end if;
+  if v_category is null then
+    raise exception 'cash transaction category is required';
+  end if;
+  if v_description is null then
+    raise exception 'cash transaction description is required';
+  end if;
+
+  select to_jsonb(ct)
+    into v_tx
+    from public.cash_transactions ct
+   where ct.id = v_id;
+
+  if v_tx is not null then
+    select to_jsonb(ba)
+      into v_bank
+      from public.bank_accounts ba
+     where ba.id = v_bank_account_id;
+
+    return jsonb_build_object(
+      'transaction', v_tx,
+      'bank_account', v_bank,
+      'inserted', false
+    );
+  end if;
+
+  select to_jsonb(ba)
+    into v_bank
+    from public.bank_accounts ba
+   where ba.id = v_bank_account_id
+   for update;
+
+  if v_bank is null then
+    raise exception 'bank account not found: %', v_bank_account_id;
+  end if;
+
+  v_delta := case when v_type = 'In' then v_amount else -v_amount end;
+
+  insert into public.cash_transactions (
+    id,
+    date,
+    type,
+    amount,
+    bank_account_id,
+    category,
+    description,
+    reference_type,
+    reference_id,
+    counterpart_name,
+    receipt_url
+  ) values (
+    v_id,
+    v_date,
+    v_type,
+    v_amount,
+    v_bank_account_id,
+    v_category,
+    v_description,
+    v_reference_type,
+    v_reference_id,
+    v_counterpart_name,
+    v_receipt_url
+  )
+  returning * into v_tx_row;
+
+  v_tx := to_jsonb(v_tx_row);
+
+  update public.bank_accounts
+     set balance = balance + v_delta
+   where id = v_bank_account_id
+  returning * into v_bank_row;
+
+  v_bank := to_jsonb(v_bank_row);
+
+  return jsonb_build_object(
+    'transaction', v_tx,
+    'bank_account', v_bank,
+    'inserted', true
+  );
+end;
+$$;
 
 commit;

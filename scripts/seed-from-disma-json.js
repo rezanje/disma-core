@@ -88,12 +88,49 @@ const COA_LOAN_ANGEL = '2-4000', COA_LOAN_PERSONAL = '2-4000';
 const COA_REVENUE = '4-1000', COA_OTHER_REVENUE = '4-2000';
 const COA_EQUITY = '3-1000';
 
+const COA_ID_MAP = {
+  '1-1000': 'coa-1',
+  '1-1200': 'coa-1-2',
+  '1-1300': 'coa-1-3',
+  '1-1400': 'coa-1-4',
+  '1-1999': 'coa-transfer-clearing',
+  '1-1500': 'coa-1-5',
+  '1-1510': 'coa-1-5-1',
+  '1-2000': 'coa-2',
+  '1-3000': 'coa-3',
+  '1-4000': 'coa-4',
+  '1-4100': 'coa-4-1',
+  '1-4999': 'coa-5',
+  '2-1000': 'coa-10',
+  '2-2000': 'coa-10-2',
+  '2-3000': 'coa-10-3',
+  '2-4000': 'coa-10-4',
+  '3-1000': 'coa-11',
+  '3-2000': 'coa-11-2',
+  '4-1000': 'coa-12',
+  '4-2000': 'coa-12-2',
+  '5-1000': 'coa-13',
+  '5-2000': 'coa-14',
+  '6-1000': 'coa-15',
+  '6-1100': 'coa-15-2',
+  '6-1200': 'coa-9-2',
+  '6-1300': 'coa-9-3',
+  '6-1400': 'coa-9-4',
+  '6-1500': 'coa-9-5',
+  '6-1600': 'coa-9-6',
+  '6-1700': 'coa-9-7',
+  '6-3000': 'coa-17',
+  '6-9000': 'coa-9-9'
+};
+
+const getCoaId = (code) => COA_ID_MAP[code] || code;
+
 // Map bank name → COA
 const bankCoa = (name) => BANK_MAP[name]?.account_code || COA_KAS;
 
 // Map kategori → debit COA (when cash out)
 const KATEGORI_COA = {
-  'BELANJA_BARANG_VENDOR':    COA_INVENTORY,  // Dr Persediaan
+  'BELANJA_BARANG_VENDOR':    '5-1000',       // Dr HPP (instead of COA_INVENTORY)
   'GAJI_OPERASIONAL_KARYAWAN':'6-1000',       // Dr Beban Gaji
   'MARKETING':                '6-1300',
   'KENDARAAN':                '6-1400',
@@ -132,9 +169,10 @@ async function seedTable(table, data) {
 // BUILD SEED DATA
 // ============================================================
 
-// --- 0. Missing COA (BRI) ---
+// --- 0. Missing COA (BRI, Clearing) ---
 const missingCoas = [
-  { id: 'coa-1-1400', account_code: '1-1400', account_name: 'Bank BRI', account_type: 'Asset' },
+  { id: 'coa-1-4', account_code: '1-1400', account_name: 'Bank BRI', account_type: 'Asset' },
+  { id: 'coa-transfer-clearing', account_code: '1-1999', account_name: 'Transfer Antar Bank (Clearing)', account_type: 'Asset' },
 ];
 
 // --- 1. Bank Accounts ---
@@ -149,6 +187,7 @@ const bankAccounts = D.accounts.map(a => ({
 // --- 2. Clients (from unique customers in receivables) ---
 const clientMap = new Map();
 D.receivables_outstanding.forEach(r => {
+  if (r.customer && r.customer.toUpperCase().includes('FRESH BOX')) return; // Exclude Fresh Box client
   if (!clientMap.has(r.customer)) {
     clientMap.set(r.customer, {
       id: `client-${slug(r.customer)}`,
@@ -165,43 +204,45 @@ D.receivables_outstanding.forEach(r => {
 const clients = Array.from(clientMap.values());
 
 // --- 3. Invoices (241 outstanding) ---
-const invoices = D.receivables_outstanding.map((r, idx) => {
-  const totalAmount = r.nominal_tagihan;
-  const amountPaid = r.sudah_dibayar || 0;
-  const outstanding = r.outstanding;
-  let status = 'Unpaid';
-  if (amountPaid > 0 && amountPaid < totalAmount) status = 'Partial';
-  if (outstanding <= 0) status = 'Paid';
+const invoices = D.receivables_outstanding
+  .filter(r => !(r.customer && r.customer.toUpperCase().includes('FRESH BOX'))) // Exclude Fresh Box invoices
+  .map((r, idx) => {
+    const totalAmount = r.nominal_tagihan;
+    const amountPaid = r.sudah_dibayar || 0;
+    const outstanding = r.outstanding;
+    let status = 'Unpaid';
+    if (amountPaid > 0 && amountPaid < totalAmount) status = 'Partial';
+    if (outstanding <= 0) status = 'Paid';
 
-  // Build payments array from "tanggal_bayar_partial" if any
-  const payments = [];
-  if (r.tanggal_bayar_partial && amountPaid > 0) {
-    payments.push({
-      id: `pay-${slug(r.customer)}-${idx}`,
-      date: isoDate(r.tanggal_bayar_partial),
-      amount: amountPaid,
-      bankAccountId: 'bank-bca', // unknown, default
-      note: 'Partial payment (imported)',
-    });
-  }
+    // Build payments array from "tanggal_bayar_partial" if any
+    const payments = [];
+    if (r.tanggal_bayar_partial && amountPaid > 0) {
+      payments.push({
+        id: `pay-${slug(r.customer)}-${idx}`,
+        date: isoDate(r.tanggal_bayar_partial),
+        amount: amountPaid,
+        bankAccountId: 'bank-bca', // unknown, default
+        note: 'Partial payment (imported)',
+      });
+    }
 
-  return {
-    id: `inv-import-${String(idx + 1).padStart(4, '0')}`,
-    sales_order_id: null,
-    sales_order_ids: [],
-    is_consolidated: false,
-    consolidated_order_numbers: [],
-    client_id: `client-${slug(r.customer)}`,
-    issue_date: isoDate(r.tanggal_invoice),
-    due_date: isoDate(r.jatuh_tempo),
-    total_amount: totalAmount,
-    amount_paid: amountPaid,
-    status,
-    payments,
-    paid_date: status === 'Paid' ? isoDate(r.tanggal_bayar_partial) || isoDate(CUTOFF) : null,
-    superseded_by_invoice_id: null,
-  };
-});
+    return {
+      id: `inv-import-${String(idx + 1).padStart(4, '0')}`,
+      sales_order_id: null,
+      sales_order_ids: [],
+      is_consolidated: false,
+      consolidated_order_numbers: [],
+      client_id: `client-${slug(r.customer)}`,
+      issue_date: isoDate(r.tanggal_invoice),
+      due_date: isoDate(r.jatuh_tempo),
+      total_amount: totalAmount,
+      amount_paid: amountPaid,
+      status,
+      payments,
+      paid_date: status === 'Paid' ? isoDate(r.tanggal_bayar_partial) || isoDate(CUTOFF) : null,
+      superseded_by_invoice_id: null,
+    };
+  });
 
 // --- 4. Vendors (from payables_vendor + suppliers in purchases) ---
 const vendorMap = new Map();
@@ -234,8 +275,20 @@ const vendors = Array.from(vendorMap.values());
 const vendorBills = [];
 
 // 5a. Estimated outstanding per supplier (single aggregate bill each)
+const allowedSourcingVendors = {
+  'AA UTOM': 20161400,
+  'ALDIANSYAH': 25191050,
+  'KEVIN': 26453500,
+  'PESEK': 3960000,
+  'SUMINTO': 807000,
+  'TOKO ERNI': 42992000,
+  'TOKO OMO': 1120000
+};
+
 D.payables_vendor_estimate.forEach(v => {
-  if (!v.estimasi_hutang_outstanding || v.estimasi_hutang_outstanding <= 0) return;
+  const supplierKey = v.supplier.trim().toUpperCase();
+  if (allowedSourcingVendors[supplierKey] === undefined) return;
+  const outstandingAmount = allowedSourcingVendors[supplierKey];
   vendorBills.push({
     id: `vb-est-${slug(v.supplier)}`,
     bill_number: `EST-MEI-${slug(v.supplier).toUpperCase().slice(0, 8)}`,
@@ -245,7 +298,7 @@ D.payables_vendor_estimate.forEach(v => {
     due_date: isoDate('2026-06-15'),
     description: `Estimasi hutang belanja Mei 1-20 (belanja ${v.belanja_mei_1_20}, bayar ${v.bayar_mei_1_20})`,
     category: 'Bahan Baku',
-    total_amount: v.estimasi_hutang_outstanding,
+    total_amount: outstandingAmount,
     amount_paid: 0,
     status: 'Unpaid',
     payments: [],
@@ -301,8 +354,14 @@ vendorBills.push({
   created_by: 'import',
 });
 
-// --- 6. Cash Transactions (441) ---
-const cashTransactions = D.transactions_mei.map((t, idx) => {
+// --- 6. Cash Transactions (non-zero transactions only) ---
+const validTransactionsMei = D.transactions_mei.filter(t => {
+  const masuk = Number(t.kas_masuk || 0);
+  const keluar = Number(t.kas_keluar || 0);
+  return masuk > 0 || keluar > 0;
+});
+
+const cashTransactions = validTransactionsMei.map((t, idx) => {
   const bankId = BANK_MAP[t.akun]?.id || BANK_MAP['KAS'].id;
   const type = (t.kas_masuk && t.kas_masuk > 0) ? 'In' : 'Out';
   const amount = type === 'In' ? t.kas_masuk : t.kas_keluar;
@@ -331,16 +390,14 @@ const openingId = `je-opening-2026-04-30`;
 if (!SKIP_JE) {
   const sumSaldoAwal = D.accounts.reduce((s, a) => s + a.saldo_awal_mei, 0);
 
-  // AR opening = receivables that existed before May 1
+  // AR opening = receivables that existed before May 1 (excluding Fresh Box)
   const arOpening = D.receivables_outstanding
-    .filter(r => r.tanggal_invoice < '2026-05-01')
+    .filter(r => r.tanggal_invoice < '2026-05-01' && !(r.customer && r.customer.toUpperCase().includes('FRESH BOX')))
     .reduce((s, r) => s + r.nominal_tagihan, 0);
 
-  // AP opening = vendor estimate outstanding (rough, since this is at cutoff, but use as proxy)
-  // Better: assume AP opening = 0 and build up via May transactions. But we don't have JE per
-  // vendor bill creation. Use vendor estimate as opening-ish (this is approximate.)
-  const apOpening = D.payables_vendor_estimate.reduce((s, v) => s + (v.estimasi_hutang_outstanding || 0), 0);
-  const personalOpening = D.payables_personal.reduce((s, p) => s + p.total_outstanding, 0);
+  // AP opening = sourcing vendors (196,038,303.00) + personal payables (3,580,000.00)
+  const apOpening = 199618303;
+  const personalOpening = 0; // Included in apOpening (2-1000)
   // Angel = 0 at Apr 30, will be added when 5 Mei txn hits
 
   const debits = [];
@@ -370,33 +427,50 @@ if (!SKIP_JE) {
     reference_id: 'import-2026-05',
   });
   debits.forEach((d, i) => journalLines.push({
-    id: `${openingId}-d${i}`, journal_entry_id: openingId, account_id: d.coa, debit_amount: d.amount, credit_amount: 0,
+    id: `${openingId}-d${i}`, journal_entry_id: openingId, account_id: getCoaId(d.coa), debit_amount: d.amount, credit_amount: 0,
   }));
   credits.forEach((c, i) => journalLines.push({
-    id: `${openingId}-c${i}`, journal_entry_id: openingId, account_id: c.coa, debit_amount: 0, credit_amount: c.amount,
+    id: `${openingId}-c${i}`, journal_entry_id: openingId, account_id: getCoaId(c.coa), debit_amount: 0, credit_amount: c.amount,
   }));
 }
 
 // 7b. JE per cash transaction
 if (!SKIP_JE) {
-  D.transactions_mei.forEach((t, idx) => {
+  validTransactionsMei.forEach((t, idx) => {
     const txId = `tx-import-${String(idx + 1).padStart(4, '0')}`;
     const jeId = `je-${txId}`;
     const bankCOA = bankCoa(t.akun);
     const cashIn = t.kas_masuk > 0;
     const amount = cashIn ? t.kas_masuk : t.kas_keluar;
-    const kategori = t.kategori || 'LAINNYA';
-
-    let drCOA, crCOA;
-    let extraNote = '';
-
-    if (kategori === 'TRANSFER_ANTAR_BANK') {
-      // Skip: hard to know counterparty bank. Generate a self-balancing JE: Dr bank-X Cr bank-X (no-op).
-      // Skip JE for transfers — too noisy.
-      return;
+    
+    let kategori = t.kategori || 'LAINNYA';
+    // Fix miscategorized transfer
+    if (t.keterangan && t.keterangan.includes('Simpan Fixed Cost Disma Ke Mandiri')) {
+      kategori = 'TRANSFER_ANTAR_BANK';
     }
 
-    if (cashIn) {
+    const isFreshBox = t.keterangan && t.keterangan.toUpperCase().includes('FRESH BOX');
+
+    let drCOA, crCOA;
+
+    if (isFreshBox) {
+      // Net Method for pass-through project: map all Fresh Box cash flows to clearing account
+      if (cashIn) {
+        drCOA = bankCOA;
+        crCOA = '1-1999'; // Transfer Clearing
+      } else {
+        drCOA = '1-1999'; // Transfer Clearing
+        crCOA = bankCOA;
+      }
+    } else if (kategori === 'TRANSFER_ANTAR_BANK') {
+      if (cashIn) {
+        drCOA = bankCOA;
+        crCOA = '1-1999';
+      } else {
+        drCOA = '1-1999';
+        crCOA = bankCOA;
+      }
+    } else if (cashIn) {
       // Money in: Dr Bank, Cr {something}
       drCOA = bankCOA;
       if (kategori === 'PEMASUKAN_PIUTANG') crCOA = COA_AR;
@@ -406,8 +480,22 @@ if (!SKIP_JE) {
     } else {
       // Money out: Dr {expense/AP/loan}, Cr Bank
       crCOA = bankCOA;
-      if (kategori === 'PENGEMBALIAN_INVESTOR') drCOA = COA_LOAN_ANGEL;
-      else drCOA = KATEGORI_COA[kategori] || '6-9000';
+      if (kategori === 'PENGEMBALIAN_INVESTOR') {
+        drCOA = COA_LOAN_ANGEL;
+      } else if (kategori === 'PEMASUKAN_PIUTANG') {
+        // Fix Fresh Box collection cash outflow bug: map to HPP (fallback, but shouldn't hit with isFreshBox check)
+        drCOA = '5-1000';
+      } else if (kategori === 'BELANJA_BARANG_VENDOR') {
+        const desc = (t.keterangan || '').toLowerCase();
+        const isAdvance = desc.includes('uang belanja') && (desc.includes('hilman') || desc.includes('bagus') || desc.includes('zaki'));
+        if (isAdvance) {
+          drCOA = COA_KAS; // '1-1000' (Kas Tunai/Petty Cash advance)
+        } else {
+          drCOA = COA_AP;  // '2-1000' (Accounts Payable payment)
+        }
+      } else {
+        drCOA = KATEGORI_COA[kategori] || '6-9000';
+      }
     }
 
     journalEntries.push({
@@ -418,10 +506,206 @@ if (!SKIP_JE) {
       reference_id: txId,
     });
     journalLines.push({
-      id: `${jeId}-d`, journal_entry_id: jeId, account_id: drCOA, debit_amount: amount, credit_amount: 0,
+      id: `${jeId}-d`, journal_entry_id: jeId, account_id: getCoaId(drCOA), debit_amount: amount, credit_amount: 0,
     });
     journalLines.push({
-      id: `${jeId}-c`, journal_entry_id: jeId, account_id: crCOA, debit_amount: 0, credit_amount: amount,
+      id: `${jeId}-c`, journal_entry_id: jeId, account_id: getCoaId(crCOA), debit_amount: 0, credit_amount: amount,
+    });
+  });
+
+  // 7c. JE per May invoice (recognized as Sales Revenue in May)
+  invoices.forEach((inv) => {
+    if (inv.issue_date && inv.issue_date >= '2026-05-01') {
+      const jeId = `je-sales-${inv.id}`;
+      journalEntries.push({
+        id: jeId,
+        transaction_date: inv.issue_date,
+        description: `Recognize May sales revenue for invoice ${inv.id}`,
+        reference_type: 'Invoice',
+        reference_id: inv.id,
+      });
+      journalLines.push({
+        id: `${jeId}-d`,
+        journal_entry_id: jeId,
+        account_id: getCoaId(COA_AR), // '1-2000' (Piutang Usaha)
+        debit_amount: inv.total_amount,
+        credit_amount: 0,
+      });
+      journalLines.push({
+        id: `${jeId}-c`,
+        journal_entry_id: jeId,
+        account_id: getCoaId(COA_REVENUE), // '4-1000' (Sales Revenue)
+        debit_amount: 0,
+        credit_amount: inv.total_amount,
+      });
+    }
+  });
+
+  // 7d. JE to recognize Fresh Box project net fee (Net Method)
+  const feeJeId = 'je-freshbox-fee';
+  const feeAmount = 1717881;
+  journalEntries.push({
+    id: feeJeId,
+    transaction_date: isoDate('2026-05-20'),
+    description: 'Recognize Fresh Box net project fee (Net Method)',
+    reference_type: 'Manual',
+    reference_id: 'freshbox-fee-2026-05',
+  });
+  journalLines.push({
+    id: `${feeJeId}-d`,
+    journal_entry_id: feeJeId,
+    account_id: getCoaId('1-1999'), // Transfer Clearing
+    debit_amount: feeAmount,
+    credit_amount: 0,
+  });
+  journalLines.push({
+    id: `${feeJeId}-c`,
+    journal_entry_id: feeJeId,
+    account_id: getCoaId('4-2000'), // Pendapatan Lain-lain
+    debit_amount: 0,
+    credit_amount: feeAmount,
+  });
+
+  // 7e. May Purchases Journal Entry
+  const hppJeId = 'je-may-hpp';
+  journalEntries.push({
+    id: hppJeId,
+    transaction_date: isoDate('2026-05-20'),
+    description: 'Manual JE: May Sourcing Purchases (HPP)',
+    reference_type: 'Manual',
+    reference_id: 'may-hpp-2026-05',
+  });
+  journalLines.push({
+    id: `${hppJeId}-d`,
+    journal_entry_id: hppJeId,
+    account_id: getCoaId('5-1000'), // HPP
+    debit_amount: 388519296.00,
+    credit_amount: 0,
+  });
+  journalLines.push({
+    id: `${hppJeId}-c`,
+    journal_entry_id: hppJeId,
+    account_id: getCoaId('2-1000'), // Accounts Payable
+    debit_amount: 0,
+    credit_amount: 388519296.00,
+  });
+
+  // 7f. Sourcing Settlement & OPEX Journal Entry
+  const settlementJeId = 'je-sourcing-settlement';
+  journalEntries.push({
+    id: settlementJeId,
+    transaction_date: isoDate('2026-05-20'),
+    description: 'Manual JE: Sourcing Settlement & May OPEX',
+    reference_type: 'Manual',
+    reference_id: 'sourcing-settlement-2026-05',
+  });
+  // Debits:
+  journalLines.push({
+    id: `${settlementJeId}-d1`,
+    journal_entry_id: settlementJeId,
+    account_id: getCoaId('2-1000'), // Accounts Payable (cash vendor payments)
+    debit_amount: 75174000.00,
+    credit_amount: 0,
+  });
+  journalLines.push({
+    id: `${settlementJeId}-d2`,
+    journal_entry_id: settlementJeId,
+    account_id: getCoaId('6-1400'), // Beban Transportasi & BBM
+    debit_amount: 7458000.00,
+    credit_amount: 0,
+  });
+  journalLines.push({
+    id: `${settlementJeId}-d3`,
+    journal_entry_id: settlementJeId,
+    account_id: getCoaId('6-1000'), // Beban Gaji & Tunjangan
+    debit_amount: 440000.00,
+    credit_amount: 0,
+  });
+  journalLines.push({
+    id: `${settlementJeId}-d4`,
+    journal_entry_id: settlementJeId,
+    account_id: getCoaId('6-9000'), // Beban Operasional Lainnya
+    debit_amount: 6883000.00,
+    credit_amount: 0,
+  });
+  // Credits:
+  journalLines.push({
+    id: `${settlementJeId}-c1`,
+    journal_entry_id: settlementJeId,
+    account_id: getCoaId('1-1000'), // Kas Tunai / Petty Cash (advance usage)
+    debit_amount: 0,
+    credit_amount: 78782000.00,
+  });
+  journalLines.push({
+    id: `${settlementJeId}-c2`,
+    journal_entry_id: settlementJeId,
+    account_id: getCoaId('2-1000'), // Accounts Payable (employee out-of-pocket / reimbursement due)
+    debit_amount: 0,
+    credit_amount: 11173000.00,
+  });
+
+  // 7g. Adjusting Journal Entry for Overlapping April/May Revenue (May 1-3)
+  const adjJeId = 'je-adjusting-revenue-overlap';
+  const overlappingRevenueTxs = [
+    { client: 'BAKMIE TAAT', date: '2026-05-02', po: '89099', invoice: '23952', total: 88250 },
+    { client: 'DAILY BREAD EPICENTRUM', date: '2026-05-02', po: '89092', invoice: '23945', total: 1971440 },
+    { client: 'CENTRAL KITCHEN SEINDONESIA KIAT ANANDA', date: '2026-05-01', po: 'P80066', invoice: '23930', total: 37990000 },
+    { client: 'CENTRAL KITCHEN SEINDONESIA KIAT ANANDA', date: '2026-05-02', po: 'P80067', invoice: '23944', total: 34625000 },
+    { client: 'CENTRAL KITCHEN SEINDONESIA KIAT ANANDA', date: '2026-05-03', po: 'P80068', invoice: '23958', total: 32220000 },
+    { client: 'BAPAK DAMAR', date: '2026-05-01', po: '89087', invoice: '23934', total: 146250 },
+    { client: 'MEAT A MEAT STEAK', date: '2026-05-01', po: '89089', invoice: '23936', total: 1010000 },
+    { client: 'MEAT A MEAT STEAK', date: '2026-05-02', po: '89100', invoice: '23960', total: 650000 },
+    { client: 'PEPR BURGER SENAYAN', date: '2026-05-01', po: '89091', invoice: '23938', total: 905000 },
+    { client: 'PEPR BURGER SENAYAN', date: '2026-05-02', po: '89097', invoice: '23950', total: 640000 },
+    { client: 'SHOTS COFFEE', date: '2026-05-02', po: '89096', invoice: '23949', total: 2433000 },
+    { client: 'VIETNAMESE PHO 24 NOODLE', date: '2026-05-01', po: 'PO260400193/001', invoice: '23925', total: 1702000 },
+    { client: 'PEPR BURGER UF CIPETE', date: '2026-05-01', po: '89090', invoice: '23937', total: 603000 },
+    { client: 'PEPR BURGER UF CIPETE', date: '2026-05-02', po: '89098', invoice: '23951', total: 145000 },
+    { client: 'NARASA', date: '2026-05-01', po: '89088', invoice: '23935', total: 1108500 },
+    { client: 'KEDAI MIE TJAP 1000 TAHUN Senopati', date: '2026-05-01', po: 'PO202604300001', invoice: '23932', total: 105500 },
+    { client: 'KEDAI MIE TJAP 1000 TAHUN SCBD', date: '2026-05-01', po: 'PO202604300001', invoice: '23933', total: 311000 },
+    { client: 'KEDAI MIE TJAP 1000 TAHUN BINTARO', date: '2026-05-01', po: 'PO202604300003', invoice: '23931', total: 91000 },
+    { client: 'THE HALAL GUYS SMB', date: '2026-05-02', po: '89095', invoice: '23948', total: 1118160 },
+    { client: 'HOLYCOW BY CHEF AFIT - CITOS', date: '2026-05-01', po: 'PO2026042800035', invoice: '23928', total: 260000 },
+    { client: 'HOLYCOW BY CHEF AFIT - CIBUBUR', date: '2026-05-02', po: 'PO2026042800067', invoice: '23942', total: 260000 },
+    { client: 'HOLYCOW BY CHEF AFIT - ALAM SUTERA', date: '2026-05-01', po: 'PO2026042900068', invoice: '23926', total: 286000 },
+    { client: 'HOLYCOW BY CHEF AFIT - KEBON JERUK', date: '2026-05-01', po: 'PO202604290066', invoice: '23927', total: 344000 },
+    { client: 'HOLYCOW BY CHEF AFIT - KALIMALANG', date: '2026-05-02', po: 'PO202604300008', invoice: '23940', total: 260000 },
+    { client: 'HOLYCOW BY CHEF AFIT - GADING SERPONG', date: '2026-05-02', po: 'PO2026043000031', invoice: '23941', total: 130000 },
+    { client: 'HOLYCOW BY CHEF AFIT - WOLTER', date: '2026-05-01', po: 'PO202604300024', invoice: '23929', total: 130000 },
+    { client: 'HOLYCOW BY CHEF AFIT - WOLTER', date: '2026-05-02', po: 'PO202604290079', invoice: '23939', total: 740000 },
+    { client: 'HOLYCOW BY CHEF AFIT - MAMPANG', date: '2026-05-02', po: 'PO202604300053', invoice: '23943', total: 260000 },
+    { client: 'SLICED PIZZA PONDOK PINANG', date: '2026-05-02', po: '89094', invoice: '23947', total: 132000 },
+    { client: 'SLICED PIZZA CIBIS', date: '2026-05-02', po: '89093', invoice: '23946', total: 1368500 }
+  ];
+
+  const totalAdj = overlappingRevenueTxs.reduce((sum, tx) => sum + tx.total, 0);
+
+  journalEntries.push({
+    id: adjJeId,
+    transaction_date: isoDate('2026-05-01'),
+    description: 'Adjusting Journal Entry: Overlapping April-May revenue recognized in May',
+    reference_type: 'Manual',
+    reference_id: 'revenue-overlap-2026-05',
+  });
+
+  // Debit Equity (3-1000)
+  journalLines.push({
+    id: `${adjJeId}-d`,
+    journal_entry_id: adjJeId,
+    account_id: getCoaId(COA_EQUITY), // '3-1000'
+    debit_amount: totalAdj,
+    credit_amount: 0,
+  });
+
+  // Credit Revenue (4-1000) distributed per client/transaction
+  overlappingRevenueTxs.forEach((tx, idx) => {
+    journalLines.push({
+      id: `${adjJeId}-c${idx}`,
+      journal_entry_id: adjJeId,
+      account_id: getCoaId(COA_REVENUE), // '4-1000'
+      debit_amount: 0,
+      credit_amount: tx.total,
     });
   });
 }
@@ -445,6 +729,21 @@ console.log();
 // ============================================================
 (async () => {
   try {
+    console.log('=== CLEANING OLD IMPORTED ENTRIES ===');
+    if (!DRY) {
+      const { error: jlErr } = await supabase.from('journal_lines').delete().like('id', 'je-%');
+      if (jlErr) console.warn('  ⚠️  Warning clearing journal_lines:', jlErr.message);
+      
+      const { error: jeErr } = await supabase.from('journal_entries').delete().like('id', 'je-%');
+      if (jeErr) console.warn('  ⚠️  Warning clearing journal_entries:', jeErr.message);
+
+      const { error: txErr } = await supabase.from('cash_transactions').delete().like('id', 'tx-import-%');
+      if (txErr) console.warn('  ⚠️  Warning clearing cash_transactions:', txErr.message);
+
+      const { error: invErr } = await supabase.from('invoices').delete().like('id', 'inv-import-%');
+      if (invErr) console.warn('  ⚠️  Warning clearing invoices:', invErr.message);
+    }
+
     console.log('=== UPSERTING ===');
     await seedTable('coas', missingCoas);
     await seedTable('bank_accounts', bankAccounts);

@@ -70,8 +70,7 @@ export async function GET(request: Request) {
 
             if (error) {
               if (isMissingTableError(error)) return [];
-              console.error(`Error fetching ${table}:`, error.message);
-              return allData; // Return whatever we got so far
+              throw new Error(`Error fetching ${table}: ${error.message}`);
             }
             
             if (!data || data.length === 0) break;
@@ -84,7 +83,7 @@ export async function GET(request: Request) {
           return allData;
         } catch (e) {
           console.error(`Fetch exception for ${table}:`, e);
-          return [];
+          throw e;
         }
     };
 

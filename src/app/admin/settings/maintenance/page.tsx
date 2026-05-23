@@ -11,7 +11,13 @@ import {
   ShieldAlert, 
   Database, 
   RotateCcw,
-  CheckCircle2
+  CheckCircle2,
+  Lock,
+  Unlock,
+  Download,
+  Upload,
+  ShieldCheck,
+  Loader2
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAppStore, clearAllOperationalCaches } from "@/lib/store"
@@ -78,6 +84,102 @@ export default function MaintenancePage() {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
   const [isDoubleConfirmOpen, setIsDoubleConfirmOpen] = useState(false)
   const [resetInput, setResetInput] = useState("")
+
+  const [isBackingUp, setIsBackingUp] = useState(false)
+  const [isRestoring, setIsRestoring] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
+
+  const handleLockData = async () => {
+    if (!confirm("Apakah Anda yakin ingin MENGUNCI data saat ini sebagai Safety Recovery Point? Data lama yang di-lock sebelumnya akan tertimpa.")) return
+    setIsBackingUp(true)
+    try {
+      const res = await fetch('/api/db/backup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'lock' })
+      })
+      const result = await res.json()
+      if (res.ok) {
+        toast.success("Berhasil mengunci data saat ini!")
+      } else {
+        toast.error("Gagal mengunci data: " + result.error)
+      }
+    } catch (e: any) {
+      toast.error("Gagal: " + e.message)
+    } finally {
+      setIsBackingUp(false)
+    }
+  }
+
+  const handleRestoreData = async () => {
+    if (!confirm("PENTING: Semua data transaksi saat ini akan dihapus dan dikembalikan ke Safety Recovery Point. Yakin ingin melanjutkan?")) return
+    setIsRestoring(true)
+    try {
+      const res = await fetch('/api/db/backup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'restore' })
+      })
+      const result = await res.json()
+      if (res.ok) {
+        clearAllOperationalCaches()
+        toast.success("Berhasil memulihkan database ke Safety Recovery Point!")
+        setTimeout(() => window.location.reload(), 1500)
+      } else {
+        toast.error("Gagal memulihkan data: " + result.error)
+      }
+    } catch (e: any) {
+      toast.error("Gagal: " + e.message)
+    } finally {
+      setIsRestoring(false)
+    }
+  }
+
+  const handleExportBackup = async () => {
+    setIsExporting(true)
+    try {
+      window.open('/api/db/backup', '_blank')
+      toast.success("Ekspor backup data berhasil diunduh.")
+    } catch (e: any) {
+      toast.error("Gagal mengekspor data: " + e.message)
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  const handleImportBackup = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    
+    if (!confirm("PENTING: File backup yang diunggah akan menimpa seluruh database Anda. Tindakan ini menghapus data saat ini. Lanjutkan?")) return
+    
+    setIsUploading(true)
+    try {
+      const text = await file.text()
+      const backupData = JSON.parse(text)
+      
+      const res = await fetch('/api/db/backup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'restore_upload', backupData })
+      })
+      const result = await res.json()
+      if (res.ok) {
+        clearAllOperationalCaches()
+        toast.success("Berhasil mengimpor dan memulihkan database dari file backup!")
+        setTimeout(() => window.location.reload(), 1500)
+      } else {
+        toast.error("Gagal mengimpor data: " + result.error)
+      }
+    } catch (e: any) {
+      toast.error("Gagal memproses file backup: " + e.message)
+    } finally {
+      setIsUploading(false)
+      event.target.value = ""
+    }
+  }
+
   const toggleCategory = (title: string) => {
     setSelectedCategories(prev => 
       prev.includes(title) 
@@ -224,6 +326,89 @@ export default function MaintenancePage() {
             </div>
          </Card>
       </div>
+
+      {/* Data Lock & Safety Backup Section */}
+      <Card className="liquid-card border-none bg-white shadow-xl overflow-hidden">
+        <CardHeader className="p-8 border-b bg-slate-50/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-emerald-100 rounded-2xl flex items-center justify-center">
+              <ShieldCheck className="w-6 h-6 text-emerald-600" />
+            </div>
+            <div>
+               <CardTitle className="text-xl font-black text-slate-900">Data Safety Lock & Backup</CardTitle>
+               <CardDescription className="text-xs font-bold text-slate-400">Lock data saat ini atau restore data dari cadangan yang aman.</CardDescription>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="file"
+              accept=".json"
+              id="import-backup-file"
+              className="hidden"
+              onChange={handleImportBackup}
+            />
+            <Button
+              variant="outline"
+              disabled={isUploading}
+              className="border-slate-200 hover:bg-slate-50 rounded-2xl h-12 px-4 font-black uppercase text-[10px] tracking-widest"
+              onClick={() => document.getElementById('import-backup-file')?.click()}
+            >
+              {isUploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+              Upload Backup
+            </Button>
+            <Button
+              variant="outline"
+              disabled={isExporting}
+              className="border-slate-200 hover:bg-slate-50 rounded-2xl h-12 px-4 font-black uppercase text-[10px] tracking-widest"
+              onClick={handleExportBackup}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Download JSON
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="p-8">
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="flex flex-col p-6 rounded-3xl bg-slate-50 border border-slate-100 justify-between">
+              <div>
+                <h4 className="font-black text-slate-900 mb-2 uppercase text-sm flex items-center gap-2">
+                  <Lock className="w-4 h-4 text-emerald-600" /> Lock Current Data
+                </h4>
+                <p className="text-xs font-medium text-slate-500 mb-6">
+                  Simpan seluruh data saat ini (SKU/Produk, Client, Vendor, PO, Invoices, Transaksi Bank, dll.) sebagai Safety Point. Ini akan menimpa kunci lama.
+                </p>
+              </div>
+              <Button
+                disabled={isBackingUp}
+                onClick={handleLockData}
+                className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-emerald-600/10"
+              >
+                {isBackingUp ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Lock className="w-4 h-4 mr-2" />}
+                Kunci Data Sekarang (Lock)
+              </Button>
+            </div>
+
+            <div className="flex flex-col p-6 rounded-3xl bg-rose-50/50 border border-rose-100 justify-between">
+              <div>
+                <h4 className="font-black text-slate-900 mb-2 uppercase text-sm flex items-center gap-2">
+                  <Unlock className="w-4 h-4 text-rose-600" /> Restore Locked Data
+                </h4>
+                <p className="text-xs font-medium text-slate-500 mb-6">
+                  Wipe database saat ini dan pulihkan ke titik yang dikunci (Locked Point). Seluruh transaksi baru yang dibuat setelah penguncian akan dihapus.
+                </p>
+              </div>
+              <Button
+                disabled={isRestoring}
+                onClick={handleRestoreData}
+                className="w-full h-12 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-rose-600/10"
+              >
+                {isRestoring ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RotateCcw className="w-4 h-4 mr-2" />}
+                Pulihkan Data (Restore)
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card className="liquid-card border-none bg-white shadow-xl overflow-hidden">
         <CardHeader className="p-8 border-b bg-slate-50/50">

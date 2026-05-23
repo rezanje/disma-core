@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { 
-  Plus, Target, ListChecks, CheckCircle2, ChevronRight, BarChart 
+  Plus, Target, ListChecks, CheckCircle2, ChevronRight, BarChart, Pencil, Trash2 
 } from "lucide-react"
 import { 
   Dialog, DialogContent, DialogHeader, DialogTitle, 
@@ -62,17 +62,40 @@ export default function OkrFrameworkPage() {
   const employees = useAppStore(state => state.employees) || []
   const addOkr = useAppStore(state => state.addOkr)
   const updateOkr = useAppStore(state => state.updateOkr)
+  const deleteOkr = useAppStore(state => state.deleteOkr)
+  const deleteKeyResult = useAppStore(state => state.deleteKeyResult)
 
   const [isAddOkrOpen, setIsAddOkrOpen] = useState(false)
   const [newOkr, setNewOkr] = useState<Partial<OkrObjective>>({
     title: "", description: "", period: "Quarter 1 - 2026", ownerId: ""
   })
 
+  const [isEditOkrOpen, setIsEditOkrOpen] = useState(false)
+  const [editingOkr, setEditingOkr] = useState<Partial<OkrObjective> | null>(null)
+  const [isDeleteOkrOpen, setIsDeleteOkrOpen] = useState(false)
+  const [deletingOkrId, setDeletingOkrId] = useState<string | null>(null)
+
   const [isAddKrOpen, setIsAddKrOpen] = useState(false)
   const [activeObjectiveId, setActiveObjectiveId] = useState<string | null>(null)
   const [newKr, setNewKr] = useState<Partial<OkrKeyResult>>({
     title: "", targetValue: 100, currentValue: 0, unit: "%", linkedKpiId: ""
   })
+
+  const handleEditObjective = () => {
+    if (!editingOkr || !editingOkr.id || !editingOkr.title) {
+      toast.error("Judul Objective required")
+      return;
+    }
+    updateOkr(editingOkr.id, {
+      title: editingOkr.title,
+      description: editingOkr.description,
+      period: editingOkr.period,
+      ownerId: editingOkr.ownerId
+    })
+    setIsEditOkrOpen(false)
+    setEditingOkr(null)
+    toast.success("Objective updated successfully")
+  }
 
   // Create Parent Objective
   const handleAddObjective = () => {
@@ -210,6 +233,28 @@ export default function OkrFrameworkPage() {
                           <div className="flex items-center gap-3">
                               <h3 className="text-xl font-black text-slate-800">{okr.title}</h3>
                               <span className="text-[10px] uppercase font-black px-2 py-0.5 rounded-full bg-slate-200 text-slate-600">{okr.period}</span>
+                              <div className="flex items-center gap-1 ml-auto md:ml-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={() => {
+                                    setEditingOkr(okr);
+                                    setIsEditOkrOpen(true);
+                                  }}
+                                  className="text-slate-400 hover:text-indigo-600 p-1 rounded-lg hover:bg-slate-200/50 transition-colors"
+                                  title="Edit Objective"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setDeletingOkrId(okr.id);
+                                    setIsDeleteOkrOpen(true);
+                                  }}
+                                  className="text-slate-400 hover:text-rose-600 p-1 rounded-lg hover:bg-slate-200/50 transition-colors"
+                                  title="Hapus Objective"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                           </div>
                           <p className="text-xs text-slate-500 font-medium mt-1 pr-6">{okr.description}</p>
                        </div>
@@ -261,7 +306,7 @@ export default function OkrFrameworkPage() {
                                       </div>
                                    </div>
                                    
-                                   <div className="shrink-0 flex items-center gap-6 min-w-[250px]">
+                                   <div className="shrink-0 flex items-center gap-4 min-w-[280px]">
                                       <div className="w-full">
                                          <div className="flex justify-end gap-2 text-xs font-bold mb-1">
                                             <span className="text-slate-500 font-medium">{kr.currentValue} / {kr.targetValue}</span>
@@ -274,6 +319,18 @@ export default function OkrFrameworkPage() {
                                             />
                                          </div>
                                       </div>
+                                      <button
+                                        onClick={() => {
+                                          if (window.confirm("Apakah Anda yakin ingin menghapus Key Result ini?")) {
+                                            deleteKeyResult(okr.id, kr.id);
+                                            toast.success("Key Result berhasil dihapus");
+                                          }
+                                        }}
+                                        className="text-slate-300 hover:text-rose-500 p-1.5 rounded-lg hover:bg-slate-100 transition-colors shrink-0"
+                                        title="Hapus Key Result"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
                                    </div>
                                 </div>
                              )
@@ -331,7 +388,27 @@ export default function OkrFrameworkPage() {
                     <select 
                         className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-medium focus:ring-emerald-500 bg-white"
                         value={newKr.linkedKpiId} 
-                        onChange={e => setNewKr({...newKr, linkedKpiId: e.target.value})}
+                        onChange={e => {
+                           const val = e.target.value;
+                           if (val) {
+                             const kpi = kpis.find(k => k.id === val);
+                             if (kpi) {
+                               setNewKr({
+                                 ...newKr,
+                                 linkedKpiId: val,
+                                 title: newKr.title || kpi.title,
+                                 targetValue: kpi.targetValue,
+                                 currentValue: kpi.actualValue,
+                                 unit: kpi.unit
+                               });
+                             }
+                           } else {
+                             setNewKr({
+                               ...newKr,
+                               linkedKpiId: "",
+                             });
+                           }
+                         }}
                     >
                        <option value="">(Tidak di link - Progress Update Manual)</option>
                        {kpis.map(kpi => {
@@ -347,6 +424,74 @@ export default function OkrFrameworkPage() {
               </div>
               <DialogFooter>
                  <Button onClick={handleAddKeyResult} className="w-full h-12 rounded-xl bg-slate-900 border-none font-bold text-white shadow-xl hover:bg-slate-800">Assign Strategi KR</Button>
+              </DialogFooter>
+           </DialogContent>
+        </Dialog>
+
+        {/* Modal: Edit Objective */}
+        <Dialog open={isEditOkrOpen} onOpenChange={setIsEditOkrOpen}>
+           <DialogContent className="max-w-md rounded-[2rem]">
+              <DialogHeader>
+                 <DialogTitle className="text-xl font-black">Edit Objective</DialogTitle>
+                 <DialogDescription>Ubah detail goal strategis makro Anda.</DialogDescription>
+              </DialogHeader>
+              {editingOkr && (
+                 <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase text-slate-500">Tujuan Strategis / Goal</Label>
+                       <Input value={editingOkr.title || ""} onChange={e => setEditingOkr({...editingOkr, title: e.target.value})} className="h-11 rounded-xl" />
+                    </div>
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-black uppercase text-slate-500">Keterangan / Deskripsi</Label>
+                       <Input value={editingOkr.description || ""} onChange={e => setEditingOkr({...editingOkr, description: e.target.value})} className="h-11 rounded-xl" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                       <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase text-slate-500">Periode Tayang</Label>
+                          <Input value={editingOkr.period || ""} onChange={e => setEditingOkr({...editingOkr, period: e.target.value})} className="h-11 rounded-xl" />
+                       </div>
+                       <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase text-slate-500">PIC / Owner</Label>
+                          <select 
+                             className="w-full h-11 px-3 rounded-xl border border-slate-200 text-sm font-medium focus:ring-indigo-500 bg-white"
+                             value={editingOkr.ownerId || ""} 
+                             onChange={e => setEditingOkr({...editingOkr, ownerId: e.target.value})}
+                          >
+                             <option value="CEO">CEO</option>
+                             <option value="CMO">CMO</option>
+                             <option value="Super Admin">Super Admin</option>
+                          </select>
+                       </div>
+                    </div>
+                 </div>
+              )}
+              <DialogFooter>
+                 <Button onClick={handleEditObjective} className="w-full h-12 rounded-xl bg-indigo-600 font-bold text-white hover:bg-indigo-700">Simpan Perubahan</Button>
+              </DialogFooter>
+           </DialogContent>
+        </Dialog>
+
+        {/* Modal: Delete Objective Confirmation */}
+        <Dialog open={isDeleteOkrOpen} onOpenChange={setIsDeleteOkrOpen}>
+           <DialogContent className="max-w-sm rounded-[2rem]">
+              <DialogHeader>
+                 <DialogTitle className="text-rose-600 flex items-center gap-2 font-black">
+                    <Trash2 className="w-5 h-5" /> Hapus Objective?
+                 </DialogTitle>
+                 <DialogDescription className="text-slate-500 text-xs mt-2">
+                    Tindakan ini tidak bisa dibatalkan. Menghapus Objective ini juga akan menghapus seluruh Key Results yang ada di bawahnya.
+                 </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="flex gap-2 mt-4">
+                 <Button variant="outline" onClick={() => setIsDeleteOkrOpen(false)} className="rounded-xl flex-1 h-11">Batal</Button>
+                 <Button onClick={() => {
+                    if (deletingOkrId) {
+                      deleteOkr(deletingOkrId);
+                      toast.success("Objective berhasil dihapus");
+                      setIsDeleteOkrOpen(false);
+                      setDeletingOkrId(null);
+                    }
+                 }} className="rounded-xl flex-1 bg-rose-600 hover:bg-rose-700 text-white font-bold h-11">Hapus</Button>
               </DialogFooter>
            </DialogContent>
         </Dialog>

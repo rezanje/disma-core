@@ -5,7 +5,7 @@ import {
   PurchaseItem, Delivery, Invoice, ChartOfAccount, JournalEntry, 
   JournalLine, OperationalExpense, User, Vendor, Role, Lead, Announcement, AppTask, AppNotification,
   BankAccount, CashTransaction, Reimbursement, FixedAsset,
-  Employee, SmartKpi, OkrObjective, RolePermissionMap, AccessKey, PendingReturn, RejectedItem, StockMovement, ClientPrice,
+  Employee, SmartKpi, OkrObjective, OkrKeyResult, RolePermissionMap, AccessKey, PendingReturn, RejectedItem, StockMovement, ClientPrice,
   VendorBill, VendorBillPayment
 } from '@/types';
 import { COA_SEED, CLIENTS_SEED, VENDORS_SEED, MOCK_USERS, KPI_SEED } from './constants';
@@ -212,6 +212,12 @@ const saveLocalCache = (key: string, data: any[]) => {
   try { window.localStorage.setItem(key, JSON.stringify(data)); } catch {}
 };
 
+type CashPostResponse = {
+  transaction?: CashTransaction;
+  bankAccount?: BankAccount;
+  error?: string;
+};
+
 export const clearAllOperationalCaches = () => {
   if (typeof window === 'undefined') return;
   window.localStorage.removeItem(LOCAL_SALES_ORDERS_CACHE_KEY);
@@ -347,8 +353,8 @@ interface AppState {
   payVendorBill: (billId: string, payment: VendorBillPayment) => Promise<void>;
 
   journalEntries: JournalEntry[];
-  addJournalEntry: (entry: JournalEntry) => void;
-  updateJournalEntry: (id: string, updates: Partial<JournalEntry>, newLines: JournalLine[]) => void;
+  addJournalEntry: (entry: JournalEntry) => Promise<void>;
+  updateJournalEntry: (id: string, updates: Partial<JournalEntry>, newLines: JournalLine[]) => Promise<void>;
 
   journalLines: JournalLine[];
   addJournalLine: (line: JournalLine) => Promise<void>;
@@ -381,12 +387,14 @@ interface AppState {
   kpiObjectives: SmartKpi[];
   addKpi: (kpi: SmartKpi) => void;
   updateKpi: (id: string, data: Partial<SmartKpi>) => void;
-  deleteKpi: (id: string) => void;
+  deleteKpi: (id: string) => Promise<void>;
   
   // OKR Framework
   okrObjectives: OkrObjective[];
   addOkr: (okr: OkrObjective) => void;
   updateOkr: (id: string, data: Partial<OkrObjective>) => void;
+  deleteOkr: (id: string) => Promise<void>;
+  deleteKeyResult: (objectiveId: string, krId: string) => Promise<void>;
   
   fixedAssets: FixedAsset[];
   addFixedAsset: (asset: FixedAsset) => void;
@@ -398,9 +406,9 @@ interface AppState {
   addBankAccount: (acc: BankAccount) => void;
   updateBankAccount: (id: string, data: Partial<BankAccount>) => void;
   deleteBankAccount: (id: string) => Promise<void>;
-  updateBankBalance: (id: string, amount: number) => void;
+  updateBankBalance: (id: string, amount: number) => Promise<void>;
   cashTransactions: CashTransaction[];
-  addCashTransaction: (tx: CashTransaction) => void;
+  addCashTransaction: (tx: CashTransaction) => Promise<void>;
   updateCashTransaction: (id: string, updates: Partial<CashTransaction>) => Promise<void>;
   deleteCashTransaction: (id: string) => Promise<void>;
   bulkDeleteCashTransactions: (ids: string[]) => Promise<void>;
@@ -443,6 +451,7 @@ const initialCOAs: ChartOfAccount[] = [
   { id: 'coa-1-2', accountCode: '1-1200', accountName: 'Bank BCA - Utama', accountType: 'Asset' },
   { id: 'coa-1-3', accountCode: '1-1300', accountName: 'Bank Mandiri - Operasional', accountType: 'Asset' },
   { id: 'coa-1-4', accountCode: '1-1400', accountName: 'Bank BRI - Simpanan', accountType: 'Asset' },
+  { id: 'coa-transfer-clearing', accountCode: '1-1999', accountName: 'Transfer Antar Bank (Clearing)', accountType: 'Asset' },
   { id: 'coa-1-5', accountCode: '1-1500', accountName: 'Uang Muka Karyawan (Advance)', accountType: 'Asset' },
   { id: 'coa-1-5-1', accountCode: '1-1510', accountName: 'Kas Operasional Kurir', accountType: 'Asset' },
   { id: 'coa-2', accountCode: '1-2000', accountName: 'Piutang Usaha (Klien)', accountType: 'Asset' },
@@ -793,12 +802,8 @@ export const useAppStore = create<AppState>((set, get) => ({
               // DB is truth.
               mergedBanks = [...data.bankAccounts];
               // Sync local to DB only if we have NEW local banks added during this session
-              localBanks.forEach(lb => {
-                if (!mergedBanks.find(b => b.id === lb.id)) {
-                   // This is likely a bank added in a concurrent tab or just now
-                   mergedBanks.push(lb);
-                }
-              });
+              // We do not append local banks if we have server data.
+              // The server is the absolute truth for bank accounts.
             } else {
               // DB is empty. Check if we have local data from previous sessions
               if (localBanks.length > 0) {
@@ -844,98 +849,97 @@ export const useAppStore = create<AppState>((set, get) => ({
             // Direct Supabase fetch succeeded. Use server data as the single source of truth.
             // This ensures ALL browsers/devices see the exact same data.
 
-            let finalProducts = data.products || [];
-            
-            // --- SELF-REPAIR: Recalculate product stock from StockMovements if mismatched ---
-            if (data.stockMovements && Array.isArray(data.stockMovements) && data.stockMovements.length > 0) {
-              const sm: StockMovement[] = data.stockMovements;
-              finalProducts = finalProducts.map((product: Product) => {
-                const productMovements = sm.filter((m: StockMovement) => m.productId === product.id);
-                if (productMovements.length === 0) return product;
-                const calculatedStock = productMovements.reduce((sum: number, m: StockMovement) => {
-                  return sum + (m.stockDelta || 0);
-                }, 0);
-                if (Math.abs(calculatedStock - (product.currentStock || 0)) > 0.1) {
-                  console.log(`Inventory repair: ${product.name} DB=${product.currentStock} Calc=${calculatedStock}`);
-                  return { ...product, currentStock: Math.max(0, calculatedStock) };
-                }
-                return product;
-              });
+            let finalProducts = get().products;
+            if (data.products !== undefined) {
+              finalProducts = data.products;
+              // --- SELF-REPAIR: Recalculate product stock from StockMovements if mismatched ---
+              if (data.stockMovements && Array.isArray(data.stockMovements) && data.stockMovements.length > 0) {
+                const sm: StockMovement[] = data.stockMovements;
+                finalProducts = finalProducts.map((product: Product) => {
+                  const productMovements = sm.filter((m: StockMovement) => m.productId === product.id);
+                  if (productMovements.length === 0) return product;
+                  const calculatedStock = productMovements.reduce((sum: number, m: StockMovement) => {
+                    return sum + (m.stockDelta || 0);
+                  }, 0);
+                  if (Math.abs(calculatedStock - (product.currentStock || 0)) > 0.1) {
+                    console.log(`Inventory repair: ${product.name} DB=${product.currentStock} Calc=${calculatedStock}`);
+                    return { ...product, currentStock: Math.max(0, calculatedStock) };
+                  }
+                  return product;
+                });
+              }
             }
 
-            // --- SELF-REPAIR: Recalculate bank balances from CashTransactions ---
-            if (data.cashTransactions && Array.isArray(data.cashTransactions) && data.cashTransactions.length > 0) {
-              const txs: CashTransaction[] = data.cashTransactions;
-              mergedBanks = mergedBanks.map((bank: BankAccount) => {
-                const bankTxs = txs.filter((tx: CashTransaction) => tx.bankAccountId === bank.id);
-                if (bankTxs.length === 0) return bank;
-                const calculatedBalance = bankTxs.reduce((sum: number, tx: CashTransaction) => {
-                  return sum + (tx.type === 'In' ? tx.amount : -tx.amount);
-                }, 0);
-                if (Math.abs(calculatedBalance - (bank.balance || 0)) > 1) {
-                  console.log(`Balance repair: ${bank.name} DB=${bank.balance} Calc=${calculatedBalance}`);
-                  return { ...bank, balance: calculatedBalance };
-                }
-                return bank;
-              });
-            }
+            // --- HPP Re-mapping logic ---
 
             // Only update rolePermissions and navConfigs if the server actually provided them
             const finalRolePermissions = hasServerPermissions ? mergedPermissions : get().rolePermissions;
             const finalNavConfigs = (data.navConfigs && Object.keys(data.navConfigs).length > 0) ? data.navConfigs : get().navConfigs;
 
             // --- FINAL STATE UPDATE: SERVER DATA WINS ---
-            set({ 
-              coas: mergedCoas, 
+            const updatedState: Partial<AppState> = {
+              coas: mergedCoas,
               rolePermissions: finalRolePermissions,
               navConfigs: finalNavConfigs,
               bankAccounts: mergedBanks,
               users: mergedUsers,
-              // All operational data: straight from server, no merge
-              clients: data.clients || [],
-              products: finalProducts,
-              salesOrders: data.salesOrders || [],
-              salesOrderItems: data.salesOrderItems || [],
-              purchases: data.purchases || [],
-              purchaseItems: data.purchaseItems || [],
-              cashTransactions: data.cashTransactions || [],
-              journalEntries: data.journalEntries || [],
-              journalLines: data.journalLines || [],
-              invoices: data.invoices || [],
-              vendorBills: data.vendorBills || [],
-              deliveries: data.deliveries || [],
-              leads: data.leads || [],
-              tasks: data.tasks || [],
-              reimbursements: data.reimbursements || [],
-              expenses: data.expenses || [],
-              stockMovements: data.stockMovements || [],
-              clientPrices: data.clientPrices || [],
-              vendors: data.vendors || [],
-              notifications: data.notifications || [],
-              employees: data.employees || [],
-              fixedAssets: data.fixedAssets || [],
-              pendingReturns: data.pendingReturns || [],
-              rejectedItems: data.rejectedItems || [],
-              okrObjectives: data.okrObjectives || [],
-              kpiObjectives: (data.kpiObjectives && data.kpiObjectives.length > 0) ? data.kpiObjectives : KPI_SEED,
-            });
+            };
+
+            const setIfDefined = (key: keyof AppState, val: any) => {
+              if (val !== undefined) {
+                (updatedState as any)[key] = val;
+              }
+            };
+
+            setIfDefined('clients', data.clients);
+            if (data.products !== undefined) updatedState.products = finalProducts;
+            setIfDefined('salesOrders', data.salesOrders);
+            setIfDefined('salesOrderItems', data.salesOrderItems);
+            setIfDefined('purchases', data.purchases);
+            setIfDefined('purchaseItems', data.purchaseItems);
+            setIfDefined('cashTransactions', data.cashTransactions);
+            setIfDefined('journalEntries', data.journalEntries);
+            setIfDefined('journalLines', data.journalLines);
+            setIfDefined('invoices', data.invoices);
+            setIfDefined('vendorBills', data.vendorBills);
+            setIfDefined('deliveries', data.deliveries);
+            setIfDefined('leads', data.leads);
+            setIfDefined('tasks', data.tasks);
+            setIfDefined('reimbursements', data.reimbursements);
+            setIfDefined('expenses', data.expenses);
+            setIfDefined('stockMovements', data.stockMovements);
+            setIfDefined('clientPrices', data.clientPrices);
+            setIfDefined('vendors', data.vendors);
+            setIfDefined('notifications', data.notifications);
+            setIfDefined('employees', data.employees);
+            setIfDefined('fixedAssets', data.fixedAssets);
+            setIfDefined('pendingReturns', data.pendingReturns);
+            setIfDefined('rejectedItems', data.rejectedItems);
+            setIfDefined('okrObjectives', data.okrObjectives);
+            if (data.kpiObjectives !== undefined) {
+              updatedState.kpiObjectives = data.kpiObjectives.length > 0 ? data.kpiObjectives : KPI_SEED;
+            }
+
+            set(updatedState);
 
             console.log('[INIT] Phase 2 complete. Server data applied as single source of truth.');
 
             // --- UPDATE LOCAL CACHE (for Phase 1 on next load) ---
-            saveLocalClientsCache(data.clients || []);
-            saveLocalProductsCache(finalProducts);
-            saveLocalSalesOrdersCache(data.salesOrders || []);
-            saveLocalSalesOrderItemsCache(data.salesOrderItems || []);
-            saveLocalPurchasesCache(data.purchases || []);
-            saveLocalPurchaseItemsCache(data.purchaseItems || []);
-            try { window.localStorage.setItem(LOCAL_CLIENT_PRICES_CACHE_KEY, JSON.stringify(data.clientPrices || [])); } catch {}
+            if (data.clients !== undefined) saveLocalClientsCache(data.clients);
+            if (data.products !== undefined) saveLocalProductsCache(finalProducts);
+            if (data.salesOrders !== undefined) saveLocalSalesOrdersCache(data.salesOrders);
+            if (data.salesOrderItems !== undefined) saveLocalSalesOrderItemsCache(data.salesOrderItems);
+            if (data.purchases !== undefined) saveLocalPurchasesCache(data.purchases);
+            if (data.purchaseItems !== undefined) saveLocalPurchaseItemsCache(data.purchaseItems);
+            if (data.clientPrices !== undefined) {
+              try { window.localStorage.setItem(LOCAL_CLIENT_PRICES_CACHE_KEY, JSON.stringify(data.clientPrices)); } catch {}
+            }
             saveLocalBankAccountsCache(mergedBanks);
-            saveLocalCache(LOCAL_JOURNAL_ENTRIES_CACHE_KEY, data.journalEntries || []);
-            saveLocalCache(LOCAL_JOURNAL_LINES_CACHE_KEY, data.journalLines || []);
-            saveLocalCache(LOCAL_CASH_TRANSACTIONS_CACHE_KEY, data.cashTransactions || []);
-            saveLocalCache(LOCAL_INVOICES_CACHE_KEY, data.invoices || []);
-            saveLocalCache(LOCAL_DELIVERIES_CACHE_KEY, data.deliveries || []);
+            if (data.journalEntries !== undefined) saveLocalCache(LOCAL_JOURNAL_ENTRIES_CACHE_KEY, data.journalEntries);
+            if (data.journalLines !== undefined) saveLocalCache(LOCAL_JOURNAL_LINES_CACHE_KEY, data.journalLines);
+            if (data.cashTransactions !== undefined) saveLocalCache(LOCAL_CASH_TRANSACTIONS_CACHE_KEY, data.cashTransactions);
+            if (data.invoices !== undefined) saveLocalCache(LOCAL_INVOICES_CACHE_KEY, data.invoices);
+            if (data.deliveries !== undefined) saveLocalCache(LOCAL_DELIVERIES_CACHE_KEY, data.deliveries);
 
             // --- LEGACY HPP BACKFILL ---
             // Before the HPP mapping fix, market sourcing settlements were posted to inventory (1-3000).
@@ -1545,8 +1549,14 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       journalEntries: [],
       addJournalEntry: async (entry) => {
-        set((state) => ({ journalEntries: [...state.journalEntries, entry] }));
-        await get().syncTable('journal_entries', entry);
+        const before = get().journalEntries;
+        set({ journalEntries: [...before, entry] });
+        try {
+          await get().syncTable('journal_entries', entry);
+        } catch (error) {
+          set({ journalEntries: before });
+          throw error;
+        }
       },
       updateJournalEntry: async (id: string, updates: Partial<JournalEntry>, newLines: JournalLine[]) => {
         const beforeEntry = get().journalEntries.find(e => e.id === id);
@@ -1568,12 +1578,24 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       journalLines: [],
       addJournalLine: async (line) => {
-        set((state) => ({ journalLines: [...state.journalLines, line] }));
-        await get().syncTable('journal_lines', line);
+        const before = get().journalLines;
+        set({ journalLines: [...before, line] });
+        try {
+          await get().syncTable('journal_lines', line);
+        } catch (error) {
+          set({ journalLines: before });
+          throw error;
+        }
       },
       addJournalLines: async (lines) => {
-        set((state) => ({ journalLines: [...state.journalLines, ...lines] }));
-        await get().syncTable('journal_lines', lines);
+        const before = get().journalLines;
+        set({ journalLines: [...before, ...lines] });
+        try {
+          await get().syncTable('journal_lines', lines);
+        } catch (error) {
+          set({ journalLines: before });
+          throw error;
+        }
       },
 
       leads: [],
@@ -1673,12 +1695,121 @@ export const useAppStore = create<AppState>((set, get) => ({
         if (updated) {
           await get().syncTable('kpis', updated);
           if (before) await get().logHistory({ table: 'kpis', recordId: id, action: 'update', oldData: before, newData: updated });
+
+          // Propagate KPI updates to linked OKR Key Results
+          const updatedObjectives: OkrObjective[] = [];
+          const updatedKRsToSync: OkrKeyResult[] = [];
+          const currentOkrs = get().okrObjectives;
+          let okrsChanged = false;
+
+          const newOkrs = currentOkrs.map(okr => {
+            let krChanged = false;
+            const newKrs = okr.keyResults.map(kr => {
+              if (kr.linkedKpiId === id) {
+                krChanged = true;
+                const updatedKr: OkrKeyResult = {
+                  ...kr,
+                  currentValue: updated.actualValue !== undefined ? updated.actualValue : kr.currentValue,
+                  targetValue: updated.targetValue !== undefined ? updated.targetValue : kr.targetValue,
+                  unit: updated.unit !== undefined ? updated.unit : kr.unit,
+                };
+                updatedKRsToSync.push(updatedKr);
+                return updatedKr;
+              }
+              return kr;
+            });
+
+            if (krChanged) {
+              okrsChanged = true;
+              let totalProgress = 0;
+              newKrs.forEach(k => {
+                const target = k.targetValue || 1;
+                const prog = (k.currentValue / target) * 100;
+                totalProgress += Math.max(0, Math.min(prog, 100));
+              });
+              const newParentProgress = newKrs.length > 0 ? (totalProgress / newKrs.length) : 0;
+
+              const updatedOkr = {
+                ...okr,
+                keyResults: newKrs,
+                progress: newParentProgress
+              };
+              updatedObjectives.push(updatedOkr);
+              return updatedOkr;
+            }
+            return okr;
+          });
+
+          if (okrsChanged) {
+            set({ okrObjectives: newOkrs });
+            if (updatedKRsToSync.length > 0) {
+              await fetch('/api/db', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ table: 'okr_key_results', data: updatedKRsToSync })
+              });
+            }
+            for (const okr of updatedObjectives) {
+              const { keyResults, ...objectiveData } = okr;
+              await get().syncTable('okr_objectives', objectiveData);
+            }
+          }
         }
       },
-      deleteKpi: (id) => {
+      deleteKpi: async (id) => {
         const before = get().kpiObjectives.find(k => k.id === id);
         set((state) => ({ kpiObjectives: state.kpiObjectives.filter(k => k.id !== id) }));
-        if (before) { void get().logHistory({ table: 'kpis', recordId: id, action: 'delete', oldData: before, newData: null }); }
+        
+        await fetch('/api/db', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ table: 'kpis', id })
+        });
+        
+        if (before) {
+          await get().logHistory({ table: 'kpis', recordId: id, action: 'delete', oldData: before, newData: null });
+        }
+
+        // Unlink any OKR Key Results referencing this KPI
+        const updatedKRsToSync: any[] = [];
+        const currentOkrs = get().okrObjectives;
+        let okrsChanged = false;
+
+        const newOkrs = currentOkrs.map(okr => {
+          let krChanged = false;
+          const newKrs = okr.keyResults.map(kr => {
+            if (kr.linkedKpiId === id) {
+              krChanged = true;
+              const updatedKr = {
+                ...kr,
+                linkedKpiId: null as any
+              };
+              updatedKRsToSync.push(updatedKr);
+              return updatedKr;
+            }
+            return kr;
+          });
+
+          if (krChanged) {
+            okrsChanged = true;
+            return {
+              ...okr,
+              keyResults: newKrs
+            };
+          }
+          return okr;
+        });
+
+        if (okrsChanged) {
+          set({ okrObjectives: newOkrs });
+          if (updatedKRsToSync.length > 0) {
+            await fetch('/api/db', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ table: 'okr_key_results', data: updatedKRsToSync })
+            });
+          }
+        }
       },
       
       okrObjectives: [],
@@ -1703,6 +1834,67 @@ export const useAppStore = create<AppState>((set, get) => ({
               });
           }
           if (before) await get().logHistory({ table: 'okr_objectives', recordId: id, action: 'update', oldData: before, newData: updated });
+        }
+      },
+      deleteOkr: async (id) => {
+        const before = get().okrObjectives.find(o => o.id === id);
+        if (!before) return;
+        
+        set((state) => ({ okrObjectives: state.okrObjectives.filter(o => o.id !== id) }));
+        
+        const krIds = before.keyResults.map(kr => kr.id);
+        if (krIds.length > 0) {
+          await fetch('/api/db', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ table: 'okr_key_results', id: krIds })
+          });
+        }
+        
+        await fetch('/api/db', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ table: 'okr_objectives', id })
+        });
+        
+        await get().logHistory({ table: 'okr_objectives', recordId: id, action: 'delete', oldData: before, newData: null });
+      },
+      deleteKeyResult: async (objectiveId, krId) => {
+        const parentObjective = get().okrObjectives.find(o => o.id === objectiveId);
+        if (!parentObjective) return;
+        
+        const beforeKr = parentObjective.keyResults.find(k => k.id === krId);
+        if (!beforeKr) return;
+        
+        const updatedKRs = parentObjective.keyResults.filter(k => k.id !== krId);
+        
+        let totalProgress = 0;
+        updatedKRs.forEach(kr => {
+          const target = kr.targetValue || 1;
+          const prog = (kr.currentValue / target) * 100;
+          totalProgress += Math.max(0, Math.min(prog, 100));
+        });
+        const newProgress = updatedKRs.length > 0 ? (totalProgress / updatedKRs.length) : 0;
+        
+        set((state) => ({
+          okrObjectives: state.okrObjectives.map(o => 
+            o.id === objectiveId 
+              ? { ...o, keyResults: updatedKRs, progress: newProgress } 
+              : o
+          )
+        }));
+        
+        await fetch('/api/db', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ table: 'okr_key_results', id: krId })
+        });
+        
+        const updatedOkr = get().okrObjectives.find(o => o.id === objectiveId);
+        if (updatedOkr) {
+          const { keyResults, ...objectiveData } = updatedOkr;
+          await get().syncTable('okr_objectives', objectiveData);
+          await get().logHistory({ table: 'okr_key_results', recordId: krId, action: 'delete', oldData: beforeKr, newData: null });
         }
       },
 
@@ -1745,31 +1937,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
       },
       deleteBankAccount: async (id: string) => {
-        const before = get().bankAccounts.find(b => b.id === id);
-        const newBanks = get().bankAccounts.filter(b => b.id !== id);
-        set({ bankAccounts: newBanks });
-        saveLocalBankAccountsCache(newBanks);
-
-        // HARD DELETE from Supabase
-        try {
-          await fetch('/api/db', {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ table: 'bank_accounts', id })
-          });
-          if (before) await get().logHistory({ table: 'bank_accounts', recordId: id, action: 'delete', oldData: before, newData: null });
-        } catch (e) {
-          console.error("Failed to delete bank account from server:", e);
-        }
-      },
-      updateBankBalance: async (id, amount) => {
-        set((state) => ({
-          bankAccounts: state.bankAccounts.map(b => b.id === id ? { ...b, balance: b.balance + amount } : b)
-        }));
-        const updated = get().bankAccounts.find(b => b.id === id);
-        if (updated) await get().syncTable('bank_accounts', updated);
-      },
-      deleteBankAccount: async (id: string) => {
         // Guardrail — caller (UI) should confirm preconditions, but enforce again here so the action
         // cannot be invoked from the console with a non-zero balance or with referencing transactions.
         const target = get().bankAccounts.find(b => b.id === id);
@@ -1781,7 +1948,12 @@ export const useAppStore = create<AppState>((set, get) => ({
         if (hasTx) {
           throw new Error(`${target.name} masih punya cash transactions. Tidak bisa dihapus.`);
         }
-        set((state) => ({ bankAccounts: state.bankAccounts.filter(b => b.id !== id) }));
+
+        const before = target;
+        const newBanks = get().bankAccounts.filter(b => b.id !== id);
+        set({ bankAccounts: newBanks });
+        saveLocalBankAccountsCache(newBanks);
+
         const res = await fetch('/api/db', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
@@ -1791,32 +1963,86 @@ export const useAppStore = create<AppState>((set, get) => ({
           const err = await res.json().catch(() => ({}));
           throw new Error(`Hapus bank account gagal: ${err.error || res.statusText}`);
         }
+        if (before) await get().logHistory({ table: 'bank_accounts', recordId: id, action: 'delete', oldData: before, newData: null });
+      },
+      updateBankBalance: async (id: string, amount: number) => {
+        const before = get().bankAccounts.find(b => b.id === id);
+        const beforeBanks = get().bankAccounts;
+        const newBanks = get().bankAccounts.map(b => b.id === id ? { ...b, balance: b.balance + amount } : b);
+        set({ bankAccounts: newBanks });
+        saveLocalBankAccountsCache(newBanks);
+        const updated = get().bankAccounts.find(b => b.id === id);
+        if (updated) {
+          try {
+            await get().syncTable('bank_accounts', updated);
+            if (before) await get().logHistory({ table: 'bank_accounts', recordId: id, action: 'update', oldData: before, newData: updated });
+          } catch (error) {
+            set({ bankAccounts: beforeBanks });
+            saveLocalBankAccountsCache(beforeBanks);
+            throw error;
+          }
+        }
       },
       cashTransactions: [],
       addCashTransaction: async (tx) => {
         // Auto-snapshot sebelum setiap transaksi kas supaya bisa di-undo step by step
         get().takeDevSnapshot();
+        const previousCashTransactions = get().cashTransactions;
+        const previousBankAccounts = get().bankAccounts;
         const balanceChange = tx.type === 'In' ? tx.amount : -tx.amount;
-        let accountToSync: BankAccount | undefined;
 
         set((state) => {
           const updatedAccounts = state.bankAccounts.map(b => 
             b.id === tx.bankAccountId ? { ...b, balance: (b.balance || 0) + balanceChange } : b
           );
-          accountToSync = updatedAccounts.find(b => b.id === tx.bankAccountId);
           
           return { 
-            cashTransactions: [tx, ...state.cashTransactions],
+            cashTransactions: state.cashTransactions.some((candidate) => candidate.id === tx.id)
+              ? state.cashTransactions.map((candidate) => candidate.id === tx.id ? tx : candidate)
+              : [tx, ...state.cashTransactions],
             bankAccounts: updatedAccounts
           }
         });
 
-        // Sync history first
-        await get().syncTable('cash_transactions', tx);
-        
-        // Sync updated balance using the state captured BEFORE the first await
-        if (accountToSync) {
-          await get().syncTable('bank_accounts', accountToSync);
+        try {
+          const response = await fetch('/api/accounting/cash', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ transaction: tx }),
+          });
+
+          const payload = await response.json().catch(() => ({})) as CashPostResponse;
+          if (!response.ok) {
+            throw new Error(payload.error || response.statusText);
+          }
+
+          const serverTx = payload.transaction
+            ? { ...payload.transaction, amount: Number(payload.transaction.amount || 0) }
+            : tx;
+          const serverBank = payload.bankAccount
+            ? { ...payload.bankAccount, balance: Number(payload.bankAccount.balance || 0) }
+            : undefined;
+
+          set((state) => ({
+            cashTransactions: [
+              serverTx,
+              ...state.cashTransactions.filter((candidate) => candidate.id !== serverTx.id),
+            ],
+            bankAccounts: serverBank
+              ? state.bankAccounts.map((bank) => bank.id === serverBank.id ? serverBank : bank)
+              : state.bankAccounts,
+          }));
+
+          if (serverBank) {
+            saveLocalBankAccountsCache(get().bankAccounts);
+          }
+        } catch (error) {
+          set({
+            cashTransactions: previousCashTransactions,
+            bankAccounts: previousBankAccounts,
+          });
+          saveLocalBankAccountsCache(previousBankAccounts);
+          throw error;
         }
       },
 

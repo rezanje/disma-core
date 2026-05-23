@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useAppStore } from "@/lib/store"
-import { Plus, Pencil, Trash2, Share2, DollarSign, Receipt, TrendingUp, History, FileText, Download, Upload, Eye, Search, Filter, Printer, Mail, ChevronRight, ChevronDown, CheckCircle2, X, Loader2 } from "lucide-react"
+import { Plus, Pencil, Trash2, Share2, DollarSign, Receipt, TrendingUp, History, FileText, Download, Upload, Eye, Search, Filter, Printer, Mail, ChevronRight, ChevronDown, CheckCircle2, X, Loader2, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react"
 import { v4 as uuidv4 } from "uuid"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -47,9 +47,12 @@ export default function ClientsPage() {
   const [pdfPreview, setPdfPreview] = useState<{ url: string, title: string } | null>(null)
   const [invoicePreview, setInvoicePreview] = useState<{ id: string, isConsolidated: boolean } | null>(null)
   const [search, setSearch] = useState("")
-  const [sortBy, setSortBy] = useState<"name" | "value" | "debt">("name")
+  const [sortField, setSortField] = useState<"companyName" | "picName" | "totalRevenue" | "outstandingAR" | "nearestDue" | "health">("companyName")
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
   const [filterDebt, setFilterDebt] = useState<"all" | "has_debt">("all")
   const [isSaving, setIsSaving] = useState(false)
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false)
+  const [selectedHistoryClient, setSelectedHistoryClient] = useState<Client | null>(null)
   
   const selectedClient = clients.find(c => c.id === selectedClientId)
   
@@ -111,66 +114,179 @@ export default function ClientsPage() {
     }
   }
 
-  // ENHANCED FILTERING/SORTING LOGIC
-  const processedClients = clients
-    .filter(client => {
-      const matchesSearch = client.companyName.toLowerCase().includes(search.toLowerCase()) || 
-                           client.picName.toLowerCase().includes(search.toLowerCase())
-      
-      const clientInvoices = invoices.filter(inv => inv.clientId === client.id)
-      const totalDebt = clientInvoices.reduce((sum, inv) => sum + (inv.totalAmount - inv.amountPaid), 0)
-      
-      const matchesDebt = filterDebt === "all" || totalDebt > 0
-      
-      return matchesSearch && matchesDebt
+  const getClientOutstandingAR = (clientId: string): number => {
+    const clientInvoices = invoices.filter(inv => inv.clientId === clientId)
+    const consolidatedSOIds = new Set(
+      clientInvoices
+        .filter((inv: any) => inv.isConsolidated && inv.salesOrderIds?.length > 0)
+        .flatMap((inv: any) => inv.salesOrderIds)
+    )
+    const activeInvoices = clientInvoices.filter((inv: Invoice) => {
+      if ((inv as any).supersededByInvoiceId) return false
+      if (inv.salesOrderId && consolidatedSOIds.has(inv.salesOrderId) && !(inv as any).isConsolidated) return false
+      return true
     })
-    .sort((a, b) => {
-      if (sortBy === "name") return a.companyName.localeCompare(b.companyName)
-      
-      const getVal = (clientId: string) => {
-        const clientOrders = salesOrders.filter(so => so.clientId === clientId)
-        const orderIds = clientOrders.map(so => so.id)
-        return salesOrderItems
-          .filter(item => orderIds.includes(item.salesOrderId))
-          .reduce((sum, item) => sum + item.subtotal, 0)
-      }
-      
-      const getDebt = (clientId: string) => {
-        return invoices
-          .filter(inv => inv.clientId === clientId)
-          .reduce((sum, inv) => sum + (inv.totalAmount - inv.amountPaid), 0)
-      }
+    return activeInvoices.reduce((sum, inv) => sum + (inv.totalAmount - inv.amountPaid), 0)
+  }
 
-      if (sortBy === "value") return getVal(b.id) - getVal(a.id)
-      if (sortBy === "debt") return getDebt(b.id) - getDebt(a.id)
-      return 0
+  const getClientLifetimeRevenue = (clientId: string): number => {
+    const client = clients.find(c => c.id === clientId)
+    if (!client) return 0
+    const totalJanMay = client.totalOrderJanMay || 0
+    const clientInvoices = invoices.filter(inv => inv.clientId === clientId)
+    const consolidatedSOIds = new Set(
+      clientInvoices
+        .filter((inv: any) => inv.isConsolidated && inv.salesOrderIds?.length > 0)
+        .flatMap((inv: any) => inv.salesOrderIds)
+    )
+    const activeInvoices = clientInvoices.filter((inv: Invoice) => {
+      if ((inv as any).supersededByInvoiceId) return false
+      if (inv.salesOrderId && consolidatedSOIds.has(inv.salesOrderId) && !(inv as any).isConsolidated) return false
+      return true
     })
+    const activeNonImported = activeInvoices.filter(inv => !inv.id.startsWith('inv-import-'))
+    return totalJanMay + activeNonImported.reduce((sum, inv) => sum + inv.totalAmount, 0)
+  }
 
   const getClientHealth = (clientId: string) => {
     const clientInvoices = invoices.filter(inv => inv.clientId === clientId)
+    const consolidatedSOIds = new Set(
+      clientInvoices
+        .filter((inv: any) => inv.isConsolidated && inv.salesOrderIds?.length > 0)
+        .flatMap((inv: any) => inv.salesOrderIds)
+    )
+    const activeInvoices = clientInvoices.filter((inv: Invoice) => {
+      if ((inv as any).supersededByInvoiceId) return false
+      if (inv.salesOrderId && consolidatedSOIds.has(inv.salesOrderId) && !(inv as any).isConsolidated) return false
+      return true
+    })
     const now = new Date()
     
-    const overdue = clientInvoices.some(inv => inv.status !== 'Paid' && new Date(inv.dueDate) < now)
+    const overdue = activeInvoices.some(inv => inv.status !== 'Paid' && new Date(inv.dueDate) < now)
     if (overdue) return { label: 'Overdue', color: 'bg-rose-100 text-rose-700 border-rose-200', icon: '🔴' }
     
-    const hasBeenLate = clientInvoices.some(inv => inv.status === 'Paid' && inv.paidDate && new Date(inv.paidDate) > new Date(inv.dueDate))
+    const hasBeenLate = activeInvoices.some(inv => inv.status === 'Paid' && inv.paidDate && new Date(inv.paidDate) > new Date(inv.dueDate))
     if (hasBeenLate) return { label: 'Late', color: 'bg-amber-100 text-amber-700 border-amber-200', icon: '🟡' }
     
     return { label: 'Good', color: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: '🟢' }
   }
 
   const getNearestDueDate = (clientId: string) => {
-    const unpaid = invoices.filter(inv => inv.clientId === clientId && inv.status !== 'Paid')
+    const clientInvoices = invoices.filter(inv => inv.clientId === clientId)
+    const consolidatedSOIds = new Set(
+      clientInvoices
+        .filter((inv: any) => inv.isConsolidated && inv.salesOrderIds?.length > 0)
+        .flatMap((inv: any) => inv.salesOrderIds)
+    )
+    const activeInvoices = clientInvoices.filter((inv: Invoice) => {
+      if ((inv as any).supersededByInvoiceId) return false
+      if (inv.salesOrderId && consolidatedSOIds.has(inv.salesOrderId) && !(inv as any).isConsolidated) return false
+      return true
+    })
+    const unpaid = activeInvoices.filter(inv => inv.status !== 'Paid')
     if (unpaid.length === 0) return null
     const sorted = [...unpaid].sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
     return new Date(sorted[0].dueDate)
   }
 
+  // ENHANCED FILTERING/SORTING LOGIC
+  const processedClients = clients
+    .filter(client => {
+      const matchesSearch = client.companyName.toLowerCase().includes(search.toLowerCase()) || 
+                           client.picName.toLowerCase().includes(search.toLowerCase())
+      
+      const totalDebt = getClientOutstandingAR(client.id)
+      const matchesDebt = filterDebt === "all" || totalDebt > 0
+      
+      return matchesSearch && matchesDebt
+    })
+    .sort((a, b) => {
+      const getHealthRank = (clientId: string) => {
+        const label = getClientHealth(clientId).label
+        if (label === 'Overdue') return 3
+        if (label === 'Late') return 2
+        if (label === 'Good') return 1
+        return 0
+      }
+
+      let comparison = 0
+      if (sortField === "companyName") {
+        comparison = a.companyName.localeCompare(b.companyName)
+      } else if (sortField === "picName") {
+        comparison = a.picName.localeCompare(b.picName)
+      } else if (sortField === "totalRevenue") {
+        comparison = getClientLifetimeRevenue(a.id) - getClientLifetimeRevenue(b.id)
+      } else if (sortField === "outstandingAR") {
+        comparison = getClientOutstandingAR(a.id) - getClientOutstandingAR(b.id)
+      } else if (sortField === "nearestDue") {
+        const dateA = getNearestDueDate(a.id)
+        const dateB = getNearestDueDate(b.id)
+        if (!dateA && !dateB) comparison = 0
+        else if (!dateA) comparison = 1
+        else if (!dateB) comparison = -1
+        else comparison = dateA.getTime() - dateB.getTime()
+      } else if (sortField === "health") {
+        comparison = getHealthRank(a.id) - getHealthRank(b.id)
+      }
+
+      return sortDirection === "asc" ? comparison : -comparison
+    })
+
+  const handleSort = (field: "companyName" | "picName" | "totalRevenue" | "outstandingAR" | "nearestDue" | "health") => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === "asc" ? "desc" : "asc")
+    } else {
+      setSortField(field)
+      if (field === "totalRevenue" || field === "outstandingAR" || field === "health") {
+        setSortDirection("desc")
+      } else {
+        setSortDirection("asc")
+      }
+    }
+  }
+
+  const renderSortHeader = (
+    field: "companyName" | "picName" | "totalRevenue" | "outstandingAR" | "nearestDue" | "health", 
+    label: string, 
+    align: "left" | "center" | "right" = "left"
+  ) => {
+    const isActive = sortField === field
+    return (
+      <TableHead 
+        className={cn(
+          "h-auto py-6 select-none cursor-pointer hover:bg-slate-100/50 transition-colors font-black text-[10px] uppercase tracking-widest",
+          align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left",
+          isActive ? "text-emerald-600" : "text-slate-400",
+          field === "companyName" ? "pl-8" : ""
+        )}
+        onClick={() => handleSort(field)}
+      >
+        <div className={cn(
+          "flex items-center gap-1.5",
+          align === "right" ? "justify-end" : align === "center" ? "justify-center" : "justify-start"
+        )}>
+          <span>{label}</span>
+          <span className="shrink-0 transition-all duration-200">
+            {isActive ? (
+              sortDirection === "asc" ? (
+                <ArrowUp className="w-3.5 h-3.5" />
+              ) : (
+                <ArrowDown className="w-3.5 h-3.5" />
+              )
+            ) : (
+              <ArrowUpDown className="w-3 h-3 opacity-30 hover:opacity-100" />
+            )}
+          </span>
+        </div>
+      </TableHead>
+    )
+  }
+
   if (selectedClient) {
     const clientInvoices = invoices.filter(inv => inv.clientId === selectedClient.id)
     const clientOrders = salesOrders.filter(so => so.clientId === selectedClient.id)
-    const totalLifetimeRevenue = clientInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0)
-    const totalOutstanding = clientInvoices.reduce((sum, inv) => sum + (inv.totalAmount - inv.amountPaid), 0)
+    const totalLifetimeRevenue = getClientLifetimeRevenue(selectedClient.id)
+    const totalOutstanding = getClientOutstandingAR(selectedClient.id)
     const nearestDue = getNearestDueDate(selectedClient.id)
     
     const paidInvoices = clientInvoices.filter(inv => inv.status === 'Paid' && inv.paidDate)
@@ -670,14 +786,31 @@ export default function ClientsPage() {
           </div>
         </div>
         <div>
-          <Select value={sortBy} onValueChange={(val: any) => setSortBy(val)}>
+          <Select 
+            value={`${sortField}-${sortDirection}`} 
+            onValueChange={(val: string | null) => {
+              if (!val) return
+              const [field, direction] = val.split("-") as [any, any]
+              setSortField(field)
+              setSortDirection(direction)
+            }}
+          >
             <SelectTrigger className="h-14 rounded-full bg-white border-none shadow-[0_8px_30px_rgba(0,0,0,0.06)] font-bold text-slate-700 focus:ring-emerald-500/20">
               <SelectValue placeholder="Sort By" />
             </SelectTrigger>
             <SelectContent className="rounded-2xl border-none shadow-2xl">
-              <SelectItem value="name">Sort: Nama Client</SelectItem>
-              <SelectItem value="value">Sort: Total Transaksi</SelectItem>
-              <SelectItem value="debt">Sort: Sisa Hutang</SelectItem>
+              <SelectItem value="companyName-asc">Sort: Nama Client (A-Z)</SelectItem>
+              <SelectItem value="companyName-desc">Sort: Nama Client (Z-A)</SelectItem>
+              <SelectItem value="totalRevenue-desc">Sort: Total Transaksi (Tertinggi)</SelectItem>
+              <SelectItem value="totalRevenue-asc">Sort: Total Transaksi (Terendah)</SelectItem>
+              <SelectItem value="outstandingAR-desc">Sort: Sisa Hutang (Tertinggi)</SelectItem>
+              <SelectItem value="outstandingAR-asc">Sort: Sisa Hutang (Terendah)</SelectItem>
+              <SelectItem value="picName-asc">Sort: PIC / Contact (A-Z)</SelectItem>
+              <SelectItem value="picName-desc">Sort: PIC / Contact (Z-A)</SelectItem>
+              <SelectItem value="nearestDue-asc">Sort: Jatuh Tempo (Terdekat)</SelectItem>
+              <SelectItem value="nearestDue-desc">Sort: Jatuh Tempo (Terjauh)</SelectItem>
+              <SelectItem value="health-desc">Sort: Health (Terburuk)</SelectItem>
+              <SelectItem value="health-asc">Sort: Health (Terbaik)</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -697,13 +830,13 @@ export default function ClientsPage() {
       <div className="liquid-card overflow-hidden mt-6 bg-white border border-slate-100 shadow-xl">
         <Table>
           <TableHeader className="bg-slate-50/50 border-b border-slate-100">
-            <TableRow>
-              <TableHead className="font-black text-[10px] uppercase tracking-widest text-emerald-600 py-6 pl-8 h-auto">Company Info</TableHead>
-              <TableHead className="font-black text-[10px] uppercase tracking-widest text-slate-400 h-auto">PIC / Contact</TableHead>
-              <TableHead className="text-right font-black text-[10px] uppercase tracking-widest text-slate-400 h-auto">Total Revenue</TableHead>
-              <TableHead className="text-right font-black text-[10px] uppercase tracking-widest text-slate-400 h-auto">Outstanding AR</TableHead>
-              <TableHead className="text-center font-black text-[10px] uppercase tracking-widest text-slate-400 h-auto">Nearest Due</TableHead>
-              <TableHead className="text-center font-black text-[10px] uppercase tracking-widest text-slate-400 h-auto">Health</TableHead>
+            <TableRow className="hover:bg-transparent">
+              {renderSortHeader("companyName", "Company Info", "left")}
+              {renderSortHeader("picName", "PIC / Contact", "left")}
+              {renderSortHeader("totalRevenue", "Total Revenue", "right")}
+              {renderSortHeader("outstandingAR", "Outstanding AR", "right")}
+              {renderSortHeader("nearestDue", "Nearest Due", "center")}
+              {renderSortHeader("health", "Health", "center")}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -715,22 +848,10 @@ export default function ClientsPage() {
               </TableRow>
             ) : (
               processedClients.map((client: Client) => {
-                const clientInvoices = invoices.filter((inv: Invoice) => inv.clientId === client.id)
-                const totalRevenue = clientInvoices.reduce((sum: number, inv: Invoice) => sum + inv.totalAmount, 0)
+                const totalRevenue = getClientLifetimeRevenue(client.id)
                 const nearestDue = getNearestDueDate(client.id)
                 const health = getClientHealth(client.id)
-                // Exclude superseded invoices for accurate outstanding debt
-                const consolidatedSOIds = new Set(
-                  clientInvoices
-                    .filter((inv: any) => inv.isConsolidated && inv.salesOrderIds?.length > 0)
-                    .flatMap((inv: any) => inv.salesOrderIds)
-                )
-                const activeInvoices = clientInvoices.filter((inv: Invoice) => {
-                  if ((inv as any).supersededByInvoiceId) return false
-                  if (inv.salesOrderId && consolidatedSOIds.has(inv.salesOrderId) && !(inv as any).isConsolidated) return false
-                  return true
-                })
-                const totalDebt = activeInvoices.reduce((sum: number, inv: Invoice) => sum + (inv.totalAmount - inv.amountPaid), 0)
+                const totalDebt = getClientOutstandingAR(client.id)
 
                 return (
                   <TableRow 
