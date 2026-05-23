@@ -60,6 +60,12 @@ import Link from "next/link"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
+const WhatsAppIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.717-1.458L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.725 1.451 5.437.002 9.861-4.417 9.864-9.858.002-2.637-1.019-5.114-2.877-6.974-1.858-1.86-4.339-2.883-6.98-2.885-5.441 0-9.866 4.418-9.869 9.86-.001 1.77.46 3.497 1.334 5.013l-1.007 3.676 3.774-.988zm11.23-5.32c-.3-.15-1.771-.875-2.04-.972-.269-.099-.465-.148-.659.15-.195.297-.752.972-.924 1.17-.172.197-.344.223-.644.073-.3-.15-1.27-.469-2.42-1.493-.897-.8-1.502-1.79-1.678-2.09-.176-.3-.019-.462.13-.61.135-.133.3-.349.45-.523.15-.174.2-.298.3-.497.1-.198.05-.374-.025-.524-.075-.15-.659-1.587-.902-2.172-.237-.574-.479-.496-.659-.506-.17-.008-.364-.01-.559-.01-.195 0-.514.073-.78.368-.266.297-1.016.993-1.016 2.422s1.03 2.808 1.174 3.006c.145.198 2.028 3.097 4.912 4.34.686.295 1.222.472 1.64.606.69.22 1.318.19 1.815.115.553-.083 1.771-.724 2.022-1.422.25-.697.25-1.294.175-1.42-.075-.127-.27-.2-.57-.35z"/>
+  </svg>
+);
+
 const formatInvoiceId = (id: string) => {
   if (!id) return ""
   if (id.startsWith("inv-import-")) {
@@ -670,7 +676,7 @@ export default function CeoDashboard() {
       {/* Header Section */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
-          <h1 className="text-4xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
             Executive Cockpit Review <span className="emoji-3d">🚀</span>
           </h1>
           <p className="text-sm font-bold text-slate-400 mt-2">One screen, total control. Real-time business health summary.</p>
@@ -994,21 +1000,52 @@ export default function CeoDashboard() {
                       </span>
                     </div>
                   </div>
-                  <div className="text-right flex flex-col items-end gap-1">
-                    <p className="text-sm font-black text-slate-900">{formatRupiah(item.outstanding)}</p>
-                    {item.daysOverdue > 0 ? (
-                      <Badge className="bg-rose-500 text-white font-black text-[9px] rounded-full border-none">
-                        Lewat {item.daysOverdue} Hari (Segera Tagih)
-                      </Badge>
-                    ) : item.daysOverdue === 0 ? (
-                      <Badge className="bg-amber-500 text-slate-950 font-black text-[9px] rounded-full border-none">
-                        Jatuh Tempo Hari Ini
-                      </Badge>
-                    ) : (
-                      <Badge className="bg-emerald-500 text-slate-950 font-black text-[9px] rounded-full border-none">
-                        H-{Math.abs(item.daysOverdue)} Hari
-                      </Badge>
-                    )}
+                  <div className="flex items-center gap-3">
+                    <div className="text-right flex flex-col items-end gap-1">
+                      <p className="text-sm font-black text-slate-900">{formatRupiah(item.outstanding)}</p>
+                      {item.daysOverdue > 0 ? (
+                        <Badge className="bg-rose-500 text-white font-black text-[9px] rounded-full border-none">
+                          Lewat {item.daysOverdue} Hari (Segera Tagih)
+                        </Badge>
+                      ) : item.daysOverdue === 0 ? (
+                        <Badge className="bg-amber-500 text-slate-950 font-black text-[9px] rounded-full border-none">
+                          Jatuh Tempo Hari Ini
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-emerald-500 text-slate-950 font-black text-[9px] rounded-full border-none">
+                          H-{Math.abs(item.daysOverdue)} Hari
+                        </Badge>
+                      )}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-9 w-9 rounded-xl p-0 text-emerald-600 hover:text-white hover:bg-emerald-500 border border-emerald-100 hover:border-emerald-500 flex items-center justify-center transition-all shadow-sm"
+                      title="Kirim Tagihan via WhatsApp"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const client = clients.find(c => c.id === item.invoice.clientId);
+                        let phone = client?.phone || '';
+                        if (!phone) {
+                          const inputPhone = window.prompt(`Nomor WhatsApp untuk ${item.clientName} tidak ditemukan. Silakan masukkan nomor HP/WA (contoh: 08123456789):`);
+                          if (!inputPhone) return;
+                          phone = inputPhone;
+                        }
+                        const so = salesOrders.find(s => s.id === item.invoice.salesOrderId);
+                        const docInfo = so?.poNumber ? `Invoice ${formatInvoiceId(item.invoice.id)} (PO: ${so.poNumber})` : `Invoice ${formatInvoiceId(item.invoice.id)}`;
+                        const formattedOutstanding = formatRupiah(item.outstanding);
+                        const dueDateFormatted = format(parseISO(item.invoice.dueDate), 'd MMMM yyyy', { locale: localeId });
+                        const message = `Halo Kak/Bapak/Ibu di *${item.clientName}*,\n\nKami dari *Disma Fresh* ingin menginformasikan tagihan untuk *${docInfo}* sebesar *${formattedOutstanding}* yang jatuh tempo pada *${dueDateFormatted}*.\n\nMohon kesediaannya untuk melakukan pembayaran. Jika pembayaran telah dilakukan, mohon kirimkan bukti transfernya ya Kak. Terima kasih banyak! 🙏😊`;
+                        
+                        let formattedPhone = phone.replace(/[^0-9]/g, '');
+                        if (formattedPhone.startsWith('0')) {
+                          formattedPhone = '62' + formattedPhone.slice(1);
+                        }
+                        window.open(`https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`, '_blank');
+                      }}
+                    >
+                      <WhatsAppIcon className="w-4 h-4 fill-current" />
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -1124,7 +1161,7 @@ export default function CeoDashboard() {
                     <Target className="w-10 h-10 text-indigo-300" />
                   </div>
                   <div>
-                    <h3 className="text-3xl font-black tracking-tight">Market Coverage Pipeline</h3>
+                    <h3 className="text-xl font-extrabold tracking-tight">Market Coverage Pipeline</h3>
                     <p className="text-indigo-100/60 text-sm font-bold mt-2 uppercase tracking-[0.2em] leading-relaxed">
                       {leads.length} Active B2B Leads in Negotiation
                     </p>

@@ -315,6 +315,8 @@ interface AppState {
   salesOrders: SalesOrder[];
   addSalesOrder: (so: SalesOrder) => void;
   updateSalesOrder: (id: string, data: Partial<SalesOrder>) => void;
+  deleteSalesOrder: (id: string) => Promise<void>;
+  deleteMultipleSalesOrders: (ids: string[]) => Promise<void>;
 
   salesOrderItems: SalesOrderItem[];
   addSalesOrderItem: (item: SalesOrderItem) => void;
@@ -1319,6 +1321,66 @@ export const useAppStore = create<AppState>((set, get) => ({
         if (updated) {
           await get().syncTable('sales_orders', updated);
           if (before) await get().logHistory({ table: 'sales_orders', recordId: id, action: 'update', oldData: before, newData: updated });
+        }
+      },
+      deleteSalesOrder: async (id: string) => {
+        const orderBefore = get().salesOrders.find(so => so.id === id);
+        const itemsToDelete = get().salesOrderItems.filter(item => item.salesOrderId === id);
+        const itemIds = itemsToDelete.map(item => item.id);
+
+        const updatedSalesOrders = get().salesOrders.filter(so => so.id !== id);
+        const updatedSalesOrderItems = get().salesOrderItems.filter(item => item.salesOrderId !== id);
+
+        set({ salesOrders: updatedSalesOrders, salesOrderItems: updatedSalesOrderItems });
+        saveLocalSalesOrdersCache(updatedSalesOrders);
+        saveLocalSalesOrderItemsCache(updatedSalesOrderItems);
+
+        try {
+          if (itemIds.length > 0) {
+            await fetch('/api/db', {
+              method: 'DELETE',
+              body: JSON.stringify({ table: 'sales_order_items', id: itemIds }),
+            });
+          }
+          await fetch('/api/db', {
+            method: 'DELETE',
+            body: JSON.stringify({ table: 'sales_orders', id }),
+          });
+
+          if (orderBefore) await get().logHistory({ table: 'sales_orders', recordId: id, action: 'delete', oldData: orderBefore, newData: null });
+        } catch (e) {
+          console.error("Failed to delete sales order:", e);
+        }
+      },
+      deleteMultipleSalesOrders: async (ids: string[]) => {
+        const ordersBefore = get().salesOrders.filter(so => ids.includes(so.id));
+        const itemsToDelete = get().salesOrderItems.filter(item => ids.includes(item.salesOrderId));
+        const itemIds = itemsToDelete.map(item => item.id);
+
+        const updatedSalesOrders = get().salesOrders.filter(so => !ids.includes(so.id));
+        const updatedSalesOrderItems = get().salesOrderItems.filter(item => !ids.includes(item.salesOrderId));
+
+        set({ salesOrders: updatedSalesOrders, salesOrderItems: updatedSalesOrderItems });
+        saveLocalSalesOrdersCache(updatedSalesOrders);
+        saveLocalSalesOrderItemsCache(updatedSalesOrderItems);
+
+        try {
+          if (itemIds.length > 0) {
+            await fetch('/api/db', {
+              method: 'DELETE',
+              body: JSON.stringify({ table: 'sales_order_items', id: itemIds }),
+            });
+          }
+          await fetch('/api/db', {
+            method: 'DELETE',
+            body: JSON.stringify({ table: 'sales_orders', id: ids }),
+          });
+
+          for (const order of ordersBefore) {
+            await get().logHistory({ table: 'sales_orders', recordId: order.id, action: 'delete', oldData: order, newData: null });
+          }
+        } catch (e) {
+          console.error("Failed to bulk delete sales orders:", e);
         }
       },
 

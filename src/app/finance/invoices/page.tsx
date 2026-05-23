@@ -306,8 +306,27 @@ export default function InvoicesPage() {
 
   const handleShareWA = (inv: Invoice) => {
     const client = clients.find(c => c.id === inv.clientId)
-    const message = `Halo ${client?.companyName}, ini adalah tagihan Tukar Faktur periode Anda dengan total ${formatRupiah(inv.totalAmount)}. No Invoice: ${inv.id}. Silakan cek dokumen lengkap di sistem DISMA.`
-    window.open(`https://wa.me/${client?.phone || ''}?text=${encodeURIComponent(message)}`, '_blank')
+    let phone = client?.phone || ''
+    if (!phone) {
+      const inputPhone = window.prompt(`Nomor WhatsApp untuk ${client?.companyName || 'Klien'} tidak ditemukan. Silakan masukkan nomor HP/WA (contoh: 08123456789):`);
+      if (!inputPhone) return;
+      phone = inputPhone;
+    }
+
+    const so = salesOrders.find(s => s.id === inv.salesOrderId);
+    const invoiceLabel = inv.id.substring(0, 8).toUpperCase();
+    const docInfo = so?.poNumber ? `Invoice INV-#${invoiceLabel} (PO: ${so.poNumber})` : `Invoice INV-#${invoiceLabel}`;
+    const outstanding = inv.totalAmount - inv.amountPaid;
+    const formattedOutstanding = formatRupiah(outstanding);
+    const dueDateFormatted = format(new Date(inv.dueDate), 'dd/MM/yyyy');
+    
+    const message = `Halo Kak/Bapak/Ibu di *${client?.companyName || 'Klien'}*,\n\nKami dari *Disma Fresh* ingin menginformasikan tagihan untuk *${docInfo}* sebesar *${formattedOutstanding}* yang jatuh tempo pada *${dueDateFormatted}*.\n\nMohon kesediaannya untuk melakukan pembayaran. Jika pembayaran telah dilakukan, mohon kirimkan bukti transfernya ya Kak. Terima kasih banyak! 🙏😊`;
+
+    let formattedPhone = phone.replace(/[^0-9]/g, '');
+    if (formattedPhone.startsWith('0')) {
+      formattedPhone = '62' + formattedPhone.slice(1);
+    }
+    window.open(`https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`, '_blank')
   }
 
   const handleShareEmail = (inv: Invoice) => {

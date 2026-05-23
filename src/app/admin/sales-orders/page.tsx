@@ -72,6 +72,8 @@ export default function SalesOrdersPage() {
   const addDelivery = useAppStore(state => state.addDelivery)
   const addInvoice = useAppStore(state => state.addInvoice)
   const currentUser = useAppStore(state => state.currentUser)
+  const deleteSalesOrder = useAppStore(state => state.deleteSalesOrder)
+  const deleteMultipleSalesOrders = useAppStore(state => state.deleteMultipleSalesOrders)
   
   const [isOpen, setIsOpen] = useState(false)
   const [clientId, setClientId] = useState("")
@@ -554,6 +556,51 @@ export default function SalesOrdersPage() {
     }
   }
 
+  // Individual Delete
+  const handleDeleteSO = async (soId: string) => {
+    const so = salesOrders.find(s => s.id === soId)
+    if (!so) {
+      toast.error("Sales Order tidak ditemukan.")
+      return
+    }
+
+    if (!window.confirm(`Apakah Anda yakin ingin menghapus PO ${so.poNumber} beserta seluruh itemnya? Tindakan ini tidak dapat dibatalkan.`)) {
+      return
+    }
+
+    toast.loading("Menghapus PO...", { id: "delete_so" })
+    try {
+      await deleteSalesOrder(soId)
+      setSelectedSoIds(prev => prev.filter(id => id !== soId))
+      toast.success(`PO ${so.poNumber} berhasil dihapus.`, { id: "delete_so" })
+    } catch (e) {
+      console.error(e)
+      toast.error("Gagal menghapus PO.", { id: "delete_so" })
+    }
+  }
+
+  // Bulk Delete
+  const handleBulkDeleteSOs = async () => {
+    if (selectedSoIds.length === 0) {
+      toast.error("Tidak ada PO terpilih.")
+      return
+    }
+
+    if (!window.confirm(`Apakah Anda yakin ingin menghapus ${selectedSoIds.length} PO terpilih? Tindakan ini tidak dapat dibatalkan.`)) {
+      return
+    }
+
+    toast.loading(`Menghapus ${selectedSoIds.length} PO...`, { id: "bulk_delete" })
+    try {
+      await deleteMultipleSalesOrders(selectedSoIds)
+      setSelectedSoIds([])
+      toast.success("PO terpilih berhasil dihapus.", { id: "bulk_delete" })
+    } catch (e) {
+      console.error(e)
+      toast.error("Gagal menghapus beberapa PO.", { id: "bulk_delete" })
+    }
+  }
+
   const selectedSO = salesOrders.find(so => so.id === detailSOId)
   const selectedClient = clients.find(c => c.id === selectedSO?.clientId)
   const selectedItems = salesOrderItems.filter(item => item.salesOrderId === detailSOId)
@@ -908,6 +955,14 @@ export default function SalesOrdersPage() {
                 </Button>
                 <Button 
                   size="sm" 
+                  variant="destructive"
+                  className="bg-rose-600 hover:bg-rose-700 text-white font-black text-[10px] uppercase tracking-wider px-4 py-2 flex items-center gap-1"
+                  onClick={handleBulkDeleteSOs}
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Bulk Hapus
+                </Button>
+                <Button 
+                  size="sm" 
                   variant="ghost"
                   className="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 text-[10px] font-black uppercase tracking-wider"
                   onClick={() => setSelectedSoIds([])}
@@ -997,6 +1052,15 @@ export default function SalesOrdersPage() {
                             }}
                           >
                             <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            className="h-8 w-8 p-0 text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                            title="Hapus PO"
+                            onClick={() => handleDeleteSO(so.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                           
                           {so.status !== 'Draft' && (
@@ -1125,6 +1189,15 @@ export default function SalesOrdersPage() {
                             }}
                           >
                             <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            className="h-8 w-8 p-0 text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                            title="Hapus PO"
+                            onClick={() => handleDeleteSO(so.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                           <Button 
                             size="sm" 

@@ -36,8 +36,8 @@ export default function AdminDashboard() {
 
   return (
     <div className="animate-in fade-in duration-700 slide-in-from-bottom-4">
-      <div className="mb-8">
-        <h2 className="text-3xl font-black text-slate-800 tracking-tight capitalize">
+      <div className="mb-6">
+        <h2 className="text-xl font-extrabold text-slate-800 tracking-tight capitalize">
           Welcome back, {currentUser.name.split(' ')[0]}!
         </h2>
         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
