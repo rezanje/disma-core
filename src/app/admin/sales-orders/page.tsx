@@ -910,17 +910,6 @@ export default function SalesOrdersPage() {
                               ⚡ Fast Track
                             </Button>
                           )}
-                          {FAST_TRACKABLE.includes(so.status) && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-amber-600 border-amber-300 hover:bg-amber-50 font-black text-[10px] uppercase tracking-wider"
-                              title="Fast-track: skip QC/gudang/kurir, langsung ke Awaiting Audit Finance"
-                              onClick={() => handleFastTrack(so.id)}
-                            >
-                              ⚡ Fast Track
-                            </Button>
-                          )}
                         </TableCell>
                       </TableRow>
                     )

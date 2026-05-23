@@ -484,31 +484,114 @@ export default function CeoDashboard() {
 
     const aggregated = Object.fromEntries(defaultGroups.map(g => [g.name, { revenue: 0, profit: 0 }]))
 
-    // Aggregate values
-    journalLines.forEach(jl => {
-      const entry = journalEntries.find(je => je.id === jl.journalEntryId)
-      if (!entry) return
-      
-      const dateStr = entry.transactionDate
-      if (!filterByTimeWindow(dateStr, timeFilter)) return
+    if (timeFilter === 'bulan') {
+      // 1. Populate historical months (Jan - Apr) from invoices table
+      invoices.forEach(inv => {
+        const dateStr = inv.issueDate
+        if (!dateStr) return
+        const date = parseISO(dateStr)
+        if (date.getFullYear() !== today.getFullYear()) return
+        const mKey = format(date, 'MMM', { locale: localeId }) // e.g. 'Jan', 'Feb'
+        // Only use invoices for Jan, Feb, Mar, Apr to represent historical sales
+        if (mKey !== 'Mei' && aggregated[mKey] !== undefined) {
+          aggregated[mKey].revenue += inv.totalAmount
+        }
+      })
 
-      const groupKey = getGroupKey(dateStr, timeFilter)
-      if (aggregated[groupKey] === undefined) {
-        aggregated[groupKey] = { revenue: 0, profit: 0 }
+      // 2. Populate May (and other active months) from GL journal lines
+      journalLines.forEach(jl => {
+        const entry = journalEntries.find(je => je.id === jl.journalEntryId)
+        if (!entry) return
+        
+        const dateStr = entry.transactionDate
+        const date = parseISO(dateStr)
+        if (date.getFullYear() !== today.getFullYear()) return
+        const mKey = format(date, 'MMM', { locale: localeId })
+
+        if (mKey === 'Mei') {
+          const coa = coas.find(c => c.id === jl.accountId)
+          if (!coa) return
+
+          if (coa.accountCode.startsWith('4')) {
+            const revVal = jl.creditAmount - jl.debitAmount
+            aggregated[mKey].revenue += revVal
+            aggregated[mKey].profit += revVal
+          } else if (coa.accountCode.startsWith('5') || coa.accountCode.startsWith('6')) {
+            const expVal = jl.debitAmount - jl.creditAmount
+            aggregated[mKey].profit -= expVal
+          }
+        }
+      })
+    } else if (timeFilter === 'tahun') {
+      // For yearly:
+      // 2025 has no transactions, we leave it 0.
+      // 2026 gets: Jan-Apr Invoices + May GL revenue. May GL profit.
+      let janAprInvoiceTotal = 0
+      invoices.forEach(inv => {
+        const dateStr = inv.issueDate
+        if (!dateStr) return
+        const date = parseISO(dateStr)
+        if (date.getFullYear() === 2026) {
+          const mKey = format(date, 'MMM', { locale: localeId })
+          if (mKey !== 'Mei') {
+            janAprInvoiceTotal += inv.totalAmount
+          }
+        }
+      })
+
+      if (aggregated['2026'] !== undefined) {
+        aggregated['2026'].revenue += janAprInvoiceTotal
       }
 
-      const coa = coas.find(c => c.id === jl.accountId)
-      if (!coa) return
+      // Add May GL transactions to 2026
+      journalLines.forEach(jl => {
+        const entry = journalEntries.find(je => je.id === jl.journalEntryId)
+        if (!entry) return
+        const dateStr = entry.transactionDate
+        const date = parseISO(dateStr)
+        const yKey = format(date, 'yyyy')
 
-      if (coa.accountCode.startsWith('4')) {
-        const revVal = jl.creditAmount - jl.debitAmount
-        aggregated[groupKey].revenue += revVal
-        aggregated[groupKey].profit += revVal
-      } else if (coa.accountCode.startsWith('5') || coa.accountCode.startsWith('6')) {
-        const expVal = jl.debitAmount - jl.creditAmount
-        aggregated[groupKey].profit -= expVal
-      }
-    })
+        if (aggregated[yKey] !== undefined) {
+          const coa = coas.find(c => c.id === jl.accountId)
+          if (!coa) return
+
+          if (coa.accountCode.startsWith('4')) {
+            const revVal = jl.creditAmount - jl.debitAmount
+            aggregated[yKey].revenue += revVal
+            aggregated[yKey].profit += revVal
+          } else if (coa.accountCode.startsWith('5') || coa.accountCode.startsWith('6')) {
+            const expVal = jl.debitAmount - jl.creditAmount
+            aggregated[yKey].profit -= expVal
+          }
+        }
+      })
+    } else {
+      // For daily and weekly (hari, minggu): aggregate directly from journal lines (as these are only May 2026 active periods)
+      journalLines.forEach(jl => {
+        const entry = journalEntries.find(je => je.id === jl.journalEntryId)
+        if (!entry) return
+        
+        const dateStr = entry.transactionDate
+        if (!filterByTimeWindow(dateStr, timeFilter)) return
+
+        const groupKey = getGroupKey(dateStr, timeFilter)
+        if (aggregated[groupKey] === undefined) {
+          aggregated[groupKey] = { revenue: 0, profit: 0 }
+        }
+
+        const coa = coas.find(c => c.id === jl.accountId)
+        if (!coa) return
+
+        if (coa.accountCode.startsWith('4')) {
+          const revVal = jl.creditAmount - jl.debitAmount
+          aggregated[groupKey].revenue += revVal
+          aggregated[groupKey].profit += revVal
+        } else if (coa.accountCode.startsWith('5') || coa.accountCode.startsWith('6')) {
+          const expVal = jl.debitAmount - jl.creditAmount
+          aggregated[groupKey].profit -= expVal
+        }
+      })
+    }
 
     // Check if the aggregated values are empty (to avoid blank graphs in case of clean databases)
     const hasData = Object.values(aggregated).some(val => val.revenue !== 0 || val.profit !== 0)
@@ -558,7 +641,7 @@ export default function CeoDashboard() {
     const defaultOrder = defaultGroups.map(g => g.name)
     return result.sort((a, b) => defaultOrder.indexOf(a.name) - defaultOrder.indexOf(b.name))
 
-  }, [journalLines, coas, timeFilter, revenue, netProfit])
+  }, [journalLines, coas, timeFilter, revenue, netProfit, invoices])
 
   const handleBroadcast = () => {
     if (!announcementMsg.trim()) {
