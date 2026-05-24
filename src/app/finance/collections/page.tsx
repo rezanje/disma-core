@@ -61,7 +61,7 @@ export default function ARCollectionsPage() {
       if (filterAging === '90+') matchesAging = inv.agingDays > 60
 
       return matchesSearch && matchesAging
-    }).sort((a, b) => b.agingDays - a.agingDays)
+    }).sort((a, b) => (b.totalAmount - b.amountPaid) - (a.totalAmount - a.amountPaid))
   }, [enrichedInvoices, search, filterAging])
 
   // Stats for cards
