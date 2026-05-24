@@ -107,7 +107,9 @@ export default function CeoDashboard() {
         if (inv.salesOrderId && consolidatedSOIds.has(inv.salesOrderId) && !inv.isConsolidated) return false
         return true
       })
-      const activeNonImported = activeInvoices.filter(inv => !inv.id.startsWith('inv-import-'))
+      const activeNonImported = totalJanMay > 0
+        ? activeInvoices.filter(inv => !inv.id.startsWith('inv-import-'))
+        : activeInvoices
       const revenue = totalJanMay + activeNonImported.reduce((sum, inv) => sum + inv.totalAmount, 0)
       return {
         ...client,
@@ -352,7 +354,9 @@ export default function CeoDashboard() {
       return true
     })
     const totalJanMay = selectedClient.totalOrderJanMay || 0
-    const activeNonImported = activeInvoices.filter(inv => !inv.id.startsWith('inv-import-'))
+    const activeNonImported = totalJanMay > 0
+      ? activeInvoices.filter(inv => !inv.id.startsWith('inv-import-'))
+      : activeInvoices
     const revenue = totalJanMay + activeNonImported.reduce((sum, inv) => sum + inv.totalAmount, 0)
     const unpaidInvoices = activeInvoices.filter(inv => inv.status !== 'Paid')
     const outstanding = unpaidInvoices.reduce((sum, inv) => sum + (inv.totalAmount - inv.amountPaid), 0)

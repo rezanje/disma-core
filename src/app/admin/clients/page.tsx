@@ -182,7 +182,9 @@ export default function ClientsPage() {
       if (inv.salesOrderId && consolidatedSOIds.has(inv.salesOrderId) && !(inv as any).isConsolidated) return false
       return true
     })
-    const activeNonImported = activeInvoices.filter(inv => !inv.id.startsWith('inv-import-'))
+    const activeNonImported = totalJanMay > 0
+      ? activeInvoices.filter(inv => !inv.id.startsWith('inv-import-'))
+      : activeInvoices
     return totalJanMay + activeNonImported.reduce((sum, inv) => sum + inv.totalAmount, 0)
   }
 
