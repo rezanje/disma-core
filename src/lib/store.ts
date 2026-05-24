@@ -1206,33 +1206,44 @@ export const useAppStore = create<AppState>((set, get) => ({
         if (!updates.length) return;
         set({ isSyncing: true });
         try {
-          const clientMap = new Map((get().clients || []).map(c => [c.id, c]));
+          const beforeClients = [...(get().clients || [])];
+          const clientMap = new Map(beforeClients.map(c => [c.id, c]));
           updates.forEach(update => {
             const c = clientMap.get(update.id);
             if (c) clientMap.set(update.id, { ...c, ...update.data });
           });
           const updatedClients = Array.from(clientMap.values());
-          set({ clients: updatedClients });
-          saveLocalClientsCache(updatedClients);
+          
+          // Prepare payload with complete updated client data to satisfy DB constraints
+          const clientsToSync = updates.map(u => updatedClients.find(c => c.id === u.id)).filter(Boolean);
 
-          await fetch('/api/db', {
+          const response = await fetch('/api/db', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
               table: 'clients', 
-              data: updates.map(u => ({ id: u.id, ...u.data }))
+              data: clientsToSync
             })
           });
 
+          if (!response.ok) {
+            const errText = await response.text();
+            throw new Error(`Sync failed: ${errText}`);
+          }
+
+          set({ clients: updatedClients });
+          saveLocalClientsCache(updatedClients);
+
           for (const u of updates) {
-            const before = get().clients.find(c => c.id === u.id);
+            const before = beforeClients.find(c => c.id === u.id);
             const after = updatedClients.find(c => c.id === u.id);
             if (before && after) {
               await get().logHistory({ table: 'clients', recordId: u.id, action: 'update', oldData: before, newData: after });
             }
           }
-        } catch (e) {
+        } catch (e: any) {
           console.error("Failed to update multiple clients:", e);
+          toast.error("Gagal melakukan pembaruan massal di database: " + e.message);
         } finally {
           set({ isSyncing: false });
         }
