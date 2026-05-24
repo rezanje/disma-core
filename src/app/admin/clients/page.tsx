@@ -515,7 +515,7 @@ export default function ClientsPage() {
                   {tabsList.map(tab => (
                     <TabsTrigger 
                       key={tab} 
-                      value={tab.toLowerCase().replace(/\s+/g, '-').replace('/', '')} 
+                      value={tab.toLowerCase().replace(/[^a-z0-9]+/g, '-')} 
                       className="rounded-none border-b-2 border-transparent data-[state=active]:border-emerald-500 data-[state=active]:bg-transparent data-[state=active]:text-emerald-600 font-black uppercase text-[10px] tracking-[0.2em] px-0 h-full transition-all"
                     >
                       {tab}
