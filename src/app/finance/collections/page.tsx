@@ -72,6 +72,41 @@ export default function ARCollectionsPage() {
     return { total, overdueCount, criticalCount }
   }, [filteredInvoices, enrichedInvoices])
 
+  const groupedClients = useMemo(() => {
+    const map = new Map<string, {
+      client: Client
+      totalDebt: number
+      invoiceCount: number
+      invoices: typeof enrichedInvoices
+    }>()
+
+    enrichedInvoices.forEach(inv => {
+      const client = clients.find(c => c.id === inv.clientId)
+      if (!client) return
+      
+      const unpaidAmount = inv.totalAmount - inv.amountPaid
+      if (unpaidAmount <= 0) return
+
+      if (!map.has(client.id)) {
+        map.set(client.id, {
+          client,
+          totalDebt: 0,
+          invoiceCount: 0,
+          invoices: []
+        })
+      }
+
+      const entry = map.get(client.id)!
+      entry.totalDebt += unpaidAmount
+      entry.invoiceCount += 1
+      entry.invoices.push(inv)
+    })
+
+    return Array.from(map.values())
+      .filter(item => item.client.companyName.toLowerCase().includes(search.toLowerCase()))
+      .sort((a, b) => b.totalDebt - a.totalDebt)
+  }, [enrichedInvoices, clients, search])
+
   const handleRemind = async (invId: string) => {
     toast.success("Reminder request sent to system queue")
     await updateInvoice(invId, { lastRemindedAt: new Date().toISOString() })
@@ -245,7 +280,75 @@ export default function ARCollectionsPage() {
         </TabsContent>
         
         <TabsContent value="client" className="m-0">
-          {/* Client grouped table */}
+          <div className="liquid-card overflow-hidden bg-white border border-slate-100 shadow-xl rounded-[2.5rem]">
+            <Table>
+              <TableHeader className="bg-slate-50/50">
+                <TableRow>
+                  <TableHead className="pl-8 py-6 font-black text-[10px] uppercase text-indigo-600">Client & Contact</TableHead>
+                  <TableHead className="font-black text-[10px] uppercase text-slate-400 text-center">Unpaid Invoices</TableHead>
+                  <TableHead className="text-right font-black text-[10px] uppercase text-slate-400">Total Outstanding AR</TableHead>
+                  <TableHead className="text-center font-black text-[10px] uppercase text-slate-400">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {groupedClients.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="h-64 text-center">
+                      <div className="flex flex-col items-center gap-2">
+                        <CheckCircle2 className="w-12 h-12 text-emerald-400" />
+                        <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">No client debt records found.</p>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  groupedClients.map(({ client, totalDebt, invoiceCount, invoices: clientInvs }) => (
+                    <TableRow key={client.id} className="hover:bg-slate-50/80 transition-colors border-b border-slate-50">
+                      <TableCell className="pl-8 py-6">
+                        <div className="flex flex-col">
+                          <span className="font-black text-slate-900 text-base">{client.companyName}</span>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">PIC: {client.picName} ({client.phone || '-'})</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge className="bg-indigo-100 text-indigo-700 border-none text-[9px] font-black uppercase px-2.5 py-1 rounded-full">
+                          {invoiceCount} Tagihan
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-black text-slate-900 text-lg">
+                        {formatRupiah(totalDebt)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-center gap-2">
+                          <Button 
+                            size="icon" 
+                            variant="ghost" 
+                            className="h-10 w-10 rounded-full text-emerald-600 hover:bg-emerald-50"
+                            onClick={() => {
+                              const message = `Halo Kak/Bapak/Ibu di *${client.companyName}*,\n\nKami dari *Disma Fresh* ingin menginformasikan rekap tagihan tertunggak berikut:\n` +
+                                clientInvs.map((inv, idx) => `${idx + 1}. Invoice #${inv.id.substring(0,8)} sebesar *${formatRupiah(inv.totalAmount - inv.amountPaid)}* (Jatuh Tempo: ${format(new Date(inv.dueDate), 'd MMM yyyy')})`).join('\n') +
+                                `\n\n*Total Akumulasi Piutang: ${formatRupiah(totalDebt)}*\n\nMohon kesediaannya untuk melakukan pembayaran. Terima kasih banyak! 🙏😊`;
+                              
+                              let formattedPhone = (client.phone || '').replace(/[^0-9]/g, '');
+                              if (formattedPhone.startsWith('0')) {
+                                formattedPhone = '62' + formattedPhone.slice(1);
+                              }
+                              if (formattedPhone) {
+                                window.open(`https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`, '_blank');
+                              } else {
+                                toast.error("Nomor WA tidak valid");
+                              }
+                            }}
+                          >
+                            <MessageSquare className="w-5 h-5" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </TabsContent>
         
         <TabsContent value="alert" className="m-0">
