@@ -5,19 +5,17 @@ import { useAppStore } from '@/lib/store'
 import { formatRupiah } from '@/lib/utils'
 import { format, differenceInDays } from 'date-fns'
 import { 
-  History, Search, Filter, AlertTriangle, 
-  CheckCircle2, Clock, Phone, Mail, 
-  ChevronRight, ArrowUpRight, MessageSquare
+  History, Search, CheckCircle2, Phone, ArrowUpRight, MessageSquare
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
-import { Invoice, Client } from '@/types'
+import { Client } from '@/types'
 import { toast } from 'sonner'
 import UniversalPDFPreview from '@/components/finance/UniversalPDFPreview'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -173,7 +171,7 @@ export default function ARCollectionsPage() {
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
         </div>
         <div className="flex gap-2">
-           {['all', '30', '60', '90+'].map((age) => (
+           {(['all', '30', '60', '90+'] as const).map((age) => (
              <Button
                key={age}
                variant={filterAging === age ? 'default' : 'outline'}
@@ -181,7 +179,7 @@ export default function ARCollectionsPage() {
                  "flex-1 h-14 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all",
                  filterAging === age ? "bg-indigo-600 shadow-lg shadow-indigo-200" : "bg-white border-none shadow-md hover:bg-slate-50"
                )}
-               onClick={() => setFilterAging(age as any)}
+               onClick={() => setFilterAging(age)}
              >
                {age === 'all' ? 'Semua' : `${age}D`}
              </Button>
