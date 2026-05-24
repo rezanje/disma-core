@@ -20,9 +20,11 @@ import { cn } from '@/lib/utils'
 import { Invoice, Client } from '@/types'
 import { toast } from 'sonner'
 import UniversalPDFPreview from '@/components/finance/UniversalPDFPreview'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 export default function ARCollectionsPage() {
   const { invoices, clients, updateInvoice } = useAppStore()
+  const [activeTab, setActiveTab] = useState<string>("invoice")
   const [search, setSearch] = useState('')
   const [filterAging, setFilterAging] = useState<'all' | '30' | '60' | '90+'>('all')
   const [invoicePreview, setInvoicePreview] = useState<{ id: string, isConsolidated: boolean } | null>(null)
@@ -140,92 +142,116 @@ export default function ARCollectionsPage() {
         </div>
       </div>
 
-      <div className="liquid-card overflow-hidden bg-white border border-slate-100 shadow-xl rounded-[2.5rem]">
-        <Table>
-          <TableHeader className="bg-slate-50/50">
-            <TableRow>
-              <TableHead className="pl-8 py-6 font-black text-[10px] uppercase text-indigo-600">Invoice & Client</TableHead>
-              <TableHead className="font-black text-[10px] uppercase text-slate-400 text-center">Aging Status</TableHead>
-              <TableHead className="text-right font-black text-[10px] uppercase text-slate-400">Amount Due</TableHead>
-              <TableHead className="text-right font-black text-[10px] uppercase text-slate-400">Last Follow-up</TableHead>
-              <TableHead className="text-center font-black text-[10px] uppercase text-slate-400">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredInvoices.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="h-64 text-center">
-                   <div className="flex flex-col items-center gap-2">
-                      <CheckCircle2 className="w-12 h-12 text-emerald-400" />
-                      <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Semua tagihan aman atau filter tidak ditemukan.</p>
-                   </div>
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredInvoices.map((inv) => (
-                <TableRow key={inv.id} className="hover:bg-slate-50/80 transition-colors border-b border-slate-50">
-                  <TableCell className="pl-8 py-6">
-                    <div className="flex flex-col">
-                      <span className="font-black text-slate-900 text-base">{inv.clientName}</span>
-                      <div className="flex items-center gap-2 mt-1">
-                         <span className="text-[10px] font-black text-indigo-500 uppercase tracking-tighter bg-indigo-50 px-2 py-0.5 rounded-md">#{inv.id.substring(0,8)}</span>
-                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate max-w-[150px]">{inv.clientPic}</span>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-center">
-                     <div className="flex flex-col items-center">
-                        <Badge className={cn(
-                          "text-[9px] font-black uppercase rounded-full px-3 py-1 border shadow-sm",
-                          inv.agingDays <= 0 ? "bg-emerald-100 text-emerald-700 border-emerald-200" :
-                          inv.agingDays <= 30 ? "bg-amber-100 text-amber-700 border-amber-200" :
-                          "bg-rose-100 text-rose-700 border-rose-200"
-                        )}>
-                          {inv.agingDays <= 0 ? 'Not Overdue' : `${inv.agingDays} Days Late`}
-                        </Badge>
-                        <span className="text-[9px] font-bold text-slate-400 uppercase mt-1">Due: {format(new Date(inv.dueDate), 'dd MMM')}</span>
-                     </div>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex flex-col">
-                      <span className="font-black text-slate-900 text-lg">{formatRupiah(inv.totalAmount - inv.amountPaid)}</span>
-                      <span className="text-[9px] font-bold text-slate-400 uppercase">of {formatRupiah(inv.totalAmount)}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right">
-                     <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                       {inv.lastRemindedAt ? format(new Date(inv.lastRemindedAt), 'dd MMM HH:mm') : 'Never'}
-                     </span>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-center gap-2">
-                       <Button 
-                        size="icon" 
-                        variant="ghost" 
-                        className="h-10 w-10 rounded-full text-indigo-600 hover:bg-indigo-50"
-                        onClick={() => setInvoicePreview({ id: inv.id, isConsolidated: inv.isConsolidated || false })}
-                       >
-                         <ArrowUpRight className="w-5 h-5" />
-                       </Button>
-                       <Button 
-                        size="icon" 
-                        variant="ghost" 
-                        className="h-10 w-10 rounded-full text-emerald-600 hover:bg-emerald-50"
-                        onClick={() => handleRemind(inv.id)}
-                       >
-                         <MessageSquare className="w-5 h-5" />
-                       </Button>
-                       <a href={`tel:${inv.clientPhone}`} className="h-10 w-10 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all">
-                         <Phone className="w-4 h-4" />
-                       </a>
-                    </div>
-                  </TableCell>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-6">
+        <TabsList className="bg-slate-100 p-1 rounded-2xl h-12 w-fit mb-4">
+          <TabsTrigger value="invoice" className="rounded-xl px-6 font-black uppercase text-[10px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-sm">
+            Invoice Individual
+          </TabsTrigger>
+          <TabsTrigger value="client" className="rounded-xl px-6 font-black uppercase text-[10px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-sm">
+            Rekap per Klien
+          </TabsTrigger>
+          <TabsTrigger value="alert" className="rounded-xl px-6 font-black uppercase text-[10px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-sm">
+            Alert Jatuh Tempo
+          </TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="invoice" className="m-0">
+          <div className="liquid-card overflow-hidden bg-white border border-slate-100 shadow-xl rounded-[2.5rem]">
+            <Table>
+              <TableHeader className="bg-slate-50/50">
+                <TableRow>
+                  <TableHead className="pl-8 py-6 font-black text-[10px] uppercase text-indigo-600">Invoice & Client</TableHead>
+                  <TableHead className="font-black text-[10px] uppercase text-slate-400 text-center">Aging Status</TableHead>
+                  <TableHead className="text-right font-black text-[10px] uppercase text-slate-400">Amount Due</TableHead>
+                  <TableHead className="text-right font-black text-[10px] uppercase text-slate-400">Last Follow-up</TableHead>
+                  <TableHead className="text-center font-black text-[10px] uppercase text-slate-400">Actions</TableHead>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+              </TableHeader>
+              <TableBody>
+                {filteredInvoices.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="h-64 text-center">
+                       <div className="flex flex-col items-center gap-2">
+                          <CheckCircle2 className="w-12 h-12 text-emerald-400" />
+                          <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Semua tagihan aman atau filter tidak ditemukan.</p>
+                       </div>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredInvoices.map((inv) => (
+                    <TableRow key={inv.id} className="hover:bg-slate-50/80 transition-colors border-b border-slate-50">
+                      <TableCell className="pl-8 py-6">
+                        <div className="flex flex-col">
+                          <span className="font-black text-slate-900 text-base">{inv.clientName}</span>
+                          <div className="flex items-center gap-2 mt-1">
+                             <span className="text-[10px] font-black text-indigo-500 uppercase tracking-tighter bg-indigo-50 px-2 py-0.5 rounded-md">#{inv.id.substring(0,8)}</span>
+                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate max-w-[150px]">{inv.clientPic}</span>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center">
+                         <div className="flex flex-col items-center">
+                            <Badge className={cn(
+                              "text-[9px] font-black uppercase rounded-full px-3 py-1 border shadow-sm",
+                              inv.agingDays <= 0 ? "bg-emerald-100 text-emerald-700 border-emerald-200" :
+                              inv.agingDays <= 30 ? "bg-amber-100 text-amber-700 border-amber-200" :
+                              "bg-rose-100 text-rose-700 border-rose-200"
+                            )}>
+                              {inv.agingDays <= 0 ? 'Not Overdue' : `${inv.agingDays} Days Late`}
+                            </Badge>
+                            <span className="text-[9px] font-bold text-slate-400 uppercase mt-1">Due: {format(new Date(inv.dueDate), 'dd MMM')}</span>
+                         </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex flex-col">
+                          <span className="font-black text-slate-900 text-lg">{formatRupiah(inv.totalAmount - inv.amountPaid)}</span>
+                          <span className="text-[9px] font-bold text-slate-400 uppercase">of {formatRupiah(inv.totalAmount)}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                         <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                           {inv.lastRemindedAt ? format(new Date(inv.lastRemindedAt), 'dd MMM HH:mm') : 'Never'}
+                         </span>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-center gap-2">
+                           <Button 
+                            size="icon" 
+                            variant="ghost" 
+                            className="h-10 w-10 rounded-full text-indigo-600 hover:bg-indigo-50"
+                            onClick={() => setInvoicePreview({ id: inv.id, isConsolidated: inv.isConsolidated || false })}
+                           >
+                             <ArrowUpRight className="w-5 h-5" />
+                           </Button>
+                           <Button 
+                            size="icon" 
+                            variant="ghost" 
+                            className="h-10 w-10 rounded-full text-emerald-600 hover:bg-emerald-50"
+                            onClick={() => handleRemind(inv.id)}
+                           >
+                             <MessageSquare className="w-5 h-5" />
+                           </Button>
+                           <a href={`tel:${inv.clientPhone}`} className="h-10 w-10 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all">
+                             <Phone className="w-4 h-4" />
+                           </a>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="client" className="m-0">
+          {/* Client grouped table */}
+        </TabsContent>
+        
+        <TabsContent value="alert" className="m-0">
+          {/* Overdue alerts table */}
+        </TabsContent>
+      </Tabs>
 
       {invoicePreview && (
         <UniversalPDFPreview 
