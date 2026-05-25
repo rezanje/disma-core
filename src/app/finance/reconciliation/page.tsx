@@ -164,7 +164,10 @@ export default function ReconciliationPage() {
                        
                        let totalCogs = 0
                        items.forEach(item => {
-                         const pItem = purchaseItems.filter(pi => pi.productId === item.productId && pi.actualUnitPrice > 0).pop()
+                         let pItem = purchaseItems.find(pi => pi.salesOrderId === so.id && pi.productId === item.productId && pi.actualUnitPrice > 0)
+                         if (!pItem) {
+                           pItem = purchaseItems.filter(pi => pi.productId === item.productId && pi.actualUnitPrice > 0).pop()
+                         }
                          const unitCost = pItem ? pItem.actualUnitPrice : (products.find(p => p.id === item.productId)?.basePrice || 0)
                          totalCogs += (item.qty * unitCost)
                        })
