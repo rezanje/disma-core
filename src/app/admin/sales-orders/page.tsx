@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { STATUS_COLORS } from "@/lib/constants"
-import { SalesOrderStatus, SalesOrderItem } from "@/types"
+import { SalesOrderStatus, SalesOrderItem, SalesOrder } from "@/types"
 import {
   Table,
   TableBody,
@@ -28,6 +28,7 @@ import {
   DialogTitle,
   DialogTrigger,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog"
 import {
   Select,
@@ -89,7 +90,7 @@ export default function SalesOrdersPage() {
   const [selectedSoIds, setSelectedSoIds] = useState<string[]>([])
   const [isClientQuickAddOpen, setIsClientQuickAddOpen] = useState(false)
   const [isProductQuickAddOpen, setIsProductQuickAddOpen] = useState(false)
-  const [newClientData, setNewClientData] = useState({ companyName: "", picName: "", email: "", phone: "", address: "" })
+  const [newClientData, setNewClientData] = useState({ companyName: "", picName: "", email: "", phone: "", address: "", parentId: "" })
   const [newProductData, setNewProductData] = useState({ skuCode: "", name: "", uom: "kg", basePrice: 0, sellingPrice: 0 })
   const [editingItems, setEditingItems] = useState<{ [id: string]: { qty: number, price: number } }>({})
   
@@ -111,6 +112,11 @@ export default function SalesOrdersPage() {
   const [isProductSearchOpen, setIsProductSearchOpen] = useState(false)
   const [poNumberDraft, setPoNumberDraft] = useState("")
   const [isSavingOrder, setIsSavingOrder] = useState(false)
+
+  // Fast Track Custom HPP States
+  const [isFastTrackOpen, setIsFastTrackOpen] = useState(false)
+  const [fastTrackSo, setFastTrackSo] = useState<SalesOrder | null>(null)
+  const [fastTrackHpps, setFastTrackHpps] = useState<Record<string, number>>({})
 
   // Generate initial PO number when opening dialog
   useEffect(() => {
@@ -211,12 +217,13 @@ export default function SalesOrdersPage() {
       phone: newClientData.phone,
       address: newClientData.address,
       paymentTermDays: 30,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      parentId: newClientData.parentId || null
     })
     setClientId(id)
     setShareClientId(id)
     setIsClientQuickAddOpen(false)
-    setNewClientData({ companyName: "", picName: "", email: "", phone: "", address: "" })
+    setNewClientData({ companyName: "", picName: "", email: "", phone: "", address: "", parentId: "" })
     toast.success("Client added and selected")
   }
 
@@ -452,6 +459,95 @@ export default function SalesOrdersPage() {
     } catch (e) {
       console.error(e)
       toast.error("Fast-track gagal", { id: "fast_track" })
+    }
+  }
+
+  const handleConfirmFastTrack = async () => {
+    if (!fastTrackSo) return
+
+    const soId = fastTrackSo.id
+    const client = clients.find(c => c.id === fastTrackSo.clientId)
+    if (!client) {
+      toast.error(`Klien tidak ditemukan.`)
+      return
+    }
+
+    const soItems = salesOrderItems.filter(i => i.salesOrderId === soId)
+    const totalRevenue = soItems.reduce((sum, item) => {
+      const finalQty = item.qtyFinal ?? item.qty
+      return sum + (finalQty * item.unitPrice)
+    }, 0)
+
+    const deliveryId = uuidv4()
+    const invoiceId = uuidv4()
+    const purchaseId = uuidv4()
+    const dueDate = new Date()
+    dueDate.setDate(dueDate.getDate() + (client.paymentTermDays || 30))
+
+    toast.loading("Mempersiapkan data fast-track...", { id: "fast_track_confirm" })
+
+    try {
+      // 1. Buat Purchase & PurchaseItem tiruan untuk menyimpan HPP kustom
+      const newPurchaseItems = soItems.map(item => ({
+        id: uuidv4(),
+        purchaseId,
+        productId: item.productId,
+        salesOrderId: soId,
+        qtyTarget: item.qty,
+        qtyPurchased: item.qtyFinal ?? item.qty,
+        estimatedUnitPrice: products.find(p => p.id === item.productId)?.basePrice || 0,
+        actualUnitPrice: fastTrackHpps[item.id] ?? (products.find(p => p.id === item.productId)?.basePrice || 0),
+        isChecked: true,
+        isQCed: true,
+        purchaseMethod: 'Pasar' as const
+      }))
+
+      const newPurchase = {
+        id: purchaseId,
+        date: new Date().toISOString(),
+        purchaserId: currentUser?.id || 'admin',
+        status: 'Selesai' as const,
+        actualSpent: newPurchaseItems.reduce((sum, pi) => sum + (pi.qtyPurchased * pi.actualUnitPrice), 0),
+        reconciliationStatus: 'Terverifikasi' as const,
+        reconciliationNote: `Bypass fast-track untuk PO ${fastTrackSo.poNumber}`
+      }
+
+      const store = useAppStore.getState()
+      await store.addPurchase(newPurchase)
+      await store.addPurchaseItems(newPurchaseItems)
+
+      // 2. Buat data Delivery (Awaiting Audit)
+      await addDelivery({
+        id: deliveryId,
+        salesOrderId: soId,
+        courierId: currentUser?.id || 'admin',
+        status: 'Awaiting Audit',
+        deliveryDate: new Date().toISOString(),
+        invoiceId,
+        notes: `Fast-track by ${currentUser?.name || 'Admin'} (bypass QC/gudang/kurir) dengan HPP kustom`
+      })
+
+      // 3. Buat data Invoice
+      await addInvoice({
+        id: invoiceId,
+        salesOrderId: soId,
+        clientId: client.id,
+        issueDate: new Date().toISOString(),
+        dueDate: dueDate.toISOString(),
+        totalAmount: totalRevenue,
+        amountPaid: 0,
+        status: 'Unpaid'
+      })
+
+      // 4. Update status SO ke Awaiting Audit
+      await updateSalesOrder(soId, { status: 'Awaiting Audit' })
+
+      toast.success(`${fastTrackSo.poNumber} siap diaudit Finance dengan HPP ter-rekam.`, { id: "fast_track_confirm" })
+      setIsFastTrackOpen(false)
+      setFastTrackSo(null)
+    } catch (e) {
+      console.error(e)
+      toast.error("Fast-track gagal", { id: "fast_track_confirm" })
     }
   }
 
@@ -1129,7 +1225,17 @@ export default function SalesOrdersPage() {
                               variant="outline"
                               className="text-amber-600 border-amber-300 hover:bg-amber-50 font-black text-[10px] uppercase tracking-wider"
                               title="Fast-track: skip QC/gudang/kurir, langsung ke Awaiting Audit Finance"
-                              onClick={() => handleFastTrack(so.id)}
+                              onClick={() => {
+                                const soItems = salesOrderItems.filter(i => i.salesOrderId === so.id)
+                                const initialHpps: Record<string, number> = {}
+                                soItems.forEach(item => {
+                                  const prod = products.find(p => p.id === item.productId)
+                                  initialHpps[item.id] = prod?.basePrice || 0
+                                })
+                                setFastTrackHpps(initialHpps)
+                                setFastTrackSo(so)
+                                setIsFastTrackOpen(true)
+                              }}
                             >
                               ⚡ Fast Track
                             </Button>
@@ -1367,6 +1473,31 @@ export default function SalesOrdersPage() {
                 value={newClientData.phone} 
                 onChange={(e) => setNewClientData({...newClientData, phone: e.target.value})}
               />
+            </div>
+            <div className="grid gap-2">
+              <Label>Hubungkan ke Brand</Label>
+              <Select 
+                value={newClientData.parentId || "none"}
+                onValueChange={(val) => setNewClientData({ ...newClientData, parentId: (!val || val === "none") ? "" : val })}
+              >
+                <SelectTrigger className="h-10 rounded-xl bg-white border-slate-200 text-xs font-bold text-slate-700">
+                  <SelectValue placeholder="Pilih Brand...">
+                    {newClientData.parentId ? (
+                      clients.find(c => c.id === newClientData.parentId)?.companyName || "Pilih Brand..."
+                    ) : "Independent (Tidak Ada)"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent className="rounded-2xl border-none shadow-2xl">
+                  <SelectItem value="none">Independent (Tidak Ada)</SelectItem>
+                  {clients
+                    .filter(c => c.isBrand)
+                    .map(c => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.companyName}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <div className="flex justify-end gap-2">
@@ -1757,6 +1888,68 @@ export default function SalesOrdersPage() {
                 Tutup Preview
              </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Input HPP Kustom untuk Fast Track */}
+      <Dialog open={isFastTrackOpen} onOpenChange={setIsFastTrackOpen}>
+        <DialogContent className="max-w-2xl bg-white dark:bg-slate-900 rounded-[2rem] border-slate-100 shadow-2xl p-8">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-slate-900 dark:text-slate-50 flex items-center gap-2">
+              ⚡ Fast Track PO: {fastTrackSo?.poNumber}
+            </DialogTitle>
+            <DialogDescription className="text-slate-500 dark:text-slate-400">
+              Isi harga beli aktual (HPP) untuk setiap produk. Langkah belanja pasar, QC, gudang, dan kurir akan otomatis dilewati langsung ke Finance Audit.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="my-6 space-y-4 max-h-[400px] overflow-y-auto pr-2">
+            {fastTrackSo && salesOrderItems.filter(i => i.salesOrderId === fastTrackSo.id).map(item => {
+              const prod = products.find(p => p.id === item.productId)
+              return (
+                <div key={item.id} className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 border border-slate-100 dark:border-slate-800">
+                  <div className="space-y-1">
+                    <p className="font-bold text-slate-800 dark:text-slate-100 text-sm">{prod?.name}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                      Qty: {item.qtyFinal ?? item.qty} {prod?.uom} · Jual: {formatRupiah(item.unitPrice)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 min-w-[200px]">
+                    <span className="text-sm font-bold text-slate-400">Rp</span>
+                    <Input
+                      type="number"
+                      className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                      value={fastTrackHpps[item.id] ?? ''}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0
+                        setFastTrackHpps(prev => ({ ...prev, [item.id]: val }))
+                      }}
+                      placeholder="Input HPP per unit"
+                    />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              className="rounded-xl px-6 border-slate-200 hover:bg-slate-50"
+              onClick={() => {
+                setIsFastTrackOpen(false)
+                setFastTrackSo(null)
+              }}
+            >
+              Batal
+            </Button>
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-6"
+              onClick={handleConfirmFastTrack}
+            >
+              Konfirmasi & Bypass
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
