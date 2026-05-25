@@ -575,7 +575,14 @@ export const recordOperationalAdvanceTransfer = async (
   return success;
 };
 
-export const recordDeliveryAndInvoice = async (deliveryId: string, invoiceId: string, invoiceTotal: number, cogsTotal: number, items: { productId: string, qty: number }[] = []) => {
+export const recordDeliveryAndInvoice = async (
+  deliveryId: string, 
+  invoiceId: string, 
+  invoiceTotal: number, 
+  cogsTotal: number, 
+  items: { productId: string, qty: number }[] = [],
+  isFastTrack: boolean = false
+) => {
   const store = useAppStore.getState();
 
   // 1. Guard against duplicate execution
@@ -597,8 +604,16 @@ export const recordDeliveryAndInvoice = async (deliveryId: string, invoiceId: st
     [{ accountCode: '4-1000', amount: invoiceTotal }]
   );
 
-  // 3. Do NOT record HPP again here. 
-  // Procurement (Online Purchase/Market Sourcing) already records HPP directly upon approval to support match-on-order.
+  // 3. Record HPP/COGS for Fast Track (since procurement/sourcing was bypassed)
+  if (revSuccess && isFastTrack && cogsTotal > 0) {
+    await createAccountingEntry(
+      `Pengakuan HPP Fast-Track - Ref: ${invoiceId}`,
+      'Invoice',
+      invoiceId,
+      [{ accountCode: '5-1000', amount: cogsTotal }], // Debit HPP
+      [{ accountCode: '1-3000', amount: cogsTotal }]  // Credit Persediaan Barang Dagang
+    );
+  }
   
   // 4. Physical Inventory Sync (Deduction)
   if (revSuccess) {

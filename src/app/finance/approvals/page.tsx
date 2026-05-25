@@ -579,8 +579,9 @@ export default function FinanceHubPage() {
       stockDeductionItems.push({ productId: item.productId, qty: finalQty })
     })
 
+    const isFastTrack = delivery?.notes?.toLowerCase().includes('fast-track') || false
     toast.loading("Finalisasi pengiriman & invoice...", { id: "delivery" })
-    const success = await recordDeliveryAndInvoice(deliveryId, invoiceId, totalRevenue, totalCogs, stockDeductionItems)
+    const success = await recordDeliveryAndInvoice(deliveryId, invoiceId, totalRevenue, totalCogs, stockDeductionItems, isFastTrack)
     if (success) {
       await updateDelivery(deliveryId, { status: 'Terkirim' })
       await updateSalesOrder(soId, { status: 'Terkirim' })
