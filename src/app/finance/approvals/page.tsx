@@ -570,7 +570,10 @@ export default function FinanceHubPage() {
     
     soItems.forEach(item => {
       const finalQty = item.qtyFinal ?? item.qty
-      const pItem = purchaseItems.filter(pi => pi.productId === item.productId && pi.actualUnitPrice > 0).pop()
+      let pItem = purchaseItems.find(pi => pi.salesOrderId === soId && pi.productId === item.productId && pi.actualUnitPrice > 0)
+      if (!pItem) {
+        pItem = purchaseItems.filter(pi => pi.productId === item.productId && pi.actualUnitPrice > 0).pop()
+      }
       const unitCogs = pItem ? pItem.actualUnitPrice : (products.find(p => p.id === item.productId)?.basePrice || 0)
       totalCogs += (unitCogs * finalQty)
       stockDeductionItems.push({ productId: item.productId, qty: finalQty })
