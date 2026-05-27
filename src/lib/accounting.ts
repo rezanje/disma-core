@@ -604,29 +604,39 @@ export const recordDeliveryAndInvoice = async (
     [{ accountCode: '4-1000', amount: invoiceTotal }]
   );
 
-  // 3. Record HPP/COGS for Fast Track (since procurement/sourcing was bypassed).
-  //    Cr ke 1-1500 (advance wallet sourcer) — fast-track skip gudang, jadi gak ada movement
-  //    Persediaan (1-3000). Wallet bisa minus = signal sourcer nalangin (selaras plan B).
-  //    Tambah CashTx Out di bank-advance-sourcing biar bank.balance match journal saldo 1-1500.
+  // 3. Record HPP/COGS for Fast Track (procurement/sourcing dilewatkan).
+  //    Fast-track = sourcer beli ad-hoc pakai uang pribadi (gak via advance wallet).
+  //    Cr ke 2-1500 (Utang Talangan Karyawan) — liability ke sourcer, bukan asset 1-1500.
+  //    NO CashTx Out — tidak ada cash movement di kas sourcing (sourcer pakai uang pribadi).
+  //    Auto-create reimburse row Pending supaya finance bisa bayar via UI Reimbursement.
   if (revSuccess && isFastTrack && cogsTotal > 0) {
     const hppFastSuccess = await createAccountingEntry(
       `Pengakuan HPP Fast-Track - Ref: ${invoiceId}`,
       'Invoice',
       invoiceId,
       [{ accountCode: '5-1000', amount: cogsTotal }], // Debit HPP
-      [{ accountCode: '1-1500', amount: cogsTotal }]  // Credit Kas Sourcing/Advance
+      [{ accountCode: '2-1500', amount: cogsTotal }]  // Credit Utang Talangan Karyawan
     );
     if (hppFastSuccess) {
-      await store.addCashTransaction({
-        id: uuidv4(),
-        date: new Date().toISOString(),
-        amount: cogsTotal,
-        type: 'Out',
-        category: 'Sourcing (HPP)',
-        description: `Pengakuan HPP Fast-Track - Ref: ${invoiceId}`,
-        bankAccountId: 'bank-advance-sourcing',
-        referenceId: invoiceId
-      });
+      const inv = store.invoices.find(i => i.id === invoiceId);
+      const so = inv?.salesOrderId ? store.salesOrders.find(s => s.id === inv.salesOrderId) : undefined;
+      const purchase = store.purchases.find(p => p.id === so?.shoppingListDocumentId)
+        || store.purchases.find(p => p.reconciliationNote?.includes(so?.poNumber || '__nope__'));
+      const sourcerId = purchase?.purchaserId || 'system';
+      const alreadyHasReimb = store.reimbursements.some(r => r.purchaseId === invoiceId && r.kind === 'Sourcing-Defisit');
+      if (!alreadyHasReimb) {
+        await store.addReimbursement({
+          id: uuidv4(),
+          date: new Date().toISOString(),
+          userId: sourcerId,
+          purchaseId: invoiceId,
+          title: `Talangan Fast-Track - Inv: ${invoiceId.slice(0,8)}`,
+          amount: cogsTotal,
+          description: `HPP fast-track sourcer talangin (gak via advance wallet).`,
+          status: 'Pending',
+          kind: 'Sourcing-Defisit',
+        });
+      }
     }
   }
   
