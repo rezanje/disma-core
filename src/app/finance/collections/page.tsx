@@ -27,9 +27,18 @@ export default function ARCollectionsPage() {
   const [filterAging, setFilterAging] = useState<'all' | '30' | '60' | '90+'>('all')
   const [invoicePreview, setInvoicePreview] = useState<{ id: string, isConsolidated: boolean } | null>(null)
 
-  // 1. Get only unpaid invoices
+  // 1. Get only unpaid invoices — skip superseded & consolidated children to avoid double billing
   const outstandingInvoices = useMemo(() => {
-    return invoices.filter(inv => inv.status !== 'Paid' && inv.totalAmount > inv.amountPaid)
+    const consolidatedSOIds = new Set(
+      invoices
+        .filter((inv: any) => inv.isConsolidated && inv.salesOrderIds?.length > 0)
+        .flatMap((inv: any) => inv.salesOrderIds)
+    )
+    return invoices.filter((inv: any) => {
+      if (inv.supersededByInvoiceId) return false
+      if (inv.salesOrderId && consolidatedSOIds.has(inv.salesOrderId) && !inv.isConsolidated) return false
+      return inv.status !== 'Paid' && inv.totalAmount > inv.amountPaid
+    })
   }, [invoices])
 
   // 2. Add client info and aging days to invoices

@@ -1,0 +1,9 @@
+{
+  "ok": true,
+  "run_dir": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty",
+  "spritesheet": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/final/spritesheet.webp",
+  "validation": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/final/validation.json",
+  "contact_sheet": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/qa/contact-sheet.png",
+  "review": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/qa/review.json",
+  "package": "/Users/rezanje/.codex/pets/anty"
+}

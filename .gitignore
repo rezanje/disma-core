@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# simulation snapshots (backup-transactions.js output)
+/backups/

@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from "react"
 import { useAppStore } from "@/lib/store"
-import { formatRupiah, parseNumber, formatNumber } from "@/lib/utils"
+import { formatRupiah, parseNumber, formatNumber, getEffectiveBasePrice } from "@/lib/utils"
 import { v4 as uuidv4 } from "uuid"
 import { Product, ClientPriceTier, ClientPrice } from "@/types"
 import { Search, Download, Calculator, Check, Plus, Trash2, ChevronsUpDown, FileText, Eye } from "lucide-react"
@@ -157,29 +157,40 @@ export default function ClientPricesPage() {
   // Get active price record for a product (Super fast Map lookup)
   const getRecord = (productId: string) => recordMap.get(productId)
 
-  // Calculate dynamic price based on tier preference
+  // Calculate dynamic price based on tier preference.
+  // Base = weeklyPriceRange.min (current Thu-Wed window) if fresh, else master basePrice.
+  // Keeps client pricelist anchored to lowest market HPP captured during reconciliation.
   const calculateEffectivePrice = (product: Product, record?: ClientPrice) => {
-    if (!record) return { price: product.sellingPrice, isCustom: false, margin: product.sellingPrice - product.basePrice, marginPct: ((product.sellingPrice - product.basePrice) / (product.basePrice || 1)) * 100 }
-    
+    const { price: basePrice, source: baseSource } = getEffectiveBasePrice(product)
+
+    if (!record) {
+      const margin = product.sellingPrice - basePrice
+      const marginPct = (margin / (basePrice || 1)) * 100
+      return { price: product.sellingPrice, isCustom: false, margin, marginPct, basePrice, baseSource }
+    }
+
     let price = product.sellingPrice
+    // Tier price overrides only kick in when the master tier price is explicitly set
+    // (non-zero). Otherwise we recompute from the effective base price so the weekly
+    // low flows into the client quote automatically.
     if (record.tier === 'Custom') {
       price = record.agreedPrice
     } else if (record.tier === 'Tier 1') {
-      price = product.tier1Price || Math.round(product.basePrice * 1.5) || product.sellingPrice
+      price = product.tier1Price || Math.round(basePrice * 1.5) || product.sellingPrice
     } else if (record.tier === 'Tier 2') {
-      price = product.tier2Price || Math.round(product.basePrice * 1.3) || product.sellingPrice
+      price = product.tier2Price || Math.round(basePrice * 1.3) || product.sellingPrice
     } else if (record.tier === 'Tier 3') {
-      price = product.tier3Price || Math.round(product.basePrice * 1.2) || product.sellingPrice
+      price = product.tier3Price || Math.round(basePrice * 1.2) || product.sellingPrice
     } else if (record.tier === 'Tier 4') {
-      price = product.tier4Price || Math.round(product.basePrice * 1.15) || product.sellingPrice
+      price = product.tier4Price || Math.round(basePrice * 1.15) || product.sellingPrice
     } else if (record.tier === 'Tier 5') {
-      price = product.tier5Price || Math.round(product.basePrice * 1.1) || product.sellingPrice
+      price = product.tier5Price || Math.round(basePrice * 1.1) || product.sellingPrice
     }
-    
-    const margin = price - product.basePrice
-    const marginPct = (margin / (product.basePrice || 1)) * 100
 
-    return { price, isCustom: true, margin, marginPct }
+    const margin = price - basePrice
+    const marginPct = (margin / (basePrice || 1)) * 100
+
+    return { price, isCustom: true, margin, marginPct, basePrice, baseSource }
   }
 
   const handleAddProduct = async (productId: string, initialTier: ClientPriceTier = 'Standard') => {
@@ -285,6 +296,61 @@ export default function ClientPricesPage() {
         toast.success("Daftar harga client berhasil dikosongkan!", { id: "bulk_op" })
       } catch (err) {
         toast.error("Gagal menghapus massal", { id: "bulk_op" })
+      }
+    }, 100)
+  }
+
+  /**
+   * Publish-mingguan: snapshot `weeklyPriceRange.min` → `basePrice` for every product
+   * that has a fresh weekly low. After this runs, every client pricelist is locked
+   * to the lowest market HPP captured during the Thu-Wed window. Tier price overrides
+   * are also cleared so future quotes recompute from the new master base.
+   */
+  const handlePublishWeeklyHPP = async () => {
+    const candidates = products.filter(p => {
+      const eff = getEffectiveBasePrice(p)
+      return eff.source === 'weekly_low' && eff.price > 0 && eff.price !== p.basePrice
+    })
+
+    if (candidates.length === 0) {
+      toast.info("Tidak ada HPP weekly low baru yang perlu disinkronkan.")
+      return
+    }
+
+    setTimeout(async () => {
+      if (!confirm(
+        `Publish pricelist mingguan?\n\n` +
+        `${candidates.length} barang akan di-update HPP master-nya ke harga terendah ` +
+        `minggu berjalan. Semua pricelist client otomatis mengikuti.\n\n` +
+        `Lanjutkan?`
+      )) return
+
+      toast.loading(`Sinkron HPP ${candidates.length} barang...`, { id: "publish_weekly" })
+
+      try {
+        const chunkSize = 15
+        for (let i = 0; i < candidates.length; i += chunkSize) {
+          const chunk = candidates.slice(i, i + chunkSize)
+          await Promise.all(chunk.map(p => {
+            const { price } = getEffectiveBasePrice(p)
+            return updateProduct(p.id, {
+              basePrice: price,
+              // Clear stale tier overrides so the new base flows through margin formulas.
+              tier1Price: undefined,
+              tier2Price: undefined,
+              tier3Price: undefined,
+              tier4Price: undefined,
+              tier5Price: undefined,
+            })
+          }))
+        }
+        toast.success(
+          `${candidates.length} HPP master tersinkron. Pricelist client locked untuk minggu ini.`,
+          { id: "publish_weekly" }
+        )
+      } catch (err) {
+        console.error('[Publish Weekly HPP] failed:', err)
+        toast.error("Gagal sinkron HPP mingguan", { id: "publish_weekly" })
       }
     }, 100)
   }
@@ -641,6 +707,19 @@ export default function ClientPricesPage() {
                           </Button>
                         ))}
                       </div>
+                    <div className="pb-2 border-b border-emerald-50">
+                      <h4 className="font-bold text-xs uppercase tracking-widest text-emerald-700">Publish Pricelist Mingguan</h4>
+                      <p className="text-[10px] text-slate-400">Snapshot HPP terendah minggu ini ke Master. Semua pricelist client otomatis ikut.</p>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-[10px] justify-start px-2 mt-2 w-full hover:bg-emerald-50 hover:text-emerald-700 font-bold border border-transparent hover:border-emerald-100"
+                        onClick={handlePublishWeeklyHPP}
+                      >
+                        <Check className="mr-2 h-3 w-3" /> Sync HPP Weekly Low → Master
+                      </Button>
+                    </div>
+
                     <div>
                       <h4 className="font-bold text-xs uppercase tracking-widest text-slate-500">Aksi Bahaya</h4>
                       <p className="text-[10px] text-slate-400">Gunakan dengan hati-hati.</p>
@@ -732,7 +811,7 @@ export default function ClientPricesPage() {
                     </TableRow>
                     {items.map((p) => {
                       const record = getRecord(p.id)
-                      const { price, isCustom, margin, marginPct } = calculateEffectivePrice(p, record)
+                      const { price, isCustom, margin, marginPct, basePrice: effectiveBase, baseSource } = calculateEffectivePrice(p, record)
                       return (
                         <TableRow key={p.id} className={isCustom ? "bg-emerald-50/20" : ""}>
                       <TableCell className="font-mono text-[10px] font-bold text-slate-500">
@@ -785,7 +864,23 @@ export default function ClientPricesPage() {
                          </Popover>
                       </TableCell>
                       <TableCell className="text-right font-mono text-xs text-slate-500">
-                        {formatRupiah(p.basePrice)}
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className={baseSource === 'weekly_low' ? 'text-emerald-700 font-bold' : 'text-slate-500'}>
+                            {formatRupiah(effectiveBase)}
+                          </span>
+                          <span className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${
+                            baseSource === 'weekly_low'
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-slate-100 text-slate-500'
+                          }`}>
+                            {baseSource === 'weekly_low' ? 'Weekly Low' : 'Master'}
+                          </span>
+                          {baseSource === 'weekly_low' && p.basePrice !== effectiveBase && (
+                            <span className="text-[8px] font-medium text-slate-400 italic">
+                              Master: {formatRupiah(p.basePrice)}
+                            </span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="bg-emerald-50/30 border-l border-r border-emerald-50">
                          <Select 

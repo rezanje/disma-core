@@ -1,7 +1,7 @@
 import { jsPDF } from "jspdf"
 import { format } from "date-fns"
 import { useAppStore } from "./store"
-import { formatRupiah, formatRupiahValue } from "./utils"
+import { formatRupiah, formatRupiahValue, getEffectiveBasePrice } from "./utils"
 import { DISMA_LOGO_BASE64 } from "./logo"
 import { Product } from "@/types"
 
@@ -712,14 +712,18 @@ export function generatePriceListPDF(clientId: string, outputType: 'save' | 'dat
       let priceToDisplay = product.sellingPrice
       let hasSpecialPrice = false
 
+      // Base = weekly low (fresh Thu-Wed window) else master HPP.
+      // Anchors quoted price to lowest market HPP captured during reconciliation.
+      const { price: basePrice } = getEffectiveBasePrice(product)
+
       if (record) {
         hasSpecialPrice = true
         if (record.tier === 'Custom') priceToDisplay = record.agreedPrice
-        else if (record.tier === 'Tier 1') priceToDisplay = product.tier1Price || Math.round(product.basePrice * 1.5) || product.sellingPrice
-        else if (record.tier === 'Tier 2') priceToDisplay = product.tier2Price || Math.round(product.basePrice * 1.3) || product.sellingPrice
-        else if (record.tier === 'Tier 3') priceToDisplay = product.tier3Price || Math.round(product.basePrice * 1.2) || product.sellingPrice
-        else if (record.tier === 'Tier 4') priceToDisplay = product.tier4Price || Math.round(product.basePrice * 1.15) || product.sellingPrice
-        else if (record.tier === 'Tier 5') priceToDisplay = product.tier5Price || Math.round(product.basePrice * 1.1) || product.sellingPrice
+        else if (record.tier === 'Tier 1') priceToDisplay = product.tier1Price || Math.round(basePrice * 1.5) || product.sellingPrice
+        else if (record.tier === 'Tier 2') priceToDisplay = product.tier2Price || Math.round(basePrice * 1.3) || product.sellingPrice
+        else if (record.tier === 'Tier 3') priceToDisplay = product.tier3Price || Math.round(basePrice * 1.2) || product.sellingPrice
+        else if (record.tier === 'Tier 4') priceToDisplay = product.tier4Price || Math.round(basePrice * 1.15) || product.sellingPrice
+        else if (record.tier === 'Tier 5') priceToDisplay = product.tier5Price || Math.round(basePrice * 1.1) || product.sellingPrice
       }
 
       doc.setFontSize(9)

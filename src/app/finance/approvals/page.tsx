@@ -68,6 +68,13 @@ export default function FinanceHubPage() {
 
   // --- AUTO-CREATE MISSING ADVANCES ---
   const isBackfilling = useRef(false)
+  // Reentrancy guard utk semua money-action handler — cegah double-click bikin double-posting jurnal.
+  const inFlightRef = useRef<Set<string>>(new Set())
+  const acquireLock = (key: string): boolean => {
+    if (inFlightRef.current.has(key)) { toast.warning("Sabar, sedang diproses…"); return false }
+    inFlightRef.current.add(key); return true
+  }
+  const releaseLock = (key: string) => { inFlightRef.current.delete(key) }
   
   useEffect(() => {
     const backfillMissingAdvances = async () => {
@@ -223,6 +230,9 @@ export default function FinanceHubPage() {
 
   // --- ACTIONS ---
   const handleTransferBudget = async (purchaseId: string) => {
+    const lockKey = `transferBudget_${purchaseId}`
+    if (!acquireLock(lockKey)) return
+    try {
     const purchaserId = selectedPurchasers[purchaseId]
     const spareAmount = spareAmounts[purchaseId] || 0
     if (!purchaserId) return toast.error("Pilih penerima dana terlebih dahulu.")
@@ -263,9 +273,13 @@ export default function FinanceHubPage() {
     } else {
       toast.error("Gagal memproses transfer. Cek koneksi & database.", { id: "transfer-PO" })
     }
+    } finally { releaseLock(lockKey) }
   }
 
   const handleAuditExpense = async (expenseId: string, status: 'Approved' | 'Rejected') => {
+    const lockKey = `auditExpense_${expenseId}`
+    if (!acquireLock(lockKey)) return
+    try {
     const exp = expenses.find(e => e.id === expenseId)
     if (!exp) return
 
@@ -344,9 +358,13 @@ export default function FinanceHubPage() {
 
     await updateExpense(expenseId, { status })
     if (status === 'Rejected') toast.success("Audit ditolak.")
+    } finally { releaseLock(lockKey) }
   }
 
   const handleVerifyReconciliation = async (purchaseId: string) => {
+    const lockKey = `verifyRecon_${purchaseId}`
+    if (!acquireLock(lockKey)) return
+    try {
     const purchase = useAppStore.getState().purchases.find(p => p.id === purchaseId)
     if (!purchase) return
     if (purchase.reconciliationStatus === 'Terverifikasi') {
@@ -424,10 +442,14 @@ export default function FinanceHubPage() {
     }
 
     toast.success("Sesi Sourcing berhasil disetujui & disettle!", { id: "rekon" })
+    } finally { releaseLock(lockKey) }
   }
 
   const handleItemSettlement = async () => {
     if (!directSettleId) return
+    const lockKey = `itemSettle_${directSettleId}`
+    if (!acquireLock(lockKey)) return
+    try {
     const purchase = purchases.find(p => p.id === directSettleId)
     if (!purchase) return
 
@@ -533,9 +555,13 @@ export default function FinanceHubPage() {
     } catch (err) {
       toast.error("Gagal memproses settlement per item.", { id: toastId })
     }
+    } finally { releaseLock(lockKey) }
   }
 
   const handleVerifyDelivery = async (deliveryId: string) => {
+    const lockKey = `verifyDelivery_${deliveryId}`
+    if (!acquireLock(lockKey)) return
+    try {
     const delivery = deliveries.find(d => d.id === deliveryId)
     const soId = delivery?.salesOrderId
     if (!delivery || !soId) return
@@ -586,9 +612,13 @@ export default function FinanceHubPage() {
     } else {
       toast.error("Gagal mencatat transaksi ke jurnal.", { id: "delivery" })
     }
+    } finally { releaseLock(lockKey) }
   }
 
   const handlePayReimbursement = async (reimbId: string) => {
+    const lockKey = `payReimburse_${reimbId}`
+    if (!acquireLock(lockKey)) return
+    try {
     const reimb = reimbursements.find(r => r.id === reimbId)
     if (!reimb) return
     const user = users.find(u => u.id === reimb.userId)
@@ -624,6 +654,7 @@ export default function FinanceHubPage() {
     } else {
       toast.error("Gagal mencatat transaksi reimbursement.", { id: "reimb" })
     }
+    } finally { releaseLock(lockKey) }
   }
 
   const handleUpdateProductPrice = (productId: string, newPrice: number) => {

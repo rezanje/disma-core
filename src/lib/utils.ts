@@ -36,6 +36,44 @@ export function parseNumber(val: string): number {
   return parseInt(clean) || 0
 }
 
+/**
+ * Returns true if `weeklyPriceRange.lastUpdated` falls inside the current
+ * Thursday-to-Wednesday window (same window used by `updateProductPriceHistory`
+ * in `src/lib/accounting.ts`). Stale ranges (older than 7 days) are ignored.
+ */
+export function isWeeklyPriceFresh(lastUpdated?: string, now: Date = new Date()): boolean {
+  if (!lastUpdated) return false
+  const updated = new Date(lastUpdated)
+  if (Number.isNaN(updated.getTime())) return false
+
+  const day = now.getDay() // 0=Sun..6=Sat
+  const diffToLastThu = day >= 4 ? day - 4 : day + 3
+  const startOfWeek = new Date(now)
+  startOfWeek.setDate(now.getDate() - diffToLastThu)
+  startOfWeek.setHours(0, 0, 0, 0)
+  const endOfWeek = new Date(startOfWeek)
+  endOfWeek.setDate(startOfWeek.getDate() + 7)
+
+  return updated >= startOfWeek && updated < endOfWeek
+}
+
+/**
+ * Resolves the base price used for pricelist margin calculation.
+ * Prefers `weeklyPriceRange.min` when the weekly window is fresh, falling back
+ * to the static `basePrice`. This keeps client pricelists tied to the lowest
+ * market HPP captured in the current Thu–Wed window.
+ */
+export function getEffectiveBasePrice(product: {
+  basePrice: number
+  weeklyPriceRange?: { min: number; max: number; lastUpdated: string }
+}, now: Date = new Date()): { price: number; source: 'weekly_low' | 'master' } {
+  const wr = product.weeklyPriceRange
+  if (wr && wr.min > 0 && isWeeklyPriceFresh(wr.lastUpdated, now)) {
+    return { price: wr.min, source: 'weekly_low' }
+  }
+  return { price: product.basePrice || 0, source: 'master' }
+}
+
 export function getWeekRange(dateStr: string) {
   const date = new Date(dateStr)
   const day = date.getDay()

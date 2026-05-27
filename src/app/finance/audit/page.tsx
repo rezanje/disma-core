@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useAppStore } from "@/lib/store"
 import { recordOperationalExpense, recordOnlinePurchase, recordAdvanceExpense, getAdvanceWalletByUserId } from "@/lib/accounting"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -24,6 +24,14 @@ export default function AuditTransitionPage() {
   const [activeRejectionId, setActiveRejectionId] = useState<string | null>(null)
   const [rejectionNote, setRejectionNote] = useState("")
 
+  // Reentrancy guard utk approve handler (cegah double-action posting jurnal 2x).
+  const inFlightRef = useRef<Set<string>>(new Set())
+  const acquireLock = (key: string): boolean => {
+    if (inFlightRef.current.has(key)) { toast.warning("Sabar, sedang diproses…"); return false }
+    inFlightRef.current.add(key); return true
+  }
+  const releaseLock = (key: string) => { inFlightRef.current.delete(key) }
+
   const pendingExpenses = expenses.filter(e => 
     e.status === 'Pending Audit' && 
     (e.description.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -35,10 +43,13 @@ export default function AuditTransitionPage() {
   const approvedInflow = 0 
 
   const handleApprove = async (expenseId: string) => {
+    const lockKey = `audit_${expenseId}`
+    if (!acquireLock(lockKey)) return
+    try {
     const expense = expenses.find(e => e.id === expenseId)
     if (!expense) return
 
-    updateExpense(expenseId, { 
+    updateExpense(expenseId, {
       status: 'Approved',
       auditDate: new Date().toISOString()
     })
@@ -75,6 +86,7 @@ export default function AuditTransitionPage() {
     } else {
       toast.error("Validasi gagal - Data reference tidak valid.")
     }
+    } finally { releaseLock(lockKey) }
   }
 
   const handleConfirmReject = () => {

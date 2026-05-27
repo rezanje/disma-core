@@ -1,0 +1,962 @@
+{
+  "ok": true,
+  "frames_root": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames",
+  "errors": [],
+  "warnings": [],
+  "rows": [
+    {
+      "state": "idle",
+      "expected_frames": 6,
+      "actual_frames": 6,
+      "extraction_method": null,
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "frames": [
+        {
+          "index": 0,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/idle/00.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 13065,
+          "bbox": [
+            41,
+            16,
+            151,
+            198
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 1,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/idle/01.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 13514,
+          "bbox": [
+            40,
+            14,
+            151,
+            197
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 2,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/idle/02.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 13514,
+          "bbox": [
+            40,
+            13,
+            151,
+            196
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 3,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/idle/03.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 13292,
+          "bbox": [
+            41,
+            14,
+            151,
+            197
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 4,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/idle/04.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 13065,
+          "bbox": [
+            41,
+            16,
+            151,
+            198
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 5,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/idle/05.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 13156,
+          "bbox": [
+            41,
+            18,
+            151,
+            199
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        }
+      ]
+    },
+    {
+      "state": "running-right",
+      "expected_frames": 8,
+      "actual_frames": 8,
+      "extraction_method": null,
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "frames": [
+        {
+          "index": 0,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/running-right/00.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12921,
+          "bbox": [
+            31,
+            11,
+            152,
+            196
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 1,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/running-right/01.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12970,
+          "bbox": [
+            37,
+            11,
+            151,
+            195
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 2,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/running-right/02.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12959,
+          "bbox": [
+            43,
+            13,
+            153,
+            197
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 3,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/running-right/03.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12942,
+          "bbox": [
+            48,
+            5,
+            158,
+            192
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 4,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/running-right/04.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12962,
+          "bbox": [
+            47,
+            12,
+            156,
+            197
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 5,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/running-right/05.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 13065,
+          "bbox": [
+            42,
+            15,
+            152,
+            197
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 6,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/running-right/06.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12953,
+          "bbox": [
+            36,
+            12,
+            152,
+            197
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 7,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/running-right/07.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12921,
+          "bbox": [
+            32,
+            8,
+            153,
+            193
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        }
+      ]
+    },
+    {
+      "state": "running-left",
+      "expected_frames": 8,
+      "actual_frames": 8,
+      "extraction_method": null,
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "frames": [
+        {
+          "index": 0,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/running-left/00.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12921,
+          "bbox": [
+            40,
+            11,
+            161,
+            196
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 1,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/running-left/01.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12970,
+          "bbox": [
+            41,
+            11,
+            155,
+            195
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 2,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/running-left/02.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12959,
+          "bbox": [
+            39,
+            13,
+            149,
+            197
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 3,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/running-left/03.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12942,
+          "bbox": [
+            34,
+            5,
+            144,
+            192
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 4,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/running-left/04.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12962,
+          "bbox": [
+            36,
+            12,
+            145,
+            197
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 5,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/running-left/05.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 13065,
+          "bbox": [
+            40,
+            15,
+            150,
+            197
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 6,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/running-left/06.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12953,
+          "bbox": [
+            40,
+            12,
+            156,
+            197
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 7,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/running-left/07.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12921,
+          "bbox": [
+            39,
+            8,
+            160,
+            193
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        }
+      ]
+    },
+    {
+      "state": "waving",
+      "expected_frames": 4,
+      "actual_frames": 4,
+      "extraction_method": null,
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "frames": [
+        {
+          "index": 0,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/waving/00.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12970,
+          "bbox": [
+            39,
+            13,
+            153,
+            197
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 1,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/waving/01.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12936,
+          "bbox": [
+            43,
+            7,
+            152,
+            194
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 2,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/waving/02.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12937,
+          "bbox": [
+            37,
+            9,
+            156,
+            194
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 3,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/waving/03.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12959,
+          "bbox": [
+            42,
+            13,
+            152,
+            197
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        }
+      ]
+    },
+    {
+      "state": "jumping",
+      "expected_frames": 5,
+      "actual_frames": 5,
+      "extraction_method": null,
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "frames": [
+        {
+          "index": 0,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/jumping/00.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 13084,
+          "bbox": [
+            41,
+            26,
+            150,
+            206
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 1,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/jumping/01.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 13065,
+          "bbox": [
+            41,
+            18,
+            151,
+            200
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 2,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/jumping/02.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 13065,
+          "bbox": [
+            41,
+            2,
+            151,
+            184
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 3,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/jumping/03.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 13065,
+          "bbox": [
+            41,
+            14,
+            151,
+            196
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 4,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/jumping/04.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 13084,
+          "bbox": [
+            41,
+            24,
+            150,
+            204
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        }
+      ]
+    },
+    {
+      "state": "failed",
+      "expected_frames": 8,
+      "actual_frames": 8,
+      "extraction_method": null,
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "frames": [
+        {
+          "index": 0,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/failed/00.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12939,
+          "bbox": [
+            35,
+            13,
+            160,
+            200
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 1,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/failed/01.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12943,
+          "bbox": [
+            32,
+            13,
+            163,
+            201
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 2,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/failed/02.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12968,
+          "bbox": [
+            31,
+            13,
+            166,
+            201
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 3,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/failed/03.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12943,
+          "bbox": [
+            32,
+            12,
+            163,
+            200
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 4,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/failed/04.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12960,
+          "bbox": [
+            30,
+            13,
+            163,
+            201
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 5,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/failed/05.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12933,
+          "bbox": [
+            30,
+            12,
+            166,
+            201
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 6,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/failed/06.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12935,
+          "bbox": [
+            34,
+            13,
+            163,
+            201
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 7,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/failed/07.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12939,
+          "bbox": [
+            34,
+            14,
+            159,
+            201
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        }
+      ]
+    },
+    {
+      "state": "waiting",
+      "expected_frames": 6,
+      "actual_frames": 6,
+      "extraction_method": null,
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "frames": [
+        {
+          "index": 0,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/waiting/00.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 13065,
+          "bbox": [
+            41,
+            16,
+            151,
+            198
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 1,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/waiting/01.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12970,
+          "bbox": [
+            40,
+            12,
+            154,
+            196
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 2,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/waiting/02.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12953,
+          "bbox": [
+            40,
+            10,
+            156,
+            195
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 3,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/waiting/03.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 13065,
+          "bbox": [
+            41,
+            16,
+            151,
+            198
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 4,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/waiting/04.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12959,
+          "bbox": [
+            41,
+            12,
+            151,
+            196
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 5,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/waiting/05.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12962,
+          "bbox": [
+            41,
+            10,
+            150,
+            195
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        }
+      ]
+    },
+    {
+      "state": "running",
+      "expected_frames": 6,
+      "actual_frames": 6,
+      "extraction_method": null,
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "frames": [
+        {
+          "index": 0,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/running/00.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12953,
+          "bbox": [
+            37,
+            12,
+            153,
+            197
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 1,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/running/01.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 13406,
+          "bbox": [
+            42,
+            11,
+            153,
+            196
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 2,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/running/02.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12936,
+          "bbox": [
+            45,
+            9,
+            154,
+            196
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 3,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/running/03.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 13514,
+          "bbox": [
+            40,
+            13,
+            151,
+            196
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 4,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/running/04.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12937,
+          "bbox": [
+            35,
+            10,
+            154,
+            195
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 5,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/running/05.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 13420,
+          "bbox": [
+            38,
+            13,
+            153,
+            198
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        }
+      ]
+    },
+    {
+      "state": "review",
+      "expected_frames": 6,
+      "actual_frames": 6,
+      "extraction_method": null,
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "frames": [
+        {
+          "index": 0,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/review/00.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 13065,
+          "bbox": [
+            41,
+            16,
+            151,
+            198
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 1,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/review/01.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12959,
+          "bbox": [
+            42,
+            12,
+            152,
+            196
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 2,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/review/02.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12962,
+          "bbox": [
+            44,
+            10,
+            153,
+            195
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 3,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/review/03.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12928,
+          "bbox": [
+            42,
+            14,
+            151,
+            197
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 4,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/review/04.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12970,
+          "bbox": [
+            38,
+            12,
+            152,
+            196
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        },
+        {
+          "index": 5,
+          "file": "/Users/rezanje/Antygravity/webapp kerja disma/disma-core/tmp/hatch-pet-anty/frames/review/05.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 13065,
+          "bbox": [
+            41,
+            16,
+            151,
+            198
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 0
+        }
+      ]
+    }
+  ]
+}

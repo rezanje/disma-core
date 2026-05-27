@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useAppStore } from "@/lib/store"
 import { Card, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -14,20 +14,26 @@ import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { v4 as uuidv4 } from "uuid"
-import { createAccountingEntry } from "@/lib/accounting"
+import { recordReimbursementPayment } from "@/lib/accounting"
 
 export default function ReimbursementManagementPage() {
   const reimbursements = useAppStore(state => state.reimbursements)
   const users = useAppStore(state => state.users)
   const bankAccounts = useAppStore(state => state.bankAccounts)
   const updateReimbursement = useAppStore(state => state.updateReimbursement)
-  const addCashTransaction = useAppStore(state => state.addCashTransaction)
 
   const [searchTerm, setSearchTerm] = useState("")
   const [isPayOpen, setIsPayOpen] = useState(false)
   const [activeReimb, setActiveReimb] = useState<any>(null)
   const [payBankId, setPayBankId] = useState('')
+
+  // Reentrancy guard utk approve/reject/pay supaya 1 reimburse gak diaction 2x bersamaan.
+  const inFlightRef = useRef<Set<string>>(new Set())
+  const acquireLock = (key: string): boolean => {
+    if (inFlightRef.current.has(key)) { toast.warning("Sabar, sedang diproses…"); return false }
+    inFlightRef.current.add(key); return true
+  }
+  const releaseLock = (key: string) => { inFlightRef.current.delete(key) }
 
   const filteredReimbs = reimbursements.filter(r => 
     r.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -35,74 +41,62 @@ export default function ReimbursementManagementPage() {
   ).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
   const handleApprove = async (id: string) => {
+    const lockKey = `approve_${id}`
+    if (!acquireLock(lockKey)) return
     const loadingToast = toast.loading("Approving reimbursement...")
     try {
       await updateReimbursement(id, { status: 'Approved', auditDate: new Date().toISOString() })
       toast.success("Reimbursement Approved! Lanjut ke Pembayaran.", { id: loadingToast })
     } catch (e: any) {
       toast.error("Gagal approve: " + e.message, { id: loadingToast })
-    }
+    } finally { releaseLock(lockKey) }
   }
 
   const handleReject = async (id: string) => {
+    const lockKey = `reject_${id}`
+    if (!acquireLock(lockKey)) return
     const loadingToast = toast.loading("Rejecting reimbursement...")
     try {
       await updateReimbursement(id, { status: 'Rejected', auditDate: new Date().toISOString() })
       toast.info("Reimbursement Ditolak.", { id: loadingToast })
     } catch (e: any) {
       toast.error("Gagal reject: " + e.message, { id: loadingToast })
-    }
+    } finally { releaseLock(lockKey) }
   }
 
   const handlePay = async () => {
     if (!activeReimb || !payBankId) return
+    const lockKey = `pay_${activeReimb.id}`
+    if (!acquireLock(lockKey)) return
 
     const loadingToast = toast.loading("Memproses pembayaran reimburse...")
     try {
       const now = new Date().toISOString()
-      const txId = uuidv4()
       const user = users.find(u => u.id === activeReimb.userId)
 
-      // 1. Mark Reimbursement as Paid
-      await updateReimbursement(activeReimb.id, { 
-        status: 'Paid', 
-        paymentDate: now,
-        paymentReference: txId
-      })
-
-      // 2. Add Cash Transaction (Outflow)
-      await addCashTransaction({
-        id: txId,
-        date: now,
-        type: 'Out',
-        amount: activeReimb.amount,
-        bankAccountId: payBankId,
-        category: 'Reimbursement',
-        description: `Reimburse: ${activeReimb.title} (${user?.name})`,
-        referenceType: 'Reimbursement',
-        referenceId: activeReimb.id,
-        counterpartName: user?.name
-      })
-
-      // 3. Journal Entry
-      const bank = bankAccounts.find(b => b.id === payBankId)
-      const bankCode = bank?.accountCode || '1-1000'
-      
-      await createAccountingEntry(
-        `Bayar Reimburs: ${activeReimb.title} (${user?.name})`,
-        'Expense',
+      // Pakai recordReimbursementPayment supaya jurnal Dr account konsisten dengan kind
+      // (Sourcing-Defisit -> 2-1500, Auto-Talangan -> 6-1400, Manual -> 6-9000)
+      const success = await recordReimbursementPayment(
         activeReimb.id,
-        [{ accountCode: '6-9000', amount: activeReimb.amount }], // 6-9000 for general reimbursement
-        [{ accountCode: bankCode, amount: activeReimb.amount }],
-        now
+        activeReimb.amount,
+        activeReimb.title || 'Reimburse',
+        payBankId,
+        user?.name || 'Karyawan'
       )
+      if (!success) throw new Error("Gagal mencatat transaksi reimbursement.")
+
+      await updateReimbursement(activeReimb.id, {
+        status: 'Paid',
+        paymentDate: now,
+        paymentReference: activeReimb.id
+      })
 
       toast.success(`Pembayaran ${formatRupiah(activeReimb.amount)} Berhasil! Saldo Bank Berkurang.`, { id: loadingToast })
       setIsPayOpen(false)
       setActiveReimb(null)
     } catch (e: any) {
       toast.error("Gagal memproses pembayaran: " + e.message, { id: loadingToast })
-    }
+    } finally { releaseLock(lockKey) }
   }
 
   return (

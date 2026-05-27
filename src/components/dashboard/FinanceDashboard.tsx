@@ -39,7 +39,7 @@ const formatInvoiceId = (id: string) => {
 }
 
 export default function FinanceDashboard() {
-  const { invoices = [], salesOrders = [], salesOrderItems = [], journalLines = [], coas = [], clients = [], vendorBills = [] } = useAppStore()
+  const { invoices = [], salesOrders = [], salesOrderItems = [], journalLines = [], journalEntries = [], coas = [], clients = [], vendorBills = [] } = useAppStore()
   
   // 1. FINANCIAL CALCULATIONS
   const getBalance = (prefix: string) => {
@@ -59,15 +59,67 @@ export default function FinanceDashboard() {
   const expensesThisMonth = getBalance('5') + getBalance('6')
   const netProfit = revenueThisMonth - expensesThisMonth
 
-  // 2. CHART DATA (REVENUE VS PROFIT TREND)
-  // Mocking trend data based on current balances for visualization
-  const trendData = [
-    { name: 'Jan', revenue: revenueThisMonth * 0.8, profit: netProfit * 0.8 },
-    { name: 'Feb', revenue: revenueThisMonth * 0.9, profit: netProfit * 0.85 },
-    { name: 'Mar', revenue: revenueThisMonth * 0.85, profit: netProfit * 0.75 },
-    { name: 'Apr', revenue: revenueThisMonth * 1.1, profit: netProfit * 1.05 },
-    { name: 'Mei', revenue: revenueThisMonth, profit: netProfit },
-  ]
+  // 2. CHART DATA (REVENUE VS PROFIT TREND) — real aggregation per month for 2026
+  // Jan-Apr revenue from imported invoices (no GL). May revenue & profit from journal lines.
+  const trendData = useMemo(() => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei']
+    const agg: Record<string, { revenue: number; profit: number }> = Object.fromEntries(
+      months.map(m => [m, { revenue: 0, profit: 0 }])
+    )
+
+    // Skip superseded & consolidated children
+    const consolidatedSOIds = new Set(
+      invoices
+        .filter((inv: any) => inv.isConsolidated && inv.salesOrderIds?.length > 0)
+        .flatMap((inv: any) => inv.salesOrderIds)
+    )
+
+    // Jan-Apr revenue from invoices (issueDate-based, exclude May to avoid double with GL)
+    invoices.forEach((inv: any) => {
+      if (!inv.issueDate) return
+      if (inv.supersededByInvoiceId) return
+      if (inv.salesOrderId && consolidatedSOIds.has(inv.salesOrderId) && !inv.isConsolidated) return
+      const d = parseISO(inv.issueDate)
+      if (d.getFullYear() !== 2026) return
+      const mKey = format(d, 'MMM', { locale: localeId })
+      if (mKey === 'Mei') return
+      if (agg[mKey] !== undefined) {
+        agg[mKey].revenue += inv.totalAmount || 0
+      }
+    })
+
+    // May from journal lines (real GL)
+    journalLines.forEach(jl => {
+      const entry = journalEntries.find(je => je.id === jl.journalEntryId)
+      if (!entry) return
+      const dateStr = entry.transactionDate
+      if (!dateStr) return
+      const d = parseISO(dateStr)
+      if (d.getFullYear() !== 2026) return
+      const mKey = format(d, 'MMM', { locale: localeId })
+      if (agg[mKey] === undefined) return
+      const coa = coas.find(c => c.id === jl.accountId)
+      if (!coa) return
+      if (coa.accountCode.startsWith('4')) {
+        const revVal = jl.creditAmount - jl.debitAmount
+        agg[mKey].revenue += revVal
+        agg[mKey].profit += revVal
+      } else if (coa.accountCode.startsWith('5') || coa.accountCode.startsWith('6')) {
+        const expVal = jl.debitAmount - jl.creditAmount
+        agg[mKey].profit -= expVal
+      }
+    })
+
+    // Estimate Jan-Apr profit using May margin (only when May has real data)
+    const mayMargin = agg['Mei'].revenue > 0 ? agg['Mei'].profit / agg['Mei'].revenue : 0
+    months.forEach(m => {
+      if (m !== 'Mei' && agg[m].profit === 0 && agg[m].revenue > 0) {
+        agg[m].profit = agg[m].revenue * mayMargin
+      }
+    })
+
+    return months.map(name => ({ name, revenue: agg[name].revenue, profit: agg[name].profit }))
+  }, [invoices, journalLines, journalEntries, coas])
 
   // 3. COLLECTION HEALTH SUMMARY
   const collectionStats = useMemo(() => {

@@ -418,6 +418,13 @@ create table if not exists public.client_prices (
   updated_by_user_id text
 );
 
+-- ---------------------------------------------------------------------------
+-- DEV ONLY: disable RLS for local development with anon key.
+-- In PRODUCTION, run `supabase/prod-rls.sql` AFTER this bootstrap to re-enable
+-- RLS on HIGH-sensitivity tables (users, bank_accounts, invoices, journals,
+-- cash_transactions, expenses, reimbursements). Production API routes use
+-- service-role key which bypasses RLS, so no app code changes are needed.
+-- ---------------------------------------------------------------------------
 alter table public.users disable row level security;
 alter table public.clients disable row level security;
 alter table public.vendors disable row level security;
