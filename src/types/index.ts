@@ -230,6 +230,7 @@ export interface Invoice {
   clientId: string;
   issueDate: string;
   dueDate: string;
+  tukarFakturId?: string;
   totalAmount: number;
   amountPaid: number;
   status: InvoiceStatus;
@@ -238,6 +239,24 @@ export interface Invoice {
   lastRemindedAt?: string;
   /** If set, this invoice was absorbed into a consolidated (Tukar Faktur) invoice and should be treated as superseded. */
   supersededByInvoiceId?: string;
+}
+
+export type TukarFakturStatus = 'Draft' | 'Issued' | 'Received' | 'Paid';
+
+export interface TukarFaktur {
+  id: string;
+  tfNumber: string;
+  clientId: string;
+  periodStart: string;
+  periodEnd: string;
+  issueDate: string;
+  status: TukarFakturStatus;
+  totalAmount: number;
+  notes?: string;
+  issuedBy?: string;
+  receivedAt?: string;
+  receivedBy?: string;
+  createdAt: string;
 }
 
 export type VendorBillStatus = 'Unpaid' | 'Partial' | 'Paid';
