@@ -6,7 +6,7 @@ import {
   JournalLine, OperationalExpense, User, Vendor, Role, Lead, Announcement, AppTask, AppNotification,
   BankAccount, CashTransaction, Reimbursement, FixedAsset,
   Employee, SmartKpi, OkrObjective, OkrKeyResult, RolePermissionMap, AccessKey, PendingReturn, RejectedItem, StockMovement, ClientPrice,
-  VendorBill, VendorBillPayment
+  VendorBill, VendorBillPayment, TukarFaktur
 } from '@/types';
 import { COA_SEED, CLIENTS_SEED, VENDORS_SEED, MOCK_USERS, KPI_SEED } from './constants';
 import { PRODUCTS_SEED } from './products_seed';
@@ -347,6 +347,12 @@ interface AppState {
   invoices: Invoice[];
   addInvoice: (inv: Invoice) => void;
   updateInvoice: (id: string, data: Partial<Invoice>) => void;
+
+  tukarFakturs: TukarFaktur[];
+  addTukarFaktur: (tf: TukarFaktur) => Promise<void>;
+  updateTukarFaktur: (id: string, data: Partial<TukarFaktur>) => Promise<void>;
+  deleteTukarFaktur: (id: string) => Promise<void>;
+  issueTukarFaktur: (tfId: string, invoiceIds: string[], issueDate: string, userId: string) => Promise<unknown>;
 
   // Accounts Payable (Vendor Bills)
   vendorBills: VendorBill[];
@@ -904,6 +910,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             setIfDefined('journalEntries', data.journalEntries);
             setIfDefined('journalLines', data.journalLines);
             setIfDefined('invoices', data.invoices);
+            setIfDefined('tukarFakturs', data.tukarFakturs);
             setIfDefined('vendorBills', data.vendorBills);
             setIfDefined('deliveries', data.deliveries);
             setIfDefined('leads', data.leads);
@@ -1617,6 +1624,87 @@ export const useAppStore = create<AppState>((set, get) => ({
           await get().syncTable('invoices', updated);
           if (before) await get().logHistory({ table: 'invoices', recordId: id, action: 'update', oldData: before, newData: updated });
         }
+      },
+
+      tukarFakturs: [],
+      addTukarFaktur: async (tf: TukarFaktur) => {
+        set((state) => ({ tukarFakturs: [...state.tukarFakturs, tf] }));
+        await get().syncTable('tukar_faktur', tf);
+      },
+      updateTukarFaktur: async (id: string, data: Partial<TukarFaktur>) => {
+        const before = get().tukarFakturs.find(t => t.id === id);
+        set((state) => ({
+          tukarFakturs: state.tukarFakturs.map(t => t.id === id ? { ...t, ...data } : t)
+        }));
+        const updated = get().tukarFakturs.find(t => t.id === id);
+        if (updated) {
+          await get().syncTable('tukar_faktur', updated);
+          if (before) await get().logHistory({ table: 'tukar_faktur', recordId: id, action: 'update', oldData: before, newData: updated });
+        }
+      },
+      deleteTukarFaktur: async (id: string) => {
+        const before = get().tukarFakturs.find(t => t.id === id);
+        const { createClient } = await import('@supabase/supabase-js');
+        const { resolveSupabaseEnv } = await import('@/lib/supabase-env');
+        const env = resolveSupabaseEnv();
+        const sb = createClient(env.url, env.anonKey);
+        const { error } = await sb.rpc('delete_tukar_faktur', { p_tf_id: id });
+        if (error) throw new Error(`Delete TF gagal: ${error.message}`);
+
+        set((state) => ({
+          tukarFakturs: state.tukarFakturs.filter(t => t.id !== id),
+          invoices: state.invoices.map(inv => inv.tukarFakturId === id ? { ...inv, tukarFakturId: undefined } : inv),
+        }));
+
+        if (before) await get().logHistory({ table: 'tukar_faktur', recordId: id, action: 'delete', oldData: before, newData: null });
+      },
+      issueTukarFaktur: async (tfId: string, invoiceIds: string[], issueDate: string, userId: string) => {
+        const { createClient } = await import('@supabase/supabase-js');
+        const { resolveSupabaseEnv } = await import('@/lib/supabase-env');
+        const env = resolveSupabaseEnv();
+        const sb = createClient(env.url, env.anonKey);
+        const { data, error } = await sb.rpc('issue_tukar_faktur', {
+          p_tf_id: tfId,
+          p_invoice_ids: invoiceIds,
+          p_issue_date: issueDate,
+          p_user_id: userId,
+        });
+        if (error) throw new Error(`Issue TF gagal: ${error.message}`);
+
+        const [{ data: tfRow }, { data: invRows }] = await Promise.all([
+          sb.from('tukar_faktur').select('*').eq('id', tfId).single(),
+          sb.from('invoices').select('*').in('id', invoiceIds),
+        ]);
+        if (tfRow) {
+          const camelTf: TukarFaktur = {
+            id: tfRow.id,
+            tfNumber: tfRow.tf_number,
+            clientId: tfRow.client_id,
+            periodStart: tfRow.period_start,
+            periodEnd: tfRow.period_end,
+            issueDate: tfRow.issue_date,
+            status: tfRow.status,
+            totalAmount: Number(tfRow.total_amount) || 0,
+            notes: tfRow.notes || undefined,
+            issuedBy: tfRow.issued_by || undefined,
+            receivedAt: tfRow.received_at || undefined,
+            receivedBy: tfRow.received_by || undefined,
+            createdAt: tfRow.created_at,
+          };
+          set(state => ({
+            tukarFakturs: state.tukarFakturs.map(t => t.id === tfId ? camelTf : t),
+          }));
+        }
+        if (invRows) {
+          set(state => ({
+            invoices: state.invoices.map(inv => {
+              const fresh = invRows.find((r: { id: string }) => r.id === inv.id);
+              if (!fresh) return inv;
+              return { ...inv, tukarFakturId: fresh.tukar_faktur_id || undefined, dueDate: fresh.due_date };
+            }),
+          }));
+        }
+        return data;
       },
 
       // === Vendor Bills (Accounts Payable) ===
