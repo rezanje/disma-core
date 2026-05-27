@@ -353,6 +353,7 @@ interface AppState {
   updateTukarFaktur: (id: string, data: Partial<TukarFaktur>) => Promise<void>;
   deleteTukarFaktur: (id: string) => Promise<void>;
   issueTukarFaktur: (tfId: string, invoiceIds: string[], issueDate: string, userId: string) => Promise<unknown>;
+  linkInvoicesToTukarFaktur: (tfId: string, invoiceIds: string[]) => Promise<unknown>;
 
   // Accounts Payable (Vendor Bills)
   vendorBills: VendorBill[];
@@ -1702,6 +1703,41 @@ export const useAppStore = create<AppState>((set, get) => ({
               const fresh = invRows.find((r: { id: string }) => r.id === inv.id);
               if (!fresh) return inv;
               return { ...inv, tukarFakturId: fresh.tukar_faktur_id || undefined, dueDate: fresh.due_date };
+            }),
+          }));
+        }
+        return data;
+      },
+
+      linkInvoicesToTukarFaktur: async (tfId: string, invoiceIds: string[]) => {
+        const { createClient } = await import('@supabase/supabase-js');
+        const { resolveSupabaseEnv } = await import('@/lib/supabase-env');
+        const env = resolveSupabaseEnv();
+        const sb = createClient(env.url, env.anonKey);
+        const { data, error } = await sb.rpc('link_invoices_to_tukar_faktur', {
+          p_tf_id: tfId,
+          p_invoice_ids: invoiceIds,
+        });
+        if (error) throw new Error(`Link TF gagal: ${error.message}`);
+
+        const [{ data: tfRow }, { data: invRows }] = await Promise.all([
+          sb.from('tukar_faktur').select('*').eq('id', tfId).single(),
+          sb.from('invoices').select('*').in('id', invoiceIds),
+        ]);
+        if (tfRow) {
+          set(state => ({
+            tukarFakturs: state.tukarFakturs.map(t => t.id === tfId ? {
+              ...t,
+              totalAmount: Number(tfRow.total_amount) || 0,
+            } : t),
+          }));
+        }
+        if (invRows) {
+          set(state => ({
+            invoices: state.invoices.map(inv => {
+              const fresh = invRows.find((r: { id: string }) => r.id === inv.id);
+              if (!fresh) return inv;
+              return { ...inv, tukarFakturId: fresh.tukar_faktur_id || undefined };
             }),
           }));
         }

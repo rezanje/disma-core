@@ -32,6 +32,8 @@ export function GenerateTfModal({ open, onOpenChange }: Props) {
   const currentUser = useAppStore(s => s.currentUser)
   const addTukarFaktur = useAppStore(s => s.addTukarFaktur)
   const issueTukarFaktur = useAppStore(s => s.issueTukarFaktur)
+  const linkInvoicesToTukarFaktur = useAppStore(s => s.linkInvoicesToTukarFaktur)
+  const deleteTukarFaktur = useAppStore(s => s.deleteTukarFaktur)
 
   const [clientId, setClientId] = useState("")
   const [selectedInvIds, setSelectedInvIds] = useState<Set<string>>(new Set())
@@ -105,6 +107,8 @@ export function GenerateTfModal({ open, onOpenChange }: Props) {
     setBusy(true)
     const loadingId = toast.loading(mode === "Issue" ? "Menerbitkan TF…" : "Menyimpan draft TF…")
     const createdTfIds: string[] = []
+    let currentTfId: string | null = null
+    let needsCleanup = false
     try {
       for (const g of groups) {
         const existingCount = tukarFakturs.filter(t => {
@@ -123,7 +127,8 @@ export function GenerateTfModal({ open, onOpenChange }: Props) {
           issuedBy: mode === "Issue" ? (currentUser?.id || "system") : undefined,
         }
         await addTukarFaktur(tf)
-        createdTfIds.push(tf.id)
+        currentTfId = tf.id
+        needsCleanup = true
         if (mode === "Issue") {
           await issueTukarFaktur(
             tf.id,
@@ -131,21 +136,34 @@ export function GenerateTfModal({ open, onOpenChange }: Props) {
             tf.issueDate,
             currentUser?.id || "system"
           )
+        } else {
+          await linkInvoicesToTukarFaktur(tf.id, g.invoices.map(i => i.id))
         }
+        needsCleanup = false
+        createdTfIds.push(tf.id)
       }
+      toast.dismiss(loadingId)
       onOpenChange(false)
       toast.success(
         mode === "Issue"
           ? `${groups.length} TF diterbitkan. Lanjut: print → bawa ke klien → tandai diterima.`
           : `${groups.length} TF disimpan sebagai Draft. Buka detail untuk Issue kapan saja.`,
-        { id: loadingId }
       )
-      if (mode === "Issue" && createdTfIds.length === 1) {
+      if (createdTfIds.length === 1) {
         router.push(`/finance/tukar-faktur/${createdTfIds[0]}`)
       }
     } catch (e) {
+      console.error("[GenerateTfModal] runGenerate failed", e)
       const msg = e instanceof Error ? e.message : String(e)
-      toast.error(`Generate gagal: ${msg}`, { id: loadingId })
+      toast.dismiss(loadingId)
+      if (needsCleanup && currentTfId) {
+        try {
+          await deleteTukarFaktur(currentTfId)
+        } catch (cleanupErr) {
+          console.error("[GenerateTfModal] cleanup delete failed", cleanupErr)
+        }
+      }
+      toast.error(`Generate TF gagal: ${msg}`, { duration: 10000 })
     } finally {
       setBusy(false)
     }

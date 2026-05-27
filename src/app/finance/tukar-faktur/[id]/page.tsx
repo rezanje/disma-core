@@ -124,12 +124,17 @@ export default function TukarFakturDetailPage({ params }: { params: Promise<{ id
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{client?.companyName || tf.clientId}</p>
             <h1 className="text-2xl font-black mt-1">{tf.tfNumber}</h1>
             <p className="text-sm text-slate-500 mt-1">
-              Periode {formatDate(tf.periodStart)} – {formatDate(tf.periodEnd)} · Issued {formatDate(tf.issueDate)}
+              Periode {formatDate(tf.periodStart)} – {formatDate(tf.periodEnd)}
+              {tf.status === "Draft"
+                ? <> · Rencana issue {formatDate(tf.issueDate)}</>
+                : <> · Issued {formatDate(tf.issueDate)}</>}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge className="bg-slate-100 text-slate-700 border-none font-bold">{tf.status}</Badge>
-            <Button variant="outline" onClick={() => window.print()}><Printer className="w-4 h-4 mr-2" /> Print</Button>
+            <Link href={`/finance/tukar-faktur/${id}/print`}>
+              <Button variant="outline"><Printer className="w-4 h-4 mr-2" /> Print</Button>
+            </Link>
             {tf.status === "Draft" && (
               <Button onClick={handleIssue} disabled={busy || linkedInvoices.length === 0} className="bg-emerald-600 hover:bg-emerald-700 text-white">
                 <Send className="w-4 h-4 mr-2" /> Issue
