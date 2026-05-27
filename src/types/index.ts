@@ -15,6 +15,7 @@ export type AccessKey =
   // Finance
   | 'finance_dashboard' | 'finance_approvals' | 'finance_reports' | 'finance_assets'
   | 'finance_budget' | 'finance_cash_bank' | 'finance_expenses' | 'finance_ledger' | 'finance_invoices' | 'finance_collections'
+  | 'finance_tukar_faktur'
   | 'finance_ar_aging' | 'finance_ap_aging'
   | 'finance_reconciliation' | 'finance_reimbursements' | 'finance_online_purchase' | 'finance_audit' | 'finance_documents'
   // Warehouse
