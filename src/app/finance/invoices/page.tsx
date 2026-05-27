@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, Fragment } from "react"
+import Link from "next/link"
 import { useAppStore } from "@/lib/store"
 import { recordManualReceivable, recordPaymentReceived } from "@/lib/accounting"
 import { cn, formatRupiah } from "@/lib/utils"
@@ -25,6 +26,7 @@ export default function InvoicesPage() {
   const invoices = useAppStore(state => state.invoices)
   const salesOrders = useAppStore(state => state.salesOrders)
   const clients = useAppStore(state => state.clients)
+  const tukarFakturs = useAppStore(state => state.tukarFakturs)
   const updateInvoice = useAppStore(state => state.updateInvoice)
 
   const [activeInvoice, setActiveInvoice] = useState<Invoice | null>(null)
@@ -409,6 +411,7 @@ export default function InvoicesPage() {
                       <TableHead>PO Ref</TableHead>
                       <TableHead>Client</TableHead>
                       <TableHead>Jatuh Tempo</TableHead>
+                      <TableHead>TF</TableHead>
                       <TableHead className="text-right">Total Tagihan</TableHead>
                       <TableHead className="text-right">Sisa (Unpaid)</TableHead>
                       <TableHead>Status</TableHead>
@@ -418,7 +421,7 @@ export default function InvoicesPage() {
                   <TableBody>
                     {regularInvoices.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                        <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
                           Belum ada invoice reguler diterbitkan.
                         </TableCell>
                       </TableRow>
@@ -449,6 +452,18 @@ export default function InvoicesPage() {
                                 <div className={new Date(inv.dueDate) < new Date() && inv.status !== 'Paid' ? "text-rose-600 font-bold" : "text-slate-600"}>
                                   {format(new Date(inv.dueDate), 'dd/MM/yyyy')}
                                 </div>
+                              </TableCell>
+                              <TableCell>
+                                {(() => {
+                                  if (!inv.tukarFakturId) return <span className="text-xs text-slate-400 italic">Belum TF</span>
+                                  const tf = tukarFakturs.find(t => t.id === inv.tukarFakturId)
+                                  if (!tf) return <span className="text-xs text-slate-400">—</span>
+                                  return (
+                                    <Link href={`/finance/tukar-faktur/${tf.id}`} className="text-xs font-bold text-blue-600 hover:underline">
+                                      {tf.tfNumber}
+                                    </Link>
+                                  )
+                                })()}
                               </TableCell>
                               <TableCell className="text-right font-medium">{formatRupiah(inv.totalAmount)}</TableCell>
                               <TableCell className="text-right text-rose-600 font-bold">
@@ -496,7 +511,7 @@ export default function InvoicesPage() {
 
                             {isExpanded && (
                               <TableRow key={`exp-${inv.id}`} className="bg-slate-50/50 dark:bg-slate-900/50">
-                                <TableCell colSpan={9} className="p-4 pt-0">
+                                <TableCell colSpan={10} className="p-4 pt-0">
                                   <div className="bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm animate-in slide-in-from-top-2 duration-200">
                                     <div className="flex items-center justify-between mb-4">
                                       <h4 className="text-sm font-bold flex items-center gap-2">
