@@ -221,57 +221,63 @@ export default function ShoppingListPage() {
   }
 
   const handleGenerateDocument = async () => {
+    if (isLoading) return
     if (consolidatedList.length === 0) {
       toast.error("Pilih minimal 1 PO atau tambahkan item stok dulu.")
       return
     }
 
-    // Include BOTH Pasar and Online items so Finance Online Purchase page can pick up the online ones.
     const documentItems = consolidatedList.map(item => ({ ...item }))
     const documentId = uuidv4()
     const generatedAt = new Date().toISOString()
     const advanceCode = `ADV-${toDateInputValue(generatedAt).replaceAll('-', '')}-${String(purchases.length + 1).padStart(3, '0')}`
     setIsLoading(true)
+    const loadingId = toast.loading("Membuat dokumen list belanja...")
     const title = `Daftar_Belanja_${new Date().toISOString().slice(0, 10)}`
-    await addPurchase({
-      id: documentId,
-      date: generatedAt,
-      purchaserId: 'pending',
-      status: 'Pending',
-      advanceCode,
-      shoppingListDocumentId: documentId,
-      shoppingListCompiledBy: currentUser?.id
-    })
-    await addPurchaseItems(documentItems.map(item => ({
-      id: uuidv4(),
-      purchaseId: documentId,
-      productId: item.productId,
-      salesOrderId: item.salesOrderId,
-      qtyTarget: item.totalQty,
-      qtyPurchased: 0,
-      estimatedUnitPrice: item.estimatedPrice,
-      actualUnitPrice: 0,
-      isChecked: false,
-      purchaseMethod: item.purchaseMethod
-    })))
-    setLastGeneratedDoc({
-      purchaseId: documentId,
-      generatedAt,
-      items: documentItems
-    })
-    for (const so of selectedSOs) {
-      await updateSalesOrder(so.id, {
-        shoppingListCompiledAt: generatedAt,
+    try {
+      await addPurchase({
+        id: documentId,
+        date: generatedAt,
+        purchaserId: 'pending',
+        status: 'Pending',
+        advanceCode,
         shoppingListDocumentId: documentId,
         shoppingListCompiledBy: currentUser?.id
       })
+      await addPurchaseItems(documentItems.map(item => ({
+        id: uuidv4(),
+        purchaseId: documentId,
+        productId: item.productId,
+        salesOrderId: item.salesOrderId,
+        qtyTarget: item.totalQty,
+        qtyPurchased: 0,
+        estimatedUnitPrice: item.estimatedPrice,
+        actualUnitPrice: 0,
+        isChecked: false,
+        purchaseMethod: item.purchaseMethod
+      })))
+      setLastGeneratedDoc({
+        purchaseId: documentId,
+        generatedAt,
+        items: documentItems
+      })
+      for (const so of selectedSOs) {
+        await updateSalesOrder(so.id, {
+          shoppingListCompiledAt: generatedAt,
+          shoppingListDocumentId: documentId,
+          shoppingListCompiledBy: currentUser?.id
+        })
+      }
+      setPdfPreview({
+        title,
+        url: generateShoppingListPDFDataUrl(documentItems)
+      })
+      toast.success("Dokumen list belanja berhasil dibuat.", { id: loadingId })
+    } catch (e) {
+      toast.error(`Gagal buat dokumen: ${e instanceof Error ? e.message : String(e)}`, { id: loadingId })
+    } finally {
+      setIsLoading(false)
     }
-    setPdfPreview({
-      title,
-      url: generateShoppingListPDFDataUrl(documentItems)
-    })
-    toast.success("Dokumen list belanja berhasil dibuat.")
-    setIsLoading(false)
   }
 
   const handleSendToFinance = async (purchaseId: string) => {
@@ -279,10 +285,10 @@ export default function ShoppingListPage() {
     const purchase = purchases.find(p => p.id === purchaseId)
     if (!purchase) return toast.error("Purchase tidak ditemukan.")
     if (purchase.reconciliationStatus === 'Belum Transfer') return toast.info("Sudah dikirim ke Finance.")
-    
+
     setIsSendingToFinance(purchaseId)
+    const loadingId = toast.loading("Mengirim ke Finance...")
     try {
-      // Advance hanya untuk Pasar. Online tetap masuk purchase_items tapi gak dihitung di budget cair.
       const items = purchaseItems.filter(pi => pi.purchaseId === purchaseId && pi.purchaseMethod !== 'Online')
       const totalBudget = items.reduce((sum, item) => sum + (item.estimatedUnitPrice * item.qtyTarget), 0)
 
@@ -290,7 +296,9 @@ export default function ShoppingListPage() {
         reconciliationStatus: 'Belum Transfer',
         budgetAmount: totalBudget
       })
-      toast.success("List belanja berhasil dikirim ke Finance untuk pencairan dana. Item Online masuk ke Finance › Online Purchase.")
+      toast.success("List belanja berhasil dikirim ke Finance untuk pencairan dana. Item Online masuk ke Finance › Online Purchase.", { id: loadingId })
+    } catch (e) {
+      toast.error(`Gagal kirim ke Finance: ${e instanceof Error ? e.message : String(e)}`, { id: loadingId })
     } finally {
       setIsSendingToFinance(null)
     }
