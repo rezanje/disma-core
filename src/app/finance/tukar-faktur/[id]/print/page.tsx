@@ -88,17 +88,25 @@ export default function TukarFakturPrintPage({ params }: { params: Promise<{ id:
             display: block !important;
           }
           .tf-print-root .no-print { display: none !important; }
+          /* Nuke finance layout's left-padding (pl-72/pl-28) + main padding/margin/glass */
+          main { padding: 0 !important; margin: 0 !important; }
+          body div[class*="pl-72"], body div[class*="pl-28"], body div[class*="pr-4"] {
+            padding: 0 !important;
+          }
+          .glass-panel { background: transparent !important; box-shadow: none !important; backdrop-filter: none !important; border: none !important; }
+          .tf-print-pages { padding: 0 !important; margin: 0 !important; }
           .print-page {
             box-shadow: none !important;
             border-radius: 0 !important;
             margin: 0 !important;
             max-width: 100% !important;
             width: 100% !important;
-            padding: 12mm !important;
+            padding: 10mm 12mm !important;
             page-break-after: always;
             break-after: page;
           }
           .print-page:last-child { page-break-after: auto; break-after: auto; }
+          .signature-block { page-break-inside: avoid; break-inside: avoid; }
           /* Kill fixed/sticky chrome that browsers still allocate */
           .fixed, [class*=" fixed "], [class^="fixed "], .sticky, [class*=" sticky "], [class^="sticky "] {
             display: none !important;
@@ -120,7 +128,7 @@ export default function TukarFakturPrintPage({ params }: { params: Promise<{ id:
         {/* PAGE 1: TF SUMMARY */}
         <div className="print-page bg-white mx-auto max-w-[820px] p-12 shadow-2xl text-[#1e293b]">
           {/* KOP */}
-          <div className="border-b-4 border-[#0f172a] pb-6 mb-8 flex justify-between items-start">
+          <div className="border-b-4 border-[#0f172a] pb-4 mb-6 flex justify-between items-start">
             <div>
               <h1 className="text-3xl font-black text-[#0f172a] uppercase leading-none">DISMA FRESH</h1>
               <p className="text-[10px] font-bold text-[#94a3b8] uppercase mt-1 tracking-widest">
@@ -135,7 +143,7 @@ export default function TukarFakturPrintPage({ params }: { params: Promise<{ id:
           </div>
 
           {/* CLIENT INFO */}
-          <div className="grid grid-cols-2 gap-8 mb-8">
+          <div className="grid grid-cols-2 gap-8 mb-6">
             <div>
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Kepada</p>
               <p className="font-black text-lg">{client?.companyName || tf.clientId}</p>
@@ -155,7 +163,7 @@ export default function TukarFakturPrintPage({ params }: { params: Promise<{ id:
           </div>
 
           {/* INVOICE TABLE */}
-          <div className="mb-8">
+          <div className="mb-6">
             <div className="bg-[#0f172a] text-white px-3 py-1.5 inline-block mb-3">
               <h3 className="text-[10px] font-black uppercase tracking-[0.2em]">Daftar Faktur</h3>
             </div>
@@ -198,7 +206,7 @@ export default function TukarFakturPrintPage({ params }: { params: Promise<{ id:
           </div>
 
           {/* PAYMENT NOTE */}
-          <div className="mb-8 p-4 border-2 border-[#0f172a] rounded-lg bg-amber-50">
+          <div className="mb-4 p-3 border-2 border-[#0f172a] rounded-lg bg-amber-50">
             <p className="text-[10px] font-black uppercase tracking-widest text-[#0f172a] mb-1">Catatan</p>
             <p className="text-xs text-slate-700 leading-relaxed">
               Tagihan harap ditransfer melalui rekening <span className="font-black">BRI 0206.01.010051.56.8</span> a/n <span className="font-black">PT DISMA PERMATA SEJAHTERA</span>
@@ -206,16 +214,16 @@ export default function TukarFakturPrintPage({ params }: { params: Promise<{ id:
           </div>
 
           {/* SIGNATURE BLOCKS */}
-          <div className="grid grid-cols-2 gap-12 mt-12 text-center text-xs">
+          <div className="signature-block grid grid-cols-2 gap-12 mt-8 text-center text-xs">
             <div>
-              <p className="text-slate-500 mb-16">Hormat kami,</p>
+              <p className="text-slate-500 mb-12">Hormat kami,</p>
               <div className="border-t border-slate-400 pt-2">
                 <p className="font-bold">DISMA FRESH</p>
                 <p className="text-slate-500 text-[10px]">Finance</p>
               </div>
             </div>
             <div>
-              <p className="text-slate-500 mb-16">Diterima oleh,</p>
+              <p className="text-slate-500 mb-12">Diterima oleh,</p>
               <div className="border-t border-slate-400 pt-2">
                 <p className="font-bold">{client?.companyName || "(Klien)"}</p>
                 <p className="text-slate-500 text-[10px]">Nama & Tanda Tangan</p>
@@ -223,7 +231,7 @@ export default function TukarFakturPrintPage({ params }: { params: Promise<{ id:
             </div>
           </div>
 
-          <div className="mt-8 pt-3 border-t border-slate-200 text-[8px] text-slate-400 text-center">
+          <div className="mt-6 pt-2 border-t border-slate-200 text-[8px] text-slate-400 text-center">
             Dokumen ini dicetak otomatis dari sistem DISMA CORE · {new Date().toLocaleString("id-ID")}
           </div>
         </div>
