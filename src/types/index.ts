@@ -65,6 +65,8 @@ export interface Vendor {
   phone: string;
   address: string;
   createdAt: string;
+  paymentTermDays?: number;
+  isTempo?: boolean;
 }
 
 export interface Product {
@@ -197,6 +199,7 @@ export interface PurchaseItem {
   onlineOrderDate?: string;
   isOnlineOrdered?: boolean;
   isOnlineAudited?: boolean;
+  vendorId?: string;
 }
 
 export type DeliveryStatus = 'Menunggu' | 'Dikirim' | 'Tunggu Konfirmasi' | 'Awaiting Audit' | 'Terkirim';
@@ -260,7 +263,7 @@ export interface TukarFaktur {
   createdAt: string;
 }
 
-export type VendorBillStatus = 'Unpaid' | 'Partial' | 'Paid';
+export type VendorBillStatus = 'Pending' | 'PartialPaid' | 'Paid' | 'Cancelled';
 
 export interface VendorBillPayment {
   id: string;
@@ -327,6 +330,8 @@ export interface JournalLine {
   accountId: string;
   debitAmount: number;
   creditAmount: number;
+  vendorId?: string;
+  vendorBillId?: string;
 }
 
 export type ExpenseStatus = 'Pending Audit' | 'Approved' | 'Rejected';
