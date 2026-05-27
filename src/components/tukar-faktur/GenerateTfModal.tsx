@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
 import { useAppStore } from "@/lib/store"
 import type { Invoice, TukarFaktur } from "@/types"
 import { tfPeriodFor, generateTfNumber, periodKey, type TfPeriod } from "@/lib/tukar-faktur"
@@ -24,6 +25,7 @@ interface PeriodGroup {
 interface Props { open: boolean; onOpenChange: (v: boolean) => void }
 
 export function GenerateTfModal({ open, onOpenChange }: Props) {
+  const router = useRouter()
   const clients = useAppStore(s => s.clients)
   const invoices = useAppStore(s => s.invoices)
   const tukarFakturs = useAppStore(s => s.tukarFakturs)
@@ -81,10 +83,10 @@ export function GenerateTfModal({ open, onOpenChange }: Props) {
     setSelectedInvIds(next)
   }, [candidateGroups, today])
 
-  function toggleInvoice(id: string) {
+  function toggleInvoice(id: string, checked: boolean) {
     setSelectedInvIds(prev => {
       const n = new Set(prev)
-      if (n.has(id)) n.delete(id); else n.add(id)
+      if (checked) n.add(id); else n.delete(id)
       return n
     })
   }
@@ -97,9 +99,12 @@ export function GenerateTfModal({ open, onOpenChange }: Props) {
   }
 
   async function runGenerate(mode: "Draft" | "Issue") {
+    if (busy) return
     const groups = groupSelected()
     if (groups.length === 0) { toast.error("Pilih minimal 1 invoice."); return }
     setBusy(true)
+    const loadingId = toast.loading(mode === "Issue" ? "Menerbitkan TF…" : "Menyimpan draft TF…")
+    const createdTfIds: string[] = []
     try {
       for (const g of groups) {
         const existingCount = tukarFakturs.filter(t => {
@@ -118,6 +123,7 @@ export function GenerateTfModal({ open, onOpenChange }: Props) {
           issuedBy: mode === "Issue" ? (currentUser?.id || "system") : undefined,
         }
         await addTukarFaktur(tf)
+        createdTfIds.push(tf.id)
         if (mode === "Issue") {
           await issueTukarFaktur(
             tf.id,
@@ -127,11 +133,19 @@ export function GenerateTfModal({ open, onOpenChange }: Props) {
           )
         }
       }
-      toast.success(`${groups.length} TF berhasil ${mode === "Issue" ? "diterbitkan" : "disimpan sebagai Draft"}.`)
       onOpenChange(false)
+      toast.success(
+        mode === "Issue"
+          ? `${groups.length} TF diterbitkan. Lanjut: print → bawa ke klien → tandai diterima.`
+          : `${groups.length} TF disimpan sebagai Draft. Buka detail untuk Issue kapan saja.`,
+        { id: loadingId }
+      )
+      if (mode === "Issue" && createdTfIds.length === 1) {
+        router.push(`/finance/tukar-faktur/${createdTfIds[0]}`)
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
-      toast.error(`Generate gagal: ${msg}`)
+      toast.error(`Generate gagal: ${msg}`, { id: loadingId })
     } finally {
       setBusy(false)
     }
@@ -185,7 +199,7 @@ export function GenerateTfModal({ open, onOpenChange }: Props) {
               <div className="space-y-2">
                 {g.invoices.map(inv => (
                   <label key={inv.id} className="flex items-center gap-3 text-sm cursor-pointer">
-                    <Checkbox checked={selectedInvIds.has(inv.id)} onCheckedChange={() => toggleInvoice(inv.id)} />
+                    <Checkbox checked={selectedInvIds.has(inv.id)} onCheckedChange={(checked) => toggleInvoice(inv.id, checked)} />
                     <span className="font-medium">{inv.id.slice(0, 8)}</span>
                     <span className="text-slate-500">{formatRupiah(inv.totalAmount)}</span>
                     <span className="text-xs text-slate-400 ml-auto">issued {inv.issueDate.slice(0,10)}</span>
