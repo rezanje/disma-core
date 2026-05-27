@@ -18,6 +18,7 @@ import { formatNumber, parseNumber, formatRupiah, cn } from "@/lib/utils"
 import ReceiptUpload from "@/components/ui/receipt-upload"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 
 export default function SourcingDashboard() {
   const currentUser = useAppStore(state => state.currentUser)
@@ -31,6 +32,8 @@ export default function SourcingDashboard() {
   const updatePurchaseItem = useAppStore(state => state.updatePurchaseItem)
   const addExpense = useAppStore(state => state.addExpense)
   const addReimbursement = useAppStore(state => state.addReimbursement)
+  const vendors = useAppStore(state => state.vendors)
+  const addVendor = useAppStore(state => state.addVendor)
 
   const { useSearchParams } = require("next/navigation")
   const searchParams = useSearchParams()
@@ -53,6 +56,11 @@ export default function SourcingDashboard() {
   const [editPrice, setEditPrice] = useState<number>(0)
   const [editQty, setEditQty] = useState<number>(0)
   const [editNote, setEditNote] = useState<string>('')
+  const [editVendorId, setEditVendorId] = useState<string>('')
+  const [isNewVendorOpen, setIsNewVendorOpen] = useState(false)
+  const [newVendorName, setNewVendorName] = useState('')
+  const [newVendorIsTempo, setNewVendorIsTempo] = useState(true)
+  const [newVendorTermDays, setNewVendorTermDays] = useState(14)
   const [reconciliationNote, setReconciliationNote] = useState('')
   const [proofImage, setProofImage] = useState<string | null>(null)
   const [returnTargetBank, setReturnTargetBank] = useState('')
@@ -65,6 +73,36 @@ export default function SourcingDashboard() {
       setEditPrice(item.actualUnitPrice || 0)
       setEditQty(item.qtyPurchased || item.qtyTarget)
       setEditNote(item.notes || '')
+      setEditVendorId(item.vendorId || '')
+    }
+  }
+
+  const handleCreateVendor = async () => {
+    if (!newVendorName.trim()) {
+      toast.error("Nama vendor harus diisi."); return
+    }
+    const newId = `v-${uuidv4().slice(0, 8)}`
+    const vendorData = {
+      id: newId,
+      companyName: newVendorName.trim(),
+      picName: '-',
+      email: '',
+      phone: '',
+      address: '',
+      paymentTermDays: newVendorIsTempo ? newVendorTermDays : 0,
+      isTempo: newVendorIsTempo,
+      createdAt: new Date().toISOString()
+    }
+    try {
+      await addVendor(vendorData)
+      setEditVendorId(newId)
+      setIsNewVendorOpen(false)
+      setNewVendorName('')
+      setNewVendorIsTempo(true)
+      setNewVendorTermDays(14)
+      toast.success("Vendor baru ditambahkan!")
+    } catch (e: any) {
+      toast.error("Gagal membuat vendor: " + e.message)
     }
   }
 
@@ -215,6 +253,22 @@ export default function SourcingDashboard() {
  
   const handleSubmitLaporan = async () => {
     if (activePurchases.length === 0) return
+
+    // Submit validation: all checked items in currentItems must have a vendorId
+    const itemsWithoutVendor = currentItems.filter(item => {
+      const vendorId = activeItem?.id === item.id ? editVendorId : item.vendorId;
+      return item.isChecked && !vendorId;
+    });
+
+    if (itemsWithoutVendor.length > 0) {
+      const names = itemsWithoutVendor.map(item => {
+        const prod = products.find(p => p.id === item.productId);
+        return prod ? prod.name : `Item ID ${item.id}`;
+      });
+      toast.error(`Semua item belanja wajib memiliki Vendor. Item berikut belum ada vendor: ${names.join(', ')}`);
+      return;
+    }
+
     const loadingToast = toast.loading("Mengirim laporan belanja...")
     
     try {
@@ -224,6 +278,7 @@ export default function SourcingDashboard() {
           actualUnitPrice: editPrice,
           qtyPurchased: editQty || activeItem.qtyTarget,
           notes: editNote,
+          vendorId: editVendorId,
         })
       }
 
@@ -626,6 +681,33 @@ export default function SourcingDashboard() {
                     </div>
 
                     <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                          Vendor
+                        </Label>
+                        <button
+                          type="button"
+                          onClick={() => setIsNewVendorOpen(true)}
+                          className="text-xs font-bold text-emerald-600 hover:text-emerald-700"
+                        >
+                          + Vendor Baru
+                        </button>
+                      </div>
+                      <Select value={editVendorId} onValueChange={val => setEditVendorId(val || '')}>
+                        <SelectTrigger className="h-12 bg-white/50 border-2 transition-all focus:border-emerald-500 rounded-xl">
+                          <SelectValue placeholder="— Pilih Vendor —" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {vendors.map(v => (
+                            <SelectItem key={v.id} value={v.id}>
+                              {v.companyName} {v.isTempo ? `(tempo ${v.paymentTermDays || 14}d)` : '(cash)'}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
                       <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                         Keterangan / Alasan (Opsional)
                       </Label>
@@ -650,6 +732,10 @@ export default function SourcingDashboard() {
                         <Button 
                           className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-base font-bold"
                           onClick={() => {
+                            if (!editVendorId) {
+                              toast.error("Wajib memilih Vendor.");
+                              return;
+                            }
                             // 1. Tutup modal/drawer secara instan
                             handleExpandItem(null);
                             
@@ -659,11 +745,12 @@ export default function SourcingDashboard() {
                                 actualUnitPrice: editPrice,
                                 qtyPurchased: editQty || item.qtyTarget,
                                 notes: editNote,
+                                vendorId: editVendorId,
                                 isChecked: true
                               })
                             }, 10);
                           }}
-                          disabled={!editPrice || editPrice <= 0}
+                          disabled={!editPrice || editPrice <= 0 || !editVendorId}
                         >
                           Tandai Selesai (Beli di Pasar)
                         </Button>
@@ -1066,6 +1153,54 @@ export default function SourcingDashboard() {
           </form>
         </div>
       )}
+      {/* QUICK ADD VENDOR DIALOG */}
+      <Dialog open={isNewVendorOpen} onOpenChange={setIsNewVendorOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-black">Tambah Vendor Baru</DialogTitle>
+            <DialogDescription>Quick create vendor baru untuk belanja pasar.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Nama Vendor / Toko</Label>
+              <Input
+                placeholder="Nama Toko/Supplier"
+                value={newVendorName}
+                onChange={e => setNewVendorName(e.target.value)}
+              />
+            </div>
+            <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-xl">
+              <div className="space-y-0.5">
+                <Label>Pembayaran Tempo</Label>
+                <p className="text-[10px] text-slate-400">Aktifkan jika pembayaran tidak cash di tempat</p>
+              </div>
+              <Checkbox
+                checked={newVendorIsTempo}
+                onCheckedChange={checked => setNewVendorIsTempo(!!checked)}
+              />
+            </div>
+            {newVendorIsTempo && (
+              <div className="space-y-2">
+                <Label>Termin Pembayaran (Hari)</Label>
+                <Input
+                  type="number"
+                  placeholder="14"
+                  value={newVendorTermDays}
+                  onChange={e => setNewVendorTermDays(parseInt(e.target.value) || 0)}
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              className="w-full bg-emerald-600 hover:bg-emerald-700 font-bold"
+              onClick={handleCreateVendor}
+            >
+              Simpan Vendor
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
