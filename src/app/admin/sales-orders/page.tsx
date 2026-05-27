@@ -40,7 +40,7 @@ import {
 import { format } from "date-fns"
 import { Printer } from "lucide-react"
 import { toast } from "sonner"
-import { generateDocumentNumber } from "@/lib/accounting"
+import { generateDocumentNumber, updateProductPriceHistory } from "@/lib/accounting"
 import { generateSuratJalan, generateBA } from "@/lib/pdf"
 import {
   Popover,
@@ -75,6 +75,7 @@ export default function SalesOrdersPage() {
   const currentUser = useAppStore(state => state.currentUser)
   const deleteSalesOrder = useAppStore(state => state.deleteSalesOrder)
   const deleteMultipleSalesOrders = useAppStore(state => state.deleteMultipleSalesOrders)
+  const updateProduct = useAppStore(state => state.updateProduct)
   
   const [isOpen, setIsOpen] = useState(false)
   const [clientId, setClientId] = useState("")
@@ -100,6 +101,8 @@ export default function SalesOrdersPage() {
   const [newLinePrice, setNewLinePrice] = useState(0)
   const [newLineIsCustomPrice, setNewLineIsCustomPrice] = useState(false)
   const [newLinePriceSource, setNewLinePriceSource] = useState("")
+  const [newLineTier, setNewLineTier] = useState<string>("Standard")
+  const [newLineHpp, setNewLineHpp] = useState(0)
 
   const addClient = useAppStore(state => state.addClient)
   const addProduct = useAppStore(state => state.addProduct)
@@ -292,16 +295,60 @@ export default function SalesOrdersPage() {
       setNewLinePrice(price)
       setNewLineIsCustomPrice(isCustom)
       setNewLinePriceSource(source)
+      setNewLineTier(source || "Standard")
+    }
+  }
+
+  const getPriceForTier = (product: any, tier: string, overrideHpp?: number) => {
+    if (!product) return 0
+    const hpp = overrideHpp ?? product.basePrice
+    switch (tier) {
+      case 'Standard':
+        return product.sellingPrice
+      case 'Tier 1':
+        return product.tier1Price || Math.round(hpp * 1.5)
+      case 'Tier 2':
+        return product.tier2Price || Math.round(hpp * 1.3)
+      case 'Tier 3':
+        return product.tier3Price || Math.round(hpp * 1.2)
+      case 'Tier 4':
+        return product.tier4Price || Math.round(hpp * 1.15)
+      case 'Tier 5':
+        return product.tier5Price || Math.round(hpp * 1.1)
+      case 'HPP':
+        return hpp
+      default:
+        return product.sellingPrice
+    }
+  }
+
+  const handleTierChange = (tier: string | null) => {
+    if (!tier) return
+    setNewLineTier(tier)
+    if (tier === 'Custom') {
+      setNewLineIsCustomPrice(true)
+      setNewLinePriceSource('Custom')
+      return
+    }
+    const product = products.find(p => p.id === newLineProductId)
+    if (product) {
+      const price = getPriceForTier(product, tier, newLineHpp || undefined)
+      setNewLinePrice(price)
+      setNewLineIsCustomPrice(tier !== 'Standard')
+      setNewLinePriceSource(tier)
     }
   }
 
   const handleProductSelect = (pid: string) => {
     setNewLineProductId(pid)
+    const product = products.find(p => p.id === pid)
+    setNewLineHpp(product?.basePrice || 0)
     const { price, isCustom, source } = resolveClientPrice(pid, clientId)
     
     setNewLinePrice(price)
     setNewLineIsCustomPrice(isCustom)
     setNewLinePriceSource(source)
+    setNewLineTier(source || "Standard")
     
     if (isCustom) {
       toast.info(`Harga diisi otomatis dari ${source === 'Custom' ? 'Price List Kustom' : 'Price List ' + source} Klien ini.`, {
@@ -316,6 +363,12 @@ export default function SalesOrdersPage() {
     
     const product = products.find(p => p.id === newLineProductId)
     if (!product) return
+
+    // If user entered/changed HPP, save it as the product's basePrice for this period
+    if (newLineHpp > 0 && newLineHpp !== (product.basePrice || 0)) {
+      updateProduct(product.id, { basePrice: newLineHpp })
+      updateProductPriceHistory(product.id, newLineHpp, 'Input HPP (Sales Order)')
+    }
 
     setLineItems([...lineItems, {
       id: uuidv4(),
@@ -332,6 +385,8 @@ export default function SalesOrdersPage() {
     setNewLinePrice(0)
     setNewLineIsCustomPrice(false)
     setNewLinePriceSource("")
+    setNewLineTier("Standard")
+    setNewLineHpp(0)
   }
 
   const removeLineItem = (id: string) => {
@@ -429,7 +484,34 @@ export default function SalesOrdersPage() {
 
     toast.loading("Fast-track pengiriman...", { id: "fast_track" })
     try {
-      // 1. Create delivery record (Awaiting Audit)
+      // 1. Create purchase tiruan + items pake basePrice — HPP rekon nanti via Sourcing Settlement
+      const purchaseId = uuidv4()
+      const purchaseItemsToAdd = soItems.map(item => ({
+        id: uuidv4(),
+        purchaseId,
+        productId: item.productId,
+        salesOrderId: soId,
+        qtyTarget: item.qty,
+        qtyPurchased: item.qtyFinal ?? item.qty,
+        estimatedUnitPrice: products.find(p => p.id === item.productId)?.basePrice || 0,
+        actualUnitPrice: products.find(p => p.id === item.productId)?.basePrice || 0,
+        isChecked: true,
+        isQCed: true,
+        purchaseMethod: 'Pasar' as const
+      }))
+      const store = useAppStore.getState()
+      await store.addPurchase({
+        id: purchaseId,
+        date: new Date().toISOString(),
+        purchaserId: currentUser?.id || 'admin',
+        status: 'Selesai' as const,
+        actualSpent: purchaseItemsToAdd.reduce((sum, pi) => sum + (pi.qtyPurchased * pi.actualUnitPrice), 0),
+        reconciliationStatus: 'Laporan Masuk' as const,
+        reconciliationNote: `Bypass fast-track untuk PO ${so.poNumber} - rekon di Finance Hub`
+      })
+      await store.addPurchaseItems(purchaseItemsToAdd)
+
+      // 2. Create delivery record (Awaiting Audit)
       await addDelivery({
         id: deliveryId,
         salesOrderId: soId,
@@ -440,7 +522,7 @@ export default function SalesOrdersPage() {
         notes: `Fast-track by ${currentUser?.name || 'Admin'} (bypass QC/gudang/kurir)`
       })
 
-      // 2. Create invoice record
+      // 3. Create invoice record
       await addInvoice({
         id: invoiceId,
         salesOrderId: soId,
@@ -452,10 +534,10 @@ export default function SalesOrdersPage() {
         status: 'Unpaid'
       })
 
-      // 3. Advance SO to Awaiting Audit
+      // 4. Advance SO to Awaiting Audit
       await updateSalesOrder(soId, { status: 'Awaiting Audit' })
 
-      toast.success(`${so.poNumber} siap diaudit Finance. Cek tab Delivery di Finance Approvals.`, { id: "fast_track" })
+      toast.success(`${so.poNumber} siap diaudit Finance. Cek tab Delivery + rekon HPP di Sourcing Settlement.`, { id: "fast_track" })
     } catch (e) {
       console.error(e)
       toast.error("Fast-track gagal", { id: "fast_track" })
@@ -508,8 +590,10 @@ export default function SalesOrdersPage() {
         purchaserId: currentUser?.id || 'admin',
         status: 'Selesai' as const,
         actualSpent: newPurchaseItems.reduce((sum, pi) => sum + (pi.qtyPurchased * pi.actualUnitPrice), 0),
-        reconciliationStatus: 'Terverifikasi' as const,
-        reconciliationNote: `Bypass fast-track untuk PO ${fastTrackSo.poNumber}`
+        // Fast-track HANYA bypass QC/gudang/kurir. Rekon HPP tetap via Sourcing Settlement
+        // di Finance Hub supaya jurnal HPP (Dr 5-1000 | Cr 1-1500/2-1500) konsisten dgn flow normal.
+        reconciliationStatus: 'Laporan Masuk' as const,
+        reconciliationNote: `Bypass fast-track untuk PO ${fastTrackSo.poNumber} - rekon di Finance Hub`
       }
 
       const store = useAppStore.getState()
@@ -822,7 +906,8 @@ export default function SalesOrdersPage() {
                   </h3>
                 </div>
                 
-                <div className="space-y-4 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-dashed">
+                <div className="space-y-4 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-dashed animate-in fade-in duration-300">
+                  {/* Row 1: Product Selection, Qty, Margin Tier */}
                   <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
                     <div className="md:col-span-6 space-y-1">
                       <div className="flex justify-between items-center px-1">
@@ -909,13 +994,39 @@ export default function SalesOrdersPage() {
                       <Input
                         type="number"
                         min="1"
-                        className="bg-white dark:bg-slate-950"
+                        className="bg-white dark:bg-slate-950 h-10"
                         value={newLineQty}
                         onChange={(e) => setNewLineQty(parseInt(e.target.value) || 1)}
                       />
                     </div>
                     
-                    <div className="md:col-span-3 space-y-1">
+                    <div className="md:col-span-4 space-y-1">
+                      <Label className="text-xs font-semibold">Pilih Margin / Tier</Label>
+                      <Select
+                        value={newLineTier}
+                        onValueChange={handleTierChange}
+                        disabled={!newLineProductId}
+                      >
+                        <SelectTrigger className="w-full bg-white dark:bg-slate-950 h-10">
+                          <SelectValue placeholder="Pilih Margin/Tier" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Standard">Harga Jual Standard</SelectItem>
+                          <SelectItem value="Tier 1">Tier 1 (+50% Margin)</SelectItem>
+                          <SelectItem value="Tier 2">Tier 2 (+30% Margin)</SelectItem>
+                          <SelectItem value="Tier 3">Tier 3 (+20% Margin)</SelectItem>
+                          <SelectItem value="Tier 4">Tier 4 (+15% Margin)</SelectItem>
+                          <SelectItem value="Tier 5">Tier 5 (+10% Margin)</SelectItem>
+                          <SelectItem value="HPP">HPP (+0% Margin)</SelectItem>
+                          <SelectItem value="Custom">Harga Kustom (Manual)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* Row 2: Price Input and dynamic HPP/Margin calculator */}
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+                    <div className="md:col-span-4 space-y-1">
                       <div className="flex justify-between items-center">
                         <Label className="text-xs font-semibold">Harga Satuan (Rp)</Label>
                         {clientId && newLineProductId && clientPrices.find(cp => cp.clientId === clientId && cp.productId === newLineProductId) ? (
@@ -931,26 +1042,90 @@ export default function SalesOrdersPage() {
                       <Input 
                         type="text"
                         inputMode="numeric"
-                        className="bg-white dark:bg-slate-950 font-bold"
+                        className="bg-white dark:bg-slate-950 font-bold h-10"
                         value={formatNumber(newLinePrice)}
-                        onChange={(e) => setNewLinePrice(parseNumber(e.target.value))}
+                        onChange={(e) => {
+                          const val = parseNumber(e.target.value)
+                          setNewLinePrice(val)
+                          setNewLineTier("Custom")
+                          setNewLineIsCustomPrice(true)
+                          setNewLinePriceSource("Custom")
+                        }}
+                        disabled={!newLineProductId}
                       />
                     </div>
 
-                    <div className="md:col-span-1">
+                    <div className="md:col-span-7">
+                      {newLineProductId && (() => {
+                        const selectedProduct = products.find(p => p.id === newLineProductId)
+                        if (!selectedProduct) return null
+                        
+                        const hpp = newLineHpp || 0
+                        const marginAmount = newLinePrice - hpp
+                        const marginPercent = hpp > 0 ? (marginAmount / hpp) * 100 : 0
+                        const isLoss = marginAmount < 0
+                        
+                        return (
+                          <div className={cn(
+                            "flex flex-col gap-1.5 p-2 rounded-lg border text-xs font-semibold mt-4 transition-all duration-300",
+                            isLoss 
+                              ? "bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400 border-rose-100 dark:border-rose-900/30" 
+                              : marginAmount === 0 
+                                ? "bg-slate-50 dark:bg-slate-900/50 text-slate-700 dark:text-slate-400 border-slate-200" 
+                                : "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30"
+                          )}>
+                            <div className="flex justify-between items-center gap-2">
+                              <span className="whitespace-nowrap">Estimasi HPP (Beli):</span>
+                              <Input
+                                type="text"
+                                inputMode="numeric"
+                                className="h-7 w-40 text-right font-bold text-slate-900 dark:text-slate-100 bg-white/80 dark:bg-slate-950/80 border-slate-300"
+                                value={formatNumber(newLineHpp)}
+                                onChange={(e) => {
+                                  const val = parseNumber(e.target.value)
+                                  setNewLineHpp(val)
+                                  // Re-calculate selling price based on current tier with the new HPP
+                                  if (newLineTier && newLineTier !== 'Custom' && newLineTier !== 'Standard') {
+                                    const product = products.find(p => p.id === newLineProductId)
+                                    if (product) {
+                                      const price = getPriceForTier(product, newLineTier, val || undefined)
+                                      setNewLinePrice(price)
+                                    }
+                                  }
+                                }}
+                                placeholder="Isi HPP..."
+                              />
+                            </div>
+                            {newLineHpp > 0 && newLineHpp !== (selectedProduct.basePrice || 0) && (
+                              <p className="text-[9px] text-amber-600 dark:text-amber-400 italic">
+                                ⚡ HPP akan tersimpan otomatis sebagai baseline saat item ditambahkan.
+                              </p>
+                            )}
+                            <div className="flex justify-between items-center border-t border-dashed border-current/10 pt-1 mt-0.5">
+                              <span>Estimasi Margin:</span>
+                              <span className={cn("font-bold text-base", isLoss ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400")}>
+                                {isLoss ? "" : "+"}{formatRupiah(marginAmount)} ({marginPercent.toFixed(1)}%)
+                              </span>
+                            </div>
+                          </div>
+                        )
+                      })()}
+                    </div>
+
+                    <div className="md:col-span-1 flex items-end justify-end h-full">
                       <Button 
                         type="button" 
                         variant="default" 
                         onClick={addLineItem} 
                         disabled={!newLineProductId}
-                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-10 mt-4"
                       >
                         <Plus className="w-4 h-4" />
                       </Button>
                     </div>
                   </div>
                   <p className="text-[10px] text-slate-500 italic px-1">
-                    Pilih barang, isi qty, lalu klik tombol hijau (+) untuk menambah ke daftar order.
+                    Pilih barang, sesuaikan Margin/Tier jika diperlukan, lalu klik tombol hijau (+) untuk menambah ke daftar order.
                   </p>
                 </div>
 
@@ -1891,45 +2066,30 @@ export default function SalesOrdersPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog Input HPP Kustom untuk Fast Track */}
+      {/* Dialog Bypass Fast Track — tandai sudah terkirim, langsung ke penagihan */}
       <Dialog open={isFastTrackOpen} onOpenChange={setIsFastTrackOpen}>
-        <DialogContent className="max-w-2xl bg-white dark:bg-slate-900 rounded-[2rem] border-slate-100 shadow-2xl p-8">
+        <DialogContent className="max-w-xl bg-white dark:bg-slate-900 rounded-[2rem] border-slate-100 shadow-2xl p-8">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-slate-900 dark:text-slate-50 flex items-center gap-2">
-              ⚡ Fast Track PO: {fastTrackSo?.poNumber}
+              ⚡ Bypass PO: {fastTrackSo?.poNumber}
             </DialogTitle>
             <DialogDescription className="text-slate-500 dark:text-slate-400">
-              Isi harga beli aktual (HPP) untuk setiap produk. Langkah belanja pasar, QC, gudang, dan kurir akan otomatis dilewati langsung ke Finance Audit.
+              Tandai PO ini sudah terkirim ke klien. Belanja, QC, gudang, kurir dilewati. Invoice langsung dibuat & siap ditagih.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="my-6 space-y-4 max-h-[400px] overflow-y-auto pr-2">
-            {fastTrackSo && salesOrderItems.filter(i => i.salesOrderId === fastTrackSo.id).map(item => {
-              const prod = products.find(p => p.id === item.productId)
+          <div className="my-6 p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-2">
+            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Ringkasan</p>
+            {fastTrackSo && (() => {
+              const items = salesOrderItems.filter(i => i.salesOrderId === fastTrackSo.id)
+              const total = items.reduce((sum, it) => sum + ((it.qtyFinal ?? it.qty) * it.unitPrice), 0)
               return (
-                <div key={item.id} className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 border border-slate-100 dark:border-slate-800">
-                  <div className="space-y-1">
-                    <p className="font-bold text-slate-800 dark:text-slate-100 text-sm">{prod?.name}</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                      Qty: {item.qtyFinal ?? item.qty} {prod?.uom} · Jual: {formatRupiah(item.unitPrice)}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 min-w-[200px]">
-                    <span className="text-sm font-bold text-slate-400">Rp</span>
-                    <Input
-                      type="number"
-                      className="rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
-                      value={fastTrackHpps[item.id] ?? ''}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value) || 0
-                        setFastTrackHpps(prev => ({ ...prev, [item.id]: val }))
-                      }}
-                      placeholder="Input HPP per unit"
-                    />
-                  </div>
-                </div>
+                <>
+                  <p className="text-sm text-slate-700 dark:text-slate-200">{items.length} item · Total tagihan: <span className="font-bold">{formatRupiah(total)}</span></p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">HPP otomatis pakai base price produk.</p>
+                </>
               )
-            })}
+            })()}
           </div>
 
           <DialogFooter className="gap-2">

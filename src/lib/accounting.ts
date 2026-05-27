@@ -604,41 +604,12 @@ export const recordDeliveryAndInvoice = async (
     [{ accountCode: '4-1000', amount: invoiceTotal }]
   );
 
-  // 3. Record HPP/COGS for Fast Track (procurement/sourcing dilewatkan).
-  //    Fast-track = sourcer beli ad-hoc pakai uang pribadi (gak via advance wallet).
-  //    Cr ke 2-1500 (Utang Talangan Karyawan) — liability ke sourcer, bukan asset 1-1500.
-  //    NO CashTx Out — tidak ada cash movement di kas sourcing (sourcer pakai uang pribadi).
-  //    Auto-create reimburse row Pending supaya finance bisa bayar via UI Reimbursement.
-  if (revSuccess && isFastTrack && cogsTotal > 0) {
-    const hppFastSuccess = await createAccountingEntry(
-      `Pengakuan HPP Fast-Track - Ref: ${invoiceId}`,
-      'Invoice',
-      invoiceId,
-      [{ accountCode: '5-1000', amount: cogsTotal }], // Debit HPP
-      [{ accountCode: '2-1500', amount: cogsTotal }]  // Credit Utang Talangan Karyawan
-    );
-    if (hppFastSuccess) {
-      const inv = store.invoices.find(i => i.id === invoiceId);
-      const so = inv?.salesOrderId ? store.salesOrders.find(s => s.id === inv.salesOrderId) : undefined;
-      const purchase = store.purchases.find(p => p.id === so?.shoppingListDocumentId)
-        || store.purchases.find(p => p.reconciliationNote?.includes(so?.poNumber || '__nope__'));
-      const sourcerId = purchase?.purchaserId || 'system';
-      const alreadyHasReimb = store.reimbursements.some(r => r.purchaseId === invoiceId && r.kind === 'Sourcing-Defisit');
-      if (!alreadyHasReimb) {
-        await store.addReimbursement({
-          id: uuidv4(),
-          date: new Date().toISOString(),
-          userId: sourcerId,
-          purchaseId: invoiceId,
-          title: `Talangan Fast-Track - Inv: ${invoiceId.slice(0,8)}`,
-          amount: cogsTotal,
-          description: `HPP fast-track sourcer talangin (gak via advance wallet).`,
-          status: 'Pending',
-          kind: 'Sourcing-Defisit',
-        });
-      }
-    }
-  }
+  // 3. HPP/COGS untuk fast-track TIDAK dijurnal di sini.
+  //    Fast-track bikin purchase tiruan dgn reconciliationStatus='Laporan Masuk' supaya
+  //    HPP di-recognize via flow normal recordReconciliationSettlement (Sourcing Settlement
+  //    di Finance Hub). Jurnal: Dr 5-1000 HPP | Cr 1-1500 advance (atau 2-1500 utang kalo defisit).
+  //    Single source of truth = settlement. Cegah double-count + utang ghost.
+  void isFastTrack;
   
   // 4. Physical Inventory Sync (Deduction)
   if (revSuccess) {
