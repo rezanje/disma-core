@@ -604,15 +604,30 @@ export const recordDeliveryAndInvoice = async (
     [{ accountCode: '4-1000', amount: invoiceTotal }]
   );
 
-  // 3. Record HPP/COGS for Fast Track (since procurement/sourcing was bypassed)
+  // 3. Record HPP/COGS for Fast Track (since procurement/sourcing was bypassed).
+  //    Cr ke 1-1500 (advance wallet sourcer) — fast-track skip gudang, jadi gak ada movement
+  //    Persediaan (1-3000). Wallet bisa minus = signal sourcer nalangin (selaras plan B).
+  //    Tambah CashTx Out di bank-advance-sourcing biar bank.balance match journal saldo 1-1500.
   if (revSuccess && isFastTrack && cogsTotal > 0) {
-    await createAccountingEntry(
+    const hppFastSuccess = await createAccountingEntry(
       `Pengakuan HPP Fast-Track - Ref: ${invoiceId}`,
       'Invoice',
       invoiceId,
       [{ accountCode: '5-1000', amount: cogsTotal }], // Debit HPP
-      [{ accountCode: '1-3000', amount: cogsTotal }]  // Credit Persediaan Barang Dagang
+      [{ accountCode: '1-1500', amount: cogsTotal }]  // Credit Kas Sourcing/Advance
     );
+    if (hppFastSuccess) {
+      await store.addCashTransaction({
+        id: uuidv4(),
+        date: new Date().toISOString(),
+        amount: cogsTotal,
+        type: 'Out',
+        category: 'Sourcing (HPP)',
+        description: `Pengakuan HPP Fast-Track - Ref: ${invoiceId}`,
+        bankAccountId: 'bank-advance-sourcing',
+        referenceId: invoiceId
+      });
+    }
   }
   
   // 4. Physical Inventory Sync (Deduction)
