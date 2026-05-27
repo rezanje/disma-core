@@ -55,28 +55,29 @@ function Button({
   ...props
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
   const [isClicked, setIsClicked] = React.useState(false)
+  const [isAwaitingPromise, setIsAwaitingPromise] = React.useState(false)
   const isSyncing = useAppStore(state => state.isSyncing)
+  const mountedRef = React.useRef(true)
 
-  // Reset when syncing finishes
   React.useEffect(() => {
-    if (!isSyncing && isClicked) {
-      // Small delay so the spinner doesn't flash off instantly
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
+
+  React.useEffect(() => {
+    if (!isSyncing && isClicked && !isAwaitingPromise) {
       const timer = setTimeout(() => setIsClicked(false), 150)
       return () => clearTimeout(timer)
     }
-  }, [isSyncing, isClicked])
+  }, [isSyncing, isClicked, isAwaitingPromise])
 
-  // If clicked but sync never starts (e.g. validation failed), reset after 1.5s
   React.useEffect(() => {
-    if (isClicked && !isSyncing) {
-      const timer = setTimeout(() => {
-        setIsClicked(false)
-      }, 1500)
+    if (isClicked && !isSyncing && !isAwaitingPromise) {
+      const timer = setTimeout(() => setIsClicked(false), 1500)
       return () => clearTimeout(timer)
     }
-  }, [isClicked, isSyncing])
+  }, [isClicked, isSyncing, isAwaitingPromise])
 
-  // Safety: max 15s loading to prevent infinite spinner
   React.useEffect(() => {
     if (isClicked) {
       const timer = setTimeout(() => setIsClicked(false), 15000)
@@ -86,12 +87,22 @@ function Button({
 
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     setIsClicked(true)
-    if (onClick) {
-      onClick(e as any)
+    if (!onClick) return
+    let result: unknown
+    try {
+      result = onClick(e as any)
+    } catch {
+      return
+    }
+    if (result && typeof (result as Promise<unknown>).then === "function") {
+      setIsAwaitingPromise(true)
+      Promise.resolve(result).finally(() => {
+        if (mountedRef.current) setIsAwaitingPromise(false)
+      })
     }
   }
 
-  const isLoading = isClicked && isSyncing
+  const isLoading = isClicked && (isSyncing || isAwaitingPromise)
 
   return (
     <ButtonPrimitive
