@@ -829,17 +829,17 @@ export const recordReconciliationSettlement = async (
     const postedShopEntry = findPostedEntry('Purchase', purchaseId, shopDescription);
     const createdCashIds: string[] = [];
 
-    // CashTx hanya catat kas fisik yang keluar (= settledAmount dari advance, BUKAN actualShopCost).
-    // Defisit (sourcer nalangin) TIDAK dicatat sebagai "In Talangan" karena bukan deposit fisik —
-    // sourcer pakai uang pribadi. Kas sourcing wallet jadi 0 (terpakai habis), defisit tercatat
-    // di Liability 2-1500 (utang perusahaan ke sourcer).
+    // CashTx Out senilai actualShopCost full (= total belanja vendor) — supaya kas sourcer minus
+    // sebesar defisit (= jumlah nalangin) saat advance kurang. TIDAK ada CashTx 'In Talangan'
+    // karena sourcer pakai uang pribadi (bukan deposit fisik ke wallet). Defisit tercatat di
+    // Liability 2-1500 (utang perusahaan ke sourcer).
     try {
-      if (settledAmount > 0) {
+      if (actualShopCost > 0) {
         const txId = uuidv4();
         await store.addCashTransaction({
           id: txId,
           date: now,
-          amount: settledAmount,
+          amount: actualShopCost,
           type: 'Out',
           category: 'Sourcing (HPP)',
           description: `Belanja Pasar disetujui - Ref: ${purchaseRef}`,
@@ -882,14 +882,15 @@ export const recordReconciliationSettlement = async (
       return false;
     }
 
-    if (settleFromAdvance > 0) {
+    if (actualOpsCost > 0) {
       const postedOpsEntry = findPostedEntry('Expense', purchaseId, opsDescription);
       const txId = uuidv4();
       try {
+        // Out senilai actualOpsCost full — kas sourcer minus sebesar defisitOps kalo nalangin.
         await store.addCashTransaction({
           id: txId,
           date: now,
-          amount: settleFromAdvance,
+          amount: actualOpsCost,
           type: 'Out',
           category: 'Operasional',
           description: `Biaya Ops disetujui - Ref: ${purchaseRef}`,
