@@ -76,14 +76,33 @@ export default function TukarFakturPrintPage({ params }: { params: Promise<{ id:
     <div className="bg-slate-100 min-h-screen tf-print-root">
       <style jsx global>{`
         @media print {
-          body { background: white !important; margin: 0 !important; }
+          @page { size: A4; margin: 0; }
+          html, body { background: white !important; margin: 0 !important; padding: 0 !important; }
           body * { visibility: hidden !important; }
           .tf-print-root, .tf-print-root * { visibility: visible !important; }
-          .tf-print-root { position: absolute !important; left: 0; top: 0; width: 100% !important; background: white !important; padding: 0 !important; min-height: 0 !important; }
-          .no-print { display: none !important; }
-          .print-page { box-shadow: none !important; margin: 0 auto !important; max-width: 100% !important; padding: 12mm !important; page-break-after: always; }
-          .print-page:last-child { page-break-after: auto; }
-          @page { size: A4; margin: 0; }
+          .tf-print-root {
+            background: white !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            min-height: 0 !important;
+            display: block !important;
+          }
+          .tf-print-root .no-print { display: none !important; }
+          .print-page {
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            margin: 0 !important;
+            max-width: 100% !important;
+            width: 100% !important;
+            padding: 12mm !important;
+            page-break-after: always;
+            break-after: page;
+          }
+          .print-page:last-child { page-break-after: auto; break-after: auto; }
+          /* Kill fixed/sticky chrome that browsers still allocate */
+          .fixed, [class*=" fixed "], [class^="fixed "], .sticky, [class*=" sticky "], [class^="sticky "] {
+            display: none !important;
+          }
         }
       `}</style>
 
@@ -96,7 +115,7 @@ export default function TukarFakturPrintPage({ params }: { params: Promise<{ id:
         </Button>
       </div>
 
-      <div className="p-8 space-y-8">
+      <div className="tf-print-pages p-8 space-y-8 print:p-0 print:space-y-0">
 
         {/* PAGE 1: TF SUMMARY */}
         <div className="print-page bg-white mx-auto max-w-[820px] p-12 shadow-2xl text-[#1e293b]">
