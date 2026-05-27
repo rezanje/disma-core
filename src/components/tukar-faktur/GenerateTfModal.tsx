@@ -41,6 +41,18 @@ export function GenerateTfModal({ open, onOpenChange }: Props) {
 
   const today = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d }, [open])
 
+  const eligibleClients = useMemo(() => {
+    const cutoff = new Date(today); cutoff.setDate(cutoff.getDate() - 14)
+    const idsWithEligibleInv = new Set(
+      invoices
+        .filter(inv => !inv.tukarFakturId && new Date(inv.issueDate) >= cutoff)
+        .map(inv => inv.clientId)
+    )
+    return clients
+      .filter(c => idsWithEligibleInv.has(c.id))
+      .sort((a, b) => a.companyName.localeCompare(b.companyName))
+  }, [clients, invoices, today])
+
   const candidateGroups = useMemo<PeriodGroup[]>(() => {
     if (!clientId) return []
     const cutoff = new Date(today); cutoff.setDate(cutoff.getDate() - 14)
@@ -144,8 +156,11 @@ export function GenerateTfModal({ open, onOpenChange }: Props) {
               onChange={e => setClientId(e.target.value)}
             >
               <option value="">— Pilih klien —</option>
-              {clients.map(c => <option key={c.id} value={c.id}>{c.companyName}</option>)}
+              {eligibleClients.map(c => <option key={c.id} value={c.id}>{c.companyName}</option>)}
             </select>
+            <p className="mt-1 text-[11px] text-slate-400">
+              Hanya klien dengan invoice 14 hari terakhir yang belum di-TF ({eligibleClients.length} klien).
+            </p>
           </div>
 
           {clientId && candidateGroups.length === 0 && (
