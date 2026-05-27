@@ -921,9 +921,15 @@ export const recordReconciliationSettlement = async (
   const totalDefisit = defisitShop + defisitOps;
 
   if (totalDefisit > 0 && purchase?.purchaserId) {
-    const alreadyHasDefisitReimb = store.reimbursements.some(r =>
-      r.purchaseId === purchaseId && r.kind === 'Sourcing-Defisit'
-    );
+    // Idempotency: skip if any defisit reimburse already exists for this purchase.
+    // Cover BOTH new rows (kind='Sourcing-Defisit') and legacy rows from the old
+    // finance/approvals path (title includes "Defisit Sourcing"/"Talangan").
+    const alreadyHasDefisitReimb = store.reimbursements.some(r => {
+      if (r.purchaseId !== purchaseId) return false;
+      if (r.kind === 'Sourcing-Defisit') return true;
+      const t = (r.title || '').toLowerCase();
+      return t.includes('defisit sourcing') || t.includes('talangan sourcing');
+    });
     if (!alreadyHasDefisitReimb) {
       await store.addReimbursement({
         id: uuidv4(),

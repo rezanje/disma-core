@@ -136,7 +136,14 @@ export default function FinanceHubPage() {
     }
   }, [salesOrders, salesOrderItems, products, addPurchase, addPurchaseItems])
 
-  const [selectedBank, setSelectedBank] = useState("bank-1")
+  const [selectedBank, setSelectedBank] = useState("")
+
+  useEffect(() => {
+    if (!selectedBank && bankAccounts.length > 0) {
+      const fallback = bankAccounts.find(b => b.id !== 'bank-advance-sourcing') || bankAccounts[0]
+      setSelectedBank(fallback.id)
+    }
+  }, [bankAccounts, selectedBank])
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [selectedPurchasers, setSelectedPurchasers] = useState<Record<string, string>>({})
   const [spareAmounts, setSpareAmounts] = useState<Record<string, number>>({})
@@ -502,19 +509,9 @@ export default function FinanceHubPage() {
         })
       }
 
-      // 4.1 Auto Create Reimbursement for Deficit
-      if (finalNetBalance < 0) {
-        await useAppStore.getState().addReimbursement({
-          id: `reimb-${Date.now()}-${uuidv4().slice(0, 4)}`,
-          purchaseId: directSettleId,
-          userId: directSettlePurchase?.purchaserId || currentUser?.id || 'system',
-          title: `Defisit Sourcing ${directSettleId?.slice(0,8)}`,
-          amount: Math.abs(finalNetBalance),
-          description: `Uang talangan sourcing (Defisit Budget)`,
-          status: 'Pending',
-          date: now
-        })
-      }
+      // 4.1 Defisit reimburse row sekarang dibuat otomatis di recordReconciliationSettlement
+      //     (lewat handleVerifyReconciliation di langkah 6). Block ini sengaja dikosongkan
+      //     supaya gak duplikat dengan kanonik creator di accounting.ts.
 
       // 5. Update purchase actual spent
       await updatePurchase(directSettleId, { 
