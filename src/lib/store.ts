@@ -471,6 +471,7 @@ const initialCOAs: ChartOfAccount[] = [
   
   // 2-XXXX LIABILITIES
   { id: 'coa-10', accountCode: '2-1000', accountName: 'Utang Usaha (Vendor)', accountType: 'Liability' },
+  { id: 'coa-10-talangan', accountCode: '2-1500', accountName: 'Utang Talangan Karyawan', accountType: 'Liability' },
   { id: 'coa-10-2', accountCode: '2-2000', accountName: 'Utang Gaji & Honor', accountType: 'Liability' },
   { id: 'coa-10-3', accountCode: '2-3000', accountName: 'Utang Pajak (PPN/PPh)', accountType: 'Liability' },
   { id: 'coa-10-4', accountCode: '2-4000', accountName: 'Pinjaman Bank (Utang)', accountType: 'Liability' },

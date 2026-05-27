@@ -667,7 +667,7 @@ export const recordReimbursementPayment = async (reimbId: string, amount: number
   const bankCode = bank?.accountCode || '1-1000';
 
   // Pilih akun debit berdasarkan kind reimburse (eksplisit, bukan parse string).
-  // - Sourcing-Defisit: HPP/Ops sudah dijurnal saat settlement; payment-nya potong Utang Usaha (2-1000).
+  // - Sourcing-Defisit: HPP/Ops sudah dijurnal saat settlement; payment-nya potong Utang Talangan Karyawan (2-1500).
   // - Auto-Talangan: bagian ops yg gak ketutup wallet saat input; samain ke Beban Ops Pasar (6-1400).
   // - Manual / undefined (legacy): masuk Beban Operasional Lainnya (6-9000).
   const reimb = store.reimbursements.find(r => r.id === reimbId);
@@ -677,7 +677,7 @@ export const recordReimbursementPayment = async (reimbId: string, amount: number
 
   let debitAccountCode: string;
   if (reimb?.kind === 'Sourcing-Defisit' || isLegacyDefisitSourcing) {
-    debitAccountCode = '2-1000';
+    debitAccountCode = '2-1500';
   } else if (reimb?.kind === 'Auto-Talangan' || isLegacyAutoTalangan) {
     debitAccountCode = '6-1400';
   } else {
@@ -807,9 +807,10 @@ export const recordReconciliationSettlement = async (
       credits.push({ accountCode: advanceAccountCode, amount: settledAmount });
     }
 
-    // Jika HPP > Advance, sisanya jadi Utang Usaha (karena ditomboki sourcer)
+    // Jika HPP > Advance, sisanya jadi Utang Talangan Karyawan (2-1500) — sourcer pakai uang pribadi.
+    // Pisah dari Utang Usaha Vendor (2-1000) supaya neraca jelas.
     if (defisitShop > 0) {
-      credits.push({ accountCode: '2-1000', amount: defisitShop });
+      credits.push({ accountCode: '2-1500', amount: defisitShop });
     }
 
     const shopDescription = `Penyelesaian Belanja Sourcing - Ref: ${purchaseRef}`;
@@ -817,7 +818,6 @@ export const recordReconciliationSettlement = async (
       shopDescription,
       'Purchase',
       purchaseId,
-      // Belanja sourcing yang disetujui harus masuk ke HPP agar muncul di laba rugi.
       [{ accountCode: HPP_ACCOUNT_CODE, amount: actualShopCost }],
       credits
     );
@@ -829,35 +829,25 @@ export const recordReconciliationSettlement = async (
     const postedShopEntry = findPostedEntry('Purchase', purchaseId, shopDescription);
     const createdCashIds: string[] = [];
 
-    // Jika sourcer talangin, catat In dulu (Talangan Sourcer) supaya kas keluar HPP = actualShopCost utuh
+    // CashTx hanya catat kas fisik yang keluar (= settledAmount dari advance, BUKAN actualShopCost).
+    // Defisit (sourcer nalangin) TIDAK dicatat sebagai "In Talangan" karena bukan deposit fisik —
+    // sourcer pakai uang pribadi. Kas sourcing wallet jadi 0 (terpakai habis), defisit tercatat
+    // di Liability 2-1500 (utang perusahaan ke sourcer).
     try {
-      if (defisitShop > 0) {
+      if (settledAmount > 0) {
         const txId = uuidv4();
         await store.addCashTransaction({
           id: txId,
           date: now,
-          amount: defisitShop,
-          type: 'In',
-          category: 'Talangan Sourcer',
-          description: `Talangan Sourcer (Defisit HPP) - Ref: ${purchaseRef}`,
+          amount: settledAmount,
+          type: 'Out',
+          category: 'Sourcing (HPP)',
+          description: `Belanja Pasar disetujui - Ref: ${purchaseRef}`,
           bankAccountId: targetBankId,
           referenceId: purchaseId
         });
         createdCashIds.push(txId);
       }
-      // Out dari Kas Sourcing — uang dipakai belanja (full actualShopCost agar match summary settlement)
-      const txId = uuidv4();
-      await store.addCashTransaction({
-        id: txId,
-        date: now,
-        amount: actualShopCost,
-        type: 'Out',
-        category: 'Sourcing (HPP)',
-        description: `Belanja Pasar disetujui - Ref: ${purchaseRef}`,
-        bankAccountId: targetBankId,
-        referenceId: purchaseId
-      });
-      createdCashIds.push(txId);
     } catch (err) {
       console.error('[Accounting] Failed to persist shop settlement cash transaction, rolling back journal:', err);
       await cleanupCashTransactions(createdCashIds);
@@ -876,7 +866,7 @@ export const recordReconciliationSettlement = async (
       opsCredits.push({ accountCode: advanceAccountCode, amount: settleFromAdvance });
     }
     if (defisitOps > 0) {
-      opsCredits.push({ accountCode: '2-1000', amount: defisitOps });
+      opsCredits.push({ accountCode: '2-1500', amount: defisitOps });
     }
 
     const opsDescription = `Penyelesaian Ops Sourcing - Ref: ${purchaseRef}`;
