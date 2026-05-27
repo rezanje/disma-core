@@ -55,7 +55,7 @@ export default function SourcingDashboard() {
   const [editNote, setEditNote] = useState<string>('')
   const [reconciliationNote, setReconciliationNote] = useState('')
   const [proofImage, setProofImage] = useState<string | null>(null)
-  const [returnTargetBank, setReturnTargetBank] = useState('bank-1')
+  const [returnTargetBank, setReturnTargetBank] = useState('')
   const [courierRecipientId, setCourierRecipientId] = useState('')
   const [courierTransferAmount, setCourierTransferAmount] = useState(0)
 
@@ -69,7 +69,15 @@ export default function SourcingDashboard() {
   }
 
   const bankAccounts = useAppStore(state => state.bankAccounts)
-  const courierUsers = users.filter(user => 
+
+  useEffect(() => {
+    if (!returnTargetBank && bankAccounts.length > 0) {
+      const fallback = bankAccounts.find(b => b.id !== 'bank-advance-sourcing') || bankAccounts[0]
+      setReturnTargetBank(fallback.id)
+    }
+  }, [bankAccounts, returnTargetBank])
+
+  const courierUsers = users.filter(user =>
      ['kurir', 'gudang', 'sourcing'].includes(user.role) && 
      user.id !== currentUser?.id
   )
@@ -279,16 +287,17 @@ export default function SourcingDashboard() {
     const activePurchaseId = activePurchase?.id
 
     if (opsFormData.transactionType === 'Kasbon') {
-      addReimbursement({ 
-        id, 
-        date: new Date().toISOString(), 
-        userId: currentUser?.id || 'system', 
+      addReimbursement({
+        id,
+        date: new Date().toISOString(),
+        userId: currentUser?.id || 'system',
         purchaseId: activePurchaseId,
-        title: `${opsFormData.category}: ${opsFormData.description}`, 
-        amount: opsFormData.amount, 
-        description: opsFormData.description, 
-        receiptUrl: opsFormData.receiptUrl, 
-        status: 'Pending' 
+        title: `${opsFormData.category}: ${opsFormData.description}`,
+        amount: opsFormData.amount,
+        description: opsFormData.description,
+        receiptUrl: opsFormData.receiptUrl,
+        status: 'Pending',
+        kind: 'Manual'
       })
       toast.success("Pengajuan Reimbursement berhasil dikirim!")
     } else {
@@ -319,7 +328,8 @@ export default function SourcingDashboard() {
           amount: reimbAmount,
           description: opsFormData.description,
           receiptUrl: opsFormData.receiptUrl,
-          status: 'Pending'
+          status: 'Pending',
+          kind: 'Auto-Talangan'
         })
       }
 

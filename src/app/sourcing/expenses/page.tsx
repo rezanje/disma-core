@@ -88,7 +88,8 @@ export default function ExpensesForm() {
           amount: formData.amount,
           description: formData.description,
           receiptUrl: formData.receiptUrl,
-          status: 'Pending'
+          status: 'Pending',
+          kind: 'Manual'
        })
        toast.success("Pengajuan Reimbursement (Talangan) berhasil dikirim!")
     } else {
@@ -121,7 +122,8 @@ export default function ExpensesForm() {
             amount: reimbAmount,
             description: formData.description,
             receiptUrl: formData.receiptUrl,
-            status: 'Pending'
+            status: 'Pending',
+            kind: 'Auto-Talangan'
          })
        }
 

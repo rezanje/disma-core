@@ -666,11 +666,23 @@ export const recordReimbursementPayment = async (reimbId: string, amount: number
   const bank = store.bankAccounts.find(b => b.id === bankAccountId);
   const bankCode = bank?.accountCode || '1-1000';
 
-  // Jika ini adalah reimburse defisit dari Sourcing, kita potong utang (2-1000)
-  // karena HPP/Ops-nya sudah diakui saat settlement.
-  // Jika reimburse biasa, masuk Beban Operasional Lainnya (6-9000)
-  const isDefisitSourcing = description.toLowerCase().includes('talangan sourcing') || description.toLowerCase().includes('defisit sourcing');
-  const debitAccountCode = isDefisitSourcing ? '2-1000' : '6-9000';
+  // Pilih akun debit berdasarkan kind reimburse (eksplisit, bukan parse string).
+  // - Sourcing-Defisit: HPP/Ops sudah dijurnal saat settlement; payment-nya potong Utang Usaha (2-1000).
+  // - Auto-Talangan: bagian ops yg gak ketutup wallet saat input; samain ke Beban Ops Pasar (6-1400).
+  // - Manual / undefined (legacy): masuk Beban Operasional Lainnya (6-9000).
+  const reimb = store.reimbursements.find(r => r.id === reimbId);
+  const kindLower = (description || '').toLowerCase();
+  const isLegacyDefisitSourcing = !reimb?.kind && (kindLower.includes('talangan sourcing') || kindLower.includes('defisit sourcing'));
+  const isLegacyAutoTalangan = !reimb?.kind && kindLower.includes('auto-talangan');
+
+  let debitAccountCode: string;
+  if (reimb?.kind === 'Sourcing-Defisit' || isLegacyDefisitSourcing) {
+    debitAccountCode = '2-1000';
+  } else if (reimb?.kind === 'Auto-Talangan' || isLegacyAutoTalangan) {
+    debitAccountCode = '6-1400';
+  } else {
+    debitAccountCode = '6-9000';
+  }
 
   const success = await createAccountingEntry(
     `Pembayaran Reimburse: ${description} (${userName})`,
@@ -705,6 +717,10 @@ export const recordBudgetTransfer = async (purchaseId: string, amount: number, b
   const wallet = getAdvanceWalletByUserId(purchaser?.id);
   const targetBankId = wallet?.bankAccountId || 'bank-advance-sourcing';
   const targetAccountCode = wallet?.accountCode || '1-1500';
+
+  if (bankAccountId === targetBankId) {
+    throw new Error(`Source bank tidak boleh sama dengan wallet penerima (${bankAccountId}). Pilih bank kantor (BCA/BRI/Mandiri/Kas Tunai).`);
+  }
 
   const success = await createAccountingEntry(
     `Pencairan Budget Sourcing: ${recipientName} - Ref: ${purchaseId.slice(0,8)}`,
@@ -895,6 +911,31 @@ export const recordReconciliationSettlement = async (
         if (postedOpsEntry) await cleanupJournalEntry(postedOpsEntry.id);
         return false;
       }
+    }
+  }
+
+  // 3. Auto-create Reimbursement row utk defisit (HPP + Ops) supaya finance bisa bayar via UI.
+  // Journal utang ke 2-1000 sudah dibuat di step 1/2. Reimburse row ini cuma trigger pencairan kas ke sourcer.
+  const defisitShop = actualShopCost > 0 ? Math.max(0, actualShopCost - Math.max(0, advanceAmount)) : 0;
+  const defisitOps = actualOpsCost > 0 ? Math.max(0, actualOpsCost - Math.max(0, advanceAmount - actualShopCost)) : 0;
+  const totalDefisit = defisitShop + defisitOps;
+
+  if (totalDefisit > 0 && purchase?.purchaserId) {
+    const alreadyHasDefisitReimb = store.reimbursements.some(r =>
+      r.purchaseId === purchaseId && r.kind === 'Sourcing-Defisit'
+    );
+    if (!alreadyHasDefisitReimb) {
+      await store.addReimbursement({
+        id: uuidv4(),
+        date: now,
+        userId: purchase.purchaserId,
+        purchaseId,
+        title: `Talangan Defisit Sourcing - Ref: ${purchaseRef}`,
+        amount: totalDefisit,
+        description: `Defisit HPP ${defisitShop} + Ops ${defisitOps}. Utang sudah dijurnal (2-1000), tunggu pencairan kas ke sourcer.`,
+        status: 'Pending',
+        kind: 'Sourcing-Defisit',
+      });
     }
   }
 

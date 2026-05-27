@@ -353,6 +353,8 @@ export interface OperationalExpense {
 
 export type ReimbursementStatus = 'Pending' | 'Approved' | 'Paid' | 'Rejected';
 
+export type ReimbursementKind = 'Manual' | 'Auto-Talangan' | 'Sourcing-Defisit';
+
 export interface Reimbursement {
   id: string;
   date: string;
@@ -363,6 +365,7 @@ export interface Reimbursement {
   description: string;
   receiptUrl?: string;
   status: ReimbursementStatus;
+  kind?: ReimbursementKind;
   auditDate?: string;
   auditNote?: string;
   paymentDate?: string;
