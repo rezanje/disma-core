@@ -1,7 +1,9 @@
 import { v4 as uuidv4 } from 'uuid';
 import { useAppStore } from './store';
-import { JournalEntry, JournalLine, StockMovement } from '@/types';
+import { JournalEntry, JournalLine, StockMovement, VendorBill } from '@/types';
 import { format } from 'date-fns';
+import { supabase } from './supabase';
+import { dueDateFor } from './vendor-payable';
 
 /**
  * Double-Entry Bookkeeping Helper functions
@@ -184,15 +186,19 @@ export const createAccountingEntry = async (
 
   // 2. Post atomically through server/RPC: entry + lines succeed together or fail together.
   const entryId = uuidv4();
-  const postingDebits = preparedDebits.map((d) => ({
+  const postingDebits = preparedDebits.map((d: any) => ({
     id: uuidv4(),
     accountCode: d.accountCode,
     amount: d.amount,
+    vendorId: d.vendorId,
+    vendorBillId: d.vendorBillId,
   }));
-  const postingCredits = preparedCredits.map((c) => ({
+  const postingCredits = preparedCredits.map((c: any) => ({
     id: uuidv4(),
     accountCode: c.accountCode,
     amount: c.amount,
+    vendorId: c.vendorId,
+    vendorBillId: c.vendorBillId,
   }));
 
   try {
@@ -793,20 +799,108 @@ export const recordReconciliationSettlement = async (
     (entry.description || '').includes(`Penyelesaian Ops Sourcing - Ref: ${purchaseRef}`)
   );
 
-  // 1. Settle Advance for Shop Cost (HPP) — journal + CashTransaction Out dari Kas Sourcing
-  if (actualShopCost > 0 && !hasExistingShopSettlement) {
-    const settledAmount = Math.min(actualShopCost, Math.max(0, advanceAmount));
-    const defisitShop = actualShopCost - settledAmount;
+  let totalTempo = 0;
+  let totalCash = actualShopCost;
+  const tempoTotals = new Map<string, number>();
+  const vendorBillsToSave: VendorBill[] = [];
+  const journalCredits: (PostingLineInput & { vendorId?: string; vendorBillId?: string })[] = [];
 
-    const credits: PostingLineInput[] = [];
-    if (settledAmount > 0) {
-      credits.push({ accountCode: advanceAccountCode, amount: settledAmount });
+  const pItems = store.purchaseItems.filter(
+    pi => pi.purchaseId === purchaseId && pi.isChecked && pi.purchaseMethod === 'Pasar'
+  );
+
+  if (actualShopCost > 0 && pItems.length > 0) {
+    // Validate all checked items have vendorId
+    for (const item of pItems) {
+      if (!item.vendorId) {
+        throw new Error(`Item ${item.id} (produk ${item.productId}) belum memiliki vendor.`);
+      }
     }
 
-    // Jika HPP > Advance, sisanya jadi Utang Talangan Karyawan (2-1500) — sourcer pakai uang pribadi.
-    // Pisah dari Utang Usaha Vendor (2-1000) supaya neraca jelas.
+    // Group and calculate tempo/cash totals
+    const vendorMap = new Map(store.vendors.map(v => [v.id, v]));
+    totalCash = 0;
+
+    for (const item of pItems) {
+      const vId = item.vendorId!;
+      const vendor = vendorMap.get(vId);
+      const isTempo = vendor ? (vendor.isTempo !== false) : true;
+      const cost = (item.actualUnitPrice || 0) * (item.qtyPurchased || 0);
+
+      if (isTempo) {
+        totalTempo += cost;
+        tempoTotals.set(vId, (tempoTotals.get(vId) || 0) + cost);
+      } else {
+        totalCash += cost;
+      }
+    }
+  }
+
+  // 1. Settle Advance for Shop Cost (HPP) — journal + CashTransaction Out dari Kas Sourcing
+  if (actualShopCost > 0 && !hasExistingShopSettlement) {
+    const todayStr = now.slice(0, 10);
+    
+    // Create Vendor Bills for tempo portions
+    for (const [vendorId, totalAmount] of tempoTotals.entries()) {
+      if (totalAmount <= 0) continue;
+      const vendor = store.vendors.find(v => v.id === vendorId);
+      const vendorName = vendor ? vendor.companyName : 'Vendor Unknown';
+      const termDays = vendor?.paymentTermDays ?? 14;
+      
+      let billNumber = '';
+      try {
+        const { data, error } = await supabase.rpc('generate_vendor_bill_number', {
+          p_vendor_id: vendorId,
+          p_bill_date: todayStr
+        });
+        if (error) throw error;
+        billNumber = data;
+      } catch (rpcErr) {
+        console.warn('[Accounting] generate_vendor_bill_number RPC failed, generating fallback:', rpcErr);
+        const randomSuffix = Math.floor(10 + Math.random() * 90);
+        billNumber = `VB-${todayStr.replace(/-/g, '').slice(0, 6)}-${vendorId.slice(0, 6).toUpperCase()}-${randomSuffix}`;
+      }
+
+      const billId = uuidv4();
+      const dueDate = dueDateFor(todayStr, termDays);
+
+      const bill: VendorBill = {
+        id: billId,
+        billNumber,
+        vendorId,
+        vendorName,
+        issueDate: now,
+        dueDate,
+        description: `Belanja Sourcing - Ref: ${purchaseRef}`,
+        category: 'Bahan Baku',
+        totalAmount,
+        amountPaid: 0,
+        status: 'Pending',
+        payments: [],
+        purchaseId,
+        createdAt: now,
+        createdBy: purchase?.purchaserId
+      };
+      vendorBillsToSave.push(bill);
+
+      // Cr 2-1000 Utang Vendor
+      journalCredits.push({
+        accountCode: '2-1000',
+        amount: totalAmount,
+        vendorId,
+        vendorBillId: billId
+      });
+    }
+
+    // Settle Advance for Cash portion
+    const settledAmount = Math.min(totalCash, Math.max(0, advanceAmount));
+    const defisitShop = totalCash > settledAmount ? totalCash - settledAmount : 0;
+
+    if (settledAmount > 0) {
+      journalCredits.push({ accountCode: advanceAccountCode, amount: settledAmount });
+    }
     if (defisitShop > 0) {
-      credits.push({ accountCode: '2-1500', amount: defisitShop });
+      journalCredits.push({ accountCode: '2-1500', amount: defisitShop });
     }
 
     const shopDescription = `Penyelesaian Belanja Sourcing - Ref: ${purchaseRef}`;
@@ -814,31 +908,32 @@ export const recordReconciliationSettlement = async (
       shopDescription,
       'Purchase',
       purchaseId,
-      [{ accountCode: HPP_ACCOUNT_CODE, amount: actualShopCost }],
-      credits
+      [{ accountCode: '1-3000', amount: actualShopCost }], // Dr 1-3000 Persediaan
+      journalCredits
     );
 
     if (!shopJournalSuccess) {
       return false;
     }
 
+    // Save vendor bills to store
+    for (const bill of vendorBillsToSave) {
+      await store.addVendorBill(bill);
+    }
+
     const postedShopEntry = findPostedEntry('Purchase', purchaseId, shopDescription);
     const createdCashIds: string[] = [];
 
-    // CashTx Out senilai actualShopCost full (= total belanja vendor) — supaya kas sourcer minus
-    // sebesar defisit (= jumlah nalangin) saat advance kurang. TIDAK ada CashTx 'In Talangan'
-    // karena sourcer pakai uang pribadi (bukan deposit fisik ke wallet). Defisit tercatat di
-    // Liability 2-1500 (utang perusahaan ke sourcer).
     try {
-      if (actualShopCost > 0) {
+      if (totalCash > 0) {
         const txId = uuidv4();
         await store.addCashTransaction({
           id: txId,
           date: now,
-          amount: actualShopCost,
+          amount: totalCash,
           type: 'Out',
           category: 'Sourcing (HPP)',
-          description: `Belanja Pasar disetujui - Ref: ${purchaseRef}`,
+          description: `Belanja Pasar disetujui (Cash portion) - Ref: ${purchaseRef}`,
           bankAccountId: targetBankId,
           referenceId: purchaseId
         });
@@ -848,13 +943,16 @@ export const recordReconciliationSettlement = async (
       console.error('[Accounting] Failed to persist shop settlement cash transaction, rolling back journal:', err);
       await cleanupCashTransactions(createdCashIds);
       if (postedShopEntry) await cleanupJournalEntry(postedShopEntry.id);
+      for (const bill of vendorBillsToSave) {
+        await store.deleteVendorBill(bill.id);
+      }
       return false;
     }
   }
 
   // 2. Settle Advance for Ops Cost (journal + CashTransaction Out)
   if (actualOpsCost > 0 && !hasExistingOpsSettlement) {
-    const settleFromAdvance = Math.min(actualOpsCost, Math.max(0, advanceAmount - actualShopCost));
+    const settleFromAdvance = Math.min(actualOpsCost, Math.max(0, advanceAmount - totalCash));
     const defisitOps = actualOpsCost - settleFromAdvance;
     const opsCredits: PostingLineInput[] = [];
 
@@ -882,7 +980,6 @@ export const recordReconciliationSettlement = async (
       const postedOpsEntry = findPostedEntry('Expense', purchaseId, opsDescription);
       const txId = uuidv4();
       try {
-        // Out senilai actualOpsCost full — kas sourcer minus sebesar defisitOps kalo nalangin.
         await store.addCashTransaction({
           id: txId,
           date: now,
@@ -902,15 +999,11 @@ export const recordReconciliationSettlement = async (
   }
 
   // 3. Auto-create Reimbursement row utk defisit (HPP + Ops) supaya finance bisa bayar via UI.
-  // Journal utang ke 2-1000 sudah dibuat di step 1/2. Reimburse row ini cuma trigger pencairan kas ke sourcer.
-  const defisitShop = actualShopCost > 0 ? Math.max(0, actualShopCost - Math.max(0, advanceAmount)) : 0;
-  const defisitOps = actualOpsCost > 0 ? Math.max(0, actualOpsCost - Math.max(0, advanceAmount - actualShopCost)) : 0;
+  const defisitShop = totalCash > 0 ? Math.max(0, totalCash - Math.max(0, advanceAmount)) : 0;
+  const defisitOps = actualOpsCost > 0 ? Math.max(0, actualOpsCost - Math.max(0, advanceAmount - totalCash)) : 0;
   const totalDefisit = defisitShop + defisitOps;
 
   if (totalDefisit > 0 && purchase?.purchaserId) {
-    // Idempotency: skip if any defisit reimburse already exists for this purchase.
-    // Cover BOTH new rows (kind='Sourcing-Defisit') and legacy rows from the old
-    // finance/approvals path (title includes "Defisit Sourcing"/"Talangan").
     const alreadyHasDefisitReimb = store.reimbursements.some(r => {
       if (r.purchaseId !== purchaseId) return false;
       if (r.kind === 'Sourcing-Defisit') return true;

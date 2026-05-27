@@ -8,6 +8,8 @@ export const revalidate = 0;
 type PostingLineInput = {
   accountCode: string;
   amount: number;
+  vendorId?: string | null;
+  vendorBillId?: string | null;
 };
 
 type PostingLineWithId = PostingLineInput & {
@@ -57,10 +59,16 @@ const parsePostingLines = (value: unknown, side: 'debit' | 'credit'): PostingLin
         throw new Error(`${side} amount for ${accountCode} cannot be negative`);
       }
 
+      const itemAny = item as any;
+      const vId = itemAny.vendorId ?? itemAny.vendor_id;
+      const vbId = itemAny.vendorBillId ?? itemAny.vendor_bill_id;
+
       return {
         id: typeof item.id === 'string' && item.id.trim() ? item.id : uuidv4(),
         accountCode,
         amount,
+        vendorId: typeof vId === 'string' ? vId : null,
+        vendorBillId: typeof vbId === 'string' ? vbId : null,
       };
     })
     .filter((line) => line.amount > 0);
