@@ -25,8 +25,9 @@ export function computeSettlementBreakdown(
   for (const item of items) {
     const vId = item.vendorId || "";
     const vendor = vendorMap.get(vId);
-    // default to tempo if not explicitly set to false (isTempo: true or undefined)
-    const isTempo = vendor ? (vendor.isTempo !== false) : true;
+    const isTempo = item.paymentMethod
+      ? (item.paymentMethod === 'Tempo')
+      : (vendor ? (vendor.isTempo !== false) : true);
     const cost = (item.actualUnitPrice || 0) * (item.qtyPurchased || 0);
 
     if (isTempo) {

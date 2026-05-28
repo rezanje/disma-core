@@ -827,7 +827,9 @@ export const recordReconciliationSettlement = async (
     for (const item of pItems) {
       const vId = item.vendorId!;
       const vendor = vendorMap.get(vId);
-      const isTempo = vendor ? (vendor.isTempo !== false) : true;
+      const isTempo = item.paymentMethod 
+        ? (item.paymentMethod === 'Tempo')
+        : (vendor ? (vendor.isTempo !== false) : true);
       const cost = (item.actualUnitPrice || 0) * (item.qtyPurchased || 0);
 
       if (isTempo) {

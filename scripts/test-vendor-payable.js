@@ -60,6 +60,15 @@ console.log('--- computeSettlementBreakdown ---');
   const res2 = computeSettlementBreakdown(items, vendors, 6000);
   assert('defisit is 0', res2.defisit === 0);
   assert('remainder is 1000', res2.advanceRemainder === 1000);
+
+  // case 3: payment method override test (item payment method overrides vendor profile defaults)
+  const itemsOverride = [
+    { id: '1', vendorId: 'v-tempo', actualUnitPrice: 1000, qtyPurchased: 5, paymentMethod: 'Cash' }, // 5000 (overridden to cash)
+    { id: '2', vendorId: 'v-cash', actualUnitPrice: 2000, qtyPurchased: 2, paymentMethod: 'Tempo' },  // 4000 (overridden to tempo)
+  ];
+  const resOverride = computeSettlementBreakdown(itemsOverride, vendors, 3000);
+  assert('overridden tempo total is 4000', resOverride.tempoTotals.get('v-cash') === 4000);
+  assert('overridden cashTotal is 5000', resOverride.cashTotal === 5000);
 }
 
 // 3. dueDateFor
