@@ -181,10 +181,28 @@ export default function FinanceHubPage() {
   const [isDirectSettleOpen, setIsDirectSettleOpen] = useState(false)
   const [directSettleId, setDirectSettleId] = useState<string | null>(null)
   
-  const [settlementItems, setSettlementItems] = useState<Record<string, { actualPrice: number, qtyPurchased: number, vendorId?: string }>>({})
+  const [settlementItems, setSettlementItems] = useState<Record<string, { 
+    actualPrice: number, 
+    qtyPurchased: number, 
+    vendorId?: string,
+    paymentMethod?: 'Cash' | 'Tempo'
+  }>>({})
   const [settlementOps, setSettlementOps] = useState<{ id: string, category: string, amount: number, note: string }[]>([])
   const [settlementProofUrl, setSettlementProofUrl] = useState("")
   const [settlementReturnedCustom, setSettlementReturnedCustom] = useState<number | null>(null)
+
+  // Quick Vendor creation states
+  const [isNewVendorOpen, setIsNewVendorOpen] = useState(false)
+  const [itemIdForNewVendor, setItemIdForNewVendor] = useState<string | null>(null)
+  const [newVendorForm, setNewVendorForm] = useState({
+    companyName: "",
+    picName: "",
+    email: "",
+    phone: "",
+    address: "",
+    paymentTermDays: 14,
+    isTempo: true
+  })
 
   // Derived calculations
   const directSettlePurchase = purchases.find(p => p.id === directSettleId)
@@ -197,9 +215,21 @@ export default function FinanceHubPage() {
   const openDirectSettle = (purchaseId: string) => {
     setDirectSettleId(purchaseId)
     const items = purchaseItems.filter(pi => pi.purchaseId === purchaseId && pi.purchaseMethod !== 'Online' && !pi.isOnlineAudited)
-    const initialItems: Record<string, { actualPrice: number, qtyPurchased: number, vendorId?: string }> = {}
+    const initialItems: Record<string, { 
+      actualPrice: number, 
+      qtyPurchased: number, 
+      vendorId?: string,
+      paymentMethod?: 'Cash' | 'Tempo'
+    }> = {}
     items.forEach(item => {
-      initialItems[item.id] = { actualPrice: item.estimatedUnitPrice || 0, qtyPurchased: item.qtyTarget, vendorId: item.vendorId || "" }
+      const vendor = vendors.find(v => v.id === item.vendorId)
+      const defaultPaymentMethod = item.paymentMethod || (vendor ? (vendor.isTempo ? 'Tempo' : 'Cash') : 'Tempo')
+      initialItems[item.id] = { 
+        actualPrice: item.actualUnitPrice || item.estimatedUnitPrice || 0, 
+        qtyPurchased: item.qtyPurchased || item.qtyTarget, 
+        vendorId: item.vendorId || "",
+        paymentMethod: defaultPaymentMethod
+      }
     })
     setSettlementItems(initialItems)
     setSettlementOps([])
@@ -504,6 +534,7 @@ export default function FinanceHubPage() {
           actualUnitPrice: data.actualPrice, 
           qtyPurchased: data.qtyPurchased, 
           vendorId: data.vendorId,
+          paymentMethod: data.paymentMethod,
           isChecked: true 
         })
         
@@ -578,6 +609,60 @@ export default function FinanceHubPage() {
       toast.error("Gagal memproses settlement per item.", { id: toastId })
     }
     } finally { releaseLock(lockKey) }
+  }
+
+  const handleCreateVendor = async () => {
+    if (!newVendorForm.companyName) {
+      toast.error("Nama Vendor wajib diisi")
+      return
+    }
+    const newVendor = {
+      id: `vendor-${Date.now()}-${uuidv4().slice(0, 4)}`,
+      companyName: newVendorForm.companyName,
+      picName: newVendorForm.picName || "—",
+      email: newVendorForm.email || `${newVendorForm.companyName.toLowerCase().replace(/\s+/g, '')}@example.com`,
+      phone: newVendorForm.phone || "—",
+      address: newVendorForm.address || "—",
+      createdAt: new Date().toISOString(),
+      paymentTermDays: newVendorForm.isTempo ? Number(newVendorForm.paymentTermDays) : undefined,
+      isTempo: newVendorForm.isTempo
+    }
+
+    try {
+      const addVendor = useAppStore.getState().addVendor
+      await addVendor(newVendor)
+      toast.success(`Vendor "${newVendor.companyName}" berhasil ditambahkan!`)
+      
+      // Auto-select for the active item
+      if (itemIdForNewVendor) {
+        setSettlementItems(prev => {
+          const prevItem = prev[itemIdForNewVendor] || { actualPrice: 0, qtyPurchased: 0 }
+          return {
+            ...prev,
+            [itemIdForNewVendor]: {
+              ...prevItem,
+              vendorId: newVendor.id,
+              paymentMethod: newVendor.isTempo ? 'Tempo' : 'Cash'
+            }
+          }
+        })
+      }
+
+      setIsNewVendorOpen(false)
+      setNewVendorForm({
+        companyName: "",
+        picName: "",
+        email: "",
+        phone: "",
+        address: "",
+        paymentTermDays: 14,
+        isTempo: true
+      })
+      setItemIdForNewVendor(null)
+    } catch (err) {
+      console.error("Failed to add vendor:", err)
+      toast.error("Gagal menambahkan vendor baru.")
+    }
   }
 
   const handleVerifyDelivery = async (deliveryId: string) => {
@@ -1266,10 +1351,29 @@ export default function FinanceHubPage() {
                                 </div>
                                 <div className="flex flex-wrap sm:flex-nowrap items-center gap-3">
                                    <div className="space-y-1 w-44">
-                                      <label className="text-[9px] font-bold text-slate-400 uppercase">Vendor</label>
+                                      <div className="flex items-center justify-between">
+                                         <label className="text-[9px] font-bold text-slate-400 uppercase">Vendor</label>
+                                         <button 
+                                           type="button"
+                                           onClick={() => {
+                                             setItemIdForNewVendor(pi.id)
+                                             setIsNewVendorOpen(true)
+                                           }}
+                                           className="text-[9px] font-extrabold text-orange-500 hover:text-orange-600 uppercase flex items-center gap-0.5"
+                                         >
+                                            <Plus className="w-2.5 h-2.5" /> Tambah
+                                         </button>
+                                      </div>
                                       <Select 
                                         value={itemState.vendorId || ''} 
-                                        onValueChange={(val) => setSettlementItems(prev => ({...prev, [pi.id]: { ...itemState, vendorId: val || undefined }}))}
+                                        onValueChange={(val) => {
+                                           const selectedVendor = vendors.find(v => v.id === val)
+                                           const defaultMethod = selectedVendor ? (selectedVendor.isTempo ? 'Tempo' : 'Cash') : 'Tempo'
+                                           setSettlementItems(prev => ({
+                                              ...prev, 
+                                              [pi.id]: { ...itemState, vendorId: val || undefined, paymentMethod: defaultMethod }
+                                           }))
+                                        }}
                                       >
                                         <SelectTrigger className="h-10 rounded-xl text-xs font-bold border-slate-200 bg-slate-50">
                                            <SelectValue placeholder="— Pilih Vendor —" />
@@ -1280,6 +1384,24 @@ export default function FinanceHubPage() {
                                                  {v.companyName} {v.isTempo ? `(tempo ${v.paymentTermDays || 14}d)` : '(cash)'}
                                               </SelectItem>
                                            ))}
+                                        </SelectContent>
+                                      </Select>
+                                   </div>
+                                   <div className="space-y-1 w-24">
+                                      <label className="text-[9px] font-bold text-slate-400 uppercase">Tipe Bayar</label>
+                                      <Select 
+                                        value={itemState.paymentMethod || 'Tempo'} 
+                                        onValueChange={(val) => setSettlementItems(prev => ({
+                                           ...prev, 
+                                           [pi.id]: { ...itemState, paymentMethod: val as 'Cash' | 'Tempo' }
+                                        }))}
+                                      >
+                                        <SelectTrigger className="h-10 rounded-xl text-xs font-bold border-slate-200 bg-slate-50">
+                                           <SelectValue placeholder="— Tipe —" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                           <SelectItem value="Cash" className="text-xs font-bold">Cash</SelectItem>
+                                           <SelectItem value="Tempo" className="text-xs font-bold">Tempo</SelectItem>
                                         </SelectContent>
                                       </Select>
                                    </div>
@@ -1462,6 +1584,92 @@ export default function FinanceHubPage() {
               </div>
            </DialogContent>
         </Dialog>
+
+         {/* Quick-Add Vendor Dialog */}
+         <Dialog open={isNewVendorOpen} onOpenChange={setIsNewVendorOpen}>
+            <DialogContent className="w-[95vw] sm:max-w-md border-none rounded-[2rem] p-6 bg-white shadow-2xl">
+               <DialogHeader className="pb-4 border-b border-slate-100">
+                  <DialogTitle className="text-lg font-black text-slate-900 tracking-tight">TAMBAH VENDOR BARU</DialogTitle>
+               </DialogHeader>
+               <div className="space-y-4 py-4">
+                  <div className="space-y-1">
+                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Nama Vendor / Perusahaan *</label>
+                     <input 
+                       type="text"
+                       value={newVendorForm.companyName}
+                       onChange={(e) => setNewVendorForm(prev => ({ ...prev, companyName: e.target.value }))}
+                       className="w-full h-11 bg-slate-50 border border-slate-200 rounded-xl px-3 font-bold text-sm outline-none focus:border-orange-500 transition-all"
+                       placeholder="cth. PT Tani Makmur"
+                     />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                     <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Nama PIC</label>
+                        <input 
+                          type="text"
+                          value={newVendorForm.picName}
+                          onChange={(e) => setNewVendorForm(prev => ({ ...prev, picName: e.target.value }))}
+                          className="w-full h-11 bg-slate-50 border border-slate-200 rounded-xl px-3 font-bold text-sm outline-none focus:border-orange-500 transition-all"
+                          placeholder="cth. Budi"
+                        />
+                     </div>
+                     <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">No Telepon</label>
+                        <input 
+                          type="text"
+                          value={newVendorForm.phone}
+                          onChange={(e) => setNewVendorForm(prev => ({ ...prev, phone: e.target.value }))}
+                          className="w-full h-11 bg-slate-50 border border-slate-200 rounded-xl px-3 font-bold text-sm outline-none focus:border-orange-500 transition-all"
+                          placeholder="cth. 0812..."
+                        />
+                     </div>
+                  </div>
+                  <div className="space-y-1">
+                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Alamat</label>
+                     <input 
+                       type="text"
+                       value={newVendorForm.address}
+                       onChange={(e) => setNewVendorForm(prev => ({ ...prev, address: e.target.value }))}
+                       className="w-full h-11 bg-slate-50 border border-slate-200 rounded-xl px-3 font-bold text-sm outline-none focus:border-orange-500 transition-all"
+                       placeholder="Alamat lengkap vendor"
+                     />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                     <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Default Cara Bayar</label>
+                        <Select 
+                          value={newVendorForm.isTempo ? "Tempo" : "Cash"}
+                          onValueChange={(val) => setNewVendorForm(prev => ({ ...prev, isTempo: val === "Tempo" }))}
+                        >
+                          <SelectTrigger className="h-11 rounded-xl text-xs font-bold border-slate-200 bg-slate-50">
+                             <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                             <SelectItem value="Cash" className="text-xs font-bold">Cash</SelectItem>
+                             <SelectItem value="Tempo" className="text-xs font-bold">Tempo</SelectItem>
+                          </SelectContent>
+                        </Select>
+                     </div>
+                     {newVendorForm.isTempo && (
+                        <div className="space-y-1">
+                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Jatuh Tempo (Hari)</label>
+                           <input 
+                             type="number"
+                             value={newVendorForm.paymentTermDays}
+                             onChange={(e) => setNewVendorForm(prev => ({ ...prev, paymentTermDays: Number(e.target.value) || 14 }))}
+                             className="w-full h-11 bg-slate-50 border border-slate-200 rounded-xl px-3 font-bold text-sm outline-none focus:border-orange-500 transition-all"
+                             placeholder="14"
+                           />
+                        </div>
+                     )}
+                  </div>
+               </div>
+               <div className="flex gap-3 pt-4 border-t border-slate-100">
+                  <Button variant="outline" className="flex-1 h-11 rounded-xl font-bold text-xs uppercase" onClick={() => setIsNewVendorOpen(false)}>Batal</Button>
+                  <Button className="flex-1 h-11 bg-slate-900 text-white hover:bg-slate-800 rounded-xl font-bold text-xs uppercase" onClick={handleCreateVendor}>Simpan</Button>
+               </div>
+            </DialogContent>
+         </Dialog>
       </div>
     </AuthGuard>
   )
