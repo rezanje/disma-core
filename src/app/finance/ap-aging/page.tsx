@@ -16,36 +16,29 @@ import { format, differenceInDays, parseISO } from "date-fns"
 import { id as localeId } from "date-fns/locale"
 import { formatRupiah, formatNumber, parseNumber } from "@/lib/utils"
 import { createAccountingEntry } from "@/lib/accounting"
+import { agingBucket } from "@/lib/vendor-payable"
 import { v4 as uuidv4 } from "uuid"
 import type { VendorBill, VendorBillPayment } from "@/types"
 import AuthGuard from "@/components/auth/auth-guard"
 
+type APBucket = '0-7d' | '8-14d' | 'overdue 1-7' | 'overdue >7' | 'over 30'
+
 type VendorBillWithAging = VendorBill & { outstanding: number; agingDays: number; bucket: APBucket }
 
-type APBucket = 'current' | '1-30' | '31-60' | '61-90' | '90+'
-
 const BUCKET_LABEL: Record<APBucket, string> = {
-  'current': 'Belum Jatuh Tempo',
-  '1-30': '1–30 hari',
-  '31-60': '31–60 hari',
-  '61-90': '61–90 hari',
-  '90+': '90+ hari',
+  '0-7d': '0–7 hari lagi',
+  '8-14d': '8–14 hari lagi',
+  'overdue 1-7': 'Overdue 1–7 hari',
+  'overdue >7': 'Overdue >7 hari',
+  'over 30': 'Overdue >30 hari',
 }
 
 const BUCKET_COLOR: Record<APBucket, string> = {
-  'current': 'bg-emerald-100 text-emerald-700 border-emerald-200',
-  '1-30': 'bg-yellow-100 text-yellow-700 border-yellow-200',
-  '31-60': 'bg-orange-100 text-orange-700 border-orange-200',
-  '61-90': 'bg-rose-100 text-rose-700 border-rose-200',
-  '90+': 'bg-red-100 text-red-700 border-red-300',
-}
-
-function getBucket(days: number): APBucket {
-  if (days <= 0) return 'current'
-  if (days <= 30) return '1-30'
-  if (days <= 60) return '31-60'
-  if (days <= 90) return '61-90'
-  return '90+'
+  '0-7d': 'bg-emerald-100 text-emerald-700 border-emerald-200',
+  '8-14d': 'bg-sky-100 text-sky-700 border-sky-200',
+  'overdue 1-7': 'bg-yellow-100 text-yellow-700 border-yellow-200',
+  'overdue >7': 'bg-orange-100 text-orange-700 border-orange-200',
+  'over 30': 'bg-red-100 text-red-700 border-red-300',
 }
 
 const BILL_CATEGORIES = [
@@ -71,6 +64,11 @@ export default function APAgingPage() {
   const [payingBill, setPayingBill] = useState<VendorBillWithAging | null>(null)
   const [search, setSearch] = useState('')
   const [bucketFilter, setBucketFilter] = useState<'all' | APBucket>('all')
+  const [vendorFilter, setVendorFilter] = useState<string>('all')
+  const [statusFilter, setStatusFilter] = useState<string>('All')
+  const [startDate, setStartDate] = useState<string>('')
+  const [endDate, setEndDate] = useState<string>('')
+  const [isPaying, setIsPaying] = useState(false)
 
   // Add bill form
   const [fVendorId, setFVendorId] = useState('')
@@ -97,20 +95,26 @@ export default function APAgingPage() {
   // Compute aging
   const bills = useMemo(() => {
     const today = new Date()
+    const todayStr = today.toISOString().slice(0, 10)
     return vendorBills
-      .filter(b => b.status !== 'Paid')
       .map(b => {
         const outstanding = b.totalAmount - (b.amountPaid || 0)
         const agingDays = differenceInDays(today, parseISO(b.dueDate))
-        return { ...b, outstanding, agingDays, bucket: getBucket(agingDays) }
+        return { 
+          ...b, 
+          outstanding, 
+          agingDays, 
+          bucket: agingBucket(b.dueDate, todayStr) as APBucket 
+        }
       })
-      .sort((a, b) => b.agingDays - a.agingDays)
+      .sort((a, b) => parseISO(a.dueDate).getTime() - parseISO(b.dueDate).getTime())
   }, [vendorBills])
 
   // TOP debt by vendor
   const topByVendor = useMemo(() => {
     const map: Record<string, { vendorId: string; vendorName: string; total: number; billCount: number; oldestAging: number }> = {}
     bills.forEach(b => {
+      if (b.status === 'Paid' || b.status === 'Cancelled') return
       if (!map[b.vendorId]) {
         map[b.vendorId] = { vendorId: b.vendorId, vendorName: b.vendorName, total: 0, billCount: 0, oldestAging: b.agingDays }
       }
@@ -125,25 +129,41 @@ export default function APAgingPage() {
   const filtered = useMemo(() => {
     return bills.filter(b => {
       if (bucketFilter !== 'all' && b.bucket !== bucketFilter) return false
+      if (vendorFilter !== 'all' && b.vendorId !== vendorFilter) return false
+      
+      if (statusFilter !== 'All') {
+        if (statusFilter === 'Overdue') {
+          if (b.status === 'Paid' || b.status === 'Cancelled' || b.agingDays <= 0) return false
+        } else {
+          if (b.status !== statusFilter) return false
+        }
+      }
+
+      if (startDate && b.issueDate.slice(0, 10) < startDate) return false
+      if (endDate && b.issueDate.slice(0, 10) > endDate) return false
+
       if (!search) return true
       const q = search.toLowerCase()
       return b.vendorName.toLowerCase().includes(q) ||
         b.billNumber.toLowerCase().includes(q) ||
         b.description.toLowerCase().includes(q)
     })
-  }, [bills, search, bucketFilter])
+  }, [bills, search, bucketFilter, vendorFilter, statusFilter, startDate, endDate])
 
   const totals = useMemo(() => {
-    const t = { all: 0, current: 0, '1-30': 0, '31-60': 0, '61-90': 0, '90+': 0 }
+    const t = { all: 0, '0-7d': 0, '8-14d': 0, 'overdue 1-7': 0, 'overdue >7': 0, 'over 30': 0 }
     bills.forEach(b => {
+      if (b.status === 'Paid' || b.status === 'Cancelled') return
       t.all += b.outstanding
       t[b.bucket] += b.outstanding
     })
     return t
   }, [bills])
 
-  const totalOverdue = totals['1-30'] + totals['31-60'] + totals['61-90'] + totals['90+']
-  const overdueCount = bills.filter(b => b.agingDays > 0).length
+  const totalOutstanding = totals.all
+  const dueThisWeek = totals['0-7d']
+  const totalOverdue = totals['overdue 1-7'] + totals['overdue >7'] + totals['over 30']
+  const overdueCount = bills.filter(b => b.status !== 'Paid' && b.status !== 'Cancelled' && b.agingDays > 0).length
 
   // Map category → AP-debit COA when bill is created (the credit is always 2-1000 Utang Usaha)
   const categoryDebitCOA = (cat: string): string => {
@@ -177,8 +197,8 @@ export default function APAgingPage() {
         `Hutang Vendor ${vendor.companyName}: ${fDescription}`,
         'Purchase',
         billId,
-        [{ accountCode: debitCOA, amount: fAmount }],
-        [{ accountCode: '2-1000', amount: fAmount }],
+        [{ accountCode: debitCOA, amount: fAmount }] as any,
+        [{ accountCode: '2-1000', amount: fAmount, vendorId: fVendorId, vendorBillId: billId }] as any,
         issueIso
       )
       if (!ok) { toast.error("Gagal mencatat jurnal AP.", { id: loadingToast }); return }
@@ -195,7 +215,7 @@ export default function APAgingPage() {
         category: fCategory,
         totalAmount: fAmount,
         amountPaid: 0,
-        status: 'Unpaid',
+        status: 'Pending',
         payments: [],
         createdAt: now,
         createdBy: currentUser?.id,
@@ -211,7 +231,7 @@ export default function APAgingPage() {
   }
 
   const handlePay = async () => {
-    if (!payingBill) return
+    if (!payingBill || isPaying) return
     if (!pBankId || pAmount <= 0) { toast.error("Pilih bank dan isi nominal."); return }
     if (pAmount > payingBill.outstanding + 1) {
       toast.error(`Pembayaran melebihi outstanding (${formatRupiah(payingBill.outstanding)})`); return
@@ -221,47 +241,29 @@ export default function APAgingPage() {
     if (bank.balance < pAmount) {
       toast.error(`Saldo ${bank.name} tidak cukup. Saldo: ${formatRupiah(bank.balance)}`); return
     }
+    
+    setIsPaying(true)
     const payId = uuidv4()
     const payIso = new Date(pDate).toISOString()
     const loadingToast = toast.loading("Mencatat pembayaran...")
 
     try {
-      // JE: Debit Utang Usaha (2-1000), Credit Bank
-      const ok = await createAccountingEntry(
-        `Bayar Hutang ${payingBill.vendorName} (${payingBill.billNumber})`,
-        'Payment',
-        payId,
-        [{ accountCode: '2-1000', amount: pAmount }],
-        [{ accountCode: bank.accountCode || '1-1000', amount: pAmount }],
-        payIso
-      )
-      if (!ok) { toast.error("Gagal mencatat jurnal pembayaran.", { id: loadingToast }); return }
-
-      // Record payment + decrement bank
       const payment: VendorBillPayment = {
-        id: payId, date: payIso, amount: pAmount, bankAccountId: pBankId, note: pNote,
-      }
-      await payVendorBill(payingBill.id, payment)
-
-      // Also create a CashTransaction so it shows on cash-bank ledger
-      const addCashTransaction = useAppStore.getState().addCashTransaction
-      await addCashTransaction({
         id: payId,
         date: payIso,
-        type: 'Out',
         amount: pAmount,
         bankAccountId: pBankId,
-        category: 'Bayar Hutang Vendor',
-        description: `${payingBill.vendorName} — ${payingBill.billNumber}`,
-        counterpartName: payingBill.vendorName,
-        referenceType: 'Manual',
-      })
+        note: pNote,
+      }
+      await payVendorBill(payingBill.id, payment)
 
       toast.success("Pembayaran dicatat!", { id: loadingToast })
       setPayingBill(null)
       resetPayForm()
     } catch (e: any) {
       toast.error("Gagal: " + e.message, { id: loadingToast })
+    } finally {
+      setIsPaying(false)
     }
   }
 
@@ -278,8 +280,8 @@ export default function APAgingPage() {
         `[REVERSAL] Hutang Vendor ${bill.vendorName}: ${bill.description}`,
         'Adjustment',
         `${bill.id}-reversal`,
-        [{ accountCode: '2-1000', amount: bill.totalAmount }],
-        [{ accountCode: debitCOA, amount: bill.totalAmount }],
+        [{ accountCode: '2-1000', amount: bill.totalAmount, vendorId: bill.vendorId, vendorBillId: bill.id }] as any,
+        [{ accountCode: debitCOA, amount: bill.totalAmount }] as any,
         new Date().toISOString()
       )
       await deleteVendorBill(bill.id)
@@ -293,7 +295,7 @@ export default function APAgingPage() {
     <AuthGuard allowedRoles={['finance', 'super_admin', 'ceo']}>
       <div className="p-4 md:p-8 max-w-[1500px] mx-auto space-y-6 pb-24">
         {/* Header */}
-        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white -mx-4 md:mx-0 p-6 md:p-8 md:rounded-[2.5rem] shadow-xl border border-slate-100">
+        <header className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white -mx-4 md:mx-0 p-6 md:p-8 md:rounded-[2.5rem] shadow-xl border border-slate-100">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 bg-purple-600 text-white rounded-[1.5rem] flex items-center justify-center shadow-lg">
               <ClipboardList className="w-7 h-7" />
@@ -303,24 +305,32 @@ export default function APAgingPage() {
               <p className="text-sm text-slate-400 font-medium">Catat & track kewajiban ke supplier</p>
             </div>
           </div>
-          <div className="flex gap-3 items-stretch">
-            <div className="bg-purple-50 border border-purple-100 rounded-2xl px-5 py-3">
-              <p className="text-[10px] font-black text-purple-700 uppercase tracking-widest">Total Hutang</p>
+          <div className="flex flex-wrap lg:flex-nowrap gap-3 items-stretch w-full lg:w-auto">
+            <div className="bg-purple-50 border border-purple-100 rounded-2xl px-5 py-3 flex-1 lg:flex-none">
+              <p className="text-[10px] font-black text-purple-700 uppercase tracking-widest">Total Outstanding</p>
               {isSyncing ? (
                 <div className="h-7 w-32 bg-purple-100 rounded-lg animate-pulse mt-1" />
               ) : (
-                <p className="text-2xl font-black text-purple-700">{formatRupiah(totals.all)}</p>
+                <p className="text-xl font-black text-purple-700">{formatRupiah(totalOutstanding)}</p>
               )}
             </div>
-            <div className="bg-rose-50 border border-rose-100 rounded-2xl px-5 py-3">
+            <div className="bg-blue-50 border border-blue-100 rounded-2xl px-5 py-3 flex-1 lg:flex-none">
+              <p className="text-[10px] font-black text-blue-700 uppercase tracking-widest">Jatuh Tempo Pekan Ini</p>
+              {isSyncing ? (
+                <div className="h-7 w-32 bg-blue-100 rounded-lg animate-pulse mt-1" />
+              ) : (
+                <p className="text-xl font-black text-blue-700">{formatRupiah(dueThisWeek)}</p>
+              )}
+            </div>
+            <div className="bg-rose-50 border border-rose-100 rounded-2xl px-5 py-3 flex-1 lg:flex-none">
               <p className="text-[10px] font-black text-rose-700 uppercase tracking-widest">Overdue ({overdueCount})</p>
               {isSyncing ? (
                 <div className="h-7 w-32 bg-rose-100 rounded-lg animate-pulse mt-1" />
               ) : (
-                <p className="text-2xl font-black text-rose-700">{formatRupiah(totalOverdue)}</p>
+                <p className="text-xl font-black text-rose-700">{formatRupiah(totalOverdue)}</p>
               )}
             </div>
-            <Button onClick={() => setIsAddOpen(true)} className="bg-purple-600 hover:bg-purple-700 font-bold rounded-xl h-auto px-6">
+            <Button onClick={() => setIsAddOpen(true)} className="bg-purple-600 hover:bg-purple-700 font-bold rounded-xl h-auto px-6 w-full lg:w-auto py-3 lg:py-0">
               <Plus className="w-4 h-4 mr-1" /> Catat Hutang Vendor
             </Button>
           </div>
@@ -328,7 +338,7 @@ export default function APAgingPage() {
 
         {/* Aging buckets */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          {(['current', '1-30', '31-60', '61-90', '90+'] as APBucket[]).map(bucket => (
+          {(['0-7d', '8-14d', 'overdue 1-7', 'overdue >7', 'over 30'] as APBucket[]).map(bucket => (
             <button
               key={bucket}
               onClick={() => setBucketFilter(bucketFilter === bucket ? 'all' : bucket)}
@@ -382,17 +392,62 @@ export default function APAgingPage() {
                   <AlertTriangle className="w-5 h-5 text-rose-500" /> Daftar Hutang
                 </CardTitle>
                 <Badge className={bucketFilter !== 'all' ? `${BUCKET_COLOR[bucketFilter]}` : 'bg-slate-100 text-slate-600'}>
-                  {bucketFilter === 'all' ? 'Semua' : BUCKET_LABEL[bucketFilter]}
+                  {bucketFilter === 'all' ? 'Semua Bucket' : BUCKET_LABEL[bucketFilter]}
                 </Badge>
               </div>
-              <div className="flex gap-2 mt-3">
-                <div className="relative flex-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 mt-3">
+                <div className="relative xl:col-span-2">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <Input
-                    placeholder="Cari vendor, nomor, atau deskripsi..."
-                    className="pl-9 rounded-xl h-10"
+                    placeholder="Cari nomor/deskripsi..."
+                    className="pl-9 rounded-xl h-10 text-xs"
                     value={search}
                     onChange={e => setSearch(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Select value={vendorFilter} onValueChange={v => v && setVendorFilter(v)}>
+                    <SelectTrigger className="h-10 rounded-xl text-xs">
+                      <SelectValue placeholder="Vendor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Semua Vendor</SelectItem>
+                      {vendors.map(v => (
+                        <SelectItem key={v.id} value={v.id}>{v.companyName}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Select value={statusFilter} onValueChange={v => v && setStatusFilter(v)}>
+                    <SelectTrigger className="h-10 rounded-xl text-xs">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="All">Semua Status</SelectItem>
+                      <SelectItem value="Pending">Pending</SelectItem>
+                      <SelectItem value="PartialPaid">PartialPaid</SelectItem>
+                      <SelectItem value="Paid">Paid</SelectItem>
+                      <SelectItem value="Cancelled">Cancelled</SelectItem>
+                      <SelectItem value="Overdue">Overdue</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex gap-1 items-center">
+                  <Input
+                    type="date"
+                    className="h-10 rounded-xl text-[10px] flex-1 px-1.5"
+                    value={startDate}
+                    onChange={e => setStartDate(e.target.value)}
+                    placeholder="Dari"
+                  />
+                  <span className="text-slate-400 text-[10px]">s/d</span>
+                  <Input
+                    type="date"
+                    className="h-10 rounded-xl text-[10px] flex-1 px-1.5"
+                    value={endDate}
+                    onChange={e => setEndDate(e.target.value)}
+                    placeholder="Sampai"
                   />
                 </div>
               </div>
@@ -401,55 +456,76 @@ export default function APAgingPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-slate-50">
-                    <TableHead className="text-[10px] uppercase font-black tracking-wide">Vendor / Tagihan</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black tracking-wide">No. Tagihan</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black tracking-wide">Vendor</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black tracking-wide">Tgl Tagihan</TableHead>
                     <TableHead className="text-[10px] uppercase font-black tracking-wide">Jatuh Tempo</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black tracking-wide text-right">Total</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black tracking-wide text-right">Terbayar</TableHead>
                     <TableHead className="text-[10px] uppercase font-black tracking-wide text-right">Outstanding</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black tracking-wide">Bucket</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black tracking-wide">Aksi</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black tracking-wide text-center">Status</TableHead>
+                    <TableHead className="text-[10px] uppercase font-black tracking-wide text-center">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filtered.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-12 text-slate-400 italic">
+                      <TableCell colSpan={9} className="text-center py-12 text-slate-400 italic">
                         Tidak ada hutang vendor 🎉
                       </TableCell>
                     </TableRow>
                   )}
                   {filtered.map(b => (
                     <TableRow key={b.id} className="hover:bg-slate-50">
+                      <TableCell className="font-mono text-xs font-bold">{b.billNumber}</TableCell>
                       <TableCell>
                         <div className="font-bold text-sm">{b.vendorName}</div>
-                        <div className="text-[10px] text-slate-400 font-mono">{b.billNumber}</div>
-                        <div className="text-xs text-slate-600 mt-0.5">{b.description}</div>
+                        <div className="text-xs text-slate-500 line-clamp-1">{b.description}</div>
+                      </TableCell>
+                      <TableCell className="text-xs font-medium">
+                        {format(parseISO(b.issueDate), 'd MMM yy', { locale: localeId })}
                       </TableCell>
                       <TableCell>
                         <div className="text-xs font-bold">{format(parseISO(b.dueDate), 'd MMM yy', { locale: localeId })}</div>
-                        {b.agingDays > 0 ? (
-                          <div className="text-[10px] text-rose-500 font-black">+{b.agingDays}h lewat</div>
-                        ) : (
-                          <div className="text-[10px] text-emerald-600 font-bold">sisa {Math.abs(b.agingDays)}h</div>
+                        {b.status !== 'Paid' && b.status !== 'Cancelled' && (
+                          b.agingDays > 0 ? (
+                            <div className="text-[10px] text-rose-500 font-black">+{b.agingDays}h lewat</div>
+                          ) : (
+                            <div className="text-[10px] text-emerald-600 font-bold">sisa {Math.abs(b.agingDays)}h</div>
+                          )
                         )}
                       </TableCell>
-                      <TableCell className="text-right">
-                        <div className="font-black text-purple-700">{formatRupiah(b.outstanding)}</div>
-                        {b.amountPaid > 0 && (
-                          <div className="text-[10px] text-slate-400">paid {formatRupiah(b.amountPaid)}/{formatRupiah(b.totalAmount)}</div>
-                        )}
+                      <TableCell className="text-right font-medium text-xs">
+                        {formatRupiah(b.totalAmount)}
                       </TableCell>
-                      <TableCell>
-                        <span className={`text-[10px] px-2 py-0.5 rounded-lg font-black ${BUCKET_COLOR[b.bucket]}`}>{BUCKET_LABEL[b.bucket]}</span>
+                      <TableCell className="text-right text-xs text-slate-500">
+                        {formatRupiah(b.amountPaid || 0)}
                       </TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button
-                            size="icon" variant="ghost"
-                            className="w-7 h-7 rounded-lg hover:bg-emerald-50 text-emerald-600"
-                            onClick={() => { setPayingBill(b); setPAmount(b.outstanding) }}
-                            title="Bayar"
-                          >
-                            <CreditCard className="w-3.5 h-3.5" />
-                          </Button>
+                      <TableCell className="text-right font-black text-sm text-purple-700">
+                        {formatRupiah(b.outstanding)}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <span className={`text-[10px] px-2 py-0.5 rounded-lg font-black ${
+                          b.status === 'Paid' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
+                          b.status === 'PartialPaid' ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
+                          b.status === 'Cancelled' ? 'bg-slate-100 text-slate-500 border-slate-200' :
+                          'bg-rose-100 text-rose-700 border-rose-200'
+                        }`}>
+                          {b.status}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <div className="flex gap-1 justify-center">
+                          {(b.status !== 'Paid' && b.status !== 'Cancelled') && (
+                            <Button
+                              size="icon" variant="ghost"
+                              className="w-7 h-7 rounded-lg hover:bg-emerald-50 text-emerald-600"
+                              onClick={() => { setPayingBill(b); setPAmount(b.outstanding) }}
+                              title="Bayar"
+                            >
+                              <CreditCard className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
                           <Button
                             size="icon" variant="ghost"
                             className="w-7 h-7 rounded-lg hover:bg-rose-50 text-rose-500"
@@ -591,8 +667,8 @@ export default function APAgingPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button className="w-full h-11 font-black rounded-xl bg-emerald-600 hover:bg-emerald-700" onClick={handlePay}>
-              Simpan Pembayaran
+            <Button className="w-full h-11 font-black rounded-xl bg-emerald-600 hover:bg-emerald-700" onClick={handlePay} disabled={isPaying}>
+              {isPaying ? "Memproses..." : "Simpan Pembayaran"}
             </Button>
           </DialogFooter>
         </DialogContent>

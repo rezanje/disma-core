@@ -10,7 +10,9 @@ if (!supabaseUrl || !supabaseAnonKey) {
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Service role client — only use server-side (API routes), never in client components
-export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+export const supabaseAdmin = typeof window === 'undefined' && supabaseServiceKey
+  ? createClient(supabaseUrl, supabaseServiceKey)
+  : null as any;
 
 // Storage bucket name for file uploads (nota, receipt, etc.)
 export const UPLOAD_BUCKET = 'uploads';

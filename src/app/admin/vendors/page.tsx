@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from "uuid"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Table,
   TableBody,
@@ -38,11 +39,21 @@ export default function VendorsPage() {
     picName: "",
     email: "",
     phone: "",
-    address: ""
+    address: "",
+    isTempo: true,
+    paymentTermDays: 14
   })
 
   const resetForm = () => {
-    setFormData({ companyName: "", picName: "", email: "", phone: "", address: "" })
+    setFormData({
+      companyName: "",
+      picName: "",
+      email: "",
+      phone: "",
+      address: "",
+      isTempo: true,
+      paymentTermDays: 14
+    })
     setEditingVendor(null)
   }
 
@@ -53,7 +64,9 @@ export default function VendorsPage() {
       picName: vendor.picName,
       email: vendor.email,
       phone: vendor.phone,
-      address: vendor.address
+      address: vendor.address,
+      isTempo: vendor.isTempo !== false,
+      paymentTermDays: vendor.paymentTermDays ?? 14
     })
     setIsOpen(true)
   }
@@ -64,13 +77,18 @@ export default function VendorsPage() {
       return
     }
 
+    const payload = {
+      ...formData,
+      paymentTermDays: formData.isTempo ? formData.paymentTermDays : 0
+    }
+
     if (editingVendor) {
-      updateVendor(editingVendor.id, formData)
+      updateVendor(editingVendor.id, payload)
       toast.success("Vendor updated successfully")
     } else {
       addVendor({
         id: uuidv4(),
-        ...formData,
+        ...payload,
         createdAt: new Date().toISOString()
       })
       toast.success("Vendor added successfully")
@@ -148,6 +166,28 @@ export default function VendorsPage() {
                   placeholder="Pasar Induk Kramat Jati" 
                 />
               </div>
+              
+              <div className="flex items-center gap-2 pt-2">
+                <Checkbox 
+                  id="isTempo" 
+                  checked={formData.isTempo} 
+                  onCheckedChange={(checked) => setFormData({...formData, isTempo: !!checked})}
+                />
+                <Label htmlFor="isTempo" className="cursor-pointer">Pembayaran Tempo</Label>
+              </div>
+
+              {formData.isTempo && (
+                <div className="grid gap-2">
+                  <Label htmlFor="paymentTermDays">Jatuh Tempo (Hari)</Label>
+                  <Input 
+                    id="paymentTermDays" 
+                    type="number"
+                    value={formData.paymentTermDays}
+                    onChange={(e) => setFormData({...formData, paymentTermDays: parseInt(e.target.value) || 0})}
+                    placeholder="14" 
+                  />
+                </div>
+              )}
             </div>
             <div className="flex justify-end gap-3 mt-4">
               <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
@@ -165,13 +205,14 @@ export default function VendorsPage() {
               <TableHead>PIC</TableHead>
               <TableHead>Phone</TableHead>
               <TableHead>Address</TableHead>
+              <TableHead>Metode Pembayaran</TableHead>
               <TableHead className="w-[80px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {vendors.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
                   No vendors found.
                 </TableCell>
               </TableRow>
@@ -182,6 +223,13 @@ export default function VendorsPage() {
                   <TableCell>{v.picName}</TableCell>
                   <TableCell>{v.phone}</TableCell>
                   <TableCell className="text-sm">{v.address}</TableCell>
+                  <TableCell className="text-sm font-semibold">
+                    {v.isTempo ? (
+                      <span className="text-blue-600">Tempo ({v.paymentTermDays || 14} hari)</span>
+                    ) : (
+                      <span className="text-emerald-600">Cash Langsung</span>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <Button variant="ghost" size="icon" onClick={() => handleEdit(v)}>
                       <Pencil className="h-4 w-4 text-slate-500" />

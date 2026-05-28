@@ -1770,14 +1770,65 @@ export const useAppStore = create<AppState>((set, get) => ({
       payVendorBill: async (billId: string, payment: VendorBillPayment) => {
         const bill = get().vendorBills.find(vb => vb.id === billId);
         if (!bill) throw new Error('Vendor bill tidak ditemukan');
+
+        // Idempotency: check if payment ID is already registered to avoid double payment
+        const alreadyPaid = bill.payments?.some(p => p.id === payment.id);
+        if (alreadyPaid) {
+          console.warn(`Payment ${payment.id} already applied to bill ${billId}`);
+          return;
+        }
+
+        const bank = get().bankAccounts.find(b => b.id === payment.bankAccountId);
+        if (!bank) throw new Error('Bank account tidak ditemukan');
+
+        // 1. Create Journal Entry dynamically to avoid circular import issues
+        const { createAccountingEntry } = await import('@/lib/accounting');
+        const journalDesc = `Bayar Hutang ${bill.vendorName} (${bill.billNumber})`;
+        const ok = await createAccountingEntry(
+          journalDesc,
+          'Payment',
+          payment.id,
+          [{ accountCode: '2-1000', amount: payment.amount, vendorId: bill.vendorId, vendorBillId: bill.id }] as any,
+          [{ accountCode: bank.accountCode || '1-1100', amount: payment.amount }] as any,
+          payment.date
+        );
+        if (!ok) throw new Error('Gagal mencatat jurnal pembayaran');
+
+        // 2. Add Cash Transaction (which updates bank balance & syncs table)
+        await get().addCashTransaction({
+          id: payment.id,
+          date: payment.date,
+          type: 'Out',
+          amount: payment.amount,
+          bankAccountId: payment.bankAccountId,
+          category: 'Bayar Hutang Vendor',
+          description: payment.note
+            ? `${bill.vendorName} — ${bill.billNumber} (${payment.note})`
+            : `${bill.vendorName} — ${bill.billNumber}`,
+          counterpartName: bill.vendorName,
+          referenceType: 'Manual',
+        });
+
+        // 3. Update VendorBill record
         const newPayments = [...(bill.payments || []), payment];
         const newAmountPaid = (bill.amountPaid || 0) + payment.amount;
         const newStatus: VendorBill['status'] =
-          newAmountPaid >= bill.totalAmount ? 'Paid' : newAmountPaid > 0 ? 'Partial' : 'Unpaid';
+          newAmountPaid >= bill.totalAmount ? 'Paid' : newAmountPaid > 0 ? 'PartialPaid' : 'Pending';
+
+        const oldBill = { ...bill };
         await get().updateVendorBill(billId, {
           payments: newPayments,
           amountPaid: newAmountPaid,
           status: newStatus,
+        });
+
+        // 4. Log History
+        await get().logHistory({
+          table: 'vendor_bills',
+          recordId: billId,
+          action: 'update',
+          oldData: oldBill,
+          newData: { ...bill, payments: newPayments, amountPaid: newAmountPaid, status: newStatus }
         });
       },
 

@@ -12,35 +12,26 @@ function normalizeProfile(value?: string): SupabaseProfile {
   return "local"
 }
 
-function pickEnvValue(keys: string[]) {
-  for (const key of keys) {
-    const value = process.env[key]
-    if (value) return value
-  }
-  return ""
-}
-
 export function resolveSupabaseEnv(): SupabaseEnvConfig {
   const profile = normalizeProfile(
     process.env.NEXT_PUBLIC_SUPABASE_PROFILE || process.env.NODE_ENV
   )
 
-  const suffix = profile === "local" ? "_LOCAL" : "_PRODUCTION"
+  const isLocal = profile === "local"
 
-  const url = pickEnvValue([
-    `NEXT_PUBLIC_SUPABASE_URL${suffix}`,
-    "NEXT_PUBLIC_SUPABASE_URL",
-  ])
+  // Statically check env variables so the Next.js compiler/Turbopack 
+  // can inline them correctly for client-side execution.
+  const url = isLocal
+    ? (process.env.NEXT_PUBLIC_SUPABASE_URL_LOCAL || process.env.NEXT_PUBLIC_SUPABASE_URL || "")
+    : (process.env.NEXT_PUBLIC_SUPABASE_URL_PRODUCTION || process.env.NEXT_PUBLIC_SUPABASE_URL || "")
 
-  const anonKey = pickEnvValue([
-    `NEXT_PUBLIC_SUPABASE_ANON_KEY${suffix}`,
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY",
-  ])
+  const anonKey = isLocal
+    ? (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY_LOCAL || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "")
+    : (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY_PRODUCTION || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "")
 
-  const serviceRoleKey = pickEnvValue([
-    `SUPABASE_SERVICE_ROLE_KEY${suffix}`,
-    "SUPABASE_SERVICE_ROLE_KEY",
-  ])
+  const serviceRoleKey = isLocal
+    ? (process.env.SUPABASE_SERVICE_ROLE_KEY_LOCAL || process.env.SUPABASE_SERVICE_ROLE_KEY || "")
+    : (process.env.SUPABASE_SERVICE_ROLE_KEY_PRODUCTION || process.env.SUPABASE_SERVICE_ROLE_KEY || "")
 
   return { profile, url, anonKey, serviceRoleKey }
 }

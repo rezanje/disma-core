@@ -42,6 +42,7 @@ export default function FinanceHubPage() {
   const salesOrderItems = useAppStore(state => state.salesOrderItems)
   const invoices = useAppStore(state => state.invoices)
   const clients = useAppStore(state => state.clients)
+  const vendors = useAppStore(state => state.vendors)
   
   const updatePurchase = useAppStore(state => state.updatePurchase)
   const updateReimbursement = useAppStore(state => state.updateReimbursement)
@@ -180,7 +181,7 @@ export default function FinanceHubPage() {
   const [isDirectSettleOpen, setIsDirectSettleOpen] = useState(false)
   const [directSettleId, setDirectSettleId] = useState<string | null>(null)
   
-  const [settlementItems, setSettlementItems] = useState<Record<string, { actualPrice: number, qtyPurchased: number }>>({})
+  const [settlementItems, setSettlementItems] = useState<Record<string, { actualPrice: number, qtyPurchased: number, vendorId?: string }>>({})
   const [settlementOps, setSettlementOps] = useState<{ id: string, category: string, amount: number, note: string }[]>([])
   const [settlementProofUrl, setSettlementProofUrl] = useState("")
   const [settlementReturnedCustom, setSettlementReturnedCustom] = useState<number | null>(null)
@@ -196,9 +197,9 @@ export default function FinanceHubPage() {
   const openDirectSettle = (purchaseId: string) => {
     setDirectSettleId(purchaseId)
     const items = purchaseItems.filter(pi => pi.purchaseId === purchaseId && pi.purchaseMethod !== 'Online' && !pi.isOnlineAudited)
-    const initialItems: Record<string, { actualPrice: number, qtyPurchased: number }> = {}
+    const initialItems: Record<string, { actualPrice: number, qtyPurchased: number, vendorId?: string }> = {}
     items.forEach(item => {
-      initialItems[item.id] = { actualPrice: item.estimatedUnitPrice || 0, qtyPurchased: item.qtyTarget }
+      initialItems[item.id] = { actualPrice: item.estimatedUnitPrice || 0, qtyPurchased: item.qtyTarget, vendorId: item.vendorId || "" }
     })
     setSettlementItems(initialItems)
     setSettlementOps([])
@@ -365,83 +366,86 @@ export default function FinanceHubPage() {
     const lockKey = `verifyRecon_${purchaseId}`
     if (!acquireLock(lockKey)) return
     try {
-    const purchase = useAppStore.getState().purchases.find(p => p.id === purchaseId)
-    if (!purchase) return
-    if (purchase.reconciliationStatus === 'Terverifikasi') {
-      toast.info("Rekonsiliasi ini sudah pernah diverifikasi.")
-      return
-    }
+      const purchase = useAppStore.getState().purchases.find(p => p.id === purchaseId)
+      if (!purchase) return
+      if (purchase.reconciliationStatus === 'Terverifikasi') {
+        toast.info("Rekonsiliasi ini sudah pernah diverifikasi.")
+        return
+      }
 
-    const advanceAmount = (purchase.budgetAmount || 0) + (purchase.operationalSpareAmount || 0)
-    
-    // Find all linked items
-    const pOps = useAppStore.getState().expenses.filter(e => e.purchaseId === purchaseId && e.status === 'Pending Audit' && e.category !== 'Setoran Pengembalian')
-    const pReimbs = useAppStore.getState().reimbursements.filter(r => r.purchaseId === purchaseId && r.status === 'Pending')
-    const pReturn = useAppStore.getState().expenses.find(e => e.purchaseId === purchaseId && e.status === 'Pending Audit' && e.category === 'Setoran Pengembalian')
+      const advanceAmount = (purchase.budgetAmount || 0) + (purchase.operationalSpareAmount || 0)
+      
+      // Find all linked items
+      const pOps = useAppStore.getState().expenses.filter(e => e.purchaseId === purchaseId && e.status === 'Pending Audit' && e.category !== 'Setoran Pengembalian')
+      const pReimbs = useAppStore.getState().reimbursements.filter(r => r.purchaseId === purchaseId && r.status === 'Pending')
+      const pReturn = useAppStore.getState().expenses.find(e => e.purchaseId === purchaseId && e.status === 'Pending Audit' && e.category === 'Setoran Pengembalian')
 
-    toast.loading("Memproses persetujuan seluruh sesi (HPP, Ops, Kasbon, Setoran)...", { id: "rekon" })
+      toast.loading("Memproses persetujuan seluruh sesi (HPP, Ops, Kasbon, Setoran)...", { id: "rekon" })
 
-    // 1. Process Operational Expenses
-    for (const op of pOps) {
-       await handleAuditExpense(op.id, 'Approved')
-    }
+      // 1. Process Operational Expenses
+      for (const op of pOps) {
+         await handleAuditExpense(op.id, 'Approved')
+      }
 
-    // 2. Process Reimbursements
-    for (const reimb of pReimbs) {
-       await handlePayReimbursement(reimb.id)
-    }
+      // 2. Process Reimbursements
+      for (const reimb of pReimbs) {
+         await handlePayReimbursement(reimb.id)
+      }
 
-    // 3. Process Returns
-    if (pReturn) {
-       await handleAuditExpense(pReturn.id, 'Approved')
-    }
+      // 3. Process Returns
+      if (pReturn) {
+         await handleAuditExpense(pReturn.id, 'Approved')
+      }
 
-    // 4. Process HPP Settlement (Rekon Utama)
-    if (purchase.reconciliationStatus === 'Laporan Masuk') {
-       // Remaining advance = original advance minus ALL ops expenses already/just deducted from wallet
-       const allOpsForPurchase = useAppStore.getState().expenses.filter(
-         e => e.purchaseId === purchaseId &&
-         e.status !== 'Rejected' &&
-         e.category !== 'Setoran Pengembalian' &&
-         e.category !== 'Belanja Online' &&
-         e.category !== 'Sourcing (HPP)'
-       )
-       const totalOpsDeducted = allOpsForPurchase.reduce((sum, e) => sum + e.amount, 0)
-       const remainingAdvanceForHPP = Math.max(0, advanceAmount - totalOpsDeducted)
+      // 4. Process HPP Settlement (Rekon Utama)
+      if (purchase.reconciliationStatus === 'Laporan Masuk') {
+         // Remaining advance = original advance minus ALL ops expenses already/just deducted from wallet
+         const allOpsForPurchase = useAppStore.getState().expenses.filter(
+           e => e.purchaseId === purchaseId &&
+           e.status !== 'Rejected' &&
+           e.category !== 'Setoran Pengembalian' &&
+           e.category !== 'Belanja Online' &&
+           e.category !== 'Sourcing (HPP)'
+         )
+         const totalOpsDeducted = allOpsForPurchase.reduce((sum, e) => sum + e.amount, 0)
+         const remainingAdvanceForHPP = Math.max(0, advanceAmount - totalOpsDeducted)
 
-       const success = await recordReconciliationSettlement(
-          purchaseId,
-          purchase.actualSpent || 0,
-          0,
-          remainingAdvanceForHPP,
-          purchase.budgetBankAccountId || 'bank-1'
-       )
-       if (!success) {
-         toast.error("Gagal settle rekonsiliasi jurnal HPP.", { id: "rekon" })
-         return
-       }
-       await updatePurchase(purchaseId, { reconciliationStatus: 'Terverifikasi', status: 'Selesai' })
-
-       const pItems = useAppStore.getState().purchaseItems.filter(pi => pi.purchaseId === purchaseId && pi.isChecked)
-       for (const item of pItems) {
-         if (item.actualUnitPrice > 0 && item.productId) {
-           updateProductPriceHistory(item.productId, item.actualUnitPrice, 'Pasar (Verified)')
+         const success = await recordReconciliationSettlement(
+            purchaseId,
+            purchase.actualSpent || 0,
+            0,
+            remainingAdvanceForHPP,
+            purchase.budgetBankAccountId || 'bank-1'
+         )
+         if (!success) {
+           toast.error("Gagal settle rekonsiliasi jurnal HPP.", { id: "rekon" })
+           return
          }
-       }
+         await updatePurchase(purchaseId, { reconciliationStatus: 'Terverifikasi', status: 'Selesai' })
 
-       // Advance linked Sales Orders to QC so warehouse/qc → packing → shipping can proceed
-       const linkedSoIds = new Set(
-         pItems.map(pi => pi.salesOrderId).filter((id): id is string => !!id)
-       )
-       for (const soId of linkedSoIds) {
-         const so = useAppStore.getState().salesOrders.find(s => s.id === soId)
-         if (so && (so.status === 'Belanja' || so.status === 'Draft')) {
-           await updateSalesOrder(soId, { status: 'QC' })
+         const pItems = useAppStore.getState().purchaseItems.filter(pi => pi.purchaseId === purchaseId && pi.isChecked)
+         for (const item of pItems) {
+           if (item.actualUnitPrice > 0 && item.productId) {
+             updateProductPriceHistory(item.productId, item.actualUnitPrice, 'Pasar (Verified)')
+           }
          }
-       }
-    }
 
-    toast.success("Sesi Sourcing berhasil disetujui & disettle!", { id: "rekon" })
+         // Advance linked Sales Orders to QC so warehouse/qc → packing → shipping can proceed
+         const linkedSoIds = new Set(
+           pItems.map(pi => pi.salesOrderId).filter((id): id is string => !!id)
+         )
+         for (const soId of linkedSoIds) {
+           const so = useAppStore.getState().salesOrders.find(s => s.id === soId)
+           if (so && (so.status === 'Belanja' || so.status === 'Draft')) {
+             await updateSalesOrder(soId, { status: 'QC' })
+           }
+         }
+      }
+
+      toast.success("Sesi Sourcing berhasil disetujui & disettle!", { id: "rekon" })
+    } catch (err: any) {
+      console.error("[VerifyRecon] Error:", err)
+      toast.error(err.message || "Gagal memproses persetujuan.", { id: "rekon" })
     } finally { releaseLock(lockKey) }
   }
 
@@ -452,6 +456,23 @@ export default function FinanceHubPage() {
     try {
     const purchase = purchases.find(p => p.id === directSettleId)
     if (!purchase) return
+
+    // Validation: all checked items must have vendorId
+    const itemsWithoutVendor = Object.entries(settlementItems).filter(([itemId, data]) => {
+      const item = purchaseItems.find(pi => pi.id === itemId)
+      if (!item || item.isOnlineAudited || item.purchaseMethod === 'Online') return false
+      return !data.vendorId
+    })
+
+    if (itemsWithoutVendor.length > 0) {
+      const names = itemsWithoutVendor.map(([itemId]) => {
+        const item = purchaseItems.find(pi => pi.id === itemId)
+        const prod = products.find(p => p.id === item?.productId)
+        return prod ? prod.name : `Item ID ${itemId}`
+      })
+      toast.error(`Semua item belanja wajib memiliki Vendor. Item berikut belum ada vendor: ${names.join(', ')}`)
+      return
+    }
 
     // Guard: confirm bila defisit (HPP + Ops > Advance) — sourcer harus talangin.
     if (netBalance < 0) {
@@ -482,6 +503,7 @@ export default function FinanceHubPage() {
         await useAppStore.getState().updatePurchaseItem(itemId, { 
           actualUnitPrice: data.actualPrice, 
           qtyPurchased: data.qtyPurchased, 
+          vendorId: data.vendorId,
           isChecked: true 
         })
         
@@ -1234,15 +1256,33 @@ export default function FinanceHubPage() {
                     <div className="grid gap-3">
                        {purchaseItems.filter(pi => pi.purchaseId === directSettleId && pi.purchaseMethod !== 'Online' && !pi.isOnlineAudited).map(pi => {
                           const product = products.find(p => p.id === pi.productId)
-                          const itemState = settlementItems[pi.id] || { actualPrice: 0, qtyPurchased: 0 }
+                          const itemState = settlementItems[pi.id] || { actualPrice: 0, qtyPurchased: 0, vendorId: '' }
                           
                           return (
-                             <div key={pi.id} className="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col sm:flex-row gap-4 sm:items-center">
+                             <div key={pi.id} className="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col xl:flex-row gap-4 xl:items-center">
                                 <div className="flex-1">
                                    <p className="font-black text-slate-800 text-sm">{product?.name}</p>
                                    <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Target: {pi.qtyTarget} {product?.uom}</p>
                                 </div>
                                 <div className="flex flex-wrap sm:flex-nowrap items-center gap-3">
+                                   <div className="space-y-1 w-44">
+                                      <label className="text-[9px] font-bold text-slate-400 uppercase">Vendor</label>
+                                      <Select 
+                                        value={itemState.vendorId || ''} 
+                                        onValueChange={(val) => setSettlementItems(prev => ({...prev, [pi.id]: { ...itemState, vendorId: val || undefined }}))}
+                                      >
+                                        <SelectTrigger className="h-10 rounded-xl text-xs font-bold border-slate-200 bg-slate-50">
+                                           <SelectValue placeholder="— Pilih Vendor —" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                           {vendors.map(v => (
+                                              <SelectItem key={v.id} value={v.id} className="text-xs font-bold">
+                                                 {v.companyName} {v.isTempo ? `(tempo ${v.paymentTermDays || 14}d)` : '(cash)'}
+                                              </SelectItem>
+                                           ))}
+                                        </SelectContent>
+                                      </Select>
+                                   </div>
                                    <div className="space-y-1">
                                       <label className="text-[9px] font-bold text-slate-400 uppercase">Qty Aktual</label>
                                       <input 

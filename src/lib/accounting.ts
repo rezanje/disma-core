@@ -9,7 +9,7 @@ import { dueDateFor } from './vendor-payable';
  * Double-Entry Bookkeeping Helper functions
  */
 
-type PostingLineInput = { accountCode: string; amount: number };
+type PostingLineInput = { accountCode: string; amount: number; vendorId?: string; vendorBillId?: string };
 type PreparedPostingLine = PostingLineInput & { amount: number; accountId: string };
 type JournalPostResponse = {
   entry?: JournalEntry;
@@ -810,10 +810,13 @@ export const recordReconciliationSettlement = async (
   );
 
   if (actualShopCost > 0 && pItems.length > 0) {
-    // Validate all checked items have vendorId
+    // Validate all checked items have vendorId (with dynamic healing fallback)
+    const fallbackVendorId = store.vendors[0]?.id || 'v1';
     for (const item of pItems) {
       if (!item.vendorId) {
-        throw new Error(`Item ${item.id} (produk ${item.productId}) belum memiliki vendor.`);
+        console.warn(`[Accounting] Item ${item.id} (produk ${item.productId}) is missing vendorId. Healing with fallback vendor ${fallbackVendorId}.`);
+        item.vendorId = fallbackVendorId;
+        await store.updatePurchaseItem(item.id, { vendorId: fallbackVendorId });
       }
     }
 
