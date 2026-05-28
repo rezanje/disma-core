@@ -1484,14 +1484,23 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
       },
       deletePurchase: async (id: string) => {
-        // Cascade: remove related purchase_items + unlink salesOrders shoppingListDocumentId
+        // Cascade: remove related purchase_items + vendor_bills + unlink salesOrders shoppingListDocumentId
         const purchaseBefore = get().purchases.find(p => p.id === id);
         const itemsToDelete = get().purchaseItems.filter(pi => pi.purchaseId === id);
         const itemIds = itemsToDelete.map(pi => pi.id);
 
+        const billsToDelete = get().vendorBills.filter(vb => vb.purchaseId === id);
+        const billIds = billsToDelete.map(vb => vb.id);
+
         const remainingPurchases = get().purchases.filter(p => p.id !== id);
         const remainingItems = get().purchaseItems.filter(pi => pi.purchaseId !== id);
-        set({ purchases: remainingPurchases, purchaseItems: remainingItems });
+        const remainingVendorBills = get().vendorBills.filter(vb => vb.purchaseId !== id);
+
+        set({
+          purchases: remainingPurchases,
+          purchaseItems: remainingItems,
+          vendorBills: remainingVendorBills
+        });
         saveLocalPurchasesCache(remainingPurchases);
         saveLocalPurchaseItemsCache(remainingItems);
 
@@ -1515,6 +1524,16 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
 
         try {
+          if (billIds.length > 0) {
+            await fetch('/api/db', {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ table: 'vendor_bills', id: billIds })
+            });
+            for (const vb of billsToDelete) {
+              await get().logHistory({ table: 'vendor_bills', recordId: vb.id, action: 'delete', oldData: vb, newData: null, reason: `Cascade from deletePurchase ${id.slice(0,8)}` });
+            }
+          }
           if (itemIds.length > 0) {
             await fetch('/api/db', {
               method: 'DELETE',
