@@ -134,7 +134,8 @@ create table if not exists public.purchase_items (
   purchase_method text,
   online_ref text,
   online_order_date text,
-  is_online_ordered boolean not null default false
+  is_online_ordered boolean not null default false,
+  payment_method text
 );
 
 create table if not exists public.deliveries (

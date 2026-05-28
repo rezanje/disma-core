@@ -200,6 +200,7 @@ export interface PurchaseItem {
   isOnlineOrdered?: boolean;
   isOnlineAudited?: boolean;
   vendorId?: string;
+  paymentMethod?: 'Cash' | 'Tempo';
 }
 
 export type DeliveryStatus = 'Menunggu' | 'Dikirim' | 'Tunggu Konfirmasi' | 'Awaiting Audit' | 'Terkirim';
