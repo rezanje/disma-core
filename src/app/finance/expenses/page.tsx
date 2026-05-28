@@ -16,6 +16,7 @@ import { format } from "date-fns"
 import { id as localeId } from "date-fns/locale"
 import { formatRupiah, formatNumber, parseNumber } from "@/lib/utils"
 import { createAccountingEntry } from "@/lib/accounting"
+import { computeBankBalances } from "@/lib/bank-balance"
 import ReceiptUpload from "@/components/ui/receipt-upload"
 import { v4 as uuidv4 } from "uuid"
 import AuthGuard from "@/components/auth/auth-guard"
@@ -55,8 +56,12 @@ const CATEGORY_COLORS: Record<string, string> = {
 }
 
 export default function PengeluaranUmumPage() {
-  const bankAccounts = useAppStore(s => s.bankAccounts)
+  const rawBankAccounts = useAppStore(s => s.bankAccounts)
   const cashTransactions = useAppStore(s => s.cashTransactions)
+  const bankAccounts = useMemo(
+    () => computeBankBalances(rawBankAccounts, cashTransactions),
+    [rawBankAccounts, cashTransactions]
+  )
   const addCashTransaction = useAppStore(s => s.addCashTransaction)
 
   const [isAddOpen, setIsAddOpen] = useState(false)

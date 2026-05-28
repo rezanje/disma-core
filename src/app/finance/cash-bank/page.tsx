@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { v4 as uuidv4 } from "uuid"
 import { createAccountingEntry } from "@/lib/accounting"
+import { computeBankBalances } from "@/lib/bank-balance"
 import ReceiptUpload from "@/components/ui/receipt-upload"
 import { Checkbox } from "@/components/ui/checkbox"
 
@@ -39,17 +40,21 @@ const formatCategory = (cat: string) => {
 }
 
 export default function CashAndBankPage() {
-  const bankAccounts = useAppStore(state => state.bankAccounts)
+  const rawBankAccounts = useAppStore(state => state.bankAccounts)
   const addBankAccount = useAppStore(state => state.addBankAccount)
   const updateBankAccount = useAppStore(state => state.updateBankAccount)
   const deleteBankAccount = useAppStore(state => state.deleteBankAccount)
   const cashTransactions = useAppStore(state => state.cashTransactions)
+  // Balance derived from ledger (source of truth), not stored field — avoids lost-update race.
+  const bankAccounts = useMemo(
+    () => computeBankBalances(rawBankAccounts, cashTransactions),
+    [rawBankAccounts, cashTransactions]
+  )
   const addCashTransaction = useAppStore(state => state.addCashTransaction)
   const updateCashTransaction = useAppStore(state => state.updateCashTransaction)
   const deleteCashTransaction = useAppStore(state => state.deleteCashTransaction)
   const bulkDeleteCashTransactions = useAppStore(state => state.bulkDeleteCashTransactions)
   const coas = useAppStore(state => state.coas)
-  const isSyncing = useAppStore(state => state.isSyncing)
 
   const [isAddTxOpen, setIsAddTxOpen] = useState(false)
   const [isAddBankOpen, setIsAddBankOpen] = useState(false)
@@ -788,11 +793,7 @@ export default function CashAndBankPage() {
                   <div className="mt-2">
                      <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest truncate">{b.accountNumber || 'PHYSICAL CASH'}</p>
                      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wide mt-0.5 truncate">{b.name}</p>
-                     {isSyncing ? (
-                       <div className="h-6 w-24 bg-slate-100 rounded-lg animate-pulse mt-1" />
-                     ) : (
-                       <p className="text-lg font-black mt-0.5 tracking-tighter">{formatRupiah(b.balance)}</p>
-                     )}
+                     <p className="text-lg font-black mt-0.5 tracking-tighter">{formatRupiah(b.balance)}</p>
                   </div>
                   <div className="absolute right-[-8px] bottom-[-8px] opacity-[0.04] group-hover:rotate-12 transition-all duration-500">
                      <Landmark className="w-14 h-14" />

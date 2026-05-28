@@ -17,6 +17,7 @@ import { id as localeId } from "date-fns/locale"
 import { formatRupiah, formatNumber, parseNumber } from "@/lib/utils"
 import { createAccountingEntry } from "@/lib/accounting"
 import { agingBucket } from "@/lib/vendor-payable"
+import { computeBankBalances } from "@/lib/bank-balance"
 import { v4 as uuidv4 } from "uuid"
 import type { VendorBill, VendorBillPayment } from "@/types"
 import AuthGuard from "@/components/auth/auth-guard"
@@ -53,7 +54,12 @@ const BILL_CATEGORIES = [
 export default function APAgingPage() {
   const vendors = useAppStore(s => s.vendors)
   const vendorBills = useAppStore(s => s.vendorBills)
-  const bankAccounts = useAppStore(s => s.bankAccounts)
+  const rawBankAccounts = useAppStore(s => s.bankAccounts)
+  const cashTransactions = useAppStore(s => s.cashTransactions)
+  const bankAccounts = useMemo(
+    () => computeBankBalances(rawBankAccounts, cashTransactions),
+    [rawBankAccounts, cashTransactions]
+  )
   const addVendorBill = useAppStore(s => s.addVendorBill)
   const deleteVendorBill = useAppStore(s => s.deleteVendorBill)
   const payVendorBill = useAppStore(s => s.payVendorBill)

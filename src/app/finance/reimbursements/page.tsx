@@ -1,7 +1,8 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useRef, useState, useMemo } from "react"
 import { useAppStore } from "@/lib/store"
+import { computeBankBalances } from "@/lib/bank-balance"
 import { Card, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
@@ -19,7 +20,12 @@ import { recordReimbursementPayment } from "@/lib/accounting"
 export default function ReimbursementManagementPage() {
   const reimbursements = useAppStore(state => state.reimbursements)
   const users = useAppStore(state => state.users)
-  const bankAccounts = useAppStore(state => state.bankAccounts)
+  const rawBankAccounts = useAppStore(state => state.bankAccounts)
+  const cashTransactions = useAppStore(state => state.cashTransactions)
+  const bankAccounts = useMemo(
+    () => computeBankBalances(rawBankAccounts, cashTransactions),
+    [rawBankAccounts, cashTransactions]
+  )
   const updateReimbursement = useAppStore(state => state.updateReimbursement)
 
   const [searchTerm, setSearchTerm] = useState("")
