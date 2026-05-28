@@ -906,6 +906,11 @@ export const recordReconciliationSettlement = async (
       journalCredits.push({ accountCode: '2-1500', amount: defisitShop });
     }
 
+    // Save vendor bills to store first, so they exist in the database and avoid foreign key constraint violation
+    for (const bill of vendorBillsToSave) {
+      await store.addVendorBill(bill);
+    }
+
     const shopDescription = `Penyelesaian Belanja Sourcing - Ref: ${purchaseRef}`;
     const shopJournalSuccess = await createAccountingEntry(
       shopDescription,
@@ -916,12 +921,11 @@ export const recordReconciliationSettlement = async (
     );
 
     if (!shopJournalSuccess) {
+      // Rollback saved vendor bills if journal entry failed
+      for (const bill of vendorBillsToSave) {
+        await store.deleteVendorBill(bill.id);
+      }
       return false;
-    }
-
-    // Save vendor bills to store
-    for (const bill of vendorBillsToSave) {
-      await store.addVendorBill(bill);
     }
 
     const postedShopEntry = findPostedEntry('Purchase', purchaseId, shopDescription);

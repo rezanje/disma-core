@@ -191,19 +191,7 @@ export default function APAgingPage() {
     const loadingToast = toast.loading("Mencatat hutang vendor...")
 
     try {
-      // 1. JE: Debit category account, Credit Utang Usaha (2-1000)
-      const debitCOA = categoryDebitCOA(fCategory)
-      const ok = await createAccountingEntry(
-        `Hutang Vendor ${vendor.companyName}: ${fDescription}`,
-        'Purchase',
-        billId,
-        [{ accountCode: debitCOA, amount: fAmount }] as any,
-        [{ accountCode: '2-1000', amount: fAmount, vendorId: fVendorId, vendorBillId: billId }] as any,
-        issueIso
-      )
-      if (!ok) { toast.error("Gagal mencatat jurnal AP.", { id: loadingToast }); return }
-
-      // 2. Add bill record
+      // 1. Add bill record first so it exists in the database to prevent foreign key constraint violation
       const bill: VendorBill = {
         id: billId,
         billNumber,
@@ -221,6 +209,22 @@ export default function APAgingPage() {
         createdBy: currentUser?.id,
       }
       await addVendorBill(bill)
+
+      // 2. JE: Debit category account, Credit Utang Usaha (2-1000)
+      const debitCOA = categoryDebitCOA(fCategory)
+      const ok = await createAccountingEntry(
+        `Hutang Vendor ${vendor.companyName}: ${fDescription}`,
+        'Purchase',
+        billId,
+        [{ accountCode: debitCOA, amount: fAmount }] as any,
+        [{ accountCode: '2-1000', amount: fAmount, vendorId: fVendorId, vendorBillId: billId }] as any,
+        issueIso
+      )
+      if (!ok) {
+        await deleteVendorBill(billId)
+        toast.error("Gagal mencatat jurnal AP.", { id: loadingToast })
+        return
+      }
 
       toast.success("Hutang vendor dicatat!", { id: loadingToast })
       setIsAddOpen(false)
