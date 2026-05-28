@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { useAppStore } from "@/lib/store"
+import { computeBankBalances } from "@/lib/bank-balance"
 import { formatRupiah, cn } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -33,7 +34,12 @@ export default function FinanceHubPage() {
   const reimbursements = useAppStore(state => state.reimbursements)
   const expenses = useAppStore(state => state.expenses)
   const products = useAppStore(state => state.products)
-  const bankAccounts = useAppStore(state => state.bankAccounts)
+  const rawBankAccounts = useAppStore(state => state.bankAccounts)
+  const cashTransactions = useAppStore(state => state.cashTransactions)
+  const bankAccounts = useMemo(
+    () => computeBankBalances(rawBankAccounts, cashTransactions),
+    [rawBankAccounts, cashTransactions]
+  )
   const isSyncing = useAppStore(state => state.isSyncing)
   const users = useAppStore(state => state.users)
   const currentUser = useAppStore(state => state.currentUser)
@@ -528,7 +534,8 @@ export default function FinanceHubPage() {
       const now = new Date().toISOString()
       const addExpense = useAppStore.getState().addExpense
       
-      let totalHPP = 0
+      let totalHPP = 0      // ALL items (for actualSpent tracking)
+      let totalCashHPP = 0  // Only Cash items (these actually use the advance money)
 
       // 1. Process items (skip online-audited items — already handled via Audit Online flow)
       for (const [itemId, data] of Object.entries(settlementItems)) {
@@ -547,7 +554,17 @@ export default function FinanceHubPage() {
           updateProductPriceHistory(item.productId, data.actualPrice, 'Pasar (Finance Input)')
         }
         
-        totalHPP += data.actualPrice * data.qtyPurchased
+        const lineTotal = data.actualPrice * data.qtyPurchased
+        totalHPP += lineTotal
+
+        // Tempo items don't consume the advance cash — only Cash items do
+        const vendor = vendors.find(v => v.id === data.vendorId)
+        const isTempo = data.paymentMethod
+          ? (data.paymentMethod === 'Tempo')
+          : (vendor ? (vendor.isTempo !== false) : true)
+        if (!isTempo) {
+          totalCashHPP += lineTotal
+        }
       }
 
       // 2. Process Ops
@@ -570,7 +587,8 @@ export default function FinanceHubPage() {
 
       // 3. (Removed HPP Expense creation to prevent double-counting and lingering items. HPP is handled by recordReconciliationSettlement)
 
-      const finalNetBalance = directSettleBudget - totalHPP - totalOps
+      // Only Cash HPP + Ops reduce the advance budget. Tempo items are credit — no cash used.
+      const finalNetBalance = directSettleBudget - totalCashHPP - totalOps
       const returned = settlementReturnedCustom !== null ? settlementReturnedCustom : Math.max(0, finalNetBalance)
 
       // 4. Create Return Record
