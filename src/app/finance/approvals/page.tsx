@@ -432,11 +432,6 @@ export default function FinanceHubPage() {
          await handlePayReimbursement(reimb.id)
       }
 
-      // 3. Process Returns
-      if (pReturn) {
-         await handleAuditExpense(pReturn.id, 'Approved')
-      }
-
       // 4. Process HPP Settlement (Rekon Utama)
       if (purchase.reconciliationStatus === 'Laporan Masuk') {
          // Remaining advance = original advance minus ALL ops expenses already/just deducted from wallet
