@@ -1376,7 +1376,9 @@ export default function FinanceHubPage() {
                                         }}
                                       >
                                         <SelectTrigger className="h-10 rounded-xl text-xs font-bold border-slate-200 bg-slate-50">
-                                           <SelectValue placeholder="— Pilih Vendor —" />
+                                           <SelectValue placeholder="— Pilih Vendor —">
+                                              {vendors.find(v => v.id === itemState.vendorId)?.companyName}
+                                           </SelectValue>
                                         </SelectTrigger>
                                         <SelectContent>
                                            {vendors.map(v => (
@@ -1397,7 +1399,9 @@ export default function FinanceHubPage() {
                                         }))}
                                       >
                                         <SelectTrigger className="h-10 rounded-xl text-xs font-bold border-slate-200 bg-slate-50">
-                                           <SelectValue placeholder="— Tipe —" />
+                                           <SelectValue placeholder="— Tipe —">
+                                              {itemState.paymentMethod || 'Tempo'}
+                                           </SelectValue>
                                         </SelectTrigger>
                                         <SelectContent>
                                            <SelectItem value="Cash" className="text-xs font-bold">Cash</SelectItem>
