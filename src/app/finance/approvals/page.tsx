@@ -208,8 +208,18 @@ export default function FinanceHubPage() {
   const directSettlePurchase = purchases.find(p => p.id === directSettleId)
   const directSettleBudget = (directSettlePurchase?.budgetAmount || 0) + (directSettlePurchase?.operationalSpareAmount || 0)
   const currentTotalHPP = Object.values(settlementItems).reduce((sum, item) => sum + ((item.actualPrice || 0) * (item.qtyPurchased || 0)), 0)
+  const currentTotalCashHPP = Object.values(settlementItems).reduce((sum, item) => {
+    const vendor = vendors.find(v => v.id === item.vendorId)
+    const isTempo = item.paymentMethod 
+      ? (item.paymentMethod === 'Tempo')
+      : (vendor ? (vendor.isTempo !== false) : true)
+    if (isTempo) return sum
+    return sum + ((item.actualPrice || 0) * (item.qtyPurchased || 0))
+  }, 0)
+  const currentTotalTempoHPP = currentTotalHPP - currentTotalCashHPP
+
   const currentTotalOps = settlementOps.reduce((sum, op) => sum + (op.amount || 0), 0)
-  const netBalance = directSettleBudget - currentTotalHPP - currentTotalOps
+  const netBalance = directSettleBudget - currentTotalCashHPP - currentTotalOps
   const settlementReturnedAuto = Math.max(0, netBalance)
 
   const openDirectSettle = (purchaseId: string) => {
@@ -1531,9 +1541,15 @@ export default function FinanceHubPage() {
                           <span className="text-sm font-black text-slate-800">{formatRupiah(directSettleBudget)}</span>
                        </div>
                        <div className="flex justify-between items-center text-rose-500">
-                          <span className="text-xs font-black uppercase tracking-widest">Total HPP</span>
-                          <span className="text-sm font-black">- {formatRupiah(currentTotalHPP)}</span>
+                          <span className="text-xs font-black uppercase tracking-widest">Total HPP (Cash)</span>
+                          <span className="text-sm font-black">- {formatRupiah(currentTotalCashHPP)}</span>
                        </div>
+                       {currentTotalTempoHPP > 0 && (
+                          <div className="flex justify-between items-center text-slate-400">
+                             <span className="text-xs font-black uppercase tracking-widest">Total HPP (Tempo)</span>
+                             <span className="text-sm font-bold">{formatRupiah(currentTotalTempoHPP)}</span>
+                          </div>
+                       )}
                        <div className="flex justify-between items-center pb-4 border-b border-slate-50 text-rose-500">
                           <span className="text-xs font-black uppercase tracking-widest">Total Ops</span>
                           <span className="text-sm font-black">- {formatRupiah(currentTotalOps)}</span>
