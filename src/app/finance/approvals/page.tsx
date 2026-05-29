@@ -465,7 +465,9 @@ export default function FinanceHubPage() {
          await updatePurchase(purchaseId, { reconciliationStatus: 'Terverifikasi', status: 'Selesai' })
 
          const pItems = useAppStore.getState().purchaseItems.filter(pi => pi.purchaseId === purchaseId && pi.isChecked)
+         const updatePurchaseItem = useAppStore.getState().updatePurchaseItem
          for (const item of pItems) {
+           await updatePurchaseItem(item.id, { inboundStatus: 'pra_inbound' })
            if (item.actualUnitPrice > 0 && item.productId) {
              updateProductPriceHistory(item.productId, item.actualUnitPrice, 'Pasar (Verified)')
            }
@@ -547,7 +549,8 @@ export default function FinanceHubPage() {
           qtyPurchased: data.qtyPurchased, 
           vendorId: data.vendorId,
           paymentMethod: data.paymentMethod,
-          isChecked: true 
+          isChecked: true,
+          inboundStatus: 'pra_inbound'
         })
         
         if (data.actualPrice > 0 && item.productId) {

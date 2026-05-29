@@ -171,6 +171,12 @@ export default function SourcingSettlementPage() {
         status: 'Selesai' // unlock QC workflow (warehouse/qc filter requires this)
       })
 
+      // 5a. Set inboundStatus of items to 'pra_inbound'
+      const updatePurchaseItem = useAppStore.getState().updatePurchaseItem
+      for (const item of pItems) {
+        await updatePurchaseItem(item.id, { inboundStatus: 'pra_inbound' })
+      }
+
       // 5b. Advance linked Sales Orders to QC so downstream (Packing → Kirim → Terkirim) can run
       const linkedSoIds = new Set(
         pItems.map(pi => pi.salesOrderId).filter((id): id is string => !!id)

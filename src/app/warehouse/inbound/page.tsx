@@ -14,10 +14,12 @@ export default function InboundDashboard() {
   const products = useAppStore(state => state.products)
   const users = useAppStore(state => state.users)
 
-  // Combined Inbound Items (Market + Online)
   const inboundItems = purchaseItems
     .filter(pi => {
        if (pi.isQCed) return false;
+       if (pi.inboundStatus === 'verified' || pi.inboundStatus === 'rejected') return false;
+       if (pi.inboundStatus === 'pra_inbound') return true;
+
        const parentP = purchases.find(p => p.id === pi.purchaseId);
        if (!parentP) return false;
 

@@ -24,12 +24,22 @@ alter table public.vendor_bills
   alter column amount_paid set default 0;
 
 -- Add unique constraint on bill_number
-alter table public.vendor_bills add constraint vendor_bills_bill_number_key unique (bill_number);
+do $$ begin
+  alter table public.vendor_bills add constraint vendor_bills_bill_number_key unique (bill_number);
+exception when duplicate_table or duplicate_object then null;
+end $$;
 
 -- Add foreign key constraints on vendor_bills
-alter table public.vendor_bills
-  add constraint vendor_bills_vendor_id_fkey foreign key (vendor_id) references public.vendors(id),
-  add constraint vendor_bills_purchase_id_fkey foreign key (purchase_id) references public.purchases(id);
+do $$ begin
+  alter table public.vendor_bills
+    add constraint vendor_bills_vendor_id_fkey foreign key (vendor_id) references public.vendors(id);
+exception when duplicate_table or duplicate_object then null;
+end $$;
+do $$ begin
+  alter table public.vendor_bills
+    add constraint vendor_bills_purchase_id_fkey foreign key (purchase_id) references public.purchases(id);
+exception when duplicate_table or duplicate_object then null;
+end $$;
 
 -- Add indexes on vendor_bills
 create index if not exists vendor_bills_vendor_id_idx on public.vendor_bills(vendor_id);
@@ -37,9 +47,12 @@ create index if not exists vendor_bills_status_idx on public.vendor_bills(status
 create index if not exists vendor_bills_due_date_idx on public.vendor_bills(due_date) where status <> 'Paid';
 
 -- Add foreign key constraint on journal_lines
-alter table public.journal_lines
-  add constraint journal_lines_vendor_bill_id_fkey 
-  foreign key (vendor_bill_id) references public.vendor_bills(id) on delete set null;
+do $$ begin
+  alter table public.journal_lines
+    add constraint journal_lines_vendor_bill_id_fkey
+    foreign key (vendor_bill_id) references public.vendor_bills(id) on delete set null;
+exception when duplicate_table or duplicate_object then null;
+end $$;
 
 create index if not exists journal_lines_vendor_id_idx on public.journal_lines(vendor_id) where vendor_id is not null;
 create index if not exists journal_lines_vendor_bill_id_idx on public.journal_lines(vendor_bill_id) where vendor_bill_id is not null;

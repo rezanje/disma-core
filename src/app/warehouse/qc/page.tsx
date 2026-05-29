@@ -26,10 +26,12 @@ export default function QCPage() {
   const removePendingReturn = useAppStore(state => state.removePendingReturn)
   const updateSalesOrder = useAppStore(state => state.updateSalesOrder)
 
-  // --- TAB 1: SOURCING QC LOGIC ---
   const pendingQCItems = purchaseItems
     .filter(pi => {
        if (pi.isQCed) return false;
+       if (pi.inboundStatus === 'verified' || pi.inboundStatus === 'rejected') return false;
+       if (pi.inboundStatus === 'pra_inbound') return true;
+
        const parentP = purchases.find(p => p.id === pi.purchaseId);
        if (!parentP) return false;
        if ((pi.purchaseMethod === 'Pasar' || !pi.purchaseMethod) && parentP.status === 'Selesai') return true;
@@ -165,7 +167,14 @@ export default function QCPage() {
       toast.error(`${qtyReject} unit reject dicatat di monitor.`)
     }
 
-    await updatePurchaseItem(activePurchaseItem.id, { isQCed: true })
+    await updatePurchaseItem(activePurchaseItem.id, { 
+      isQCed: true,
+      inboundStatus: qtyReject === totalIncoming ? 'rejected' : (totalProcessed === totalIncoming ? 'verified' : 'partial'),
+      inboundQtyReceived: qtyPassToInventory + qtyPassToClient,
+      inboundVerifiedAt: new Date().toISOString(),
+      inboundVerifiedBy: currentUser?.id || 'system',
+      inboundNote: [unbalanceReason, rejectReason].filter(Boolean).join(' | ')
+    })
     
     // Antarkan SO ke status Packing jika semua itemnya sudah di-QC
     if (activePurchaseItem.salesOrderId) {

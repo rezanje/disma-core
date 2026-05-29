@@ -1118,6 +1118,15 @@ export default function SalesOrdersPage() {
                               Approve (Go to Sourcing)
                             </Button>
                           )}
+                          {so.status === 'Dikirim' && (
+                            <Button 
+                              size="sm" 
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold" 
+                              onClick={() => advanceStatus(so.id, so.status)}
+                            >
+                              Tandai Terkirim
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     )

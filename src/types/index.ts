@@ -201,6 +201,11 @@ export interface PurchaseItem {
   isOnlineAudited?: boolean;
   vendorId?: string;
   paymentMethod?: 'Cash' | 'Tempo';
+  inboundStatus?: 'pra_inbound' | 'verified' | 'rejected' | 'partial';
+  inboundQtyReceived?: number;
+  inboundVerifiedAt?: string;
+  inboundVerifiedBy?: string;
+  inboundNote?: string;
 }
 
 export type DeliveryStatus = 'Menunggu' | 'Dikirim' | 'Tunggu Konfirmasi' | 'Awaiting Audit' | 'Terkirim';
