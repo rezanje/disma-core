@@ -26,6 +26,7 @@ const LOCAL_JOURNAL_LINES_CACHE_KEY = 'disma_local_journal_lines_cache';
 const LOCAL_CASH_TRANSACTIONS_CACHE_KEY = 'disma_local_cash_transactions_cache';
 const LOCAL_INVOICES_CACHE_KEY = 'disma_local_invoices_cache';
 const LOCAL_DELIVERIES_CACHE_KEY = 'disma_local_deliveries_cache';
+const LOCAL_LEADS_CACHE_KEY = 'disma_local_leads_cache';
 const LOCAL_CURRENT_USER_KEY = 'disma_core_current_user';
 
 const loadCurrentUserFromStorage = (): User | null => {
@@ -212,6 +213,9 @@ const saveLocalCache = (key: string, data: any[]) => {
   try { window.localStorage.setItem(key, JSON.stringify(data)); } catch {}
 };
 
+const loadLocalLeadsCache = (): Lead[] => loadLocalCache<Lead>(LOCAL_LEADS_CACHE_KEY);
+const saveLocalLeadsCache = (leads: Lead[]) => saveLocalCache(LOCAL_LEADS_CACHE_KEY, leads);
+
 type CashPostResponse = {
   transaction?: CashTransaction;
   bankAccount?: BankAccount;
@@ -239,6 +243,7 @@ export const clearAllOperationalCaches = () => {
   window.localStorage.removeItem(LOCAL_CASH_TRANSACTIONS_CACHE_KEY);
   window.localStorage.removeItem(LOCAL_INVOICES_CACHE_KEY);
   window.localStorage.removeItem(LOCAL_DELIVERIES_CACHE_KEY);
+  window.localStorage.removeItem(LOCAL_LEADS_CACHE_KEY);
 };
 
 export interface NavItemConfig {
@@ -679,13 +684,14 @@ export const useAppStore = create<AppState>((set, get) => ({
           const cachedCashTransactions = loadLocalCache<CashTransaction>(LOCAL_CASH_TRANSACTIONS_CACHE_KEY);
           const cachedInvoices = loadLocalCache<Invoice>(LOCAL_INVOICES_CACHE_KEY);
           const cachedDeliveries = loadLocalCache<Delivery>(LOCAL_DELIVERIES_CACHE_KEY);
+          const cachedLeads = loadLocalLeadsCache();
           let cachedClientPrices: any[] = [];
           try {
             const cpRaw = window.localStorage.getItem(LOCAL_CLIENT_PRICES_CACHE_KEY);
             if (cpRaw) cachedClientPrices = JSON.parse(cpRaw) || [];
           } catch {}
 
-          const hasCache = cachedClients.length > 0 || cachedProducts.length > 0 || cachedSalesOrders.length > 0;
+          const hasCache = cachedClients.length > 0 || cachedProducts.length > 0 || cachedSalesOrders.length > 0 || cachedLeads.length > 0;
           if (hasCache) {
             console.log('[INIT] Phase 1: Hydrating from localStorage cache...');
             set({
@@ -702,6 +708,7 @@ export const useAppStore = create<AppState>((set, get) => ({
               cashTransactions: cachedCashTransactions.length > 0 ? cachedCashTransactions : get().cashTransactions,
               invoices: cachedInvoices.length > 0 ? cachedInvoices : get().invoices,
               deliveries: cachedDeliveries.length > 0 ? cachedDeliveries : get().deliveries,
+              leads: cachedLeads.length > 0 ? cachedLeads : get().leads,
             });
           }
           // Mark as hydrated — UI can render with cached data now
@@ -952,6 +959,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             if (data.cashTransactions !== undefined) saveLocalCache(LOCAL_CASH_TRANSACTIONS_CACHE_KEY, data.cashTransactions);
             if (data.invoices !== undefined) saveLocalCache(LOCAL_INVOICES_CACHE_KEY, data.invoices);
             if (data.deliveries !== undefined) saveLocalCache(LOCAL_DELIVERIES_CACHE_KEY, data.deliveries);
+            if (data.leads !== undefined) saveLocalLeadsCache(data.leads);
 
             // --- LEGACY HPP BACKFILL ---
             // Before the HPP mapping fix, market sourcing settlements were posted to inventory (1-3000).
@@ -1909,14 +1917,20 @@ export const useAppStore = create<AppState>((set, get) => ({
         timestamp: new Date().toISOString()
       },
       addLead: async (lead) => {
-        set((state) => ({ leads: [...state.leads, lead] }));
+        set((state) => {
+          const updated = [...state.leads, lead];
+          saveLocalLeadsCache(updated);
+          return { leads: updated };
+        });
         await get().syncTable('leads', lead);
       },
       updateLead: async (id, updates) => {
         const before = get().leads.find(l => l.id === id);
-        set((state) => ({
-          leads: state.leads.map((l) => (l.id === id ? { ...l, ...updates } : l)),
-        }));
+        set((state) => {
+          const updated = state.leads.map((l) => (l.id === id ? { ...l, ...updates } : l));
+          saveLocalLeadsCache(updated);
+          return { leads: updated };
+        });
         const updated = get().leads.find(l => l.id === id);
         if (updated) {
           await get().syncTable('leads', updated);
@@ -1925,7 +1939,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       },
       deleteLead: async (id) => {
         const before = get().leads.find(l => l.id === id);
-        set((state) => ({ leads: state.leads.filter(l => l.id !== id) }));
+        set((state) => {
+          const updated = state.leads.filter(l => l.id !== id);
+          saveLocalLeadsCache(updated);
+          return { leads: updated };
+        });
         await fetch('/api/db', { method: 'DELETE', body: JSON.stringify({ table: 'leads', id }) });
         if (before) await get().logHistory({ table: 'leads', recordId: id, action: 'delete', oldData: before, newData: null });
       },
