@@ -28,6 +28,7 @@ export default function InvoicesPage() {
   const clients = useAppStore(state => state.clients)
   const tukarFakturs = useAppStore(state => state.tukarFakturs)
   const updateInvoice = useAppStore(state => state.updateInvoice)
+  const recordTukarFakturPayment = useAppStore(state => state.recordTukarFakturPayment)
 
   const [activeInvoice, setActiveInvoice] = useState<Invoice | null>(null)
 
@@ -48,6 +49,7 @@ export default function InvoicesPage() {
   const [paymentAmount, setPaymentAmount] = useState(0)
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0])
   const [paymentBankAccountId, setPaymentBankAccountId] = useState("")
+  const [allocations, setAllocations] = useState<Record<string, number>>({})
   const [isManualReceivableOpen, setIsManualReceivableOpen] = useState(false)
   const [manualClientId, setManualClientId] = useState("")
   const [manualInvoiceRef, setManualInvoiceRef] = useState("")
@@ -98,6 +100,39 @@ export default function InvoicesPage() {
   const consolidatedInvoices = filteredInvoices.filter(inv => inv.isConsolidated)
   const visibleInvoices = [...regularInvoices, ...manualInvoices, ...consolidatedInvoices]
 
+  const childInvoices = activeInvoice && activeInvoice.isConsolidated
+    ? invoices.filter(i => i.supersededByInvoiceId === activeInvoice.id)
+    : []
+
+  const handleAutoDistribute = () => {
+    if (!activeInvoice) return
+    let remaining = paymentAmount
+    const nextAllocations: Record<string, number> = {}
+    const sortedChildren = [...childInvoices].sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
+    for (const child of sortedChildren) {
+      const unpaid = child.totalAmount - child.amountPaid
+      if (remaining <= 0) {
+        nextAllocations[child.id] = 0
+      } else if (remaining >= unpaid) {
+        nextAllocations[child.id] = unpaid
+        remaining -= unpaid
+      } else {
+        nextAllocations[child.id] = remaining
+        remaining = 0
+      }
+    }
+    setAllocations(nextAllocations)
+  }
+
+  const handleAllocationChange = (childId: string, value: number) => {
+    setAllocations(prev => ({
+      ...prev,
+      [childId]: value
+    }))
+  }
+
+  const totalAllocated = Object.values(allocations).reduce((sum, val) => sum + (val || 0), 0)
+
   const handleRecordPayment = async () => {
     if (!activeInvoice || paymentAmount <= 0) return
     if (!paymentBankAccountId) {
@@ -108,40 +143,56 @@ export default function InvoicesPage() {
       toast.error("Nominal pembayaran melebihi sisa tagihan!")
       return
     }
+    if (activeInvoice.isConsolidated && totalAllocated !== paymentAmount) {
+      toast.error("Total alokasi per PO harus sama dengan nominal diterima!")
+      return
+    }
 
     setIsRecordingPayment(true)
     try {
-      // 1. Record the double-entry accounting transaction first
-      const success = await recordPaymentReceived(
-        activeInvoice.id,
-        paymentAmount,
-        new Date(paymentDate).toISOString(),
-        paymentBankAccountId
-      )
+      let success = false
+      if (activeInvoice.isConsolidated) {
+        success = await recordTukarFakturPayment(
+          activeInvoice.id,
+          allocations,
+          new Date(paymentDate).toISOString(),
+          paymentBankAccountId,
+          paymentAmount
+        )
+      } else {
+        success = await recordPaymentReceived(
+          activeInvoice.id,
+          paymentAmount,
+          new Date(paymentDate).toISOString(),
+          paymentBankAccountId
+        )
+      }
 
       if (success) {
-        // 2. Only update the invoice status if the ledger write succeeded
-        const newAmountPaid = activeInvoice.amountPaid + paymentAmount
-        const status = newAmountPaid >= activeInvoice.totalAmount ? 'Paid' : 'Partial'
+        if (!activeInvoice.isConsolidated) {
+          const newAmountPaid = activeInvoice.amountPaid + paymentAmount
+          const status = newAmountPaid >= activeInvoice.totalAmount ? 'Paid' : 'Partial'
 
-        const paymentRecord = {
-          id: uuidv4(),
-          amount: paymentAmount,
-          date: new Date(paymentDate).toISOString(),
-          note: "Pembayaran diterima"
+          const paymentRecord = {
+            id: uuidv4(),
+            amount: paymentAmount,
+            date: new Date(paymentDate).toISOString(),
+            note: "Pembayaran diterima"
+          }
+
+          updateInvoice(activeInvoice.id, {
+            amountPaid: newAmountPaid,
+            status: status,
+            payments: [...(activeInvoice.payments || []), paymentRecord]
+          })
         }
-
-        updateInvoice(activeInvoice.id, {
-          amountPaid: newAmountPaid,
-          status: status,
-          payments: [...(activeInvoice.payments || []), paymentRecord]
-        })
 
         toast.success(`Pembayaran ${formatRupiah(paymentAmount)} berhasil dicatat ke rekening tujuan.`)
         setActiveInvoice(null)
         setPaymentAmount(0)
         setPaymentDate(new Date().toISOString().split('T')[0])
         setPaymentBankAccountId("")
+        setAllocations({})
       } else {
         toast.error("Gagal mencatat jurnal pembayaran. Transaksi dibatalkan.")
       }
@@ -864,50 +915,139 @@ export default function InvoicesPage() {
                             {isExpanded && (
                               <TableRow key={`exp-consolidated-${inv.id}`} className="bg-slate-50/50 dark:bg-slate-900/50">
                                 <TableCell colSpan={10} className="p-4 pt-0">
-                                  <div className="bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm animate-in slide-in-from-top-2 duration-200">
-                                    <div className="flex items-center justify-between mb-4">
-                                      <h4 className="text-sm font-bold flex items-center gap-2">
-                                        <History className="w-4 h-4 text-emerald-600" />
-                                        History Pembayaran Tukar Faktur
-                                      </h4>
-                                      <span className="text-xs text-slate-500">
-                                        {inv.payments?.length || 0} Kali Cicilan
-                                      </span>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                      {(!inv.payments || inv.payments.length === 0) ? (
-                                        <div className="text-center py-6 text-xs text-slate-400 italic">
-                                          Belum ada history pembayaran untuk tukar faktur ini.
+                                  <div className="bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm animate-in slide-in-from-top-2 duration-200">
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                      {/* Left Column: Constituent PO Invoices */}
+                                      <div className="space-y-4">
+                                        <div className="flex items-center justify-between">
+                                          <h4 className="text-sm font-bold flex items-center gap-2">
+                                            <Receipt className="w-4 h-4 text-indigo-600" />
+                                            Daftar PO (Invoice Asal)
+                                          </h4>
+                                          <span className="text-xs text-slate-500 font-medium bg-indigo-50 dark:bg-indigo-950/30 px-2.5 py-1 rounded-full border border-indigo-100 dark:border-indigo-900">
+                                            {invoices.filter(i => i.supersededByInvoiceId === inv.id).length} PO Terkait
+                                          </span>
                                         </div>
-                                      ) : (
-                                        <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                                          {[...(inv.payments || [])].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(p => (
-                                            <div key={p.id} className="flex justify-between items-center py-2.5 px-1">
-                                              <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-full bg-emerald-50 dark:bg-emerald-950 flex items-center justify-center">
-                                                  <Receipt className="w-4 h-4 text-emerald-600" />
-                                                </div>
-                                                <div>
-                                                  <p className="text-sm font-bold">{formatRupiah(p.amount)}</p>
-                                                  <div className="flex items-center gap-2 text-[10px] text-slate-500">
-                                                    <CalendarIcon className="w-3 h-3" />
-                                                    {format(new Date(p.date), 'dd MMM yyyy, HH:mm')}
-                                                  </div>
-                                                </div>
-                                              </div>
-                                              <Badge variant="secondary" className="text-[10px] bg-slate-100 font-medium">Sukses</Badge>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      )}
-                                    </div>
 
-                                    {inv.status !== 'Paid' && (
-                                      <div className="mt-4 pt-4 border-t border-dashed border-slate-200 flex justify-between items-center">
-                                        <span className="text-xs text-slate-500 italic">Sisa tagihan tersisa: <span className="font-bold text-rose-600">{formatRupiah(unpaid)}</span></span>
+                                        <div className="border border-slate-100 dark:border-slate-800 rounded-lg overflow-hidden">
+                                          <Table>
+                                            <TableHeader className="bg-slate-50 dark:bg-slate-900/50">
+                                              <TableRow className="hover:bg-transparent">
+                                                <TableHead className="h-9 text-[10px] font-bold uppercase tracking-wider">Ref PO</TableHead>
+                                                <TableHead className="h-9 text-[10px] font-bold uppercase tracking-wider">Jatuh Tempo</TableHead>
+                                                <TableHead className="h-9 text-right text-[10px] font-bold uppercase tracking-wider">Total</TableHead>
+                                                <TableHead className="h-9 text-right text-[10px] font-bold uppercase tracking-wider">Sisa</TableHead>
+                                                <TableHead className="h-9 text-[10px] font-bold uppercase tracking-wider">Status</TableHead>
+                                                <TableHead className="h-9 text-right text-[10px] font-bold uppercase tracking-wider">Aksi</TableHead>
+                                              </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                              {(() => {
+                                                const childInvoices = invoices.filter(i => i.supersededByInvoiceId === inv.id);
+                                                if (childInvoices.length === 0) {
+                                                  return (
+                                                    <TableRow>
+                                                      <TableCell colSpan={6} className="text-center py-4 text-xs text-slate-400 italic">
+                                                        Tidak ada invoice asal ditemukan.
+                                                      </TableCell>
+                                                    </TableRow>
+                                                  );
+                                                }
+                                                return childInvoices.map((child) => {
+                                                  const childSo = salesOrders.find(s => s.id === child.salesOrderId);
+                                                  const childUnpaid = child.totalAmount - child.amountPaid;
+                                                  return (
+                                                    <TableRow key={child.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50">
+                                                      <TableCell className="py-2.5 font-semibold text-xs">{childSo?.poNumber || child.id.substring(0, 8)}</TableCell>
+                                                      <TableCell className="py-2.5 text-xs text-slate-500">{format(new Date(child.dueDate), 'dd/MM/yyyy')}</TableCell>
+                                                      <TableCell className="py-2.5 text-right text-xs font-medium">{formatRupiah(child.totalAmount)}</TableCell>
+                                                      <TableCell className="py-2.5 text-right text-xs font-bold text-rose-600">
+                                                        {childUnpaid > 0 ? formatRupiah(childUnpaid) : <span className="text-emerald-500">-</span>}
+                                                      </TableCell>
+                                                      <TableCell className="py-2.5">
+                                                        <Badge variant={child.status === 'Paid' ? 'default' : 'outline'} className={
+                                                          child.status === 'Paid' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[9px] px-1.5 py-0' :
+                                                            child.status === 'Unpaid' ? 'bg-rose-500/10 text-rose-600 border-rose-500/20 text-[9px] px-1.5 py-0' :
+                                                              'bg-amber-500/10 text-amber-600 border-amber-500/20 text-[9px] px-1.5 py-0'
+                                                        }>
+                                                          {child.status}
+                                                        </Badge>
+                                                      </TableCell>
+                                                      <TableCell className="py-2.5 text-right">
+                                                        {childUnpaid > 0 && (
+                                                          <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="border-emerald-200 bg-emerald-50/30 hover:bg-emerald-50 text-emerald-700 font-bold h-7 px-2.5 text-[10px] rounded-md transition-colors"
+                                                            onClick={() => {
+                                                              setActiveInvoice(inv);
+                                                              setPaymentAmount(childUnpaid);
+                                                              setPaymentBankAccountId("");
+                                                              setAllocations({
+                                                                [child.id]: childUnpaid
+                                                              });
+                                                            }}
+                                                          >
+                                                            Bayar PO
+                                                          </Button>
+                                                        )}
+                                                      </TableCell>
+                                                    </TableRow>
+                                                  );
+                                                });
+                                              })()}
+                                            </TableBody>
+                                          </Table>
+                                        </div>
                                       </div>
-                                    )}
+
+                                      {/* Right Column: Payment History */}
+                                      <div className="space-y-4">
+                                        <div className="flex items-center justify-between">
+                                          <h4 className="text-sm font-bold flex items-center gap-2">
+                                            <History className="w-4 h-4 text-emerald-600" />
+                                            History Pembayaran Tukar Faktur
+                                          </h4>
+                                          <span className="text-xs text-slate-500 font-medium bg-emerald-50 dark:bg-emerald-950/30 px-2.5 py-1 rounded-full border border-emerald-100 dark:border-emerald-900">
+                                            {inv.payments?.length || 0} Kali Cicilan
+                                          </span>
+                                        </div>
+
+                                        <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                                          {(!inv.payments || inv.payments.length === 0) ? (
+                                            <div className="text-center py-10 border border-dashed border-slate-100 dark:border-slate-800 rounded-lg text-xs text-slate-400 italic">
+                                              Belum ada history pembayaran untuk tukar faktur ini.
+                                            </div>
+                                          ) : (
+                                            <div className="divide-y divide-slate-100 dark:divide-slate-800 border border-slate-100 dark:border-slate-800 rounded-lg p-2 bg-slate-50/30 dark:bg-slate-900/10">
+                                              {[...(inv.payments || [])].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(p => (
+                                                <div key={p.id} className="flex justify-between items-center py-2.5 px-2">
+                                                  <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 rounded-full bg-emerald-50 dark:bg-emerald-950/50 flex items-center justify-center border border-emerald-100 dark:border-emerald-900">
+                                                      <Receipt className="w-4 h-4 text-emerald-600" />
+                                                    </div>
+                                                    <div>
+                                                      <p className="text-sm font-bold">{formatRupiah(p.amount)}</p>
+                                                      <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                                                        <CalendarIcon className="w-3 h-3" />
+                                                        {format(new Date(p.date), 'dd MMM yyyy, HH:mm')}
+                                                      </div>
+                                                    </div>
+                                                  </div>
+                                                  <Badge variant="secondary" className="text-[10px] bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/50 font-medium">Sukses</Badge>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </div>
+
+                                        {inv.status !== 'Paid' && (
+                                          <div className="pt-2 flex justify-between items-center">
+                                            <span className="text-xs text-slate-500 italic">Sisa tagihan tersisa: <span className="font-bold text-rose-600">{formatRupiah(unpaid)}</span></span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
                                   </div>
                                 </TableCell>
                               </TableRow>
@@ -1021,6 +1161,7 @@ export default function InvoicesPage() {
         if (!open) {
           setActiveInvoice(null)
           setPaymentBankAccountId("")
+          setAllocations({})
           if (typeof window !== 'undefined') {
             const params = new URLSearchParams(window.location.search);
             if (params.has('detailId')) {
@@ -1031,7 +1172,7 @@ export default function InvoicesPage() {
           }
         }
       }}>
-        <DialogContent>
+        <DialogContent className={activeInvoice?.isConsolidated ? "sm:max-w-xl" : undefined}>
           <DialogHeader>
             <DialogTitle>Catat Pembayaran Masuk (Pelunasan AR)</DialogTitle>
           </DialogHeader>
@@ -1093,6 +1234,56 @@ export default function InvoicesPage() {
               </Select>
             </div>
 
+            {activeInvoice?.isConsolidated && (
+              <div className="space-y-4 border-t pt-4">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-bold text-slate-800 dark:text-slate-200">Alokasi Pembayaran per PO</label>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 border-indigo-200 text-indigo-700 font-bold bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/20 dark:text-indigo-400 dark:border-indigo-900"
+                    onClick={handleAutoDistribute}
+                  >
+                    Bagi Otomatis (FIFO)
+                  </Button>
+                </div>
+                
+                <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                  {childInvoices.map((child) => {
+                    const childSo = salesOrders.find(s => s.id === child.salesOrderId);
+                    const childUnpaid = child.totalAmount - child.amountPaid;
+                    const allocatedVal = allocations[child.id] || 0;
+                    return (
+                      <div key={child.id} className="flex items-center justify-between gap-4 p-2 bg-slate-50 dark:bg-slate-900 rounded border border-slate-100 dark:border-slate-800">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold truncate">{childSo?.poNumber || child.id.substring(0, 8)}</p>
+                          <p className="text-[10px] text-slate-500">Sisa: {formatRupiah(childUnpaid)}</p>
+                        </div>
+                        <div className="relative w-40">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-semibold">Rp</span>
+                          <Input
+                            type="number"
+                            className="h-9 text-xs font-bold pl-8 pr-2"
+                            placeholder="0"
+                            value={allocatedVal || ""}
+                            onChange={(e) => handleAllocationChange(child.id, Math.max(0, parseInt(e.target.value) || 0))}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="flex justify-between items-center text-xs p-2.5 rounded bg-amber-50 dark:bg-amber-950/20 border border-amber-200/50 text-amber-800 dark:text-amber-300">
+                  <span>Total Dialokasikan: <strong>{formatRupiah(totalAllocated)}</strong></span>
+                  {totalAllocated !== paymentAmount && (
+                    <span className="font-medium text-rose-600 dark:text-rose-400">Selisih: {formatRupiah(paymentAmount - totalAllocated)}</span>
+                  )}
+                </div>
+              </div>
+            )}
+
             <p className="text-xs text-slate-500 bg-slate-50 dark:bg-slate-900 p-2 rounded">
               Catatan: Kas & Bank akan didebit, Piutang Usaha akan dikredit sesuai tanggal transaksi yang dipilih.
             </p>
@@ -1100,7 +1291,7 @@ export default function InvoicesPage() {
             <Button
               className="w-full h-14 bg-emerald-600 hover:bg-emerald-700 text-lg font-black tracking-wide shadow-lg shadow-emerald-200 dark:shadow-none mt-2 rounded-2xl border-none"
               onClick={handleRecordPayment}
-              disabled={isRecordingPayment}
+              disabled={isRecordingPayment || !paymentBankAccountId || paymentAmount <= 0 || (activeInvoice?.isConsolidated && totalAllocated !== paymentAmount)}
             >
               {isRecordingPayment ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" />Mencatat...</> : "Konfirmasi Pembayaran"}
             </Button>
