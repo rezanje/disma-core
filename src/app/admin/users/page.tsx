@@ -128,11 +128,15 @@ export default function UserManagementPage() {
   }
 
   const saveName = () => {
-    if (editingId && newName) {
-      updateUser(editingId, { name: newName })
-      setEditingId(null)
-      toast.success("Nama berhasil diperbarui.")
+    if (!editingId) return;
+    const trimmedName = newName.trim();
+    if (!trimmedName) {
+      toast.error("Nama karyawan tidak boleh kosong.");
+      return;
     }
+    updateUser(editingId, { name: trimmedName });
+    setEditingId(null);
+    toast.success("Nama berhasil diperbarui.");
   }
 
   // Group pages by category
@@ -236,19 +240,37 @@ export default function UserManagementPage() {
                         <TableRow key={user.id}>
                           <TableCell>
                             {editingId === user.id ? (
-                              <div className="flex items-center gap-2 max-w-[200px]">
+                              <div className="flex flex-col sm:flex-row sm:items-center gap-2 max-w-md">
                                 <Input 
                                   value={newName} 
                                   onChange={(e) => setNewName(e.target.value)}
-                                  className="h-8 text-xs font-bold"
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") saveName();
+                                    if (e.key === "Escape") setEditingId(null);
+                                  }}
+                                  className="h-8 text-xs font-bold w-full sm:w-48 bg-white dark:bg-slate-800"
                                   autoFocus 
                                 />
-                                <Button size="icon" variant="ghost" className="h-8 w-8 text-emerald-600" onClick={saveName}>
-                                   <Check className="w-4 h-4" />
-                                </Button>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <Button 
+                                    size="sm" 
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-8 text-[11px] px-3 rounded-lg transition-colors cursor-pointer" 
+                                    onClick={saveName}
+                                  >
+                                    Simpan
+                                  </Button>
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline" 
+                                    className="border-slate-200 hover:bg-slate-50 text-slate-600 font-bold h-8 text-[11px] px-3 rounded-lg dark:border-slate-800 dark:hover:bg-slate-800 dark:text-slate-400 transition-colors cursor-pointer" 
+                                    onClick={() => setEditingId(null)}
+                                  >
+                                    Batal
+                                  </Button>
+                                </div>
                               </div>
                             ) : (
-                              <div className="flex items-center gap-2 group">
+                              <div className="flex items-center gap-2">
                                 <div>
                                   <div className="font-bold text-slate-800 dark:text-slate-200">{user.name}</div>
                                   <div className="text-[10px] text-slate-400 font-medium uppercase tracking-widest">{user.id}</div>
@@ -256,10 +278,10 @@ export default function UserManagementPage() {
                                 <Button 
                                   variant="ghost" 
                                   size="icon" 
-                                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  className="h-6 w-6 text-slate-400 hover:text-emerald-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                                   onClick={() => startEditing(user)}
                                 >
-                                   <Edit2 className="w-3 h-3 text-slate-400" />
+                                   <Edit2 className="w-3 h-3" />
                                 </Button>
                               </div>
                             )}
