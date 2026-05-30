@@ -705,7 +705,7 @@ export default function CeoDashboard() {
             "liquid-card border-none overflow-hidden group relative",
             m.isHero && "bg-slate-900 scale-105 shadow-2xl shadow-emerald-500/10 z-10"
           )}>
-            <CardContent className="p-8">
+            <CardContent className="p-4 md:p-8">
               <div className="flex justify-between items-start mb-6">
                 <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg", m.color)}>
                   {m.icon}
@@ -733,7 +733,7 @@ export default function CeoDashboard() {
       {/* Analytics Layer */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <Card className="lg:col-span-2 liquid-card border-none">
-          <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 px-8 pt-8">
+          <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 px-4 md:px-8 pt-4 md:pt-8">
             <div>
               <CardTitle className="text-xl font-black text-slate-900 flex items-center gap-2">
                 Growth Momentum <span className="emoji-3d">📈</span>
@@ -775,7 +775,7 @@ export default function CeoDashboard() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="h-[400px] p-8 pt-4">
+          <CardContent className="h-[300px] md:h-[400px] p-3 md:p-8 pt-4">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={cockpitData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
                 <defs>
@@ -820,7 +820,7 @@ export default function CeoDashboard() {
 
         {/* OpEx Breakdown */}
         <Card className="liquid-card border-none">
-          <CardHeader className="p-8">
+          <CardHeader className="p-4 md:p-8">
             <CardTitle className="text-xl font-black text-slate-900">OpEx Breakdown</CardTitle>
             <CardDescription className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Operational Expenses</CardDescription>
           </CardHeader>
@@ -847,7 +847,7 @@ export default function CeoDashboard() {
                 </PieChart>
               </ResponsiveContainer>
             </div>
-            <div className="grid grid-cols-2 gap-4 w-full px-8 pb-10 mt-6">
+            <div className="grid grid-cols-2 gap-4 w-full px-4 md:px-8 pb-10 mt-6">
                {opexCategories.map((cat, i) => (
                  <div key={i} className="flex flex-col gap-1">
                     <div className="flex items-center gap-2">
@@ -876,7 +876,7 @@ export default function CeoDashboard() {
           { label: "Warehouse", value: warehouseCount, icon: <Package className="text-indigo-500" />, desc: "Packing & QC", color: "bg-indigo-50" },
           { label: "Completed", value: completedCount, icon: <Target className="text-emerald-600" />, desc: "Delivered Orders", color: "bg-emerald-50" },
         ].map((item, i) => (
-          <div key={i} className="flex flex-col p-8 rounded-[3rem] bg-white shadow-sm border border-slate-100 hover:border-emerald-200 transition-all duration-300 group hover:-translate-y-1">
+          <div key={i} className="flex flex-col p-4 md:p-8 rounded-[3rem] bg-white shadow-sm border border-slate-100 hover:border-emerald-200 transition-all duration-300 group hover:-translate-y-1">
              <div className={cn("w-14 h-14 rounded-3xl flex items-center justify-center mb-6 transition-transform group-hover:scale-110", item.color)}>
                 {item.icon}
              </div>
@@ -891,7 +891,7 @@ export default function CeoDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Top Clients by Revenue */}
         <Card className="liquid-card border-none">
-          <CardHeader className="p-8 pb-4">
+          <CardHeader className="p-4 md:p-8 pb-4">
             <CardTitle className="text-lg font-black text-slate-900 flex items-center gap-2">
               TOP Clients by Revenue <Award className="w-5 h-5 text-amber-500" />
             </CardTitle>
@@ -899,7 +899,7 @@ export default function CeoDashboard() {
               Top 5 Kontribusi Revenue Terbesar (Jan-Mei)
             </CardDescription>
           </CardHeader>
-          <CardContent className="px-8 pb-8">
+          <CardContent className="px-4 md:px-8 pb-8">
             <div className="space-y-4 max-h-[350px] overflow-y-auto pr-2 scrollbar-thin">
               {topClientsRevenue.map((c, idx) => (
                 <div key={c.id} onClick={() => setSelectedClient(c)} className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 hover:bg-slate-100 transition-all duration-200 cursor-pointer hover:scale-[1.01] active:scale-[0.99] group hover:shadow-sm">
@@ -932,7 +932,7 @@ export default function CeoDashboard() {
 
         {/* Top Clients by Outstanding AR */}
         <Card className="liquid-card border-none">
-          <CardHeader className="p-8 pb-4">
+          <CardHeader className="p-4 md:p-8 pb-4">
             <CardTitle className="text-lg font-black text-slate-900 flex items-center gap-2">
               TOP Outstanding Klien <Coins className="w-5 h-5 text-rose-500" />
             </CardTitle>
@@ -940,7 +940,7 @@ export default function CeoDashboard() {
               Top 5 Piutang Klien Terbanyak
             </CardDescription>
           </CardHeader>
-          <CardContent className="px-8 pb-8">
+          <CardContent className="px-4 md:px-8 pb-8">
             <div className="space-y-4 max-h-[350px] overflow-y-auto pr-2 scrollbar-thin">
               {topClientsAR.map((c, idx) => (
                 <div key={c.id} onClick={() => setSelectedClient(c)} className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 hover:bg-slate-100 transition-all duration-200 cursor-pointer hover:scale-[1.01] active:scale-[0.99] group hover:shadow-sm">
@@ -978,7 +978,7 @@ export default function CeoDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Client Invoice Collection Priority */}
         <Card className="liquid-card border-none">
-          <CardHeader className="p-8 pb-4">
+          <CardHeader className="p-4 md:p-8 pb-4">
             <CardTitle className="text-lg font-black text-slate-900 flex items-center gap-2">
               Prioritas Penagihan Hari Ini <AlertTriangle className="w-5 h-5 text-rose-500" />
             </CardTitle>
@@ -986,7 +986,7 @@ export default function CeoDashboard() {
               Outstanding Piutang Terurut dari Terlama
             </CardDescription>
           </CardHeader>
-          <CardContent className="px-8 pb-8">
+          <CardContent className="px-4 md:px-8 pb-8">
             <div className="space-y-4 max-h-[350px] overflow-y-auto pr-2 scrollbar-thin">
               {collectionPriorities.map((item) => (
                 <div key={item.invoice.id} onClick={() => setSelectedInvoice(item.invoice)} className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 hover:bg-slate-100 transition-all duration-200 cursor-pointer hover:scale-[1.01] active:scale-[0.99] group hover:shadow-sm">
@@ -1062,7 +1062,7 @@ export default function CeoDashboard() {
 
         {/* Vendor Payments Priority */}
         <Card className="liquid-card border-none">
-          <CardHeader className="p-8 pb-4">
+          <CardHeader className="p-4 md:p-8 pb-4">
             <CardTitle className="text-lg font-black text-slate-900 flex items-center gap-2">
               Jatuh Tempo Pembayaran Vendor <Clock className="w-5 h-5 text-indigo-500" />
             </CardTitle>
@@ -1070,7 +1070,7 @@ export default function CeoDashboard() {
               Hutang Vendor Terurut dari Terlama
             </CardDescription>
           </CardHeader>
-          <CardContent className="px-8 pb-8">
+          <CardContent className="px-4 md:px-8 pb-8">
             <div className="space-y-4 max-h-[350px] overflow-y-auto pr-2 scrollbar-thin">
               {vendorPaymentsPriorities.map((item) => (
                 <div key={item.bill.id} onClick={() => setSelectedVendorBill(item.bill)} className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 hover:bg-slate-100 transition-all duration-200 cursor-pointer hover:scale-[1.01] active:scale-[0.99] group hover:shadow-sm">
@@ -1117,14 +1117,14 @@ export default function CeoDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Executive Priority Watchlist */}
         <Card className="liquid-card border-none lg:col-span-1">
-           <CardHeader className="p-8 pb-4">
+           <CardHeader className="p-4 md:p-8 pb-4">
               <CardTitle className="text-lg font-black text-slate-900 flex items-center gap-2">
                 Executive Priority Watchlist <span className="emoji-3d">🚩</span>
               </CardTitle>
               <CardDescription className="text-xs font-bold text-slate-400 uppercase tracking-widest leading-relaxed mt-1">Crucial financial accounts requiring attention.</CardDescription>
            </CardHeader>
            <CardContent className="p-0">
-              <div className="divide-y divide-slate-100 px-8 pb-8">
+              <div className="divide-y divide-slate-100 px-4 md:px-8 pb-8">
                 {[
                   { name: "Piutang Usaha (AR)", val: totalOutstandingAR, icon: "💰", alert: totalOutstandingAR > 50000000 },
                   { name: "Hutang Usaha (AP)", val: getBalance('2-1000'), icon: "🧾" },
@@ -1159,7 +1159,7 @@ export default function CeoDashboard() {
            {/* Global Pipeline / Leads */}
            <Card className="liquid-card border-none bg-indigo-600 text-white overflow-hidden relative group">
               <div className="absolute top-0 right-0 w-80 h-80 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl pointer-events-none group-hover:bg-white/20 transition-all duration-700" />
-              <CardContent className="p-10 flex flex-col md:flex-row items-center justify-between gap-8 relative z-10">
+              <CardContent className="p-5 md:p-10 flex flex-col md:flex-row items-center justify-between gap-8 relative z-10">
                 <div className="flex items-center gap-8">
                   <div className="w-20 h-20 bg-white/10 rounded-[2.5rem] flex items-center justify-center border border-white/20 backdrop-blur-md shadow-2xl group-hover:rotate-6 transition-transform">
                     <Target className="w-10 h-10 text-indigo-300" />
@@ -1183,7 +1183,7 @@ export default function CeoDashboard() {
 
            {/* CEO Broadcast Hub */}
            <Card className="liquid-card border-none bg-white shadow-xl">
-             <CardContent className="p-10 flex flex-col md:flex-row items-start gap-10">
+             <CardContent className="p-5 md:p-10 flex flex-col md:flex-row items-start gap-10">
                <div className="shrink-0 flex items-center justify-center w-20 h-20 bg-emerald-500 rounded-[2.5rem] shadow-2xl shadow-emerald-500/20 group animate-in zoom-in duration-500">
                  <Megaphone className="w-10 h-10 text-slate-950 rotate-[-15deg] group-hover:rotate-0 transition-transform" />
                </div>
@@ -1199,14 +1199,14 @@ export default function CeoDashboard() {
                     value={announcementMsg}
                     onChange={(e) => setAnnouncementMsg(e.target.value)}
                     placeholder="Type your strategic message here..."
-                    className="min-h-[120px] bg-slate-50 border-none rounded-[2rem] p-8 text-lg font-bold shadow-inner focus-visible:ring-emerald-500/20 ring-0 focus-visible:bg-white transition-all"
+                    className="min-h-[120px] bg-slate-50 border-none rounded-[2rem] p-4 md:p-8 text-lg font-bold shadow-inner focus-visible:ring-emerald-500/20 ring-0 focus-visible:bg-white transition-all"
                   />
                   <div className="flex items-center justify-between">
                      <p className="text-[10px] font-bold text-slate-400 max-w-[200px] leading-normal uppercase">Your message will appear at the top of all user dashboards instantly.</p>
                      <div className="flex gap-4">
                         <Button 
                           variant="ghost" 
-                          className="text-slate-400 font-black px-8 h-14 rounded-full hover:bg-slate-50" 
+                          className="text-slate-400 font-black px-4 md:px-8 h-14 rounded-full hover:bg-slate-50" 
                           onClick={() => { setAnnouncementMsg(""); handleBroadcast(); }}
                         >
                           Clear Board
@@ -1227,7 +1227,7 @@ export default function CeoDashboard() {
 
       {/* 1. CLIENT DETAIL MODAL */}
       <Dialog open={selectedClient !== null} onOpenChange={(open) => !open && setSelectedClient(null)}>
-        <DialogContent className="sm:max-w-4xl w-[95vw] max-h-[90vh] overflow-y-auto border-none bg-white rounded-[2rem] p-8 shadow-2xl">
+        <DialogContent className="sm:max-w-4xl w-[95vw] max-h-[90vh] overflow-y-auto border-none bg-white rounded-[2rem] p-4 md:p-8 shadow-2xl">
           {selectedClientDetails && (
             <div className="space-y-6">
               <DialogHeader className="border-b border-slate-100 pb-4">
@@ -1414,7 +1414,7 @@ export default function CeoDashboard() {
 
       {/* 2. INVOICE DETAIL MODAL */}
       <Dialog open={selectedInvoice !== null} onOpenChange={(open) => !open && setSelectedInvoice(null)}>
-        <DialogContent className="sm:max-w-4xl w-[95vw] max-h-[90vh] overflow-y-auto border-none bg-white rounded-[2rem] p-8 shadow-2xl">
+        <DialogContent className="sm:max-w-4xl w-[95vw] max-h-[90vh] overflow-y-auto border-none bg-white rounded-[2rem] p-4 md:p-8 shadow-2xl">
           {selectedInvoice && (
             <div className="space-y-6">
               <DialogHeader className="border-b border-slate-100 pb-4">
@@ -1592,7 +1592,7 @@ export default function CeoDashboard() {
 
       {/* 3. VENDOR BILL DETAIL MODAL */}
       <Dialog open={selectedVendorBill !== null} onOpenChange={(open) => !open && setSelectedVendorBill(null)}>
-        <DialogContent className="sm:max-w-4xl w-[95vw] max-h-[90vh] overflow-y-auto border-none bg-white rounded-[2rem] p-8 shadow-2xl">
+        <DialogContent className="sm:max-w-4xl w-[95vw] max-h-[90vh] overflow-y-auto border-none bg-white rounded-[2rem] p-4 md:p-8 shadow-2xl">
           {selectedVendorBill && (
             <div className="space-y-6">
               <DialogHeader className="border-b border-slate-100 pb-4">
