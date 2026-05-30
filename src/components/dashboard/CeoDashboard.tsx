@@ -680,7 +680,7 @@ export default function CeoDashboard() {
       {/* Header Section */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
+          <h1 className="text-xl md:text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
             Executive Cockpit Review <span className="emoji-3d">🚀</span>
           </h1>
           <p className="text-sm font-bold text-slate-400 mt-2">One screen, total control. Real-time business health summary.</p>
@@ -876,7 +876,7 @@ export default function CeoDashboard() {
           { label: "Warehouse", value: warehouseCount, icon: <Package className="text-indigo-500" />, desc: "Packing & QC", color: "bg-indigo-50" },
           { label: "Completed", value: completedCount, icon: <Target className="text-emerald-600" />, desc: "Delivered Orders", color: "bg-emerald-50" },
         ].map((item, i) => (
-          <div key={i} className="flex flex-col p-4 md:p-8 rounded-[3rem] bg-white shadow-sm border border-slate-100 hover:border-emerald-200 transition-all duration-300 group hover:-translate-y-1">
+          <div key={i} className="flex flex-col p-4 md:p-8 rounded-2xl md:rounded-[3rem] bg-white shadow-sm border border-slate-100 hover:border-emerald-200 transition-all duration-300 group hover:-translate-y-1">
              <div className={cn("w-14 h-14 rounded-3xl flex items-center justify-center mb-6 transition-transform group-hover:scale-110", item.color)}>
                 {item.icon}
              </div>
@@ -1161,7 +1161,7 @@ export default function CeoDashboard() {
               <div className="absolute top-0 right-0 w-80 h-80 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl pointer-events-none group-hover:bg-white/20 transition-all duration-700" />
               <CardContent className="p-5 md:p-10 flex flex-col md:flex-row items-center justify-between gap-8 relative z-10">
                 <div className="flex items-center gap-8">
-                  <div className="w-20 h-20 bg-white/10 rounded-[2.5rem] flex items-center justify-center border border-white/20 backdrop-blur-md shadow-2xl group-hover:rotate-6 transition-transform">
+                  <div className="w-20 h-20 bg-white/10 rounded-2xl md:rounded-[2.5rem] flex items-center justify-center border border-white/20 backdrop-blur-md shadow-2xl group-hover:rotate-6 transition-transform">
                     <Target className="w-10 h-10 text-indigo-300" />
                   </div>
                   <div>
@@ -1184,7 +1184,7 @@ export default function CeoDashboard() {
            {/* CEO Broadcast Hub */}
            <Card className="liquid-card border-none bg-white shadow-xl">
              <CardContent className="p-5 md:p-10 flex flex-col md:flex-row items-start gap-10">
-               <div className="shrink-0 flex items-center justify-center w-20 h-20 bg-emerald-500 rounded-[2.5rem] shadow-2xl shadow-emerald-500/20 group animate-in zoom-in duration-500">
+               <div className="shrink-0 flex items-center justify-center w-20 h-20 bg-emerald-500 rounded-2xl md:rounded-[2.5rem] shadow-2xl shadow-emerald-500/20 group animate-in zoom-in duration-500">
                  <Megaphone className="w-10 h-10 text-slate-950 rotate-[-15deg] group-hover:rotate-0 transition-transform" />
                </div>
                <div className="flex-1 space-y-6">
