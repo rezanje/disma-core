@@ -161,3 +161,12 @@
   .glass-card { @apply bg-white/40 backdrop-blur-2xl border border-white/40 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.05)] rounded-[3rem]; }
   .glass-topbar { @apply bg-white/40 backdrop-blur-xl border-none; }
 }
+
+@layer utilities {
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .h-safe-nav {
+    height: calc(4rem + env(safe-area-inset-bottom, 0px));
+  }
+}
