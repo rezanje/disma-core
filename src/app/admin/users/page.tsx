@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils"
 import { Shield, UserCog, AlertCircle, Plus, Edit2, Check, Users as UsersIcon } from "lucide-react"
 import { toast } from "sonner"
 import AuthGuard from "@/components/auth/auth-guard"
+import { ResponsiveTable } from "@/components/ui/responsive-table"
 
 import { APP_PAGES } from "@/lib/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -227,6 +228,7 @@ export default function UserManagementPage() {
                    <CardDescription>Total {users.length} personil terdaftar.</CardDescription>
                 </CardHeader>
                 <CardContent className="p-0">
+                  <ResponsiveTable>
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-slate-100/30">
@@ -313,6 +315,7 @@ export default function UserManagementPage() {
                       ))}
                     </TableBody>
                   </Table>
+                  </ResponsiveTable>
                 </CardContent>
               </Card>
 
