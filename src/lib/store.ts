@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { 
   Client, Product, SalesOrder, SalesOrderItem, Purchase, 
-  PurchaseItem, Delivery, Invoice, ChartOfAccount, JournalEntry, 
+  PurchaseItem, Delivery, Invoice, InvoiceStatus, ChartOfAccount, JournalEntry, 
   JournalLine, OperationalExpense, User, Vendor, Role, Lead, Announcement, AppTask, AppNotification,
   BankAccount, CashTransaction, Reimbursement, FixedAsset,
   Employee, SmartKpi, OkrObjective, OkrKeyResult, RolePermissionMap, AccessKey, PendingReturn, RejectedItem, StockMovement, ClientPrice,
@@ -359,6 +359,13 @@ interface AppState {
   deleteTukarFaktur: (id: string) => Promise<void>;
   issueTukarFaktur: (tfId: string, invoiceIds: string[], issueDate: string, userId: string) => Promise<unknown>;
   linkInvoicesToTukarFaktur: (tfId: string, invoiceIds: string[]) => Promise<unknown>;
+  recordTukarFakturPayment: (
+    tfId: string,
+    allocations: Record<string, number>,
+    paymentDate: string,
+    bankAccountId: string,
+    totalAmount: number
+  ) => Promise<boolean>;
 
   // Accounts Payable (Vendor Bills)
   vendorBills: VendorBill[];
@@ -1769,6 +1776,93 @@ export const useAppStore = create<AppState>((set, get) => ({
           }));
         }
         return data;
+      },
+
+      recordTukarFakturPayment: async (tfId, allocations, paymentDate, bankAccountId, totalAmount) => {
+        const { recordPaymentReceived } = await import('./accounting');
+        const state = get();
+        
+        let childUpdates: { id: string; data: Partial<Invoice> }[] = [];
+        let success = true;
+
+        for (const [childId, amount] of Object.entries(allocations)) {
+          if (amount <= 0) continue;
+          const child = state.invoices.find(i => i.id === childId);
+          if (!child) continue;
+
+          const apiSuccess = await recordPaymentReceived(childId, amount, paymentDate, bankAccountId);
+          if (!apiSuccess) {
+            success = false;
+            break;
+          }
+
+          const newAmountPaid = (child.amountPaid || 0) + amount;
+          const status: InvoiceStatus = newAmountPaid >= child.totalAmount ? 'Paid' : 'Partial';
+          const paymentRecord = {
+            id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+            amount,
+            date: paymentDate,
+            note: `Pembayaran via Tukar Faktur ${tfId}`
+          };
+
+          childUpdates.push({
+            id: childId,
+            data: {
+              amountPaid: newAmountPaid,
+              status,
+              payments: [...(child.payments || []), paymentRecord]
+            }
+          });
+        }
+
+        if (!success) return false;
+
+        // Update child invoices in state
+        const updatedInvoices = state.invoices.map(inv => {
+          const update = childUpdates.find(u => u.id === inv.id);
+          return update ? { ...inv, ...update.data } : inv;
+        });
+
+        // Update parent Tukar Faktur invoice
+        const parent = updatedInvoices.find(i => i.id === tfId);
+        if (parent) {
+          const parentChildren = updatedInvoices.filter(i => i.supersededByInvoiceId === tfId);
+          const totalPaid = parentChildren.reduce((sum, c) => sum + (c.amountPaid || 0), 0);
+          const status: InvoiceStatus = totalPaid >= parent.totalAmount ? 'Paid' : totalPaid > 0 ? 'Partial' : 'Unpaid';
+          
+          const parentPaymentRecord = {
+            id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+            amount: totalAmount,
+            date: paymentDate,
+            note: `Pembayaran bulk Tukar Faktur`
+          };
+
+          const updatedParent = {
+            ...parent,
+            amountPaid: totalPaid,
+            status,
+            payments: [...(parent.payments || []), parentPaymentRecord]
+          };
+
+          const finalInvoices = updatedInvoices.map(inv => inv.id === tfId ? updatedParent : inv);
+          set({ invoices: finalInvoices });
+          
+          // Save to localStorage cache
+          saveLocalCache(LOCAL_INVOICES_CACHE_KEY, finalInvoices);
+
+          // Sync parent to database
+          await get().syncTable('invoices', updatedParent);
+        }
+
+        // Sync children to database
+        for (const update of childUpdates) {
+          const updatedChild = updatedInvoices.find(i => i.id === update.id);
+          if (updatedChild) {
+            await get().syncTable('invoices', updatedChild);
+          }
+        }
+
+        return true;
       },
 
       // === Vendor Bills (Accounts Payable) ===
