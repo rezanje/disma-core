@@ -76,8 +76,8 @@ export default function SettingsLayout({ children }: SettingsLayoutProps) {
         <Sidebar roleName={currentUser?.role?.replace('_', ' ') || 'Settings'} />
 
         <div className={cn(
-          "flex-1 flex flex-col transition-all duration-500 min-w-0 pr-4",
-          isMinimized ? "pl-28" : "pl-72"
+          "flex-1 flex flex-col transition-all duration-500 min-w-0 px-4 md:px-0 md:pr-4 pb-20 md:pb-6",
+          isMinimized ? "md:pl-28" : "md:pl-72"
         )}>
           <div className="w-full space-y-6 pt-10 pb-20 px-4 flex-1">
             <div className="mb-8">
