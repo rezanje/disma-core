@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useAppStore } from "@/lib/store"
 import { Plus, Pencil, Trash2, Share2, DollarSign, Receipt, TrendingUp, History, FileText, Download, Upload, Eye, Search, Filter, Printer, Mail, ChevronRight, ChevronDown, CheckCircle2, X, Loader2, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react"
 import { v4 as uuidv4 } from "uuid"
@@ -45,6 +45,35 @@ export default function ClientsPage() {
   const [isOpen, setIsOpen] = useState(false)
   const [editingClient, setEditingClient] = useState<Client | null>(null)
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
+
+  // Listen to URL search param detailId to auto-select client details
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const searchParams = new URLSearchParams(window.location.search);
+      const detailId = searchParams.get('detailId');
+      if (detailId && detailId !== selectedClientId) {
+        const clientExists = clients.some(c => c.id === detailId);
+        if (clientExists) {
+          setSelectedClientId(detailId);
+        }
+      }
+    }
+  }, [clients, selectedClientId]);
+
+  // Synchronize selectedClientId with URL (clear detailId parameter if selectedClientId is null)
+  useEffect(() => {
+    if (selectedClientId === null) {
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        if (params.has('detailId')) {
+          params.delete('detailId');
+          const newUrl = window.location.pathname + (params.toString() ? `?${params.toString()}` : '');
+          window.history.replaceState(null, '', newUrl);
+        }
+      }
+    }
+  }, [selectedClientId]);
+
   const [pdfPreview, setPdfPreview] = useState<{ url: string, title: string } | null>(null)
   const [invoicePreview, setInvoicePreview] = useState<{ id: string, isConsolidated: boolean } | null>(null)
   const [search, setSearch] = useState("")

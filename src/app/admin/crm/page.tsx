@@ -43,11 +43,14 @@ export default function CRMPipelinePage() {
   const addLead = useAppStore(state => state.addLead)
   const updateLead = useAppStore(state => state.updateLead)
   const deleteLead = useAppStore(state => state.deleteLead)
+  const users = useAppStore(state => state.users)
+  const currentUser = useAppStore(state => state.currentUser)
+  const uniqueUsers = Array.from(new Map(users.map(u => [u.name, u])).values())
 
   const [isAddLeadOpen, setIsAddLeadOpen] = useState(false)
   const initialLeadState = { 
     companyName: "", contactName: "", value: "0", status: "Lead" as LeadStatus,
-    channel: "", jabatan: "", noHp: "", email: "", picDisma: "", priority: "Medium" as "High" | "Medium" | "Low", lastContact: "", nextStepContact: ""
+    channel: "", jabatan: "", noHp: "", email: "", picDisma: currentUser?.name || "", priority: "Medium" as "High" | "Medium" | "Low", lastContact: "", nextStepContact: "", notes: ""
   }
   const [newLead, setNewLead] = useState(initialLeadState)
   const [editingLead, setEditingLead] = useState<Lead | null>(null)
@@ -64,7 +67,7 @@ export default function CRMPipelinePage() {
       id: `lead-${Date.now()}`,
       companyName: newLead.companyName,
       contactName: newLead.contactName,
-      value: parseFloat(newLead.value),
+      value: parseFloat(newLead.value) || 0,
       status: newLead.status,
       channel: newLead.channel,
       jabatan: newLead.jabatan,
@@ -74,6 +77,7 @@ export default function CRMPipelinePage() {
       priority: newLead.priority,
       lastContact: newLead.lastContact,
       nextStepContact: newLead.nextStepContact,
+      notes: newLead.notes,
       createdAt: new Date().toISOString()
     })
     
@@ -131,36 +135,108 @@ export default function CRMPipelinePage() {
                   </Button>
                 }
               />
-              <DialogContent>
+              <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Mendaftarkan Lead Baru</DialogTitle>
                   <DialogDescription>Input calon klien potensial untuk tracking sales pipeline.</DialogDescription>
                 </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="company">Nama Perusahaan / Klien</Label>
-                    <Input id="company" value={newLead.companyName} onChange={e => setNewLead({...newLead, companyName: e.target.value})} />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
+                  {/* Kolom Kiri */}
+                  <div className="space-y-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="add-company">Nama Perusahaan / Klien</Label>
+                      <Input id="add-company" value={newLead.companyName} onChange={e => setNewLead({...newLead, companyName: e.target.value})} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="add-contact">Nama PIC / Kontak</Label>
+                      <Input id="add-contact" value={newLead.contactName} onChange={e => setNewLead({...newLead, contactName: e.target.value})} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="add-jabatan">Jabatan PIC</Label>
+                      <Input id="add-jabatan" value={newLead.jabatan} onChange={e => setNewLead({...newLead, jabatan: e.target.value})} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="add-no-hp">No. HP / WhatsApp</Label>
+                      <Input id="add-no-hp" value={newLead.noHp} onChange={e => setNewLead({...newLead, noHp: e.target.value})} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="add-email">Email</Label>
+                      <Input id="add-email" type="email" value={newLead.email} onChange={e => setNewLead({...newLead, email: e.target.value})} />
+                    </div>
                   </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="contact">Nama PIC / Kontak</Label>
-                    <Input id="contact" value={newLead.contactName} onChange={e => setNewLead({...newLead, contactName: e.target.value})} />
+
+                  {/* Kolom Kanan */}
+                  <div className="space-y-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="add-value">Estimasi Nilai Proyek (Rp)</Label>
+                      <Input id="add-value" type="number" value={newLead.value} onChange={e => setNewLead({...newLead, value: e.target.value})} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Status Awal</Label>
+                      <Select value={newLead.status} onValueChange={val => setNewLead({...newLead, status: val as LeadStatus})}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Pilih Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Lead">Lead</SelectItem>
+                          <SelectItem value="Contacted">Contacted</SelectItem>
+                          <SelectItem value="Meeting">Meeting</SelectItem>
+                          <SelectItem value="Quotation">Quotation</SelectItem>
+                          <SelectItem value="Deal">Deal</SelectItem>
+                          <SelectItem value="Repeat">Repeat</SelectItem>
+                          <SelectItem value="Sudah Berhenti">Sudah Berhenti</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Prioritas</Label>
+                      <Select value={newLead.priority} onValueChange={val => setNewLead({...newLead, priority: val as "High"|"Medium"|"Low"})}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Pilih Prioritas" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="High">High</SelectItem>
+                          <SelectItem value="Medium">Medium</SelectItem>
+                          <SelectItem value="Low">Low</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="add-channel">Channel (Asal Lead)</Label>
+                      <Input id="add-channel" value={newLead.channel} placeholder="Misal: LinkedIn, Ref..." onChange={e => setNewLead({...newLead, channel: e.target.value})} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="add-pic-disma">PIC Disma</Label>
+                      <Select value={newLead.picDisma || "none"} onValueChange={val => setNewLead({...newLead, picDisma: (val === "none" || !val) ? "" : val})}>
+                        <SelectTrigger id="add-pic-disma">
+                          <SelectValue placeholder="Pilih PIC Disma" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Tanpa PIC</SelectItem>
+                          {uniqueUsers.map(u => (
+                            <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="value">Estimasi Nilai Proyek (Rp)</Label>
-                    <Input id="value" type="number" value={newLead.value} onChange={e => setNewLead({...newLead, value: e.target.value})} />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>Status Awal</Label>
-                    <Select value={newLead.status} onValueChange={val => setNewLead({...newLead, status: val as LeadStatus})}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Pilih Status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Lead">Lead Terdeteksi</SelectItem>
-                        <SelectItem value="Meeting">Jadwal Meeting</SelectItem>
-                        <SelectItem value="Quotation">Penawaran Dikirim</SelectItem>
-                      </SelectContent>
-                    </Select>
+
+                  {/* Kolom Bawah (Full Width) */}
+                  <div className="md:col-span-2 space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="add-last-contact">Last Contact</Label>
+                        <Input id="add-last-contact" type="date" value={newLead.lastContact} onChange={e => setNewLead({...newLead, lastContact: e.target.value})} />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="add-next-step">Next Step</Label>
+                        <Input id="add-next-step" value={newLead.nextStepContact} placeholder="Rencana selanjutnya..." onChange={e => setNewLead({...newLead, nextStepContact: e.target.value})} />
+                      </div>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="add-notes">Notes Tambahan</Label>
+                      <Input id="add-notes" value={newLead.notes} onChange={e => setNewLead({...newLead, notes: e.target.value})} />
+                    </div>
                   </div>
                 </div>
                 <DialogFooter>
@@ -368,7 +444,20 @@ export default function CRMPipelinePage() {
                   </div>
                   <div className="grid gap-2">
                     <Label>PIC Disma</Label>
-                    <Input value={editingLead.picDisma || ""} placeholder="Tim internal yang handle" onChange={e => setEditingLead({...editingLead, picDisma: e.target.value})} />
+                    <Select value={editingLead.picDisma || "none"} onValueChange={val => setEditingLead({...editingLead, picDisma: (val === "none" || !val) ? undefined : val})}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih PIC Disma" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Tanpa PIC</SelectItem>
+                        {uniqueUsers.map(u => (
+                          <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>
+                        ))}
+                        {editingLead.picDisma && !uniqueUsers.some(u => u.name === editingLead.picDisma) && (
+                          <SelectItem value={editingLead.picDisma}>{editingLead.picDisma}</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
                   </div>
                </div>
                

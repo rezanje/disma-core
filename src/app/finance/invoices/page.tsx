@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, Fragment } from "react"
+import { useState, Fragment, useEffect } from "react"
 import Link from "next/link"
 import { useAppStore } from "@/lib/store"
 import { recordManualReceivable, recordPaymentReceived } from "@/lib/accounting"
@@ -30,6 +30,21 @@ export default function InvoicesPage() {
   const updateInvoice = useAppStore(state => state.updateInvoice)
 
   const [activeInvoice, setActiveInvoice] = useState<Invoice | null>(null)
+
+  // Listen to URL search param detailId to auto-open invoice payment modal
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const searchParams = new URLSearchParams(window.location.search);
+      const detailId = searchParams.get('detailId');
+      if (detailId && (!activeInvoice || activeInvoice.id !== detailId)) {
+        const inv = invoices.find(i => i.id === detailId);
+        if (inv) {
+          setActiveInvoice(inv);
+        }
+      }
+    }
+  }, [invoices, activeInvoice]);
+
   const [paymentAmount, setPaymentAmount] = useState(0)
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0])
   const [paymentBankAccountId, setPaymentBankAccountId] = useState("")
@@ -1006,6 +1021,14 @@ export default function InvoicesPage() {
         if (!open) {
           setActiveInvoice(null)
           setPaymentBankAccountId("")
+          if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            if (params.has('detailId')) {
+              params.delete('detailId');
+              const newUrl = window.location.pathname + (params.toString() ? `?${params.toString()}` : '');
+              window.history.replaceState(null, '', newUrl);
+            }
+          }
         }
       }}>
         <DialogContent>

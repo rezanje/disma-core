@@ -7,7 +7,7 @@ import {
   Plus, Search, Filter, Calendar, User, 
   CheckCircle2, Clock, MoreVertical, 
   Trash2, Edit2, CheckSquare, ListTodo, AlertCircle,
-  ImageIcon, ArrowUpRight
+  ImageIcon, ArrowUpRight, ChevronDown
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -30,6 +30,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { format } from "date-fns"
 import { v4 as uuidv4 } from "uuid"
 import { toast } from "sonner"
@@ -79,6 +81,7 @@ export default function TaskTrackerPage() {
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [search, setSearch] = useState("")
   const [filterStatus, setFilterStatus] = useState<string>("All")
+  const [filterAssigneeMode, setFilterAssigneeMode] = useState<"mine" | "all">("mine")
   const [selectedTask, setSelectedTask] = useState<AppTask | null>(null)
   const [commentText, setCommentText] = useState("")
   const [newLink, setNewLink] = useState({ name: "", url: "" })
@@ -90,25 +93,38 @@ export default function TaskTrackerPage() {
     description: "",
     priority: "Medium" as TaskPriority,
     assignedToId: "",
+    assignedToIds: [] as string[],
     dueDate: format(new Date(), "yyyy-MM-dd")
   })
 
-  const userTasks = tasks.filter(task => 
-    task.createdByOriginalId === currentUser?.id || 
-    task.assignedToId === currentUser?.id
-  )
-
   const activeTask = selectedTask ? tasks.find(t => t.id === selectedTask.id) : null
 
-  const filteredTasks = userTasks.filter(task => {
+  const filteredTasks = tasks.filter(task => {
+    // 1. Search Filter
     const matchesSearch = task.title.toLowerCase().includes(search.toLowerCase()) || 
-                         task.description.toLowerCase().includes(search.toLowerCase())
+                          task.description.toLowerCase().includes(search.toLowerCase())
+    
+    // 2. Status Filter
     const matchesStatus = filterStatus === "All" || task.status === filterStatus
-    return matchesSearch && matchesStatus
+    
+    // 3. Assignee Filter
+    let matchesAssignee = true
+    if (filterAssigneeMode === "mine" && currentUser) {
+      const isCreator = task.createdByOriginalId === currentUser.id
+      const isSingleAssignee = task.assignedToId === currentUser.id
+      const isMultiAssignee = Array.isArray(task.assignedToIds) && task.assignedToIds.includes(currentUser.id)
+      matchesAssignee = isCreator || isSingleAssignee || isMultiAssignee
+    }
+    
+    return matchesSearch && matchesStatus && matchesAssignee
   })
 
   const handleAddTask = () => {
-    if (!newTask.title || !newTask.assignedToId) {
+    const finalAssigneeIds = newTask.assignedToIds.length > 0 
+      ? newTask.assignedToIds 
+      : (newTask.assignedToId ? [newTask.assignedToId] : [])
+
+    if (!newTask.title || finalAssigneeIds.length === 0) {
       toast.error("Judul dan Assignee wajib diisi")
       return
     }
@@ -119,7 +135,8 @@ export default function TaskTrackerPage() {
       description: newTask.description,
       status: "Todo",
       priority: newTask.priority,
-      assignedToId: newTask.assignedToId,
+      assignedToId: finalAssigneeIds[0] || "",
+      assignedToIds: finalAssigneeIds,
       createdByOriginalId: currentUser?.id || "system",
       dueDate: new Date(newTask.dueDate).toISOString(),
       createdAt: new Date().toISOString()
@@ -127,15 +144,17 @@ export default function TaskTrackerPage() {
 
     addTask(task)
     
-    // Create Notification for the assigned user
-    addNotification({
-      id: uuidv4(),
-      userId: newTask.assignedToId,
-      title: "New Task Assigned",
-      message: `You have been assigned a new task: ${newTask.title}`,
-      type: 'task',
-      read: false,
-      createdAt: new Date().toISOString()
+    // Create Notification for all assigned users
+    finalAssigneeIds.forEach((assigneeId) => {
+      addNotification({
+        id: uuidv4(),
+        userId: assigneeId,
+        title: "New Task Assigned",
+        message: `You have been assigned a new task: ${newTask.title}`,
+        type: 'task',
+        read: false,
+        createdAt: new Date().toISOString()
+      })
     })
 
     toast.success("Task berhasil ditambahkan")
@@ -145,6 +164,7 @@ export default function TaskTrackerPage() {
       description: "",
       priority: "Medium",
       assignedToId: "",
+      assignedToIds: [],
       dueDate: format(new Date(), "yyyy-MM-dd")
     })
   }
@@ -228,12 +248,22 @@ export default function TaskTrackerPage() {
     }
   }
 
+  const visibleTasksForAssigneeMode = tasks.filter(task => {
+    if (filterAssigneeMode === "mine" && currentUser) {
+      const isCreator = task.createdByOriginalId === currentUser.id
+      const isSingleAssignee = task.assignedToId === currentUser.id
+      const isMultiAssignee = Array.isArray(task.assignedToIds) && task.assignedToIds.includes(currentUser.id)
+      return isCreator || isSingleAssignee || isMultiAssignee
+    }
+    return true
+  })
+
   const stats = {
-    total: userTasks.length,
-    todo: userTasks.filter(t => t.status === 'Todo').length,
-    inProgress: userTasks.filter(t => t.status === 'In Progress').length,
-    done: userTasks.filter(t => t.status === 'Done').length,
-    highPriority: userTasks.filter(t => t.priority === 'High' && t.status !== 'Done').length
+    total: visibleTasksForAssigneeMode.length,
+    todo: visibleTasksForAssigneeMode.filter(t => t.status === 'Todo').length,
+    inProgress: visibleTasksForAssigneeMode.filter(t => t.status === 'In Progress').length,
+    done: visibleTasksForAssigneeMode.filter(t => t.status === 'Done').length,
+    highPriority: visibleTasksForAssigneeMode.filter(t => t.priority === 'High' && t.status !== 'Done').length
   }
 
   return (
@@ -319,6 +349,18 @@ export default function TaskTrackerPage() {
                onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+          <Select value={filterAssigneeMode} onValueChange={(val) => setFilterAssigneeMode(val as "mine" | "all")}>
+            <SelectTrigger className="w-full md:w-[180px] h-11 bg-white border-slate-200 rounded-xl font-medium">
+              <div className="flex items-center gap-2">
+                <User className="w-4 h-4 text-slate-400" />
+                <SelectValue placeholder="Filter Assignee" />
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="mine">Tugas Saya</SelectItem>
+              <SelectItem value="all">Semua Tugas</SelectItem>
+            </SelectContent>
+          </Select>
           <Select value={filterStatus} onValueChange={(val) => setFilterStatus(val || "All")}>
             <SelectTrigger className="w-full md:w-[180px] h-11 bg-white border-slate-200 rounded-xl font-medium">
               <div className="flex items-center gap-2">
@@ -344,7 +386,12 @@ export default function TaskTrackerPage() {
             </div>
           ) : (
             filteredTasks.map((task) => {
-              const assignee = users.find(u => u.id === task.assignedToId)
+              const taskAssignees = users.filter(u => {
+                if (task.assignedToIds && Array.isArray(task.assignedToIds) && task.assignedToIds.length > 0) {
+                  return task.assignedToIds.includes(u.id)
+                }
+                return u.id === task.assignedToId
+              })
               return (
                 <div 
                   key={task.id} 
@@ -368,11 +415,22 @@ export default function TaskTrackerPage() {
                       <p className="text-xs text-slate-500 line-clamp-1">{task.description}</p>
                       <div className="flex items-center gap-4 pt-1">
                         <div className="flex items-center gap-1.5">
-                          <div className="w-5 h-5 bg-emerald-50 border border-emerald-100 rounded-full flex items-center justify-center overflow-hidden">
-                             <User className="w-3 h-3 text-emerald-600" />
+                          <div className="flex -space-x-1.5">
+                            {taskAssignees.map((assignee) => (
+                              <div 
+                                key={assignee.id}
+                                title={`${assignee.name} (${assignee.role})`}
+                                className="w-5 h-5 bg-emerald-50 border border-white rounded-full flex items-center justify-center overflow-hidden ring-1 ring-slate-100 shrink-0"
+                              >
+                                <span className="text-[9px] font-black text-emerald-600 uppercase">
+                                  {assignee.name.charAt(0)}
+                                </span>
+                              </div>
+                            ))}
                           </div>
-                          <span className="text-[10px] font-bold text-slate-600">{assignee?.name}</span>
-                          <span className="text-[10px] text-slate-400 font-medium">({assignee?.role})</span>
+                          <span className="text-[10px] font-bold text-slate-600 max-w-[200px] truncate">
+                            {taskAssignees.map(u => u.name).join(", ") || "Belum ada assignee"}
+                          </span>
                         </div>
                         <div className="flex items-center gap-1.5 text-slate-400">
                           <Calendar className="w-3 h-3" />
@@ -436,6 +494,21 @@ export default function TaskTrackerPage() {
                 </div>
                 <h3 className="text-2xl font-black uppercase tracking-tight">{activeTask.title}</h3>
                 <p className="text-slate-400 text-xs mt-2 uppercase tracking-widest font-bold">Dibuat pada {format(new Date(activeTask.createdAt), "dd MMM yyyy HH:mm")}</p>
+                <div className="mt-4 flex items-center gap-2 flex-wrap">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Assignee:</span>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {users.filter(u => {
+                      if (activeTask.assignedToIds && Array.isArray(activeTask.assignedToIds) && activeTask.assignedToIds.length > 0) {
+                        return activeTask.assignedToIds.includes(u.id)
+                      }
+                      return u.id === activeTask.assignedToId
+                    }).map(u => (
+                      <span key={u.id} className="text-[10px] font-bold bg-slate-800 text-slate-300 px-2.5 py-1 rounded-xl border border-slate-700">
+                        {u.name} ({u.role})
+                      </span>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               <div className="flex-1 overflow-y-auto p-8 space-y-8 bg-slate-50">
@@ -627,30 +700,56 @@ export default function TaskTrackerPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Assign Ke User</Label>
-              <Select 
-                 value={newTask.assignedToId} 
-                 onValueChange={(val) => setNewTask({...newTask, assignedToId: val || ""})}
-              >
-                <SelectTrigger className="h-11 rounded-xl border-slate-200 font-medium">
-                  <SelectValue placeholder="Pilih Akun User">
-                    {newTask.assignedToId 
-                      ? (() => {
-                          const u = users.find(x => x.id === newTask.assignedToId);
-                          return u ? `${u.name} (${u.role})` : "Pilih Akun User";
-                        })()
-                      : "Pilih Akun User"
-                    }
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {users.map((user) => (
-                    <SelectItem key={user.id} value={user.id}>
-                      {user.name} ({user.role})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Assign Ke User (Bisa lebih dari 1)</Label>
+              <Popover>
+                <PopoverTrigger render={
+                  <Button
+                    variant="outline"
+                    className="h-11 rounded-xl border-slate-200 font-medium w-full justify-between hover:bg-slate-50 text-slate-700 bg-white"
+                  >
+                    <span className="truncate">
+                      {newTask.assignedToIds.length > 0 
+                        ? users.filter(u => newTask.assignedToIds.includes(u.id)).map(u => u.name).join(", ")
+                        : "Pilih Akun User"
+                      }
+                    </span>
+                    <ChevronDown className="h-4 w-4 opacity-50" />
+                  </Button>
+                } />
+                <PopoverContent className="w-80 p-3 bg-white shadow-2xl rounded-2xl border border-slate-100" side="bottom" align="start">
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {users.map((user) => {
+                      const isChecked = newTask.assignedToIds.includes(user.id);
+                      return (
+                        <div 
+                          key={user.id} 
+                          className="flex items-center gap-3 p-2 rounded-xl hover:bg-slate-50 cursor-pointer"
+                          onClick={() => {
+                            const updated = isChecked
+                              ? newTask.assignedToIds.filter(id => id !== user.id)
+                              : [...newTask.assignedToIds, user.id];
+                            setNewTask({
+                              ...newTask,
+                              assignedToIds: updated,
+                              assignedToId: updated[0] || "" // Maintain single-assignee fallback
+                            });
+                          }}
+                        >
+                          <Checkbox 
+                            checked={isChecked} 
+                            onCheckedChange={() => {}} // Handled by row click
+                            className="w-5 h-5 rounded-md border-slate-300 data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600"
+                          />
+                          <div className="flex flex-col text-left">
+                            <span className="text-xs font-bold text-slate-800 leading-none">{user.name}</span>
+                            <span className="text-[9px] font-medium text-slate-400 uppercase tracking-widest mt-1">({user.role})</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
           <DialogFooter>

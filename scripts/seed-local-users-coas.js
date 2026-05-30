@@ -1,9 +1,9 @@
-/**
- * Seed script for new Supabase database.
- * Sends COA, Users, and Bank Accounts to the production API.
- */
+const { createClient } = require('@supabase/supabase-js');
 
-const BASE_URL = 'https://disma-core.vercel.app';
+const SUPABASE_URL = 'http://127.0.0.1:54321';
+const SUPABASE_KEY = 'sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz';
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const COA_SEED = [
   { id: "coa-1", account_code: "1-1000", account_name: "Kas di Tangan (Petty Cash)", account_type: "Asset" },
@@ -37,43 +37,31 @@ const COA_SEED = [
 ];
 
 const USERS_SEED = [
-  { id: "11111111-1111-1111-1111-111111111111", pin: "1111", name: "Bagus (Admin PO)", role: "admin_po" },
-  { id: "22222222-2222-2222-2222-222222222222", pin: "2222", name: "Hilman (Sourcing)", role: "sourcing" },
-  { id: "33333333-3333-3333-3333-333333333333", pin: "3333", name: "Sandi (Inventory)", role: "gudang" },
-  { id: "44444444-4444-4444-4444-444444444444", pin: "4444", name: "Rivai (Logistik)", role: "kurir" },
-  { id: "55555555-5555-5555-5555-555555555555", pin: "5555", name: "Sifa (Admin Finance)", role: "finance" },
-  { id: "66666666-6666-6666-6666-666666666666", pin: "120194", name: "Reza (Super Admin)", role: "super_admin" },
-  { id: "77777777-7777-7777-7777-777777777777", pin: "6666", name: "Damar (CEO)", role: "ceo" },
-  { id: "88888888-8888-8888-8888-888888888888", pin: "7777", name: "Hanif (CMO)", role: "cmo" },
+  { id: '00000000-0000-0000-0000-000000000000', name: 'System', role: 'super_admin', pin: '0000' },
+  { id: '11111111-1111-1111-1111-111111111111', name: 'Bagus (Admin PO)', role: 'admin_po', pin: '1111' },
+  { id: '22222222-2222-2222-2222-222222222222', name: 'Hilman (Sourcing)', role: 'sourcing', pin: '2222' },
+  { id: '33333333-3333-3333-3333-333333333333', name: 'Sandi (Inventory)', role: 'gudang', pin: '3333' },
+  { id: '44444444-4444-4444-4444-444444444444', name: 'Rivai (Logistik)', role: 'kurir', pin: '4444' },
+  { id: '55555555-5555-5555-5555-555555555555', name: 'Sifa (Admin Finance)', role: 'finance', pin: '5555' },
+  { id: '66666666-6666-6666-6666-666666666666', name: 'Reza (Super Admin)', role: 'super_admin', pin: '120194' },
+  { id: '77777777-7777-7777-7777-777777777777', name: 'Damar (CEO)', role: 'ceo', pin: '6666' },
+  { id: '88888888-8888-8888-8888-888888888888', name: 'Hanif (CMO)', role: 'cmo', pin: '7777' },
 ];
 
-const BANK_ACCOUNTS_SEED = [
-  { id: "bank-bca", name: "BCA (Utama)", account_number: "000-000-0001", account_code: "1-1200", balance: 0 },
-  { id: "bank-mandiri", name: "Mandiri (Ops)", account_number: "000-000-0002", account_code: "1-1300", balance: 0 },
-  { id: "bank-petty", name: "Petty Cash", account_number: "", account_code: "1-1000", balance: 0 },
-];
-
-async function seedTable(table, data) {
-  console.log(`Seeding ${table} (${data.length} rows)...`);
-  const res = await fetch(`${BASE_URL}/api/db`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ table, data }),
-  });
-  const json = await res.json();
-  if (res.ok) {
-    console.log(`  ✅ ${table}: ${JSON.stringify(json)}`);
-  } else {
-    console.error(`  ❌ ${table} FAILED:`, json);
+async function seed() {
+  console.log('Upserting COAs...');
+  for (const coa of COA_SEED) {
+    const { error } = await supabase.from('coas').upsert(coa);
+    if (error) console.error(`Failed to upsert COA ${coa.account_code}:`, error.message);
   }
+  console.log('Upserting Users...');
+  for (const user of USERS_SEED) {
+    const { error } = await supabase.from('users').upsert(user);
+    if (error) console.error(`Failed to upsert user ${user.name}:`, error.message);
+  }
+  console.log('Local COAs and Users seeding done!');
 }
 
-async function main() {
-  console.log('=== SEEDING NEW DATABASE ===\n');
-  await seedTable('coas', COA_SEED);
-  await seedTable('users', USERS_SEED);
-  await seedTable('bank_accounts', BANK_ACCOUNTS_SEED);
-  console.log('\n=== DONE ===');
-}
-
-main();
+seed().catch(err => {
+  console.error('Seeding failed:', err);
+});

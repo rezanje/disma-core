@@ -1,6 +1,8 @@
 "use client"
 
+import { useState } from "react"
 import { useAppStore } from "@/lib/store"
+import CommandPalette from "./command-palette"
 import { 
   Bell, 
   Search, 
@@ -36,6 +38,7 @@ interface NavItem {
 }
 
 export default function Topbar({ title, navItems = [], displayAllNav = false }: { title: string, navItems?: NavItem[], displayAllNav?: boolean }) {
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
   const currentUser = useAppStore(state => state.currentUser)
   const setCurrentUser = useAppStore(state => state.setCurrentUser)
   const navConfigs = useAppStore(state => state.navConfigs) || {}
@@ -95,7 +98,10 @@ export default function Topbar({ title, navItems = [], displayAllNav = false }: 
       {/* Right Section: Utils & Profile */}
       <div className="flex items-center gap-2">
         <div className="hidden sm:flex items-center gap-1 mr-2 px-1 py-1 rounded-full bg-white/40 border border-white/40">
-          <button className="p-2 text-slate-500 hover:text-emerald-600 hover:bg-white rounded-full transition-all">
+          <button 
+            onClick={() => setIsSearchOpen(true)}
+            className="p-2 text-slate-500 hover:text-emerald-600 hover:bg-white rounded-full transition-all"
+          >
             <Search className="w-4 h-4" />
           </button>
           
@@ -213,6 +219,11 @@ export default function Topbar({ title, navItems = [], displayAllNav = false }: 
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      <CommandPalette 
+        isOpen={isSearchOpen} 
+        onClose={() => setIsSearchOpen(false)} 
+        onOpen={() => setIsSearchOpen(true)} 
+      />
     </header>
   )
 }

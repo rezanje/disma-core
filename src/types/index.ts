@@ -440,6 +440,7 @@ export interface AppTask {
   status: TaskStatus;
   priority: TaskPriority;
   assignedToId: string;
+  assignedToIds?: string[];
   createdByOriginalId: string;
   dueDate: string;
   createdAt: string;

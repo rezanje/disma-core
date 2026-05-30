@@ -85,6 +85,35 @@ export default function SalesOrdersPage() {
   // Detail view state
   const [detailSOId, setDetailSOId] = useState<string | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
+
+  // Listen to URL search param detailId to auto-open details
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const searchParams = new URLSearchParams(window.location.search);
+      const detailId = searchParams.get('detailId');
+      if (detailId && detailId !== detailSOId) {
+        const exists = salesOrders.some(so => so.id === detailId);
+        if (exists) {
+          setDetailSOId(detailId);
+          setIsDetailOpen(true);
+        }
+      }
+    }
+  }, [salesOrders, detailSOId]);
+
+  // Clean URL query param and state when the detail modal is closed
+  useEffect(() => {
+    if (!isDetailOpen) {
+      setDetailSOId(null);
+      const params = new URLSearchParams(window.location.search);
+      if (params.has('detailId')) {
+        params.delete('detailId');
+        const newUrl = window.location.pathname + (params.toString() ? `?${params.toString()}` : '');
+        window.history.replaceState(null, '', newUrl);
+      }
+    }
+  }, [isDetailOpen]);
+
   const [activeTab, setActiveTab] = useState("active")
   const [shareClientId, setShareClientId] = useState<string>("")
   const [isShareClientSearchOpen, setIsShareClientSearchOpen] = useState(false)
