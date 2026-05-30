@@ -1825,6 +1825,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
         // Update parent Tukar Faktur invoice
         const parent = updatedInvoices.find(i => i.id === tfId);
+        const invoicesToSync: Invoice[] = [];
+
         if (parent) {
           const parentChildren = updatedInvoices.filter(i => i.supersededByInvoiceId === tfId);
           const totalPaid = parentChildren.reduce((sum, c) => sum + (c.amountPaid || 0), 0);
@@ -1850,16 +1852,19 @@ export const useAppStore = create<AppState>((set, get) => ({
           // Save to localStorage cache
           saveLocalCache(LOCAL_INVOICES_CACHE_KEY, finalInvoices);
 
-          // Sync parent to database
-          await get().syncTable('invoices', updatedParent);
+          invoicesToSync.push(updatedParent);
+          
+          for (const update of childUpdates) {
+            const updatedChild = finalInvoices.find(i => i.id === update.id);
+            if (updatedChild) {
+              invoicesToSync.push(updatedChild);
+            }
+          }
         }
 
-        // Sync children to database
-        for (const update of childUpdates) {
-          const updatedChild = updatedInvoices.find(i => i.id === update.id);
-          if (updatedChild) {
-            await get().syncTable('invoices', updatedChild);
-          }
+        // Sync parent and child invoices to database in a single batch request
+        if (invoicesToSync.length > 0) {
+          await get().syncTable('invoices', invoicesToSync);
         }
 
         return true;
