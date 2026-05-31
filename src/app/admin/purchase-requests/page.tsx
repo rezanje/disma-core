@@ -17,7 +17,7 @@ import {
   ClipboardList, Plus, FileText, CheckCircle2, AlertTriangle, 
   XCircle, Clock, ShieldCheck, Landmark, DollarSign, Search, Sparkles, ShoppingBag
 } from "lucide-react"
-import { recordBudgetTransfer, recordDirectVendorPayment, recordPRExpense } from "@/lib/accounting"
+import { recordBudgetTransfer, recordPRExpensePayment } from "@/lib/accounting"
 import { toast } from "sonner"
 import { v4 as uuidv4 } from "uuid"
 
@@ -28,6 +28,18 @@ const CATEGORY_OPTIONS = [
   "Marketing & Promo",
   "Aset & Peralatan",
   "Lain-lain"
+]
+
+const PR_EXPENSE_TYPES: { label: string; code: string }[] = [
+  { label: 'Sewa Gedung/Workshop', code: '6-1100' },
+  { label: 'Listrik, Air & Internet', code: '6-1200' },
+  { label: 'Marketing & Iklan', code: '6-1300' },
+  { label: 'Transportasi & BBM / Bengkel', code: '6-1400' },
+  { label: 'ATK & Kantor', code: '6-1500' },
+  { label: 'Admin Platform (Shopee/Tokopedia)', code: '6-1600' },
+  { label: 'Ongkos Kirim', code: '6-1700' },
+  { label: 'Gaji & Tunjangan', code: '6-1000' },
+  { label: 'Operasional Lainnya', code: '6-9000' },
 ]
 
 export default function PurchaseRequestsPage() {
@@ -45,6 +57,7 @@ export default function PurchaseRequestsPage() {
   const bankAccounts = useAppStore(state => state.bankAccounts) || []
   const users = useAppStore(state => state.users) || []
   const updatePurchase = useAppStore(state => state.updatePurchase)
+  const addVendor = useAppStore(state => state.addVendor)
 
   // List States
   const [filterStatus, setFilterStatus] = useState<string>("ALL")
@@ -163,13 +176,17 @@ export default function PurchaseRequestsPage() {
 
   // Step-4 disbursement modal state
   const [disburseOpen, setDisburseOpen] = useState(false)
-  const [disburseType, setDisburseType] = useState<'sourcing' | 'vendor' | 'other'>('other')
+  const [disburseType, setDisburseType] = useState<'sourcing' | 'expense'>('expense')
   const [disburseBankId, setDisburseBankId] = useState("")
+  const [disburseDestBankId, setDisburseDestBankId] = useState("")
   const [disburseSourcingId, setDisburseSourcingId] = useState("")
-  const [disburseVendorId, setDisburseVendorId] = useState("")
+  const [disburseContactId, setDisburseContactId] = useState("")
+  const [disburseExpenseCode, setDisburseExpenseCode] = useState("6-9000")
   const [disburseAmountRaw, setDisburseAmountRaw] = useState("")
-  const [disburseSpareRaw, setDisburseSpareRaw] = useState("")
   const [disburseNote, setDisburseNote] = useState("")
+  const [creatingContact, setCreatingContact] = useState(false)
+  const [newContactName, setNewContactName] = useState("")
+  const [newContactKind, setNewContactKind] = useState<'vendor' | 'toko' | 'perorangan'>('vendor')
   const [isDisbursing, setIsDisbursing] = useState(false)
 
   const activePR = purchaseRequests.find(pr => pr.id === selectedPRId)
@@ -201,14 +218,31 @@ export default function PurchaseRequestsPage() {
     purchases.filter(p => p.purchaseRequestId === pr.id)
 
   const openDisburse = (pr: PurchaseRequest) => {
-    setDisburseType(pr.category === 'Sourcing' ? 'sourcing' : 'other')
+    setDisburseType(pr.category === 'Sourcing' ? 'sourcing' : 'expense')
     setDisburseBankId("")
+    setDisburseDestBankId("")
     setDisburseSourcingId("")
-    setDisburseVendorId("")
+    setDisburseContactId("")
+    setDisburseExpenseCode("6-9000")
     setDisburseAmountRaw(formatNumber(String(pr.amount)))
-    setDisburseSpareRaw("")
     setDisburseNote("")
+    setCreatingContact(false)
+    setNewContactName("")
+    setNewContactKind('vendor')
     setDisburseOpen(true)
+  }
+
+  const handleCreateContact = async () => {
+    if (!newContactName.trim()) { toast.error('Isi nama kontak.'); return }
+    const id = uuidv4()
+    await addVendor({
+      id, companyName: newContactName.trim(), picName: '', email: '', phone: '',
+      address: '', createdAt: new Date().toISOString(), kind: newContactKind,
+    })
+    setDisburseContactId(id)
+    setCreatingContact(false)
+    setNewContactName("")
+    toast.success('Kontak dibuat.')
   }
 
   // Calculate Summary metrics
@@ -324,7 +358,6 @@ export default function PurchaseRequestsPage() {
     if (activePR.disbursedAt) { toast.error('PR ini sudah dicairkan.'); return }
 
     const amount = parseNumber(disburseAmountRaw)
-    const spare = parseNumber(disburseSpareRaw) || 0
     if (amount <= 0) { toast.error('Nominal harus lebih dari 0.'); return }
     if (amount > activePR.amount) { toast.error('Nominal tidak boleh melebihi yang disetujui CFO.'); return }
     if (!disburseBankId) { toast.error('Pilih rekening sumber.'); return }
@@ -337,21 +370,14 @@ export default function PurchaseRequestsPage() {
 
       if (disburseType === 'sourcing') {
         const linked = linkedPurchases(activePR)
-        if (linked.length === 0) {
-          toast.error('Belum ada shopping list untuk PR ini. Buat shopping list dulu.', { id: loadingId })
-          setIsDisbursing(false); return
-        }
-        if (linked.length > 1) {
-          toast.error('PR ini punya >1 shopping list. Cairkan lewat masing-masing dokumen.', { id: loadingId })
-          setIsDisbursing(false); return
-        }
-        if (!disburseSourcingId) {
-          toast.error('Pilih penanggung jawab sourcing.', { id: loadingId })
-          setIsDisbursing(false); return
-        }
+        if (linked.length === 0) { toast.error('Belum ada shopping list untuk PR ini. Buat shopping list dulu.', { id: loadingId }); setIsDisbursing(false); return }
+        if (linked.length > 1) { toast.error('PR ini punya >1 shopping list. Cairkan lewat masing-masing dokumen.', { id: loadingId }); setIsDisbursing(false); return }
+        if (!disburseSourcingId) { toast.error('Pilih penanggung jawab sourcing.', { id: loadingId }); setIsDisbursing(false); return }
+        if (!disburseDestBankId) { toast.error('Pilih rekening tujuan.', { id: loadingId }); setIsDisbursing(false); return }
+        if (disburseDestBankId === disburseBankId) { toast.error('Rekening tujuan tidak boleh sama dengan sumber.', { id: loadingId }); setIsDisbursing(false); return }
         const purchase = linked[0]
         const user = users.find(u => u.id === disburseSourcingId)
-        ok = await recordBudgetTransfer(purchase.id, amount + spare, disburseBankId, user?.name || 'Sourcing')
+        ok = await recordBudgetTransfer(purchase.id, amount, disburseBankId, user?.name || 'Sourcing', disburseDestBankId)
         if (ok) {
           await updatePurchase(purchase.id, {
             status: 'Belanja',
@@ -359,33 +385,24 @@ export default function PurchaseRequestsPage() {
             budgetAmount: amount,
             budgetTransferDate: now,
             budgetBankAccountId: disburseBankId,
+            budgetDestBankAccountId: disburseDestBankId,
             budgetTransferedBy: currentUser?.id,
-            operationalSpareAmount: spare,
           })
         }
-      } else if (disburseType === 'vendor') {
-        if (!disburseVendorId) {
-          toast.error('Pilih vendor.', { id: loadingId })
-          setIsDisbursing(false); return
-        }
-        const vendor = vendors.find(v => v.id === disburseVendorId)
-        ok = await recordDirectVendorPayment(
-          activePR.id, amount, disburseBankId, vendor?.companyName || 'Vendor',
-          activePR.category, disburseNote, now
-        )
       } else {
-        if (!disburseNote.trim()) {
-          toast.error('Isi keterangan pengeluaran.', { id: loadingId })
-          setIsDisbursing(false); return
-        }
-        ok = await recordPRExpense(activePR.id, amount, disburseBankId, activePR.category, disburseNote, now)
+        if (!disburseContactId) { toast.error('Pilih atau buat kontak tujuan.', { id: loadingId }); setIsDisbursing(false); return }
+        const contact = vendors.find(v => v.id === disburseContactId)
+        ok = await recordPRExpensePayment(
+          activePR.id, amount, disburseBankId, disburseExpenseCode,
+          contact?.companyName || 'Kontak', disburseNote, now
+        )
       }
 
       if (!ok) { toast.error('Gagal mencatat transaksi ke ledger.', { id: loadingId }); return }
 
       await updatePurchaseRequest(activePR.id, {
         disbursedAt: now,
-        disbursementType: disburseType,
+        disbursementType: disburseType === 'sourcing' ? 'sourcing' : 'other',
         disbursedBy: currentUser?.name || currentUser?.id,
       })
       toast.success('Transaksi tercatat & dana dicairkan.', { id: loadingId })
@@ -1060,12 +1077,11 @@ export default function PurchaseRequestsPage() {
             <div className="space-y-3">
               <div className="space-y-1">
                 <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Tipe Transaksi</Label>
-                <Select value={disburseType} onValueChange={(v) => setDisburseType(v as 'sourcing' | 'vendor' | 'other')}>
+                <Select value={disburseType} onValueChange={(v) => setDisburseType((v as 'sourcing' | 'expense') ?? 'expense')}>
                   <SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="sourcing">Kasih Dana Sourcing (pindah kas)</SelectItem>
-                    <SelectItem value="vendor">Bayar Vendor Langsung</SelectItem>
-                    <SelectItem value="other">Pengeluaran Lain</SelectItem>
+                    <SelectItem value="sourcing">Sourcing — Belanja PO (pindah kas)</SelectItem>
+                    <SelectItem value="expense">Pengeluaran / Bayar</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1085,6 +1101,17 @@ export default function PurchaseRequestsPage() {
               {disburseType === 'sourcing' && (
                 <>
                   <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Ke Rekening (Tujuan)</Label>
+                    <Select value={disburseDestBankId} onValueChange={(v) => setDisburseDestBankId(v ?? '')}>
+                      <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="-- Pilih rekening tujuan --" /></SelectTrigger>
+                      <SelectContent>
+                        {bankAccounts.filter(b => b.id !== disburseBankId).map(b => (
+                          <SelectItem key={b.id} value={b.id}>{b.name} ({formatRupiah(b.balance)})</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
                     <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Penanggung Jawab Sourcing</Label>
                     <Select value={disburseSourcingId} onValueChange={(v) => setDisburseSourcingId(v ?? '')}>
                       <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="-- Pilih sourcing --" /></SelectTrigger>
@@ -1095,25 +1122,54 @@ export default function PurchaseRequestsPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-1">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Operasional Tambahan (opsional)</Label>
-                    <Input value={disburseSpareRaw} onChange={(e) => setDisburseSpareRaw(formatNumber(e.target.value))} placeholder="Rp 0" className="h-11 rounded-xl" />
-                  </div>
                 </>
               )}
 
-              {disburseType === 'vendor' && (
-                <div className="space-y-1">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Vendor</Label>
-                  <Select value={disburseVendorId} onValueChange={(v) => setDisburseVendorId(v ?? '')}>
-                    <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="-- Pilih vendor --" /></SelectTrigger>
-                    <SelectContent>
-                      {vendors.map(v => (
-                        <SelectItem key={v.id} value={v.id}>{v.companyName}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              {disburseType === 'expense' && (
+                <>
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Ke Kontak</Label>
+                      <button type="button" onClick={() => setCreatingContact(c => !c)} className="text-[9px] font-black uppercase tracking-widest text-emerald-600">
+                        {creatingContact ? 'Batal' : '+ Kontak Baru'}
+                      </button>
+                    </div>
+                    {creatingContact ? (
+                      <div className="space-y-2 rounded-xl border border-slate-200 p-2">
+                        <Input value={newContactName} onChange={(e) => setNewContactName(e.target.value)} placeholder="Nama kontak / toko / vendor" className="h-10 rounded-lg" />
+                        <Select value={newContactKind} onValueChange={(v) => setNewContactKind((v as 'vendor' | 'toko' | 'perorangan') ?? 'vendor')}>
+                          <SelectTrigger className="h-10 rounded-lg"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="vendor">Vendor</SelectItem>
+                            <SelectItem value="toko">Toko</SelectItem>
+                            <SelectItem value="perorangan">Perorangan</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button type="button" onClick={handleCreateContact} className="w-full h-9 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase">Simpan Kontak</Button>
+                      </div>
+                    ) : (
+                      <Select value={disburseContactId} onValueChange={(v) => setDisburseContactId(v ?? '')}>
+                        <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="-- Pilih kontak --" /></SelectTrigger>
+                        <SelectContent>
+                          {vendors.map(v => (
+                            <SelectItem key={v.id} value={v.id}>{v.companyName}{v.kind ? ` (${v.kind})` : ''}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Jenis Pengeluaran</Label>
+                    <Select value={disburseExpenseCode} onValueChange={(v) => setDisburseExpenseCode(v ?? '6-9000')}>
+                      <SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {PR_EXPENSE_TYPES.map(t => (
+                          <SelectItem key={t.code} value={t.code}>{t.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
               )}
 
               <div className="space-y-1">
@@ -1122,9 +1178,7 @@ export default function PurchaseRequestsPage() {
               </div>
 
               <div className="space-y-1">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                  Keterangan {disburseType === 'other' ? '(wajib)' : '(opsional)'}
-                </Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Keterangan (opsional)</Label>
                 <Textarea value={disburseNote} onChange={(e) => setDisburseNote(e.target.value)} className="min-h-[60px] rounded-xl text-xs" />
               </div>
 
