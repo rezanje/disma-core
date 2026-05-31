@@ -42,7 +42,6 @@ const formatCategory = (cat: string) => {
 
 export default function CashAndBankPage() {
   const rawBankAccounts = useAppStore(state => state.bankAccounts)
-  const addBankAccount = useAppStore(state => state.addBankAccount)
   const updateBankAccount = useAppStore(state => state.updateBankAccount)
   const deleteBankAccount = useAppStore(state => state.deleteBankAccount)
   const cashTransactions = useAppStore(state => state.cashTransactions)
@@ -506,7 +505,12 @@ export default function CashAndBankPage() {
            <Dialog open={isAddBankOpen} onOpenChange={setIsAddBankOpen}>
               <Button variant="outline" className="rounded-xl h-11 px-6 font-bold uppercase text-[10px] tracking-widest border-slate-200"
                  onClick={() => {
-                    const code = nextBankCoaCode(coas)
+                    let code = ''
+                    try {
+                      code = nextBankCoaCode(coas)
+                    } catch (e: unknown) {
+                      return toast.error(e instanceof Error ? e.message : 'Tidak ada kode COA tersisa.')
+                    }
                     setBankForm({ name: '', number: '', balance: 0, accountCode: code, coaName: '' })
                     setIsAddBankOpen(true)
                  }}>
