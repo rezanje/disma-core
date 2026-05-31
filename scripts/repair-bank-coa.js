@@ -54,17 +54,21 @@ const s = createClient(URL, KEY, { auth: { persistSession: false } });
   for (const [code, group] of byCode) {
     const coa = coas.find(c => c.account_code === code);
     if (group.length > 1) {
-      // pick keeper
-      let keeper = group.find(b => coa && b.name === coa.account_name) || group.slice().sort((a, b) => a.id.localeCompare(b.id))[0];
+      // pick keeper: the bank whose name matches the COA, else the first by id
+      const keeper = group.find(b => coa && b.name === coa.account_name) || group.slice().sort((a, b) => a.id.localeCompare(b.id))[0];
       for (const b of group) {
         if (b.id === keeper.id) continue;
         const newCode = nextBankCoaCode(used); used.add(newCode);
         plan.push({ kind: 'reassign', bank: b, oldCode: code, newCode, coaId: randomUUID(), coaName: b.name });
       }
-      if (coa && coa.account_name !== keeper.name) plan.push({ kind: 'rename-coa', coaId: coa.id, from: coa.account_name, to: keeper.name });
-    }
-    if (!coa) {
-      // bank with no COA row at all
+      // keeper's COA: rename it to the keeper's name if it exists, otherwise mint one
+      if (coa) {
+        if (coa.account_name !== keeper.name) plan.push({ kind: 'rename-coa', coaId: coa.id, from: coa.account_name, to: keeper.name });
+      } else {
+        plan.push({ kind: 'mint', bank: keeper, code, coaId: randomUUID(), coaName: keeper.name });
+      }
+    } else if (!coa) {
+      // single bank whose code has no COA row at all
       for (const b of group) plan.push({ kind: 'mint', bank: b, code, coaId: randomUUID(), coaName: b.name });
     }
   }
