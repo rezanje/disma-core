@@ -621,6 +621,9 @@ export interface PurchaseRequest {
   cfoNote?: string | null;
   referenceId?: string | null;
   salesOrderIds?: string[]; // Linked Sales Orders / POs
+  disbursedAt?: string;                              // ISO time the funds were disbursed (step 4)
+  disbursementType?: 'sourcing' | 'vendor' | 'other';
+  disbursedBy?: string;                              // user name/id who disbursed
   createdAt: string;
 }
 
