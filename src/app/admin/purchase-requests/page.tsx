@@ -16,6 +16,7 @@ import {
   ClipboardList, Plus, FileText, CheckCircle2, AlertTriangle, 
   XCircle, Clock, ShieldCheck, Landmark, DollarSign, Search, Sparkles, ShoppingBag
 } from "lucide-react"
+import { recordBudgetTransfer, recordDirectVendorPayment, recordPRExpense } from "@/lib/accounting"
 import { toast } from "sonner"
 import { v4 as uuidv4 } from "uuid"
 
@@ -39,7 +40,11 @@ export default function PurchaseRequestsPage() {
   const clients = useAppStore(state => state.clients) || []
   const purchaseItems = useAppStore(state => state.purchaseItems) || []
   const products = useAppStore(state => state.products) || []
-  
+  const vendors = useAppStore(state => state.vendors) || []
+  const bankAccounts = useAppStore(state => state.bankAccounts) || []
+  const users = useAppStore(state => state.users) || []
+  const updatePurchase = useAppStore(state => state.updatePurchase)
+
   // List States
   const [filterStatus, setFilterStatus] = useState<string>("ALL")
   const [searchQuery, setSearchQuery] = useState<string>("")
@@ -155,6 +160,17 @@ export default function PurchaseRequestsPage() {
   const [financeNote, setFinanceNote] = useState("")
   const [cfoNote, setCfoNote] = useState("")
 
+  // Step-4 disbursement modal state
+  const [disburseOpen, setDisburseOpen] = useState(false)
+  const [disburseType, setDisburseType] = useState<'sourcing' | 'vendor' | 'other'>('other')
+  const [disburseBankId, setDisburseBankId] = useState("")
+  const [disburseSourcingId, setDisburseSourcingId] = useState("")
+  const [disburseVendorId, setDisburseVendorId] = useState("")
+  const [disburseAmountRaw, setDisburseAmountRaw] = useState("")
+  const [disburseSpareRaw, setDisburseSpareRaw] = useState("")
+  const [disburseNote, setDisburseNote] = useState("")
+  const [isDisbursing, setIsDisbursing] = useState(false)
+
   const activePR = purchaseRequests.find(pr => pr.id === selectedPRId)
 
   // Map of SO id -> number of PRs already linked to it (untuk tanda "Sudah Diajukan")
@@ -178,6 +194,21 @@ export default function PurchaseRequestsPage() {
         const estHpp = item.estimatedHpp !== undefined ? item.estimatedHpp : (prod?.basePrice || 0)
         return sum + estHpp * item.qty
       }, 0)
+
+  // Purchases (shopping list docs) funded by this PR — used for the sourcing path.
+  const linkedPurchases = (pr: PurchaseRequest) =>
+    purchases.filter(p => p.purchaseRequestId === pr.id)
+
+  const openDisburse = (pr: PurchaseRequest) => {
+    setDisburseType(pr.category === 'Sourcing' ? 'sourcing' : 'other')
+    setDisburseBankId("")
+    setDisburseSourcingId("")
+    setDisburseVendorId("")
+    setDisburseAmountRaw(formatNumber(String(pr.amount)))
+    setDisburseSpareRaw("")
+    setDisburseNote("")
+    setDisburseOpen(true)
+  }
 
   // Calculate Summary metrics
   const totalPRCount = purchaseRequests.length
