@@ -1,3 +1,4 @@
+// Mirror of src/lib/coa.ts — keep in sync when the algorithm changes.
 import { test } from "node:test"
 import assert from "node:assert/strict"
 
@@ -30,4 +31,11 @@ test("falls back to finer slots when all hundreds are used", () => {
   const seed = []
   for (let h = 0; h <= 9; h++) seed.push({ accountCode: `1-1${h}00` })
   assert.equal(nextBankCoaCode(seed), "1-1010")
+})
+
+test("throws when every 1-1xxx slot is exhausted", () => {
+  const seed = []
+  for (let h = 0; h <= 9; h++) seed.push({ accountCode: `1-1${h}00` })
+  for (let x = 0; x <= 9; x++) for (let y = 1; y <= 9; y++) seed.push({ accountCode: `1-1${x}${y}0` })
+  assert.throws(() => nextBankCoaCode(seed), /No free bank COA code/)
 })
