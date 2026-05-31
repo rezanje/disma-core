@@ -122,7 +122,7 @@ export default function ShoppingListPage() {
 
   const candidateSOs = useMemo(() => {
     return salesOrders
-      .filter(so => so.status !== 'Batal')
+      .filter(so => so.status === 'Draft' && !so.shoppingListCompiledAt)
       .filter(so => !shoppingDate || toDateInputValue(so.orderDate) === shoppingDate)
       .sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime())
   }, [salesOrders, shoppingDate])
