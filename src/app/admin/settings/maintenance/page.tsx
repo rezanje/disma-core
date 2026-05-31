@@ -34,8 +34,8 @@ import { Input } from "@/components/ui/input"
 const DATA_CATEGORIES = [
   {
     title: "Transactional Data",
-    description: "Sales mapping, POs, Purchases, Invoices, and Journal entries.",
-    keys: ['salesOrders', 'salesOrderItems', 'purchases', 'purchaseItems', 'deliveries', 'invoices', 'journalEntries', 'journalLines'],
+    description: "Sales mapping, POs, Purchase Requests, Purchases, Invoices, and Journal entries.",
+    keys: ['salesOrders', 'salesOrderItems', 'purchaseRequests', 'purchases', 'purchaseItems', 'deliveries', 'invoices', 'journalEntries', 'journalLines'],
     severity: 'high' as const
   },
   {
@@ -209,7 +209,7 @@ export default function MaintenancePage() {
 
     try {
       const categoryMap: Record<string, string[]> = {
-        "Transactional Data": ['sales_order_items', 'purchase_items', 'journal_lines', 'deliveries', 'invoices', 'sales_orders', 'purchases', 'journal_entries', 'stock_movements', 'rejected_items'],
+        "Transactional Data": ['sales_order_items', 'purchase_items', 'journal_lines', 'deliveries', 'invoices', 'sales_orders', 'purchases', 'purchase_requests', 'journal_entries', 'stock_movements', 'rejected_items'],
         "Operational Expenses": ['expenses', 'reimbursements', 'cash_transactions'],
         "CRM & OKRs": ['leads', 'okr_objectives', 'okr_key_results'],
         "Performance & HR": ['kpis', 'employees'],

@@ -7,7 +7,7 @@
  * Wipes (full table delete):
  *  - clients, vendors, invoices, vendor_bills, cash_transactions,
  *    journal_entries, journal_lines, sales_orders, sales_order_items,
- *    deliveries, purchases, purchase_items, expenses, reimbursements,
+ *    deliveries, purchases, purchase_requests, purchase_items, expenses, reimbursements,
  *    stock_movements, leads, pending_returns, rejected_items,
  *    bank_accounts (will be re-seeded with real balances)
  *
@@ -45,6 +45,7 @@ const TABLES_TO_WIPE = [
   'sales_orders',
   'purchase_items',
   'purchases',
+  'purchase_requests',
   'stock_movements',
   'expenses',
   'reimbursements',

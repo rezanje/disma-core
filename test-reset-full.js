@@ -7,7 +7,7 @@ async function run() {
 
   const operationalTables = [
       'sales_order_items', 'purchase_items', 'journal_lines', 'okr_key_results',
-      'deliveries', 'invoices', 'sales_orders', 'purchases', 'journal_entries', 'okr_objectives',
+      'deliveries', 'invoices', 'sales_orders', 'purchases', 'purchase_requests', 'journal_entries', 'okr_objectives',
       'reimbursements', 'expenses', 'cash_transactions', 'pending_returns', 'fixed_assets', 
       'notifications', 'disma_tasks', 'leads', 'employees', 'kpis'
     ];

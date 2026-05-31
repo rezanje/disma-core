@@ -11,6 +11,7 @@ async function resetAllTransactions() {
     'sales_orders',
     'sales_order_items',
     'purchases',
+    'purchase_requests',
     'purchase_items',
     'deliveries',
     'invoices',

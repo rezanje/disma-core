@@ -269,6 +269,7 @@ export const clearAllOperationalCaches = () => {
   window.localStorage.removeItem(LOCAL_SALES_ORDER_ITEMS_CACHE_KEY);
   window.localStorage.removeItem(LOCAL_PURCHASES_CACHE_KEY);
   window.localStorage.removeItem(LOCAL_PURCHASE_ITEMS_CACHE_KEY);
+  window.localStorage.removeItem(LOCAL_PURCHASE_REQUESTS_CACHE_KEY);
   window.localStorage.removeItem(LOCAL_PRODUCTS_CACHE_KEY);
   window.localStorage.removeItem(LOCAL_CLIENTS_CACHE_KEY);
   window.localStorage.removeItem(LOCAL_CLIENT_PRICES_CACHE_KEY);
@@ -2765,6 +2766,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           salesOrderItems: state.salesOrderItems,
           purchases: state.purchases,
           purchaseItems: state.purchaseItems,
+          purchaseRequests: state.purchaseRequests,
           deliveries: state.deliveries,
           expenses: state.expenses,
           invoices: state.invoices,
@@ -2800,12 +2802,13 @@ export const useAppStore = create<AppState>((set, get) => ({
         if (snapshot.salesOrderItems) saveLocalSalesOrderItemsCache(snapshot.salesOrderItems);
         if (snapshot.purchases) saveLocalPurchasesCache(snapshot.purchases);
         if (snapshot.purchaseItems) saveLocalPurchaseItemsCache(snapshot.purchaseItems);
+        if (snapshot.purchaseRequests) saveLocalPurchaseRequestsCache(snapshot.purchaseRequests);
 
         // Sync ke DB — wipe semua tabel operasional lalu seed ulang dari snapshot
         try {
           const tablesToWipe = [
             'sales_order_items', 'purchase_items', 'journal_lines',
-            'deliveries', 'invoices', 'sales_orders', 'purchases', 'journal_entries',
+            'deliveries', 'invoices', 'sales_orders', 'purchases', 'purchase_requests', 'journal_entries',
             'reimbursements', 'expenses', 'cash_transactions', 'pending_returns', 'rejected_items',
             'stock_movements',
             'bank_accounts', 'products',
@@ -2823,6 +2826,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             sales_order_items: snapshot.salesOrderItems || [],
             purchases: snapshot.purchases || [],
             purchase_items: snapshot.purchaseItems || [],
+            purchase_requests: snapshot.purchaseRequests || [],
             deliveries: snapshot.deliveries || [],
             expenses: snapshot.expenses || [],
             invoices: snapshot.invoices || [],
@@ -2883,6 +2887,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
         set({
           salesOrders: [], salesOrderItems: [], purchases: [], purchaseItems: [],
+          purchaseRequests: [],
           deliveries: [], expenses: [], invoices: [], vendorBills: [], journalEntries: [],
           journalLines: [], stockMovements: [], leads: [], tasks: [], notifications: [],
           pendingReturns: [], rejectedItems: [], reimbursements: [], cashTransactions: [],
@@ -2940,6 +2945,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         set({
           clients: CLIENTS_SEED, vendors: VENDORS_SEED, products: PRODUCTS_SEED, 
           salesOrders: [], salesOrderItems: [], purchases: [], purchaseItems: [],
+          purchaseRequests: [],
           deliveries: [], expenses: [], invoices: [], vendorBills: [], journalEntries: [],
           journalLines: [], stockMovements: [], coas: COA_SEED, users: MOCK_USERS, leads: [],
           tasks: [], notifications: [], bankAccounts: INITIAL_BANK_ACCOUNTS,
