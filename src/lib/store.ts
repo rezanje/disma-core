@@ -316,6 +316,7 @@ interface AppState {
   
   coas: ChartOfAccount[];
   addCoa: (coa: ChartOfAccount) => void;
+  updateCoa: (id: string, data: Partial<ChartOfAccount>) => Promise<void>;
 
   // Operational Data
   salesOrders: SalesOrder[];
@@ -427,6 +428,7 @@ interface AppState {
   bankAccounts: BankAccount[];
   addBankAccount: (acc: BankAccount) => void;
   updateBankAccount: (id: string, data: Partial<BankAccount>) => void;
+  createBankWithCoa: (acc: BankAccount, coaName: string) => Promise<void>;
   deleteBankAccount: (id: string) => Promise<void>;
   updateBankBalance: (id: string, amount: number) => Promise<void>;
   cashTransactions: CashTransaction[];
@@ -1373,6 +1375,17 @@ export const useAppStore = create<AppState>((set, get) => ({
       addCoa: async (coa) => {
         set((state) => ({ coas: [...state.coas, coa] }));
         await get().syncTable('coas', coa);
+      },
+      updateCoa: async (id, data) => {
+        const before = get().coas.find((c) => c.id === id);
+        set((state) => ({
+          coas: state.coas.map((c) => (c.id === id ? { ...c, ...data } : c)),
+        }));
+        const updated = get().coas.find((c) => c.id === id);
+        if (updated) {
+          await get().syncTable('coas', updated);
+          if (before) await get().logHistory({ table: 'coas', recordId: id, action: 'update', oldData: before, newData: updated });
+        }
       },
 
       salesOrders: [],
@@ -2345,6 +2358,15 @@ export const useAppStore = create<AppState>((set, get) => ({
       addBankAccount: async (acc) => {
         set((state) => ({ bankAccounts: [...state.bankAccounts, acc] }));
         await get().syncTable('bank_accounts', acc);
+      },
+      createBankWithCoa: async (acc, coaName) => {
+        await get().addCoa({
+          id: uuidv4(),
+          accountCode: acc.accountCode,
+          accountName: coaName,
+          accountType: 'Asset',
+        });
+        await get().addBankAccount(acc);
       },
       updateBankAccount: async (id: string, data: Partial<BankAccount>) => {
         const before = get().bankAccounts.find(b => b.id === id);
