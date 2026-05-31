@@ -36,7 +36,6 @@ export const APP_PAGES: NavItemConfig[] = [
     icon: <ShieldCheck className="h-4 w-4 text-emerald-500" />, 
     category: 'Finance',
     children: [
-      { key: 'finance_pencairan', title: 'Advance', href: '/finance/approvals?tab=pencairan' },
       { key: 'finance_settlement', title: 'Sourcing Settlement', href: '/finance/approvals?tab=settlement' },
       { key: 'finance_settlement_dash', title: 'Dashboard Settlement', href: '/finance/approvals/sourcing-settlement' },
       { key: 'finance_audit', title: 'Audit Ops', href: '/finance/approvals?tab=audit' },
