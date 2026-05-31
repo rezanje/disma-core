@@ -2380,7 +2380,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         if (updated) {
           await get().syncTable('bank_accounts', updated);
           // 1:1 coupling — keep the linked COA name in sync when the bank is renamed
-          if (data.name && before && data.name !== before.name) {
+          if (data.name && before && data.name !== before.name && updated.accountCode) {
             const coa = get().coas.find(c => c.accountCode === updated.accountCode);
             if (coa) await get().updateCoa(coa.id, { accountName: data.name });
           }
