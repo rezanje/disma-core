@@ -150,14 +150,11 @@ export default function FinanceHubPage() {
     }
   }, [salesOrders, salesOrderItems, products, addPurchase, addPurchaseItems])
 
+  // No silent default: source bank must be picked explicitly before any
+  // disbursement/reimbursement/return. Prevents accidentally pulling funds
+  // from the wrong account (e.g. first-in-array Bank Jago) when the user
+  // never touched the selector.
   const [selectedBank, setSelectedBank] = useState("")
-
-  useEffect(() => {
-    if (!selectedBank && bankAccounts.length > 0) {
-      const fallback = bankAccounts.find(b => b.id !== 'bank-advance-sourcing') || bankAccounts[0]
-      setSelectedBank(fallback.id)
-    }
-  }, [bankAccounts, selectedBank])
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [selectedPurchasers, setSelectedPurchasers] = useState<Record<string, string>>({})
   const [spareAmounts, setSpareAmounts] = useState<Record<string, number>>({})
@@ -755,6 +752,8 @@ export default function FinanceHubPage() {
     const reimb = reimbursements.find(r => r.id === reimbId)
     if (!reimb) return
     const user = users.find(u => u.id === reimb.userId)
+
+    if (!bankAccounts.find(b => b.id === selectedBank)) return toast.error("Pilih rekening sumber dulu.")
 
     toast.loading("Memproses pembayaran talangan...", { id: "reimb" })
     const success = await recordReimbursementPayment(reimb.id, reimb.amount, reimb.title || 'Reimburse', selectedBank, user?.name || 'Karyawan')
