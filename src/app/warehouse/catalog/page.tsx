@@ -218,7 +218,7 @@ export default function WarehouseCatalogPage() {
                     <span className="text-[10px] font-black text-slate-400 uppercase pl-3 flex items-center gap-1.5 border-r pr-3 mr-1">
                       <Filter className="w-3 h-3" /> Status
                     </span>
-                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v ?? '')}>
                       <SelectTrigger className="w-[120px] h-9 border-none bg-transparent focus:ring-0 font-bold text-xs ring-0">
                         <SelectValue placeholder="Semua Status" />
                       </SelectTrigger>
@@ -446,7 +446,7 @@ export default function WarehouseCatalogPage() {
                       onChange={(e) => setLedgerSearch(e.target.value)}
                     />
                   </div>
-                  <Select value={ledgerWarehouseFilter} onValueChange={setLedgerWarehouseFilter}>
+                  <Select value={ledgerWarehouseFilter} onValueChange={(v) => setLedgerWarehouseFilter(v ?? '')}>
                     <SelectTrigger className="h-9 text-xs rounded-xl w-36 bg-slate-50 border-none font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                       <SelectValue placeholder="Semua Gudang" />
                     </SelectTrigger>

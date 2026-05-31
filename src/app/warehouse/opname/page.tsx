@@ -212,7 +212,7 @@ export default function StockOpnamePage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Warehouse Penyesuaian</Label>
-                      <Select value={warehouseId} onValueChange={setWarehouseId}>
+                      <Select value={warehouseId} onValueChange={(v) => setWarehouseId(v ?? '')}>
                         <SelectTrigger className="h-12 rounded-xl">
                           <SelectValue placeholder="Pilih Warehouse" />
                         </SelectTrigger>

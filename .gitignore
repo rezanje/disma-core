@@ -42,3 +42,12 @@ next-env.d.ts
 
 # simulation snapshots (backup-transactions.js output)
 /backups/
+
+# iCloud symlink / alternate node_modules folders
+node_modules.nosync/
+"node_modules 2"/
+node_modules\ 2/
+
+# local scratch and utility scripts
+/scratch/
+/scripts/

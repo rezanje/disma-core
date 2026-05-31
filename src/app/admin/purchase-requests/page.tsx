@@ -272,7 +272,7 @@ export default function PurchaseRequestsPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="pr-category" className="text-[10px] font-black uppercase tracking-wider text-slate-400">Kategori Anggaran</Label>
-                      <Select value={newCategory} onValueChange={setNewCategory}>
+                      <Select value={newCategory} onValueChange={(v) => setNewCategory(v ?? '')}>
                         <SelectTrigger className="h-12 rounded-xl">
                           <SelectValue placeholder="Pilih Kategori" />
                         </SelectTrigger>
@@ -337,7 +337,7 @@ export default function PurchaseRequestsPage() {
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
                 </div>
-                <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v ?? '')}>
                   <SelectTrigger className="h-9 text-xs rounded-xl w-36 bg-slate-50 border-none font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                     <SelectValue placeholder="Filter Status" />
                   </SelectTrigger>
