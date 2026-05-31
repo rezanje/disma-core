@@ -56,6 +56,7 @@ export default function CashAndBankPage() {
   const bulkDeleteCashTransactions = useAppStore(state => state.bulkDeleteCashTransactions)
   const coas = useAppStore(state => state.coas)
   const createBankWithCoa = useAppStore(state => state.createBankWithCoa)
+  const updateCoa = useAppStore(state => state.updateCoa)
 
   const [isAddTxOpen, setIsAddTxOpen] = useState(false)
   const [isAddBankOpen, setIsAddBankOpen] = useState(false)
@@ -169,6 +170,15 @@ export default function CashAndBankPage() {
     if (!editingBank) return
     const original = bankAccounts.find(b => b.id === editingBank.id)
     if (!original) return
+
+    const newCode = editingBank.accountCode
+    if (newCode !== original.accountCode) {
+      if (coas.some(c => c.accountCode === newCode)) {
+        return toast.error(`Kode COA ${newCode} sudah dipakai bank lain.`)
+      }
+      const linkedCoa = coas.find(c => c.accountCode === original.accountCode)
+      if (linkedCoa) await updateCoa(linkedCoa.id, { accountCode: newCode })
+    }
 
     setIsSubmitting(true)
     const loadingToast = toast.loading("Memperbarui info bank & menyesuaikan saldo...")
@@ -855,19 +865,18 @@ export default function CashAndBankPage() {
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 text-center block">Link ke Buku Besar (COA)</label>
-              <Select value={editingBank?.accountCode || ''} onValueChange={(val) => setEditingBank({ ...editingBank, accountCode: val || '' })}>
-                <SelectTrigger className="h-12 rounded-xl text-center font-bold">
-                  <SelectValue placeholder="Pilih Akun" />
-                </SelectTrigger>
-                <SelectContent>
-                  {coas.filter(c => c.accountType === 'Asset' && c.accountCode.startsWith('1-1')).map(c => (
-                    <SelectItem key={c.id} value={c.accountCode}>
-                      {c.accountCode} - {c.accountName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 text-center block">Akun Buku Besar (COA)</label>
+              <p className="text-center font-bold text-slate-700">
+                {editingBank?.accountCode} - {coas.find(c => c.accountCode === editingBank?.accountCode)?.accountName || '—'}
+              </p>
+              <details className="rounded-xl bg-slate-50 px-3 py-2">
+                <summary className="text-[10px] font-black uppercase text-slate-400 tracking-widest cursor-pointer">Ubah kode COA</summary>
+                <Input
+                  value={editingBank?.accountCode || ''}
+                  onChange={(e) => setEditingBank({ ...editingBank, accountCode: e.target.value })}
+                  className="h-10 rounded-xl mt-2"
+                />
+              </details>
             </div>
 
             {/* Adjustment Category Logic */}
