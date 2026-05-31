@@ -638,7 +638,9 @@ export const useAppStore = create<AppState>((set, get) => ({
           if (!res.ok) {
             const errData = await res.json().catch(() => ({}));
             const errMessage = String(errData.error || res.statusText || '');
-            if (/could not find the table|schema cache/i.test(errMessage)) {
+            // Only skip on genuine missing-TABLE errors. A missing-COLUMN error
+            // also mentions "schema cache" but must surface, not be swallowed.
+            if (/could not find the table/i.test(errMessage)) {
               console.warn(`[Sync] ${table} table not available yet, skipping.`);
               return true; // Not a real failure, table just doesn't exist yet
             }
