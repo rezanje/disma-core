@@ -54,6 +54,8 @@ export default function ShoppingListPage() {
   const deletePurchase = useAppStore(state => state.deletePurchase)
   const updateSalesOrder = useAppStore(state => state.updateSalesOrder)
   const updatePurchase = useAppStore(state => state.updatePurchase)
+  const purchaseRequests = useAppStore(state => state.purchaseRequests) || []
+  const updatePurchaseRequest = useAppStore(state => state.updatePurchaseRequest)
 
   const [isLoading, setIsLoading] = useState(false)
   const [isDeletingPurchase, setIsDeletingPurchase] = useState<string | null>(null)
@@ -93,6 +95,7 @@ export default function ShoppingListPage() {
     try { return JSON.parse(localStorage.getItem('shopping_lastGeneratedDoc') || 'null') } catch { return null }
   })
   const [pdfPreview, setPdfPreview] = useState<{ url: string, title: string } | null>(null)
+  const [selectedPRId, setSelectedPRId] = useState<string>('')
 
   // Persist state to localStorage on change
   useEffect(() => { localStorage.setItem('shopping_manualItems', JSON.stringify(manualItems)) }, [manualItems])
@@ -124,6 +127,9 @@ export default function ShoppingListPage() {
       .sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime())
   }, [salesOrders, shoppingDate])
   const candidateSOKey = candidateSOs.map(so => so.id).join('|')
+
+  // PR Approved bisa dipakai untuk banyak Shopping List — tidak ada batasan 1:1
+  const approvedPRs = purchaseRequests.filter(pr => pr.status === 'Approved')
 
   useEffect(() => {
     setSelectedSOIds(new Set(candidateSOs.map(so => so.id)))
@@ -227,6 +233,18 @@ export default function ShoppingListPage() {
       return
     }
 
+    if (!selectedPRId) {
+      toast.error('Pilih Purchase Request yang sudah disetujui CFO terlebih dahulu.', {
+        description: 'Tanpa PR Approved, shopping list tidak bisa dibuat.'
+      })
+      return
+    }
+    const linkedPR = purchaseRequests.find(pr => pr.id === selectedPRId)
+    if (!linkedPR || linkedPR.status !== 'Approved') {
+      toast.error('PR yang dipilih belum berstatus Approved.')
+      return
+    }
+
     const documentItems = consolidatedList.map(item => ({ ...item }))
     const documentId = uuidv4()
     const generatedAt = new Date().toISOString()
@@ -242,7 +260,8 @@ export default function ShoppingListPage() {
         status: 'Pending',
         advanceCode,
         shoppingListDocumentId: documentId,
-        shoppingListCompiledBy: currentUser?.id
+        shoppingListCompiledBy: currentUser?.id,
+        purchaseRequestId: selectedPRId,
       })
       await addPurchaseItems(documentItems.map(item => ({
         id: uuidv4(),
@@ -268,6 +287,7 @@ export default function ShoppingListPage() {
           shoppingListCompiledBy: currentUser?.id
         })
       }
+      setSelectedPRId('')
       setPdfPreview({
         title,
         url: generateShoppingListPDFDataUrl(documentItems)
@@ -838,6 +858,81 @@ export default function ShoppingListPage() {
                   </div>
                 )}
                 
+                {/* PR Selector — wajib sebelum compile */}
+                <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 mt-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-amber-600">
+                      ⚠ Pilih Purchase Request (Wajib)
+                    </p>
+                    {selectedPRId && (
+                      <button
+                        className="text-[10px] font-bold text-slate-400 hover:text-slate-600 underline"
+                        onClick={() => setSelectedPRId('')}
+                      >
+                        Batal pilih
+                      </button>
+                    )}
+                  </div>
+                  {approvedPRs.length === 0 ? (
+                    <div className="text-sm font-bold text-slate-500 py-2">
+                      Tidak ada PR Approved yang tersedia.{' '}
+                      <span className="text-amber-600">Buat dan approve PR di menu Admin › Purchase Requests terlebih dahulu.</span>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-[240px] overflow-auto pr-1">
+                      {approvedPRs.map(pr => {
+                        const usageCount = purchases.filter(p => p.purchaseRequestId === pr.id).length
+                        const isSelected = selectedPRId === pr.id
+                        return (
+                          <label
+                            key={pr.id}
+                            className={cn(
+                              'flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-all',
+                              isSelected
+                                ? 'border-emerald-400 bg-emerald-50 shadow-sm'
+                                : 'border-slate-200 bg-white hover:border-emerald-300'
+                            )}
+                          >
+                            <input
+                              type="radio"
+                              name="pr-select"
+                              value={pr.id}
+                              checked={isSelected}
+                              onChange={() => setSelectedPRId(pr.id)}
+                              className="accent-emerald-600 mt-0.5 shrink-0"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="text-sm font-black text-slate-800 leading-tight">{pr.title}</p>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  {usageCount > 0 && (
+                                    <span className="rounded-full bg-blue-100 text-blue-700 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest">
+                                      {usageCount}× dipakai
+                                    </span>
+                                  )}
+                                  <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-white">
+                                    Approved
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                                <span className="text-[10px] font-bold text-slate-500">{pr.category}</span>
+                                <span className="text-[10px] font-black text-emerald-700">{formatRupiah(pr.amount)}</span>
+                                {pr.approvedByCfo && (
+                                  <span className="text-[10px] font-bold text-slate-400">CFO: {pr.approvedByCfo}</span>
+                                )}
+                                {pr.description && (
+                                  <span className="text-[10px] text-slate-400 truncate max-w-[200px]" title={pr.description}>{pr.description}</span>
+                                )}
+                              </div>
+                            </div>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex justify-end pt-2 gap-3">
                   <Button variant="outline" onClick={() => handleOpenPdfPreview(consolidatedList.filter(item => item.purchaseMethod !== 'Online'))}>
                     <Printer className="mr-2 h-4 w-4" /> Print PDF

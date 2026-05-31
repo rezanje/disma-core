@@ -33,6 +33,7 @@ export default function PurchaseRequestsPage() {
   const currentUser = useAppStore(state => state.currentUser)
   const addPurchaseRequest = useAppStore(state => state.addPurchaseRequest)
   const updatePurchaseRequest = useAppStore(state => state.updatePurchaseRequest)
+  const purchases = useAppStore(state => state.purchases)
   
   // List States
   const [filterStatus, setFilterStatus] = useState<string>("ALL")
@@ -553,6 +554,52 @@ export default function PurchaseRequestsPage() {
                       </div>
                     </div>
                   )}
+
+                {/* Linked Shopping Lists */}
+                  {activePR.status === 'Approved' && (() => {
+                    const linkedPurchases = purchases.filter(p => p.purchaseRequestId === activePR.id)
+                    return (
+                      <div className="mt-5 rounded-2xl border border-slate-100 bg-slate-50/80 p-4">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">
+                          Shopping List Terkait ({linkedPurchases.length})
+                        </p>
+                        {linkedPurchases.length === 0 ? (
+                          <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-amber-600">
+                              Belum digunakan — compile shopping list dari menu Admin › Shopping List
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {linkedPurchases.map((p, idx) => (
+                              <div key={p.id} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+                                <div>
+                                  <p className="text-xs font-black text-slate-800">
+                                    #{idx + 1} {p.advanceCode || `SL-${p.id.slice(0, 8)}`}
+                                  </p>
+                                  <p className="text-[10px] font-bold text-slate-400">
+                                    {new Date(p.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                  </p>
+                                </div>
+                                <span className={cn(
+                                  'rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-widest',
+                                  p.reconciliationStatus === 'Terverifikasi' ? 'bg-emerald-100 text-emerald-700' :
+                                  p.budgetTransferDate ? 'bg-blue-100 text-blue-700' :
+                                  p.reconciliationStatus === 'Belum Transfer' ? 'bg-amber-100 text-amber-700' :
+                                  'bg-slate-100 text-slate-500'
+                                )}>
+                                  {p.reconciliationStatus === 'Terverifikasi' ? 'Selesai' :
+                                   p.budgetTransferDate ? 'Dana Ditransfer' :
+                                   p.reconciliationStatus === 'Belum Transfer' ? 'Menunggu Dana' :
+                                   'Draft'}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
 
                 </div>
               ) : (
