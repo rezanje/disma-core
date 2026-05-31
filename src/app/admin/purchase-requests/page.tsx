@@ -60,10 +60,14 @@ export default function PurchaseRequestsPage() {
     
     setSelectedSOIds(nextSelected)
     
-    // Recalculate sum of selected POs
+    // Recalculate sum of selected POs using estimatedHpp
     const newSum = nextSelected.reduce((sum, id) => {
       const items = salesOrderItems.filter(item => item.salesOrderId === id)
-      const total = items.reduce((s, item) => s + (item.subtotal || 0), 0)
+      const total = items.reduce((s, item) => {
+        const prod = products.find(p => p.id === item.productId)
+        const estHpp = item.estimatedHpp !== undefined ? item.estimatedHpp : (prod?.basePrice || 0)
+        return s + (estHpp * item.qty)
+      }, 0)
       return sum + total
     }, 0)
     
@@ -79,12 +83,25 @@ export default function PurchaseRequestsPage() {
       if (!newTitle || newTitle.startsWith("Belanja Sourcing PO:")) {
         setNewTitle(`Belanja Sourcing PO: ${selectedPOs.map(so => so?.poNumber).join(', ')}`)
       }
+      
+      let onlineProductIds = new Set<string>()
+      try {
+        onlineProductIds = new Set(JSON.parse(localStorage.getItem('shopping_onlineProductIds') || '[]'))
+      } catch { /* ignore */ }
+
       if (!newDescription || newDescription.startsWith("Kebutuhan pembelian barang untuk PO:")) {
         const poDetails = selectedPOs.map(so => {
           const clientName = clients.find(c => c.id === so?.clientId)?.companyName || 'Client'
-          return `- PO ${so?.poNumber} (${clientName})`
-        }).join('\n')
-        setNewDescription(`Kebutuhan pembelian barang untuk PO:\n${poDetails}`)
+          const soItems = salesOrderItems.filter(i => i.salesOrderId === so?.id)
+          const itemsDesc = soItems.map(item => {
+            const prod = products.find(p => p.id === item.productId)
+            const isOnline = onlineProductIds.has(item.productId)
+            const estHpp = item.estimatedHpp !== undefined ? item.estimatedHpp : (prod?.basePrice || 0)
+            return `  - ${item.qty}x ${prod?.name || 'Item'} @ ${formatRupiah(estHpp)}${isOnline ? ' (Belanja Online)' : ''}`
+          }).join('\n')
+          return `- PO ${so?.poNumber} (${clientName})\n${itemsDesc}`
+        }).join('\n\n')
+        setNewDescription(`Kebutuhan pembelian barang untuk PO:\n\n${poDetails}`)
       }
     } else {
       if (newTitle.startsWith("Belanja Sourcing PO:")) setNewTitle("")
