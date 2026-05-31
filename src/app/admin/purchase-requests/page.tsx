@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import { formatRupiah, formatNumber, parseNumber } from "@/lib/utils"
 import { 
@@ -864,6 +865,36 @@ export default function PurchaseRequestsPage() {
                           )}
                         </div>
                       </div>
+
+                      {/* Step 4: Disbursement (Finance action) */}
+                      <div className="flex gap-3">
+                        <div className="flex flex-col items-center">
+                          <div className={cn(
+                            "w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs",
+                            activePR.disbursedAt ? "bg-emerald-600 text-white" : "bg-slate-200 text-slate-400 dark:bg-slate-800"
+                          )}>4</div>
+                        </div>
+                        <div className="flex-1">
+                          <h5 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">Pencairan Dana</h5>
+                          {activePR.disbursedAt ? (
+                            <div className="space-y-1">
+                              <span className="inline-block rounded-full bg-emerald-600 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest text-white">Sudah Dicairkan</span>
+                              <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">
+                                Oleh: {activePR.disbursedBy} • {new Date(activePR.disbursedAt).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}
+                              </p>
+                            </div>
+                          ) : activePR.status === 'Approved' && isFinanceRole ? (
+                            <Button
+                              onClick={() => openDisburse(activePR)}
+                              className="mt-1 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[10px] uppercase tracking-wider h-9 rounded-xl px-4"
+                            >
+                              <DollarSign className="w-3.5 h-3.5 mr-1" /> Transaksi
+                            </Button>
+                          ) : (
+                            <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5 italic">Menunggu pencairan dana oleh finance...</p>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -1019,6 +1050,91 @@ export default function PurchaseRequestsPage() {
         </div>
 
       </div>
+
+      <Dialog open={disburseOpen} onOpenChange={setDisburseOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Transaksi Pencairan Dana</DialogTitle>
+          </DialogHeader>
+          {activePR && (
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Tipe Transaksi</Label>
+                <Select value={disburseType} onValueChange={(v) => setDisburseType(v as 'sourcing' | 'vendor' | 'other')}>
+                  <SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sourcing">Kasih Dana Sourcing (pindah kas)</SelectItem>
+                    <SelectItem value="vendor">Bayar Vendor Langsung</SelectItem>
+                    <SelectItem value="other">Pengeluaran Lain</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Dari Rekening</Label>
+                <Select value={disburseBankId} onValueChange={(v) => setDisburseBankId(v ?? '')}>
+                  <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="-- Pilih rekening --" /></SelectTrigger>
+                  <SelectContent>
+                    {bankAccounts.map(b => (
+                      <SelectItem key={b.id} value={b.id}>{b.name} ({formatRupiah(b.balance)})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {disburseType === 'sourcing' && (
+                <>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Penanggung Jawab Sourcing</Label>
+                    <Select value={disburseSourcingId} onValueChange={(v) => setDisburseSourcingId(v ?? '')}>
+                      <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="-- Pilih sourcing --" /></SelectTrigger>
+                      <SelectContent>
+                        {users.filter(u => u.role === 'sourcing').map(u => (
+                          <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Operasional Tambahan (opsional)</Label>
+                    <Input value={disburseSpareRaw} onChange={(e) => setDisburseSpareRaw(formatNumber(e.target.value))} placeholder="Rp 0" className="h-11 rounded-xl" />
+                  </div>
+                </>
+              )}
+
+              {disburseType === 'vendor' && (
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Vendor</Label>
+                  <Select value={disburseVendorId} onValueChange={(v) => setDisburseVendorId(v ?? '')}>
+                    <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="-- Pilih vendor --" /></SelectTrigger>
+                    <SelectContent>
+                      {vendors.map(v => (
+                        <SelectItem key={v.id} value={v.id}>{v.companyName}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Nominal (≤ {formatRupiah(activePR.amount)})</Label>
+                <Input value={disburseAmountRaw} onChange={(e) => setDisburseAmountRaw(formatNumber(e.target.value))} className="h-11 rounded-xl" />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                  Keterangan {disburseType === 'other' ? '(wajib)' : '(opsional)'}
+                </Label>
+                <Textarea value={disburseNote} onChange={(e) => setDisburseNote(e.target.value)} className="min-h-[60px] rounded-xl text-xs" />
+              </div>
+
+              <Button onClick={handleDisburse} disabled={isDisbursing} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold uppercase tracking-wider h-11 rounded-xl">
+                {isDisbursing ? 'Memproses...' : 'Catat & Transfer'}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
