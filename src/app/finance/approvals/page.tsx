@@ -880,13 +880,53 @@ export default function FinanceHubPage() {
                         <div className="xl:w-1/3 p-8 bg-slate-950 text-white flex flex-col justify-between">
                            <div className="space-y-6">
                               <Badge className="bg-emerald-500/20 text-emerald-400 border-none font-black text-[9px] px-3">ADVANCE REQUEST</Badge>
-                              {(() => {
+                               {(() => {
                                 const linkedPR = purchaseRequests.find(pr => pr.id === purchase.purchaseRequestId)
+                                const opsAmount = spareAmounts[purchase.id] || 0
+                                const totalAdvance = totalBudget + opsAmount
+                                // Calculate how much of this PR has been used by OTHER advances already
+                                const prUsedByOthers = linkedPR ? purchases
+                                  .filter(p => p.purchaseRequestId === linkedPR.id && p.id !== purchase.id && p.budgetTransferDate)
+                                  .reduce((sum, p) => sum + (p.budgetAmount || 0) + (p.operationalSpareAmount || 0), 0) : 0
+                                const prRemaining = linkedPR ? linkedPR.amount - prUsedByOthers - totalAdvance : 0
+
                                 return linkedPR ? (
-                                  <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-3 py-2">
+                                  <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-3 py-3 space-y-2">
                                     <p className="text-[9px] font-black uppercase tracking-widest text-emerald-400 mb-0.5">PR Dasar Pengeluaran</p>
                                     <p className="text-xs font-black text-white truncate">{linkedPR.title}</p>
-                                    <p className="text-[10px] font-bold text-slate-400">{linkedPR.category} • {formatRupiah(linkedPR.amount)}</p>
+                                    <div className="pt-2 border-t border-emerald-500/20 space-y-1.5">
+                                      <div className="flex justify-between items-center">
+                                        <span className="text-[9px] font-bold text-slate-400 uppercase">Budget Disetujui CFO</span>
+                                        <span className="text-sm font-black text-emerald-400">{formatRupiah(linkedPR.amount)}</span>
+                                      </div>
+                                      {prUsedByOthers > 0 && (
+                                        <div className="flex justify-between items-center">
+                                          <span className="text-[9px] font-bold text-slate-500 uppercase">Sudah Terpakai (ADV lain)</span>
+                                          <span className="text-[10px] font-black text-amber-400">-{formatRupiah(prUsedByOthers)}</span>
+                                        </div>
+                                      )}
+                                      <div className="flex justify-between items-center">
+                                        <span className="text-[9px] font-bold text-slate-400 uppercase">RAB HPP Belanja</span>
+                                        <span className="text-[10px] font-black text-white">-{formatRupiah(totalBudget)}</span>
+                                      </div>
+                                      {opsAmount > 0 && (
+                                        <div className="flex justify-between items-center">
+                                          <span className="text-[9px] font-bold text-slate-400 uppercase">+ Ops Sourcing</span>
+                                          <span className="text-[10px] font-black text-white">-{formatRupiah(opsAmount)}</span>
+                                        </div>
+                                      )}
+                                      <div className="flex justify-between items-center pt-1.5 border-t border-emerald-500/20">
+                                        <span className="text-[9px] font-black text-white uppercase">Sisa Budget PR</span>
+                                        <span className={`text-sm font-black ${prRemaining >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                          {prRemaining >= 0 ? formatRupiah(prRemaining) : `-${formatRupiah(Math.abs(prRemaining))}`}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    {prRemaining < 0 && (
+                                      <div className="rounded-lg bg-rose-500/20 border border-rose-500/30 px-2 py-1.5 mt-1">
+                                        <p className="text-[9px] font-black text-rose-300 uppercase">⚠ Advance melebihi budget PR sebesar {formatRupiah(Math.abs(prRemaining))}</p>
+                                      </div>
+                                    )}
                                   </div>
                                 ) : (
                                   <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 px-3 py-2">
@@ -900,6 +940,7 @@ export default function FinanceHubPage() {
                                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">RAB + Ops Advance</p>
                                  <p className="text-4xl font-black text-white mt-1 leading-none tracking-tighter">{formatRupiah(totalBudget + (spareAmounts[purchase.id] || 0))}</p>
                               </div>
+                           </div>
                            </div>
                            <div className="mt-12 space-y-4">
                               <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-4">
