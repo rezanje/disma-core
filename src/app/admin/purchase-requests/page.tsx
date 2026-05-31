@@ -183,6 +183,7 @@ export default function PurchaseRequestsPage() {
   const [disburseContactId, setDisburseContactId] = useState("")
   const [disburseExpenseCode, setDisburseExpenseCode] = useState("6-9000")
   const [disburseAmountRaw, setDisburseAmountRaw] = useState("")
+  const [disburseSpareRaw, setDisburseSpareRaw] = useState("")
   const [disburseNote, setDisburseNote] = useState("")
   const [creatingContact, setCreatingContact] = useState(false)
   const [newContactName, setNewContactName] = useState("")
@@ -226,6 +227,7 @@ export default function PurchaseRequestsPage() {
     setDisburseExpenseCode("6-9000")
     setDisburseAmountRaw(formatNumber(String(pr.amount)))
     setDisburseNote("")
+    setDisburseSpareRaw("")
     setCreatingContact(false)
     setNewContactName("")
     setNewContactKind('vendor')
@@ -375,9 +377,11 @@ export default function PurchaseRequestsPage() {
         if (!disburseSourcingId) { toast.error('Pilih penanggung jawab sourcing.', { id: loadingId }); setIsDisbursing(false); return }
         if (!disburseDestBankId) { toast.error('Pilih rekening tujuan.', { id: loadingId }); setIsDisbursing(false); return }
         if (disburseDestBankId === disburseBankId) { toast.error('Rekening tujuan tidak boleh sama dengan sumber.', { id: loadingId }); setIsDisbursing(false); return }
+        const spare = parseNumber(disburseSpareRaw) || 0
         const purchase = linked[0]
         const user = users.find(u => u.id === disburseSourcingId)
-        ok = await recordBudgetTransfer(purchase.id, amount, disburseBankId, user?.name || 'Sourcing', disburseDestBankId)
+        // Transfer belanja + ops sekaligus (1 uang muka). Settlement misah HPP vs beban ops.
+        ok = await recordBudgetTransfer(purchase.id, amount + spare, disburseBankId, user?.name || 'Sourcing', disburseDestBankId)
         if (ok) {
           await updatePurchase(purchase.id, {
             status: 'Belanja',
@@ -387,6 +391,7 @@ export default function PurchaseRequestsPage() {
             budgetBankAccountId: disburseBankId,
             budgetDestBankAccountId: disburseDestBankId,
             budgetTransferedBy: currentUser?.id,
+            operationalSpareAmount: spare,
           })
         }
       } else {
@@ -1121,6 +1126,11 @@ export default function PurchaseRequestsPage() {
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Operasional Tambahan (bensin/tol/parkir, opsional)</Label>
+                    <Input value={disburseSpareRaw} onChange={(e) => setDisburseSpareRaw(formatNumber(e.target.value))} placeholder="Rp 0" className="h-11 rounded-xl" />
+                    <p className="text-[9px] text-slate-400 font-bold">Ditransfer bareng belanja. Saat settlement dipisah: belanja → HPP, ops → beban.</p>
                   </div>
                 </>
               )}
