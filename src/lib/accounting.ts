@@ -727,51 +727,52 @@ export const recordReimbursementPayment = async (reimbId: string, amount: number
   return success;
 };
 
-export const recordBudgetTransfer = async (purchaseId: string, amount: number, bankAccountId: string, recipientName: string) => {
+export const recordBudgetTransfer = async (purchaseId: string, amount: number, bankAccountId: string, recipientName: string, destBankAccountId?: string) => {
   const store = useAppStore.getState();
   const bank = store.bankAccounts.find(b => b.id === bankAccountId);
   const sourceBankCode = bank?.accountCode || '1-1200';
-  const purchaser = store.users.find(u => u.name === recipientName || u.id === recipientName);
-  const wallet = getAdvanceWalletByUserId(purchaser?.id);
-  const targetBankId = wallet?.bankAccountId || 'bank-advance-sourcing';
-  const targetAccountCode = wallet?.accountCode || '1-1500';
+
+  let targetBankId: string;
+  let targetAccountCode: string;
+  let targetName: string;
+  if (destBankAccountId) {
+    const destBank = store.bankAccounts.find(b => b.id === destBankAccountId);
+    targetBankId = destBankAccountId;
+    targetAccountCode = destBank?.accountCode || '1-1500';
+    targetName = destBank?.name || recipientName;
+  } else {
+    const purchaser = store.users.find(u => u.name === recipientName || u.id === recipientName);
+    const wallet = getAdvanceWalletByUserId(purchaser?.id);
+    targetBankId = wallet?.bankAccountId || 'bank-advance-sourcing';
+    targetAccountCode = wallet?.accountCode || '1-1500';
+    targetName = wallet?.label || 'Kas Sourcing';
+  }
 
   if (bankAccountId === targetBankId) {
-    throw new Error(`Source bank tidak boleh sama dengan wallet penerima (${bankAccountId}). Pilih bank kantor (BCA/BRI/Mandiri/Kas Tunai).`);
+    throw new Error(`Source bank tidak boleh sama dengan rekening tujuan (${bankAccountId}).`);
   }
 
   const success = await createAccountingEntry(
-    `Pencairan Budget Sourcing: ${recipientName} - Ref: ${purchaseId.slice(0,8)}`,
+    `Pencairan Budget Sourcing: ${recipientName} - Ref: ${purchaseId.slice(0, 8)}`,
     'Transfer',
     purchaseId,
-    [{ accountCode: targetAccountCode, amount: amount }],
-    [{ accountCode: sourceBankCode, amount: amount }]
+    [{ accountCode: targetAccountCode, amount }],
+    [{ accountCode: sourceBankCode, amount }]
   );
 
   if (success && amount > 0) {
     const now = new Date().toISOString();
-
-    // Out dari bank perusahaan (BCA dll)
     await store.addCashTransaction({
-      id: uuidv4(),
-      date: now,
-      amount: amount,
-      type: 'Out',
+      id: uuidv4(), date: now, amount, type: 'Out',
       category: 'Transfer Uang Muka Sourcing',
-      description: `Pencairan Dana (Advance) ke ${recipientName} - Ref: ${purchaseId.slice(0,8)}`,
-      bankAccountId: bankAccountId,
-      counterpartName: recipientName
+      description: `Pencairan Dana ke ${recipientName} - Ref: ${purchaseId.slice(0, 8)}`,
+      bankAccountId, counterpartName: targetName,
     });
-    // In ke Kas Sourcing pemegang dana
     await store.addCashTransaction({
-      id: uuidv4(),
-      date: now,
-      amount: amount,
-      type: 'In',
+      id: uuidv4(), date: now, amount, type: 'In',
       category: 'Transfer Uang Muka Sourcing',
-      description: `Penerimaan Dana (Advance) dari Kantor - Ref: ${purchaseId.slice(0,8)}`,
-      bankAccountId: targetBankId,
-      counterpartName: bank?.name || 'Kas Pusat'
+      description: `Penerimaan Dana - Ref: ${purchaseId.slice(0, 8)}`,
+      bankAccountId: targetBankId, counterpartName: bank?.name || 'Kas Pusat',
     });
   }
   return success;
@@ -789,9 +790,17 @@ export const recordReconciliationSettlement = async (
   const now = new Date().toISOString();
   const purchaseRef = purchaseId.slice(0,8);
   const purchase = store.purchases.find(p => p.id === purchaseId);
-  const wallet = getAdvanceWalletByUserId(purchase?.purchaserId);
-  const targetBankId = wallet?.bankAccountId || 'bank-advance-sourcing';
-  const advanceAccountCode = wallet?.accountCode || '1-1500';
+  let targetBankId: string;
+  let advanceAccountCode: string;
+  if (purchase?.budgetDestBankAccountId) {
+    const destBank = store.bankAccounts.find(b => b.id === purchase.budgetDestBankAccountId);
+    targetBankId = purchase.budgetDestBankAccountId;
+    advanceAccountCode = destBank?.accountCode || '1-1500';
+  } else {
+    const wallet = getAdvanceWalletByUserId(purchase?.purchaserId);
+    targetBankId = wallet?.bankAccountId || 'bank-advance-sourcing';
+    advanceAccountCode = wallet?.accountCode || '1-1500';
+  }
 
   const hasExistingShopSettlement = store.cashTransactions.some(tx =>
     tx.referenceId === purchaseId &&
@@ -1277,95 +1286,34 @@ export const recordStockOpnameAdjustment = async (
   return true;
 };
 
-/** Map a Purchase Request category to its expense/COGS account code. */
-export const resolvePRExpenseAccountCode = (category?: string): string => {
-  switch (category) {
-    case 'Sourcing': return HPP_ACCOUNT_CODE;       // 5-1000
-    case 'Logistik & Bensin': return '6-1400';      // Beban Transportasi & BBM
-    case 'Operasional Gudang':
-    case 'Marketing & Promo':
-    case 'Aset & Peralatan':
-    case 'Lain-lain':
-    default: return '6-9000';                        // Beban Operasional Lainnya
-  }
-};
-
-/** Direct vendor payment for an approved PR. Final (no reconciliation). */
-export const recordDirectVendorPayment = async (
+/** Pay a contact/vendor from an approved PR with an explicit expense COA. Final. */
+export const recordPRExpensePayment = async (
   prId: string,
   amount: number,
   sourceBankAccountId: string,
-  vendorName: string,
-  category: string,
+  expenseAccountCode: string,
+  payeeName: string,
   description: string,
   date?: string
 ) => {
   const store = useAppStore.getState();
   const bank = store.bankAccounts.find(b => b.id === sourceBankAccountId);
-  if (!bank) { console.error('[Accounting] Direct vendor payment: source bank not found.'); return false; }
+  if (!bank) { console.error('[Accounting] PR expense payment: source bank not found.'); return false; }
 
-  const desc = description || `Bayar Vendor: ${vendorName} - PR ${prId.slice(0, 8)}`;
+  const desc = description || `Pengeluaran ke ${payeeName} - PR ${prId.slice(0, 8)}`;
   const success = await createAccountingEntry(
-    desc,
-    'Expense',
-    prId,
-    [{ accountCode: resolvePRExpenseAccountCode(category), amount }],
+    desc, 'Expense', prId,
+    [{ accountCode: expenseAccountCode, amount }],
     [{ accountCode: bank.accountCode || '1-1200', amount }],
     date
   );
 
   if (success && amount > 0) {
     await store.addCashTransaction({
-      id: uuidv4(),
-      date: date || new Date().toISOString(),
-      amount,
-      type: 'Out',
-      category: `Pembayaran Vendor (${category})`,
-      description: desc,
-      bankAccountId: sourceBankAccountId,
-      counterpartName: vendorName,
-      referenceType: 'Expense',
-      referenceId: prId,
-    });
-  }
-  return success;
-};
-
-/** Other operational expense for an approved PR. Final (no reconciliation). */
-export const recordPRExpense = async (
-  prId: string,
-  amount: number,
-  sourceBankAccountId: string,
-  category: string,
-  description: string,
-  date?: string
-) => {
-  const store = useAppStore.getState();
-  const bank = store.bankAccounts.find(b => b.id === sourceBankAccountId);
-  if (!bank) { console.error('[Accounting] PR expense: source bank not found.'); return false; }
-
-  const desc = description || `Pengeluaran: ${category} - PR ${prId.slice(0, 8)}`;
-  const success = await createAccountingEntry(
-    desc,
-    'Expense',
-    prId,
-    [{ accountCode: resolvePRExpenseAccountCode(category), amount }],
-    [{ accountCode: bank.accountCode || '1-1200', amount }],
-    date
-  );
-
-  if (success && amount > 0) {
-    await store.addCashTransaction({
-      id: uuidv4(),
-      date: date || new Date().toISOString(),
-      amount,
-      type: 'Out',
-      category: `Pengeluaran (${category})`,
-      description: desc,
-      bankAccountId: sourceBankAccountId,
-      counterpartName: 'Pengeluaran Operasional',
-      referenceType: 'Expense',
-      referenceId: prId,
+      id: uuidv4(), date: date || new Date().toISOString(), amount, type: 'Out',
+      category: 'Pengeluaran / Pembayaran', description: desc,
+      bankAccountId: sourceBankAccountId, counterpartName: payeeName,
+      referenceType: 'Expense', referenceId: prId,
     });
   }
   return success;
