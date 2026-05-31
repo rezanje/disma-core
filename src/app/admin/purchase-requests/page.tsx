@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils"
 import { formatRupiah, formatNumber, parseNumber } from "@/lib/utils"
 import { 
   ClipboardList, Plus, FileText, CheckCircle2, AlertTriangle, 
-  XCircle, Clock, ShieldCheck, Landmark, DollarSign, Search, Sparkles
+  XCircle, Clock, ShieldCheck, Landmark, DollarSign, Search, Sparkles, ShoppingBag
 } from "lucide-react"
 import { toast } from "sonner"
 import { v4 as uuidv4 } from "uuid"
@@ -167,6 +167,17 @@ export default function PurchaseRequestsPage() {
     })
     return counts
   }, [purchaseRequests])
+
+  // Estimated HPP (buy price) total for an SO — matches the Nominal Dana calc.
+  // Uses item.estimatedHpp, falling back to product basePrice. NOT selling price.
+  const soHppTotal = (soId: string) =>
+    salesOrderItems
+      .filter(item => item.salesOrderId === soId)
+      .reduce((sum, item) => {
+        const prod = products.find(p => p.id === item.productId)
+        const estHpp = item.estimatedHpp !== undefined ? item.estimatedHpp : (prod?.basePrice || 0)
+        return sum + estHpp * item.qty
+      }, 0)
 
   // Calculate Summary metrics
   const totalPRCount = purchaseRequests.length
@@ -424,8 +435,7 @@ export default function PurchaseRequestsPage() {
                           .filter(so => so.status !== 'Batal' && so.status !== 'Selesai')
                           .map(so => {
                             const client = clients?.find(c => c.id === so.clientId)
-                            const items = salesOrderItems.filter(item => item.salesOrderId === so.id)
-                            const total = items.reduce((sum, item) => sum + (item.subtotal || 0), 0)
+                            const total = soHppTotal(so.id)
                             const isChecked = selectedSOIds.includes(so.id)
                             const prCount = poPRCount.get(so.id) || 0
 
@@ -460,9 +470,12 @@ export default function PurchaseRequestsPage() {
                                     </p>
                                   </div>
                                 </div>
-                                <span className="font-extrabold text-emerald-600 dark:text-emerald-400 shrink-0">
-                                  {formatRupiah(total)}
-                                </span>
+                                <div className="flex flex-col items-end shrink-0">
+                                  <span className="text-[7px] font-black uppercase tracking-widest text-slate-400">Est. HPP</span>
+                                  <span className="font-extrabold text-emerald-600 dark:text-emerald-400">
+                                    {formatRupiah(total)}
+                                  </span>
+                                </div>
                               </label>
                             )
                           })}
@@ -654,8 +667,7 @@ export default function PurchaseRequestsPage() {
                             const so = salesOrders.find(s => s.id === soId)
                             if (!so) return null
                             const client = clients.find(c => c.id === so.clientId)
-                            const items = salesOrderItems.filter(item => item.salesOrderId === so.id)
-                            const total = items.reduce((sum, item) => sum + (item.subtotal || 0), 0)
+                            const total = soHppTotal(so.id)
                             return (
                               <div key={soId} className="flex items-center justify-between rounded-xl border border-slate-200/60 bg-white dark:bg-slate-900 px-3 py-2 text-xs font-bold">
                                 <div className="min-w-0">
