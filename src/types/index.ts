@@ -12,6 +12,7 @@ export type AccessKey =
   | 'admin_dashboard' | 'admin_vendors' | 'admin_clients' | 'admin_products' 
   | 'admin_sales_orders' | 'admin_shopping_list' | 'admin_assets' | 'admin_hr' | 'admin_crm' 
   | 'admin_documents' | 'admin_okr' | 'admin_users' | 'admin_settings' | 'admin_tasks' | 'admin_maintenance' | 'admin_price_lists' | 'admin_activity_log'
+  | 'admin_purchase_requests'
   // Finance
   | 'finance_dashboard' | 'finance_approvals' | 'finance_reports' | 'finance_assets'
   | 'finance_budget' | 'finance_cash_bank' | 'finance_expenses' | 'finance_ledger' | 'finance_invoices' | 'finance_collections'
@@ -19,7 +20,7 @@ export type AccessKey =
   | 'finance_ar_aging' | 'finance_ap_aging'
   | 'finance_reconciliation' | 'finance_reimbursements' | 'finance_online_purchase' | 'finance_audit' | 'finance_documents'
   // Warehouse
-  | 'warehouse_dashboard' | 'warehouse_catalog' | 'warehouse_inbound' | 'warehouse_outbound' | 'warehouse_qc' | 'warehouse_reject_monitor'
+  | 'warehouse_dashboard' | 'warehouse_catalog' | 'warehouse_inbound' | 'warehouse_outbound' | 'warehouse_qc' | 'warehouse_reject_monitor' | 'warehouse_opname'
   // Sourcing
   | 'sourcing_dashboard' | 'sourcing_list' | 'sourcing_list_legacy' | 'sourcing_expenses'
   // Courier
@@ -83,6 +84,7 @@ export interface Product {
   tier4Price?: number;
   tier5Price?: number;
   currentStock: number;
+  b2cStock?: number;
   priceHistory?: { date: string, price: number, source: string }[];
   weeklyPriceRange?: { min: number, max: number, lastUpdated: string };
 }
@@ -118,6 +120,10 @@ export interface StockMovement {
   salesOrderId?: string;
   note?: string;
   createdByUserId?: string;
+  warehouseId?: string;
+  batchNumber?: string;
+  expiryDate?: string;
+  unitCost?: number;
 }
 
 export type SalesOrderStatus = 'Pending Approval' | 'Draft' | 'Belanja' | 'Sourcing' | 'QC' | 'Packing' | 'Siap Kirim' | 'Dikirim' | 'Awaiting Audit' | 'Terkirim' | 'Selesai' | 'Batal';
@@ -206,6 +212,7 @@ export interface PurchaseItem {
   inboundVerifiedAt?: string;
   inboundVerifiedBy?: string;
   inboundNote?: string;
+  expiryDate?: string;
 }
 
 export type DeliveryStatus = 'Menunggu' | 'Dikirim' | 'Tunggu Konfirmasi' | 'Awaiting Audit' | 'Terkirim';
@@ -595,3 +602,22 @@ export interface RecordHistory {
   parentHistoryId: string | null;
   createdAt: string;
 }
+
+export type PurchaseRequestStatus = 'Pending_Finance' | 'Pending_CFO' | 'Approved' | 'Rejected';
+
+export interface PurchaseRequest {
+  id: string;
+  title: string;
+  description: string;
+  amount: number;
+  category: string;
+  status: PurchaseRequestStatus;
+  requestedBy: string;
+  approvedByFinance?: string | null;
+  approvedByCfo?: string | null;
+  financeNote?: string | null;
+  cfoNote?: string | null;
+  referenceId?: string | null;
+  createdAt: string;
+}
+

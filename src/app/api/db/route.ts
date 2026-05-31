@@ -106,15 +106,17 @@ export async function GET(request: Request) {
 
     // --- GROUP 2: Orders (sales orders, purchases) ---
     if (group === '2') {
-      const [salesOrders, salesOrderItems, purchases, purchaseItems] = await Promise.all([
+      const [salesOrders, salesOrderItems, purchases, purchaseItems, purchaseRequests] = await Promise.all([
         fetchTable('sales_orders'), fetchTable('sales_order_items'),
-        fetchTable('purchases'), fetchTable('purchase_items')
+        fetchTable('purchases'), fetchTable('purchase_items'),
+        fetchTable('purchase_requests')
       ]);
       return NextResponse.json({
         salesOrders: toCamel(salesOrders),
         salesOrderItems: toCamel(salesOrderItems),
         purchases: toCamel(purchases),
         purchaseItems: toCamel(purchaseItems),
+        purchaseRequests: toCamel(purchaseRequests),
       }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
     }
 

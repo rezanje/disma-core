@@ -6,7 +6,7 @@ import {
   JournalLine, OperationalExpense, User, Vendor, Role, Lead, Announcement, AppTask, AppNotification,
   BankAccount, CashTransaction, Reimbursement, FixedAsset,
   Employee, SmartKpi, OkrObjective, OkrKeyResult, RolePermissionMap, AccessKey, PendingReturn, RejectedItem, StockMovement, ClientPrice,
-  VendorBill, VendorBillPayment, TukarFaktur
+  VendorBill, VendorBillPayment, TukarFaktur, PurchaseRequest
 } from '@/types';
 import { COA_SEED, CLIENTS_SEED, VENDORS_SEED, MOCK_USERS, KPI_SEED } from './constants';
 import { PRODUCTS_SEED } from './products_seed';
@@ -28,6 +28,47 @@ const LOCAL_INVOICES_CACHE_KEY = 'disma_local_invoices_cache';
 const LOCAL_DELIVERIES_CACHE_KEY = 'disma_local_deliveries_cache';
 const LOCAL_LEADS_CACHE_KEY = 'disma_local_leads_cache';
 const LOCAL_CURRENT_USER_KEY = 'disma_core_current_user';
+const LOCAL_PURCHASE_REQUESTS_CACHE_KEY = 'disma_local_purchase_requests_cache';
+
+const loadLocalPurchaseRequestsCache = (): PurchaseRequest[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(LOCAL_PURCHASE_REQUESTS_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveLocalPurchaseRequestsCache = (requests: PurchaseRequest[]) => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(LOCAL_PURCHASE_REQUESTS_CACHE_KEY, JSON.stringify(requests));
+  } catch {}
+};
+
+const calculateDynamicStockForProducts = (products: Product[], stockMovements: StockMovement[]): Product[] => {
+  const mainStockMap: Record<string, number> = {};
+  const b2cStockMap: Record<string, number> = {};
+
+  (stockMovements || []).forEach(m => {
+    const delta = Number(m.stockDelta || 0);
+    const wh = m.warehouseId || 'main';
+    if (wh === 'b2c') {
+      b2cStockMap[m.productId] = (b2cStockMap[m.productId] || 0) + delta;
+    } else {
+      mainStockMap[m.productId] = (mainStockMap[m.productId] || 0) + delta;
+    }
+  });
+
+  return (products || []).map(p => ({
+    ...p,
+    currentStock: Math.max(0, mainStockMap[p.id] || 0),
+    b2cStock: Math.max(0, b2cStockMap[p.id] || 0)
+  }));
+};
 
 const loadCurrentUserFromStorage = (): User | null => {
   if (typeof window === 'undefined') return null;
@@ -339,6 +380,11 @@ interface AppState {
   addPurchaseItems: (items: PurchaseItem[]) => void;
   updatePurchaseItem: (id: string, data: Partial<PurchaseItem>) => void;
   deletePurchaseItem: (id: string) => Promise<void>;
+
+  purchaseRequests: PurchaseRequest[];
+  addPurchaseRequest: (pr: PurchaseRequest) => Promise<void>;
+  updatePurchaseRequest: (id: string, updates: Partial<PurchaseRequest>) => Promise<void>;
+  deletePurchaseRequest: (id: string) => Promise<void>;
 
   deliveries: Delivery[];
   addDelivery: (d: Delivery) => void;
@@ -692,13 +738,14 @@ export const useAppStore = create<AppState>((set, get) => ({
           const cachedInvoices = loadLocalCache<Invoice>(LOCAL_INVOICES_CACHE_KEY);
           const cachedDeliveries = loadLocalCache<Delivery>(LOCAL_DELIVERIES_CACHE_KEY);
           const cachedLeads = loadLocalLeadsCache();
+          const cachedPurchaseRequests = loadLocalPurchaseRequestsCache();
           let cachedClientPrices: any[] = [];
           try {
             const cpRaw = window.localStorage.getItem(LOCAL_CLIENT_PRICES_CACHE_KEY);
             if (cpRaw) cachedClientPrices = JSON.parse(cpRaw) || [];
           } catch {}
 
-          const hasCache = cachedClients.length > 0 || cachedProducts.length > 0 || cachedSalesOrders.length > 0 || cachedLeads.length > 0;
+          const hasCache = cachedClients.length > 0 || cachedProducts.length > 0 || cachedSalesOrders.length > 0 || cachedLeads.length > 0 || cachedPurchaseRequests.length > 0;
           if (hasCache) {
             console.log('[INIT] Phase 1: Hydrating from localStorage cache...');
             set({
@@ -716,6 +763,7 @@ export const useAppStore = create<AppState>((set, get) => ({
               invoices: cachedInvoices.length > 0 ? cachedInvoices : get().invoices,
               deliveries: cachedDeliveries.length > 0 ? cachedDeliveries : get().deliveries,
               leads: cachedLeads.length > 0 ? cachedLeads : get().leads,
+              purchaseRequests: cachedPurchaseRequests.length > 0 ? cachedPurchaseRequests : get().purchaseRequests,
             });
           }
           // Mark as hydrated — UI can render with cached data now
@@ -877,23 +925,9 @@ export const useAppStore = create<AppState>((set, get) => ({
             let finalProducts = get().products;
             if (data.products !== undefined) {
               finalProducts = data.products;
-              // --- SELF-REPAIR: Recalculate product stock from StockMovements if mismatched ---
-              if (data.stockMovements && Array.isArray(data.stockMovements) && data.stockMovements.length > 0) {
-                const sm: StockMovement[] = data.stockMovements;
-                finalProducts = finalProducts.map((product: Product) => {
-                  const productMovements = sm.filter((m: StockMovement) => m.productId === product.id);
-                  if (productMovements.length === 0) return product;
-                  const calculatedStock = productMovements.reduce((sum: number, m: StockMovement) => {
-                    return sum + (m.stockDelta || 0);
-                  }, 0);
-                  if (Math.abs(calculatedStock - (product.currentStock || 0)) > 0.1) {
-                    console.log(`Inventory repair: ${product.name} DB=${product.currentStock} Calc=${calculatedStock}`);
-                    return { ...product, currentStock: Math.max(0, calculatedStock) };
-                  }
-                  return product;
-                });
-              }
             }
+            const sm = data.stockMovements !== undefined ? data.stockMovements : get().stockMovements;
+            finalProducts = calculateDynamicStockForProducts(finalProducts, sm);
 
             // --- HPP Re-mapping logic ---
 
@@ -922,6 +956,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             setIfDefined('salesOrderItems', data.salesOrderItems);
             setIfDefined('purchases', data.purchases);
             setIfDefined('purchaseItems', data.purchaseItems);
+            setIfDefined('purchaseRequests', data.purchaseRequests);
             setIfDefined('cashTransactions', data.cashTransactions);
             setIfDefined('journalEntries', data.journalEntries);
             setIfDefined('journalLines', data.journalLines);
@@ -957,6 +992,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             if (data.salesOrderItems !== undefined) saveLocalSalesOrderItemsCache(data.salesOrderItems);
             if (data.purchases !== undefined) saveLocalPurchasesCache(data.purchases);
             if (data.purchaseItems !== undefined) saveLocalPurchaseItemsCache(data.purchaseItems);
+            if (data.purchaseRequests !== undefined) saveLocalPurchaseRequestsCache(data.purchaseRequests);
             if (data.clientPrices !== undefined) {
               try { window.localStorage.setItem(LOCAL_CLIENT_PRICES_CACHE_KEY, JSON.stringify(data.clientPrices)); } catch {}
             }
@@ -1365,7 +1401,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       },
       stockMovements: [],
       addStockMovement: async (movement) => {
-        set((state) => ({ stockMovements: [movement, ...state.stockMovements] }));
+        const updatedMovements = [movement, ...get().stockMovements];
+        const updatedProducts = calculateDynamicStockForProducts(get().products, updatedMovements);
+        set({ 
+          stockMovements: updatedMovements,
+          products: updatedProducts 
+        });
+        saveLocalProductsCache(updatedProducts);
         await get().syncTable('stock_movements', movement);
       },
 
@@ -1608,6 +1650,41 @@ export const useAppStore = create<AppState>((set, get) => ({
           if (before) await get().logHistory({ table: 'purchase_items', recordId: id, action: 'delete', oldData: before, newData: null });
         } catch (e) {
           console.error("Failed to delete purchase item from server:", e);
+        }
+      },
+
+      purchaseRequests: [],
+      addPurchaseRequest: async (pr) => {
+        const updated = [...get().purchaseRequests, pr];
+        set({ purchaseRequests: updated });
+        saveLocalPurchaseRequestsCache(updated);
+        await get().syncTable('purchase_requests', pr);
+      },
+      updatePurchaseRequest: async (id, data) => {
+        const before = get().purchaseRequests.find(pr => pr.id === id);
+        const updated = get().purchaseRequests.map(pr => pr.id === id ? { ...pr, ...data } : pr);
+        set({ purchaseRequests: updated });
+        saveLocalPurchaseRequestsCache(updated);
+        const item = get().purchaseRequests.find(pr => pr.id === id);
+        if (item) {
+          await get().syncTable('purchase_requests', item);
+          if (before) await get().logHistory({ table: 'purchase_requests', recordId: id, action: 'update', oldData: before, newData: item });
+        }
+      },
+      deletePurchaseRequest: async (id) => {
+        const before = get().purchaseRequests.find(pr => pr.id === id);
+        const remaining = get().purchaseRequests.filter(pr => pr.id !== id);
+        set({ purchaseRequests: remaining });
+        saveLocalPurchaseRequestsCache(remaining);
+        try {
+          await fetch('/api/db', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ table: 'purchase_requests', id })
+          });
+          if (before) await get().logHistory({ table: 'purchase_requests', recordId: id, action: 'delete', oldData: before, newData: null });
+        } catch (e) {
+          console.error("Failed to delete purchase request from server:", e);
         }
       },
 

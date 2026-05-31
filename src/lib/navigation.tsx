@@ -61,6 +61,7 @@ export const APP_PAGES: NavItemConfig[] = [
   // Admin & CEO Section
   { key: 'admin_dashboard', title: 'Dashboard Admin', href: '/admin', icon: <LayoutDashboard className="h-4 w-4" />, category: 'Admin' },
   { key: 'admin_sales_orders', title: 'Sales orders (PO)', href: '/admin/sales-orders', icon: <ShoppingCart className="h-4 w-4" />, category: 'Admin' },
+  { key: 'admin_purchase_requests', title: 'Purchase Requests', href: '/admin/purchase-requests', icon: <ClipboardList className="h-4 w-4 text-emerald-500" />, category: 'Admin' },
   { key: 'admin_clients', title: 'Client Management', href: '/admin/clients', icon: <Users className="h-4 w-4" />, category: 'Admin' },
   { key: 'admin_price_lists', title: 'Price Lists', href: '/admin/client-prices', icon: <Banknote className="h-4 w-4" />, category: 'Admin' },
   { key: 'admin_products', title: 'Produk/SKU Master', href: '/admin/products', icon: <Boxes className="h-4 w-4" />, category: 'Admin' },
@@ -97,6 +98,7 @@ export const APP_PAGES: NavItemConfig[] = [
   { key: 'warehouse_outbound', title: 'Goods Outbound', href: '/warehouse/outbound', icon: <ArrowUpToLine className="h-4 w-4 opacity-50" />, category: 'Warehouse' },
   { key: 'warehouse_qc', title: 'Quality Control', href: '/warehouse/qc', icon: <CheckCircle2 className="h-4 w-4 opacity-50" />, category: 'Warehouse' },
   { key: 'warehouse_reject_monitor', title: 'Rejection Monitor', href: '/warehouse/reject-monitor', icon: <Archive className="h-4 w-4 text-rose-500 opacity-50" />, category: 'Warehouse' },
+  { key: 'warehouse_opname', title: 'Stock Opname', href: '/warehouse/opname', icon: <RefreshCw className="h-4 w-4 opacity-50" />, category: 'Warehouse' },
 
   // Sourcing
   { 

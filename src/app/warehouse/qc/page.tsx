@@ -3,7 +3,7 @@
 import type { SVGProps } from "react"
 import { useState } from "react"
 import { useAppStore } from "@/lib/store"
-import { recordShrinkage } from "@/lib/accounting"
+import { recordShrinkage, recordStockMovement, recordInboundQC } from "@/lib/accounting"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -13,7 +13,6 @@ import { ShieldAlert, ShieldCheck, Tag, RefreshCcw, PackageSearch, AlertTriangle
 import { toast } from "sonner"
 import { v4 as uuidv4 } from "uuid"
 import { cn } from "@/lib/utils"
-import { recordStockMovement } from "@/lib/accounting"
 
 export default function QCPage() {
   const products = useAppStore(state => state.products)
@@ -51,6 +50,9 @@ export default function QCPage() {
   const [rejectReason, setRejectReason] = useState("")
   const [unbalanceReason, setUnbalanceReason] = useState("")
   const [qcPhoto, setQcPhoto] = useState<string | null>(null)
+  const [expiryDate, setExpiryDate] = useState("")
+  const [batchNumber, setBatchNumber] = useState("")
+  const [rejectAction, setRejectAction] = useState<'Return' | 'Disposal' | 'B2C'>('Disposal')
 
   const activePurchaseItem = pendingQCItems.find(i => i.id === selectedPurchaseItemId)
   const activeProduct = products.find(p => p.id === activePurchaseItem?.productId)
@@ -67,7 +69,30 @@ export default function QCPage() {
     }
 
     const currentUser = useAppStore.getState().currentUser
+    const unitCost = activePurchaseItem.actualUnitPrice || activePurchaseItem.estimatedUnitPrice || activeProduct.basePrice || 0;
 
+    toast.loading("Memproses verifikasi inbound & pencatatan jurnal...", { id: "qc-process" })
+
+    // 1. Record double entry journal for receiving and reject routing
+    const inboundSuccess = await recordInboundQC(
+      activePurchaseItem.id,
+      activeProduct.id,
+      qtyPassToInventory + qtyPassToClient,
+      qtyReject,
+      qtyReject > 0 ? rejectAction : undefined,
+      unitCost,
+      'main',
+      batchNumber || undefined,
+      expiryDate || undefined,
+      currentUser?.id || 'system'
+    );
+
+    if (!inboundSuccess) {
+      toast.error("Gagal memproses jurnal akuntansi untuk QC.", { id: "qc-process" });
+      return;
+    }
+
+    // 2. Info receipt movement
     await recordStockMovement({
       productId: activeProduct.id,
       quantity: totalIncoming,
@@ -81,11 +106,14 @@ export default function QCPage() {
       purchaseItemId: activePurchaseItem.id,
       note: `Barang masuk QC dari sourcing untuk ${activeProduct.name}`,
       createdByUserId: currentUser?.id || 'system',
+      warehouseId: 'main',
+      batchNumber: batchNumber || undefined,
+      expiryDate: expiryDate || undefined,
+      unitCost: unitCost
     })
 
-    // 1. Process Passed items to Inventory
-    // FIX: Only add to inventory if NOT an Online Purchase (Online is already added during approval)
-    if (qtyPassToInventory > 0 && !isOnline) {
+    // 3. Process Passed items to Inventory
+    if (qtyPassToInventory > 0) {
       await recordStockMovement({
         productId: activeProduct.id,
         quantity: qtyPassToInventory,
@@ -97,15 +125,16 @@ export default function QCPage() {
         referenceType: 'QC',
         referenceId: activePurchaseItem.id,
         purchaseItemId: activePurchaseItem.id,
-        note: `Lolos QC dan masuk inventory (Sourcing)`,
+        note: `Lolos QC dan masuk inventory`,
         createdByUserId: currentUser?.id || 'system',
+        warehouseId: 'main',
+        batchNumber: batchNumber || undefined,
+        expiryDate: expiryDate || undefined,
+        unitCost: unitCost
       })
-      toast.success(`${qtyPassToInventory} unit masuk stok inventory.`)
-    } else if (isOnline) {
-      toast.info(`Barang online sudah ada di inventory. Hanya mencatat perubahan jika ada reject.`)
     }
 
-    // 2. Process Passed items to Client (Update SO)
+    // 4. Process Passed items to Client (Update SO)
     if (qtyPassToClient > 0 && activePurchaseItem.salesOrderId) {
       const soItems = useAppStore.getState().salesOrderItems.filter(i => i.salesOrderId === activePurchaseItem.salesOrderId)
       const matchingSOItem = soItems.find(i => i.productId === activePurchaseItem.productId)
@@ -128,29 +157,56 @@ export default function QCPage() {
           salesOrderId: activePurchaseItem.salesOrderId,
           note: `Lolos QC dan dialokasikan ke client`,
           createdByUserId: currentUser?.id || 'system',
+          warehouseId: 'main',
+          batchNumber: batchNumber || undefined,
+          expiryDate: expiryDate || undefined,
+          unitCost: unitCost
         })
-        toast.info(`${qtyPassToClient} unit dialokasikan ke klien.`)
       }
     }
 
-    // 3. Process Reject
+    // 5. Process Reject routing
     if (qtyReject > 0) {
       const rejectId = uuidv4()
-      await recordShrinkage(rejectId, qtyReject * (activeProduct.basePrice || 0), `Reject QC - ${activeProduct.name}: ${rejectReason || 'Tanpa alasan'}`)
-      await recordStockMovement({
-        productId: activeProduct.id,
-        quantity: qtyReject,
-        stockDelta: isOnline ? -qtyReject : 0, // ONLY deduct if it was pre-added (Online)
-        direction: isOnline ? 'Out' : 'Info',
-        kind: 'ADJUSTMENT',
-        source: 'QC',
-        destination: 'Reject/Write-off',
-        referenceType: 'QC',
-        referenceId: activePurchaseItem.id,
-        purchaseItemId: activePurchaseItem.id,
-        note: `Reject QC: ${rejectReason || 'Tanpa alasan'}`,
-        createdByUserId: currentUser?.id || 'system',
-      })
+      if (rejectAction === 'B2C') {
+        // Physical movement to B2C warehouse
+        await recordStockMovement({
+          productId: activeProduct.id,
+          quantity: qtyReject,
+          stockDelta: qtyReject,
+          direction: 'In',
+          kind: 'QC_INVENTORY',
+          source: 'QC Reject',
+          destination: 'B2C Warehouse',
+          referenceType: 'QC',
+          referenceId: activePurchaseItem.id,
+          purchaseItemId: activePurchaseItem.id,
+          note: `Barang reject dipindahkan ke B2C Peralihan`,
+          createdByUserId: currentUser?.id || 'system',
+          warehouseId: 'b2c',
+          batchNumber: batchNumber || undefined,
+          expiryDate: expiryDate || undefined,
+          unitCost: unitCost
+        });
+      } else {
+        // Return or Disposal: just record stock movement log with 0 delta
+        await recordStockMovement({
+          productId: activeProduct.id,
+          quantity: qtyReject,
+          stockDelta: 0,
+          direction: 'Info',
+          kind: 'ADJUSTMENT',
+          source: 'QC',
+          destination: rejectAction === 'Return' ? 'Return to Supplier' : 'Reject/Write-off',
+          referenceType: 'QC',
+          referenceId: activePurchaseItem.id,
+          purchaseItemId: activePurchaseItem.id,
+          note: `Reject QC (${rejectAction}): ${rejectReason || 'Tanpa alasan'}`,
+          createdByUserId: currentUser?.id || 'system',
+          warehouseId: 'main',
+          unitCost: unitCost
+        });
+      }
       
       // Log to Rejection Monitor
       await useAppStore.getState().addRejectedItem({
@@ -158,13 +214,12 @@ export default function QCPage() {
         date: new Date().toISOString(),
         productId: activeProduct.id,
         qty: qtyReject,
-        reason: rejectReason || 'Tanpa alasan',
+        reason: `${rejectAction === 'B2C' ? 'Peralihan B2C' : rejectAction === 'Return' ? 'Retur Supplier' : 'Disposal'}: ${rejectReason || 'Tanpa alasan'}`,
         source: 'QC',
         referenceId: activePurchaseItem.id,
         reportedBy: currentUser?.id || 'system',
         imageUrl: qcPhoto || undefined
       })
-      toast.error(`${qtyReject} unit reject dicatat di monitor.`)
     }
 
     await updatePurchaseItem(activePurchaseItem.id, { 
@@ -172,8 +227,9 @@ export default function QCPage() {
       inboundStatus: qtyReject === totalIncoming ? 'rejected' : (totalProcessed === totalIncoming ? 'verified' : 'partial'),
       inboundQtyReceived: qtyPassToInventory + qtyPassToClient,
       inboundVerifiedAt: new Date().toISOString(),
-      inboundVerifiedBy: currentUser?.id || 'system',
-      inboundNote: [unbalanceReason, rejectReason].filter(Boolean).join(' | ')
+      inboundVerifiedBy: currentUser?.name || currentUser?.id || 'system',
+      inboundNote: [unbalanceReason, rejectReason].filter(Boolean).join(' | '),
+      expiryDate: expiryDate || undefined
     })
     
     // Antarkan SO ke status Packing jika semua itemnya sudah di-QC
@@ -186,10 +242,11 @@ export default function QCPage() {
       
       if (allQCed) {
         await updateSalesOrder(soId, { status: 'Packing' })
-        toast.success("Semua barang untuk PO ini telah masuk QC. Status SO: DI GUDANG.")
       }
     }
     
+    toast.success("QC berhasil diproses dan stok telah terupdate!", { id: "qc-process" })
+
     // Cleanup
     setSelectedPurchaseItemId("")
     setQtyPassToInventory(0)
@@ -198,6 +255,8 @@ export default function QCPage() {
     setRejectReason("")
     setUnbalanceReason("")
     setQcPhoto(null)
+    setExpiryDate("")
+    setBatchNumber("")
   }
 
   // --- TAB 2: CUSTOMER RETURN QC LOGIC ---
@@ -413,53 +472,109 @@ export default function QCPage() {
                       </div>
                     </div>
 
-                    <div className="space-y-4">
-                       <div className="flex justify-between items-center px-4">
-                          <span className={cn(
-                            "text-xs font-black uppercase tracking-widest",
-                            qtyPassToInventory + qtyPassToClient + qtyReject === activePurchaseItem.qtyPurchased ? "text-emerald-600" : "text-rose-600 animate-pulse"
-                          )}>
-                            Status: {qtyPassToInventory + qtyPassToClient + qtyReject === activePurchaseItem.qtyPurchased ? "Balance ✓" : "Tidak Balance !"}
-                          </span>
-                          <span className="text-[10px] font-bold text-slate-400">Processed: {qtyPassToInventory + qtyPassToClient + qtyReject} / {activePurchaseItem.qtyPurchased}</span>
-                       </div>
-
-                       {(qtyPassToInventory + qtyPassToClient + qtyReject !== activePurchaseItem.qtyPurchased) && (
-                          <div className="space-y-3 p-6 bg-rose-50 rounded-[2rem] border border-rose-100 animate-in zoom-in-95">
-                             <Label className="text-rose-700 font-black uppercase text-[10px] tracking-widest">Alasan Selisih / Tidak Balance (Wajib)</Label>
-                             <Input 
-                               placeholder="Kenapa jumlah fisik beda?"
-                               className="h-14 rounded-xl border-rose-200 bg-white"
-                               value={unbalanceReason}
-                               onChange={(e) => setUnbalanceReason(e.target.value)}
-                             />
-                             <div className="flex items-center gap-3 mt-4">
-                               <div 
-                                 className="h-14 flex-1 border-2 border-dashed border-rose-200 rounded-xl flex items-center justify-center bg-white cursor-pointer hover:border-rose-400 transition-all text-slate-400"
-                                 onClick={() => {
-                                   setQcPhoto("https://images.unsplash.com/photo-1582285273767-42f01eb0a316?auto=format&fit=crop&q=80&w=400")
-                                   toast.success("Foto bukti selisih ditambahkan!")
-                                 }}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-slate-500 font-black uppercase text-[10px] tracking-widest">Batch Number (Opsional)</Label>
+                        <Input
+                          placeholder="e.g. BATCH-A1"
+                          className="h-14 rounded-xl border border-slate-100 bg-white"
+                          value={batchNumber}
+                          onChange={(e) => setBatchNumber(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-slate-500 font-black uppercase text-[10px] tracking-widest">Tanggal Kedaluarsa (Wajib Pangan Segar)</Label>
+                        <Input
+                          type="date"
+                          className="h-14 rounded-xl border border-slate-100 bg-white"
+                          value={expiryDate}
+                          onChange={(e) => setExpiryDate(e.target.value)}
+                        />
+                      </div>
+                    </div>
+ 
+                     <div className="space-y-4">
+                        <div className="flex justify-between items-center px-4">
+                           <span className={cn(
+                             "text-xs font-black uppercase tracking-widest",
+                             qtyPassToInventory + qtyPassToClient + qtyReject === activePurchaseItem.qtyPurchased ? "text-emerald-600" : "text-rose-600 animate-pulse"
+                           )}>
+                             Status: {qtyPassToInventory + qtyPassToClient + qtyReject === activePurchaseItem.qtyPurchased ? "Balance ✓" : "Tidak Balance !"}
+                           </span>
+                           <span className="text-[10px] font-bold text-slate-400">Processed: {qtyPassToInventory + qtyPassToClient + qtyReject} / {activePurchaseItem.qtyPurchased}</span>
+                        </div>
+ 
+                        {(qtyPassToInventory + qtyPassToClient + qtyReject !== activePurchaseItem.qtyPurchased) && (
+                           <div className="space-y-3 p-6 bg-rose-50 rounded-[2rem] border border-rose-100 animate-in zoom-in-95">
+                              <Label className="text-rose-700 font-black uppercase text-[10px] tracking-widest">Alasan Selisih / Tidak Balance (Wajib)</Label>
+                              <Input 
+                                placeholder="Kenapa jumlah fisik beda?"
+                                className="h-14 rounded-xl border-rose-200 bg-white"
+                                value={unbalanceReason}
+                                onChange={(e) => setUnbalanceReason(e.target.value)}
+                              />
+                              <div className="flex items-center gap-3 mt-4">
+                                <div 
+                                  className="h-14 flex-1 border-2 border-dashed border-rose-200 rounded-xl flex items-center justify-center bg-white cursor-pointer hover:border-rose-400 transition-all text-slate-400"
+                                  onClick={() => {
+                                    setQcPhoto("https://images.unsplash.com/photo-1582285273767-42f01eb0a316?auto=format&fit=crop&q=80&w=400")
+                                    toast.success("Foto bukti selisih ditambahkan!")
+                                  }}
+                                >
+                                   {qcPhoto ? <img src={qcPhoto} className="w-full h-full object-cover rounded-lg" /> : <div className="flex items-center gap-2"><ShieldAlert className="w-4 h-4" /><span className="text-[10px] font-black uppercase">Foto Bukti (Opsional)</span></div>}
+                                </div>
+                                {qcPhoto && <Button variant="outline" size="icon" className="h-14 w-14 rounded-xl" onClick={() => setQcPhoto(null)}>✕</Button>}
+                              </div>
+                           </div>
+                        )}
+ 
+                        {qtyReject > 0 && (
+                          <div className="space-y-4 p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
+                             <Label className="text-slate-500 font-black uppercase text-[10px] tracking-widest">Tindakan Barang Reject</Label>
+                             <div className="grid grid-cols-3 gap-2">
+                               <button
+                                 type="button"
+                                 onClick={() => setRejectAction('Return')}
+                                 className={cn(
+                                   "h-12 rounded-xl font-bold text-xs uppercase transition-all border",
+                                   rejectAction === 'Return' ? "bg-rose-600 text-white border-rose-600 shadow-md" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                                 )}
                                >
-                                  {qcPhoto ? <img src={qcPhoto} className="w-full h-full object-cover rounded-lg" /> : <div className="flex items-center gap-2"><ShieldAlert className="w-4 h-4" /><span className="text-[10px] font-black uppercase">Foto Bukti (Opsional)</span></div>}
-                               </div>
-                               {qcPhoto && <Button variant="outline" size="icon" className="h-14 w-14 rounded-xl" onClick={() => setQcPhoto(null)}>✕</Button>}
+                                 Retur ke Supplier
+                               </button>
+                               <button
+                                 type="button"
+                                 onClick={() => setRejectAction('Disposal')}
+                                 className={cn(
+                                   "h-12 rounded-xl font-bold text-xs uppercase transition-all border",
+                                   rejectAction === 'Disposal' ? "bg-rose-600 text-white border-rose-600 shadow-md" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                                 )}
+                               >
+                                 Disposal (Buang)
+                               </button>
+                               <button
+                                 type="button"
+                                 onClick={() => setRejectAction('B2C')}
+                                 className={cn(
+                                   "h-12 rounded-xl font-bold text-xs uppercase transition-all border",
+                                   rejectAction === 'B2C' ? "bg-emerald-600 text-white border-emerald-600 shadow-md" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                                 )}
+                               >
+                                 Peralihan B2C
+                               </button>
+                             </div>
+                             
+                             <div className="space-y-2 mt-2">
+                               <Label className="text-slate-500 font-black uppercase text-[10px] tracking-widest">Alasan Reject</Label>
+                               <Input 
+                                 placeholder="Kondisi barang reject (pecah, busuk, dll)"
+                                 className="h-14 rounded-xl border border-slate-100 bg-white"
+                                 value={rejectReason}
+                                 onChange={(e) => setRejectReason(e.target.value)}
+                               />
                              </div>
                           </div>
-                       )}
-
-                       {qtyReject > 0 && (
-                         <div className="space-y-3 p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
-                            <Label className="text-slate-500 font-black uppercase text-[10px] tracking-widest">Keterangan Reject</Label>
-                            <Input 
-                              placeholder="Kondisi barang reject (pecah, busuk, dll)"
-                              className="h-14 rounded-xl border-slate-200 bg-white"
-                              value={rejectReason}
-                              onChange={(e) => setRejectReason(e.target.value)}
-                            />
-                         </div>
-                       )}
-                    </div>
+                        )}
 
                     <Button 
                       className="w-full h-20 bg-emerald-600 hover:bg-emerald-700 text-white rounded-[2rem] font-black uppercase tracking-[0.2em] shadow-2xl active:scale-95 transition-all text-lg"

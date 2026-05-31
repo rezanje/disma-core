@@ -310,7 +310,8 @@ export const recordStockMovement = async (
   if (!product) return false;
 
   const delta = Number(movement.stockDelta || 0);
-  const currentStock = Number(product.currentStock || 0);
+  const isB2C = (movement.warehouseId || 'main') === 'b2c';
+  const currentStock = Number(isB2C ? (product.b2cStock || 0) : (product.currentStock || 0));
   const resultingStock = Math.max(0, currentStock + delta);
 
   await store.addStockMovement({
@@ -332,10 +333,18 @@ export const recordStockMovement = async (
     salesOrderId: movement.salesOrderId,
     note: movement.note,
     createdByUserId: movement.createdByUserId,
+    warehouseId: movement.warehouseId || 'main',
+    batchNumber: movement.batchNumber || null,
+    expiryDate: movement.expiryDate || null,
+    unitCost: Number(movement.unitCost || 0),
   });
 
   if (delta !== 0) {
-    await store.updateProduct(product.id, { currentStock: resultingStock });
+    if (isB2C) {
+      await store.updateProduct(product.id, { b2cStock: resultingStock });
+    } else {
+      await store.updateProduct(product.id, { currentStock: resultingStock });
+    }
   }
 
   return true;
@@ -365,12 +374,12 @@ export const recordOnlinePurchase = async (
 
   const baseProductAmount = totalAmount - adminFee - shippingFee;
 
-  // 1. Double Entry (Split)
+  // 1. Double Entry (Split) - Debit AP Accrual instead of HPP for inventory portion
   const bank = store.bankAccounts.find(b => b.id === bankAccountId);
   const bankAccountCode = bank?.accountCode || '1-1000';
 
   const debits = [
-    { accountCode: HPP_ACCOUNT_CODE, amount: baseProductAmount }
+    { accountCode: '2-1100', amount: baseProductAmount }
   ];
   
   if (adminFee > 0) debits.push({ accountCode: '6-1600', amount: adminFee });
@@ -392,7 +401,7 @@ export const recordOnlinePurchase = async (
         date: new Date().toISOString(),
         amount: totalAmount,
         type: 'Out',
-        category: 'Belanja Online', // Use exact category for better filtering
+        category: 'Belanja Online',
         description: `Belanja Online: ${productName} (Incl. Admin & Ongkir)`,
         bankAccountId: bankAccountId,
         referenceId: itemId,
@@ -406,25 +415,10 @@ export const recordOnlinePurchase = async (
       actualUnitPrice: baseProductAmount / (existingItem?.qtyTarget || 1)
     });
 
-    // 4. Update Inventory & Price History
+    // 4. Update Price History (Stock movement is now delayed until QC)
     const product = store.products.find(p => p.name === productName || p.skuCode === productName || p.id === itemId || p.id === existingItem?.productId);
     if (product) {
       const qtyReceived = existingItem?.qtyTarget || 1;
-
-      await recordStockMovement({
-        productId: product.id,
-        quantity: qtyReceived,
-        stockDelta: qtyReceived,
-        direction: 'In',
-        kind: 'ONLINE_PURCHASE',
-        source: 'Online Purchase',
-        destination: 'Inventory',
-        referenceType: 'Purchase',
-        referenceId: itemId,
-        purchaseItemId: itemId,
-        note: `Belanja online ${productName} masuk stok (Approved by Finance)`,
-      });
-
       updateProductPriceHistory(product.id, baseProductAmount / qtyReceived, 'Online Purchase');
     }
   }
@@ -601,6 +595,13 @@ export const recordDeliveryAndInvoice = async (
     return true;
   }
 
+  // Find if client is B2C to determine warehouse and COA
+  const invoice = store.invoices.find(inv => inv.id === invoiceId);
+  const client = invoice ? store.clients.find(c => c.id === invoice.clientId) : null;
+  const isB2C = client?.companyName?.toLowerCase().includes('b2c') || false;
+  const warehouseId = isB2C ? 'b2c' : 'main';
+  const inventoryAccount = isB2C ? '1-3100' : '1-3000';
+
   // 2. Record Revenue (Invoice Terbit)
   const revSuccess = await createAccountingEntry(
     `Invoice Terbit - Ref: ${invoiceId}`,
@@ -610,35 +611,50 @@ export const recordDeliveryAndInvoice = async (
     [{ accountCode: '4-1000', amount: invoiceTotal }]
   );
 
-  // 3. HPP/COGS untuk fast-track TIDAK dijurnal di sini.
-  //    Fast-track bikin purchase tiruan dgn reconciliationStatus='Laporan Masuk' supaya
-  //    HPP di-recognize via flow normal recordReconciliationSettlement (Sourcing Settlement
-  //    di Finance Hub). Jurnal: Dr 5-1000 HPP | Cr 1-1500 advance (atau 2-1500 utang kalo defisit).
-  //    Single source of truth = settlement. Cegah double-count + utang ghost.
-  void isFastTrack;
-  
+  if (!revSuccess) return false;
+
+  // 3. Record COGS / HPP Journal
+  // Debit: HPP 5-1000
+  // Credit: Persediaan 1-3000 or 1-3100
+  if (cogsTotal > 0) {
+    await createAccountingEntry(
+      `Pengakuan HPP Delivery - Ref: ${deliveryId}`,
+      'Delivery',
+      deliveryId,
+      [{ accountCode: '5-1000', amount: cogsTotal }],
+      [{ accountCode: inventoryAccount, amount: cogsTotal }]
+    );
+  }
+
   // 4. Physical Inventory Sync (Deduction)
-  if (revSuccess) {
-    for (const item of items) {
-      const product = store.products.find(p => p.id === item.productId);
-      if (product) {
-        await recordStockMovement({
-          productId: product.id,
-          quantity: item.qty,
-          stockDelta: -item.qty,
-          direction: 'Out',
-          kind: 'DELIVERY_OUTBOUND',
-          source: 'Inventory',
-          destination: 'Client Delivery',
-          referenceType: 'Delivery',
-          referenceId: deliveryId,
-          note: `Barang keluar untuk pengiriman ${deliveryId}`,
-        });
+  for (const item of items) {
+    const product = store.products.find(p => p.id === item.productId);
+    if (product) {
+      // Find unit cost for this item to log in stock_movements
+      let pItem = store.purchaseItems.find(pi => pi.salesOrderId === invoice?.salesOrderId && pi.productId === item.productId && pi.actualUnitPrice > 0);
+      if (!pItem) {
+        pItem = store.purchaseItems.filter(pi => pi.productId === item.productId && pi.actualUnitPrice > 0).pop();
       }
+      const unitCost = pItem ? pItem.actualUnitPrice : (product.basePrice || 0);
+
+      await recordStockMovement({
+        productId: product.id,
+        quantity: item.qty,
+        stockDelta: -item.qty,
+        direction: 'Out',
+        kind: 'DELIVERY_OUTBOUND',
+        source: isB2C ? 'B2C Warehouse' : 'Inventory',
+        destination: 'Client Delivery',
+        referenceType: 'Delivery',
+        referenceId: deliveryId,
+        note: `Barang keluar untuk pengiriman ${deliveryId} (${isB2C ? 'B2C' : 'Main'})`,
+        warehouseId: warehouseId,
+        unitCost: unitCost
+      });
     }
   }
 
-  return revSuccess;
+  return true;
 };
 
 export const recordManualReceivable = async (invoiceId: string, amount: number, date: string) => {
@@ -918,7 +934,7 @@ export const recordReconciliationSettlement = async (
       shopDescription,
       'Purchase',
       purchaseId,
-      [{ accountCode: '1-3000', amount: actualShopCost }], // Dr 1-3000 Persediaan
+      [{ accountCode: '2-1100', amount: actualShopCost }], // Dr 2-1100 AP Accrual
       journalCredits
     );
 
@@ -1065,14 +1081,91 @@ export const recordPaymentReceived = async (invoiceId: string, amount: number, d
   return success;
 };
 
-export const recordShrinkage = async (referenceId: string, amount: number, description: string) => {
+export const recordShrinkage = async (
+  referenceId: string, 
+  amount: number, 
+  description: string,
+  creditAccountCode: string = '1-3000'
+) => {
   return await createAccountingEntry(
     `Barang Reject: ${description}`,
     'Adjustment',
     referenceId,
     [{ accountCode: '5-2000', amount: amount }], // Debit Beban Kerusakan
-    [{ accountCode: '5-1000', amount: amount }]  // Credit HPP (reclassify from HPP, since all purchases were put into HPP)
+    [{ accountCode: creditAccountCode, amount: amount }] // Credit Persediaan (1-3000 or 1-3100)
   );
+};
+
+export const recordInboundQC = async (
+  purchaseItemId: string,
+  productId: string,
+  qtyPassed: number,
+  qtyRejected: number,
+  rejectAction: 'Return' | 'Disposal' | 'B2C' | undefined,
+  unitCost: number,
+  warehouseId: string, // 'main' or 'b2c'
+  batchNumber?: string,
+  expiryDate?: string,
+  verifiedBy?: string
+) => {
+  const store = useAppStore.getState();
+  const product = store.products.find(p => p.id === productId);
+  if (!product) return false;
+
+  const totalIncoming = qtyPassed + qtyRejected;
+  const totalValue = totalIncoming * unitCost;
+
+  const inventoryAccount = warehouseId === 'b2c' ? '1-3100' : '1-3000';
+
+  // 1. Jurnal penerimaan fisik barang ke persediaan sementara (totalIncoming)
+  // Debit: Persediaan 1-3000 atau 1-3100
+  // Kredit: AP Accrual 2-1100
+  const recSuccess = await createAccountingEntry(
+    `QC Terima Barang - ${product.name} - Ref: ${purchaseItemId.slice(0,8)}`,
+    'QC',
+    purchaseItemId,
+    [{ accountCode: inventoryAccount, amount: totalValue }],
+    [{ accountCode: '2-1100', amount: totalValue }]
+  );
+
+  if (!recSuccess) return false;
+
+  // 2. Jurnal penanganan reject jika ada
+  if (qtyRejected > 0 && rejectAction) {
+    const rejectValue = qtyRejected * unitCost;
+    if (rejectAction === 'Return') {
+      // Return: reverse receipt by debiting AP Accrual 2-1100 and crediting Persediaan
+      await createAccountingEntry(
+        `QC Reject Retur Supplier - ${product.name} - Ref: ${purchaseItemId.slice(0,8)}`,
+        'QC',
+        purchaseItemId,
+        [{ accountCode: '2-1100', amount: rejectValue }],
+        [{ accountCode: inventoryAccount, amount: rejectValue }]
+      );
+    } else if (rejectAction === 'Disposal') {
+      // Disposal: write-off by debiting Beban Kerusakan 5-2000 and crediting Persediaan
+      await createAccountingEntry(
+        `QC Reject Disposal - ${product.name} - Ref: ${purchaseItemId.slice(0,8)}`,
+        'QC',
+        purchaseItemId,
+        [{ accountCode: '5-2000', amount: rejectValue }],
+        [{ accountCode: inventoryAccount, amount: rejectValue }]
+      );
+    } else if (rejectAction === 'B2C') {
+      // Move to B2C: transfer from Persediaan Utama 1-3000 to Persediaan B2C 1-3100
+      if (inventoryAccount !== '1-3100') {
+        await createAccountingEntry(
+          `QC Reject Peralihan B2C - ${product.name} - Ref: ${purchaseItemId.slice(0,8)}`,
+          'QC',
+          purchaseItemId,
+          [{ accountCode: '1-3100', amount: rejectValue }],
+          [{ accountCode: '1-3000', amount: rejectValue }]
+        );
+      }
+    }
+  }
+
+  return true;
 };
 
 export const recordDepreciation = async (assetId: string, amount: number, assetName: string) => {
@@ -1145,4 +1238,41 @@ export const recordAdvanceReturn = async (
   }
 
   return success;
+};
+
+export const recordStockOpnameAdjustment = async (
+  productId: string,
+  delta: number,
+  unitCost: number,
+  warehouseId: string, // 'main' or 'b2c'
+  reason: string
+) => {
+  const store = useAppStore.getState();
+  const product = store.products.find(p => p.id === productId);
+  if (!product) return false;
+
+  const totalValue = Math.abs(delta) * unitCost;
+  const inventoryAccount = warehouseId === 'b2c' ? '1-3100' : '1-3000';
+
+  if (delta > 0) {
+    // Surplus: Debit Persediaan, Credit Pendapatan Lain-lain (4-2000)
+    return await createAccountingEntry(
+      `Stock Opname Selisih Lebih - ${product.name} - WH: ${warehouseId}`,
+      'Adjustment',
+      productId,
+      [{ accountCode: inventoryAccount, amount: totalValue }],
+      [{ accountCode: '4-2000', amount: totalValue }]
+    );
+  } else if (delta < 0) {
+    // Deficit: Debit Beban Kerusakan (5-2000), Credit Persediaan
+    return await createAccountingEntry(
+      `Stock Opname Selisih Kurang - ${product.name} - WH: ${warehouseId}`,
+      'Adjustment',
+      productId,
+      [{ accountCode: '5-2000', amount: totalValue }],
+      [{ accountCode: inventoryAccount, amount: totalValue }]
+    );
+  }
+
+  return true;
 };
