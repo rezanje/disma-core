@@ -2360,6 +2360,9 @@ export const useAppStore = create<AppState>((set, get) => ({
         await get().syncTable('bank_accounts', acc);
       },
       createBankWithCoa: async (acc, coaName) => {
+        if (!acc.accountCode) {
+          throw new Error('createBankWithCoa: bank account is missing an accountCode');
+        }
         await get().addCoa({
           id: uuidv4(),
           accountCode: acc.accountCode,
