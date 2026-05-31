@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useAppStore } from "@/lib/store"
 import { PurchaseRequest, PurchaseRequestStatus } from "@/types"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -52,16 +52,19 @@ export default function PurchaseRequestsPage() {
   const [newAmountRaw, setNewAmountRaw] = useState("")
   const [newCategory, setNewCategory] = useState("Sourcing")
   const [selectedSOIds, setSelectedSOIds] = useState<string[]>([])
+  const [includeManualItems, setIncludeManualItems] = useState(false)
+  const [manualItemsList, setManualItemsList] = useState<any[]>([])
 
-  const handleToggleSO = (soId: string) => {
-    const nextSelected = selectedSOIds.includes(soId)
-      ? selectedSOIds.filter(id => id !== soId)
-      : [...selectedSOIds, soId]
-    
-    setSelectedSOIds(nextSelected)
-    
+  useEffect(() => {
+    try {
+      const items = JSON.parse(localStorage.getItem('shopping_manualItems') || '[]')
+      setManualItemsList(items)
+    } catch { /* ignore */ }
+  }, [])
+
+  const recalculateForm = (soIds: string[], manualChecked: boolean) => {
     // Recalculate sum of selected POs using estimatedHpp
-    const newSum = nextSelected.reduce((sum, id) => {
+    const poSum = soIds.reduce((sum, id) => {
       const items = salesOrderItems.filter(item => item.salesOrderId === id)
       const total = items.reduce((s, item) => {
         const prod = products.find(p => p.id === item.productId)
@@ -70,6 +73,12 @@ export default function PurchaseRequestsPage() {
       }, 0)
       return sum + total
     }, 0)
+
+    const manualSum = manualChecked ? manualItemsList.reduce((sum, item) => {
+      return sum + (item.price * item.qty)
+    }, 0) : 0
+
+    const newSum = poSum + manualSum
     
     if (newSum > 0) {
       setNewAmountRaw(formatNumber(newSum))
@@ -78,10 +87,15 @@ export default function PurchaseRequestsPage() {
     }
 
     // Auto-populate Title & Description if they are empty
-    const selectedPOs = nextSelected.map(id => salesOrders.find(so => so.id === id)).filter(Boolean)
-    if (selectedPOs.length > 0) {
-      if (!newTitle || newTitle.startsWith("Belanja Sourcing PO:")) {
-        setNewTitle(`Belanja Sourcing PO: ${selectedPOs.map(so => so?.poNumber).join(', ')}`)
+    const selectedPOs = soIds.map(id => salesOrders.find(so => so.id === id)).filter(Boolean)
+    const hasSelections = selectedPOs.length > 0 || manualChecked
+
+    if (hasSelections) {
+      if (!newTitle || newTitle.startsWith("Belanja Sourcing PO:") || newTitle.startsWith("Belanja Sourcing Stok") || newTitle.startsWith("Belanja Sourcing PO & Stok")) {
+        const titleParts = []
+        if (selectedPOs.length > 0) titleParts.push(`PO: ${selectedPOs.map(so => so?.poNumber).join(', ')}`)
+        if (manualChecked) titleParts.push(`Stok Manual`)
+        setNewTitle(`Belanja Sourcing ${titleParts.join(' & ')}`)
       }
       
       let onlineProductIds = new Set<string>()
@@ -89,24 +103,52 @@ export default function PurchaseRequestsPage() {
         onlineProductIds = new Set(JSON.parse(localStorage.getItem('shopping_onlineProductIds') || '[]'))
       } catch { /* ignore */ }
 
-      if (!newDescription || newDescription.startsWith("Kebutuhan pembelian barang untuk PO:")) {
-        const poDetails = selectedPOs.map(so => {
-          const clientName = clients.find(c => c.id === so?.clientId)?.companyName || 'Client'
-          const soItems = salesOrderItems.filter(i => i.salesOrderId === so?.id)
-          const itemsDesc = soItems.map(item => {
+      if (!newDescription || newDescription.startsWith("Kebutuhan pembelian barang")) {
+        const descParts = []
+        if (selectedPOs.length > 0) {
+          const poDetails = selectedPOs.map(so => {
+            const clientName = clients.find(c => c.id === so?.clientId)?.companyName || 'Client'
+            const soItems = salesOrderItems.filter(i => i.salesOrderId === so?.id)
+            const itemsDesc = soItems.map(item => {
+              const prod = products.find(p => p.id === item.productId)
+              const isOnline = onlineProductIds.has(item.productId)
+              const estHpp = item.estimatedHpp !== undefined ? item.estimatedHpp : (prod?.basePrice || 0)
+              return `  - ${item.qty}x ${prod?.name || 'Item'} @ ${formatRupiah(estHpp)}${isOnline ? ' (Belanja Online)' : ''}`
+            }).join('\n')
+            return `- PO ${so?.poNumber} (${clientName})\n${itemsDesc}`
+          }).join('\n\n')
+          descParts.push(`Kebutuhan pembelian barang untuk PO:\n\n${poDetails}`)
+        }
+        
+        if (manualChecked && manualItemsList.length > 0) {
+          const manualDetails = manualItemsList.map(item => {
             const prod = products.find(p => p.id === item.productId)
             const isOnline = onlineProductIds.has(item.productId)
-            const estHpp = item.estimatedHpp !== undefined ? item.estimatedHpp : (prod?.basePrice || 0)
-            return `  - ${item.qty}x ${prod?.name || 'Item'} @ ${formatRupiah(estHpp)}${isOnline ? ' (Belanja Online)' : ''}`
+            return `  - ${item.qty}x ${prod?.name || 'Item'} @ ${formatRupiah(item.price)}${isOnline ? ' (Belanja Online)' : ''}`
           }).join('\n')
-          return `- PO ${so?.poNumber} (${clientName})\n${itemsDesc}`
-        }).join('\n\n')
-        setNewDescription(`Kebutuhan pembelian barang untuk PO:\n\n${poDetails}`)
+          descParts.push(`Kebutuhan Item Stok Manual:\n\n${manualDetails}`)
+        }
+
+        setNewDescription(descParts.join('\n\n---\n\n'))
       }
     } else {
-      if (newTitle.startsWith("Belanja Sourcing PO:")) setNewTitle("")
-      if (newDescription.startsWith("Kebutuhan pembelian barang untuk PO:")) setNewDescription("")
+      if (newTitle.startsWith("Belanja Sourcing")) setNewTitle("")
+      if (newDescription.startsWith("Kebutuhan pembelian barang")) setNewDescription("")
     }
+  }
+
+  const handleToggleSO = (soId: string) => {
+    const nextSelected = selectedSOIds.includes(soId)
+      ? selectedSOIds.filter(id => id !== soId)
+      : [...selectedSOIds, soId]
+    
+    setSelectedSOIds(nextSelected)
+    recalculateForm(nextSelected, includeManualItems)
+  }
+
+  const handleToggleManual = (checked: boolean) => {
+    setIncludeManualItems(checked)
+    recalculateForm(selectedSOIds, checked)
   }
 
   // Audit / Action Notes States
@@ -425,6 +467,38 @@ export default function PurchaseRequestsPage() {
                             )
                           })}
                       </div>
+                    )}
+                    
+                    {manualItemsList.length > 0 && (
+                      <label className={cn(
+                        "flex cursor-pointer items-center justify-between rounded-xl border p-3 mt-3 transition-all text-xs font-bold",
+                        includeManualItems
+                          ? "border-blue-400 bg-blue-50/50 dark:bg-blue-950/20 text-slate-800 dark:text-slate-200"
+                          : "border-slate-200 bg-white dark:bg-slate-950 hover:border-blue-300 text-slate-600 dark:text-slate-400"
+                      )}>
+                        <div className="flex items-center gap-3 min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={includeManualItems}
+                            onChange={(e) => handleToggleManual(e.target.checked)}
+                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer accent-blue-600"
+                          />
+                          <div className="min-w-0">
+                            <p className="font-black text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                              Item Stok Manual
+                              <span className="rounded-full bg-blue-100 dark:bg-blue-900 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest text-blue-700 dark:text-blue-300 shadow-sm shrink-0">
+                                {manualItemsList.length} Item
+                              </span>
+                            </p>
+                            <p className="text-[9px] text-slate-400 font-bold uppercase truncate mt-0.5">
+                              Keranjang Shopping List (Belum ada PR)
+                            </p>
+                          </div>
+                        </div>
+                        <span className="font-extrabold text-blue-600 dark:text-blue-400 shrink-0">
+                          {formatRupiah(manualItemsList.reduce((s, item) => s + (item.qty * item.price), 0))}
+                        </span>
+                      </label>
                     )}
                   </div>
 
