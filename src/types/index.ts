@@ -619,6 +619,7 @@ export interface PurchaseRequest {
   financeNote?: string | null;
   cfoNote?: string | null;
   referenceId?: string | null;
+  salesOrderIds?: string[]; // Linked Sales Orders / POs
   createdAt: string;
 }
 

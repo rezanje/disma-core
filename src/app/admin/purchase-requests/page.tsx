@@ -34,6 +34,9 @@ export default function PurchaseRequestsPage() {
   const addPurchaseRequest = useAppStore(state => state.addPurchaseRequest)
   const updatePurchaseRequest = useAppStore(state => state.updatePurchaseRequest)
   const purchases = useAppStore(state => state.purchases)
+  const salesOrders = useAppStore(state => state.salesOrders) || []
+  const salesOrderItems = useAppStore(state => state.salesOrderItems) || []
+  const clients = useAppStore(state => state.clients) || []
   
   // List States
   const [filterStatus, setFilterStatus] = useState<string>("ALL")
@@ -46,6 +49,46 @@ export default function PurchaseRequestsPage() {
   const [newDescription, setNewDescription] = useState("")
   const [newAmountRaw, setNewAmountRaw] = useState("")
   const [newCategory, setNewCategory] = useState("Sourcing")
+  const [selectedSOIds, setSelectedSOIds] = useState<string[]>([])
+
+  const handleToggleSO = (soId: string) => {
+    const nextSelected = selectedSOIds.includes(soId)
+      ? selectedSOIds.filter(id => id !== soId)
+      : [...selectedSOIds, soId]
+    
+    setSelectedSOIds(nextSelected)
+    
+    // Recalculate sum of selected POs
+    const newSum = nextSelected.reduce((sum, id) => {
+      const items = salesOrderItems.filter(item => item.salesOrderId === id)
+      const total = items.reduce((s, item) => s + (item.subtotal || 0), 0)
+      return sum + total
+    }, 0)
+    
+    if (newSum > 0) {
+      setNewAmountRaw(formatNumber(newSum))
+    } else {
+      setNewAmountRaw("")
+    }
+
+    // Auto-populate Title & Description if they are empty
+    const selectedPOs = nextSelected.map(id => salesOrders.find(so => so.id === id)).filter(Boolean)
+    if (selectedPOs.length > 0) {
+      if (!newTitle || newTitle.startsWith("Belanja Sourcing PO:")) {
+        setNewTitle(`Belanja Sourcing PO: ${selectedPOs.map(so => so?.poNumber).join(', ')}`)
+      }
+      if (!newDescription || newDescription.startsWith("Kebutuhan pembelian barang untuk PO:")) {
+        const poDetails = selectedPOs.map(so => {
+          const clientName = clients.find(c => c.id === so?.clientId)?.companyName || 'Client'
+          return `- PO ${so?.poNumber} (${clientName})`
+        }).join('\n')
+        setNewDescription(`Kebutuhan pembelian barang untuk PO:\n${poDetails}`)
+      }
+    } else {
+      if (newTitle.startsWith("Belanja Sourcing PO:")) setNewTitle("")
+      if (newDescription.startsWith("Kebutuhan pembelian barang untuk PO:")) setNewDescription("")
+    }
+  }
 
   // Audit / Action Notes States
   const [financeNote, setFinanceNote] = useState("")
@@ -87,6 +130,7 @@ export default function PurchaseRequestsPage() {
       category: newCategory,
       status: "Pending_Finance",
       requestedBy: currentUser?.name || currentUser?.id || "Karyawan",
+      salesOrderIds: selectedSOIds,
       createdAt: new Date().toISOString()
     }
 
@@ -99,6 +143,7 @@ export default function PurchaseRequestsPage() {
       setNewDescription("")
       setNewAmountRaw("")
       setNewCategory("Sourcing")
+      setSelectedSOIds([])
       setIsFormOpen(false)
     } catch (err) {
       console.error(err)
@@ -286,10 +331,69 @@ export default function PurchaseRequestsPage() {
                     </div>
                   </div>
 
+                  {/* PO Selector Block */}
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                      <span>Hubungkan dengan Sales Order / PO (Opsional)</span>
+                      {selectedSOIds.length > 0 && (
+                        <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 px-2 py-0.5 rounded-full border border-emerald-200">
+                          {selectedSOIds.length} PO Terpilih
+                        </span>
+                      )}
+                    </Label>
+                    
+                    {salesOrders.filter(so => so.status !== 'Batal' && so.status !== 'Selesai').length === 0 ? (
+                      <div className="text-xs font-bold text-slate-400 py-2 border border-dashed rounded-xl px-4 text-center">
+                        Tidak ada Sales Order aktif untuk dihubungkan.
+                      </div>
+                    ) : (
+                      <div className="max-h-[160px] overflow-y-auto rounded-xl border border-slate-150 dark:border-slate-800 p-3 bg-slate-50/50 dark:bg-slate-900/50 space-y-2">
+                        {salesOrders
+                          .filter(so => so.status !== 'Batal' && so.status !== 'Selesai')
+                          .map(so => {
+                            const client = clients?.find(c => c.id === so.clientId)
+                            const items = salesOrderItems.filter(item => item.salesOrderId === so.id)
+                            const total = items.reduce((sum, item) => sum + (item.subtotal || 0), 0)
+                            const isChecked = selectedSOIds.includes(so.id)
+                            
+                            return (
+                              <label
+                                key={so.id}
+                                className={cn(
+                                  "flex cursor-pointer items-center justify-between rounded-lg border p-2.5 transition-all text-xs font-bold",
+                                  isChecked
+                                    ? "border-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20 text-slate-800 dark:text-slate-200"
+                                    : "border-slate-100 bg-white dark:bg-slate-950 hover:border-emerald-300 text-slate-600 dark:text-slate-400"
+                                )}
+                              >
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => handleToggleSO(so.id)}
+                                    className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 h-3.5 w-3.5 cursor-pointer accent-emerald-600"
+                                  />
+                                  <div className="min-w-0">
+                                    <p className="font-black text-slate-900 dark:text-slate-100">{so.poNumber}</p>
+                                    <p className="text-[9px] text-slate-400 font-bold uppercase truncate">
+                                      {client?.companyName || 'Unknown Client'}
+                                    </p>
+                                  </div>
+                                </div>
+                                <span className="font-extrabold text-emerald-600 dark:text-emerald-400 shrink-0">
+                                  {formatRupiah(total)}
+                                </span>
+                              </label>
+                            )
+                          })}
+                      </div>
+                    )}
+                  </div>
+
                   <div className="space-y-2">
                     <Label htmlFor="pr-amount" className="text-[10px] font-black uppercase tracking-wider text-slate-400">Nominal Dana (Rp)</Label>
                     <div className="relative">
-                      <DollarSign className="absolute left-3 top-3.5 w-5 h-5 text-slate-400" />
+                      <span className="absolute left-3 top-3 text-sm font-black text-slate-400 select-none">Rp</span>
                       <Input 
                         id="pr-amount"
                         placeholder="Contoh: 1.500.000"
@@ -428,6 +532,35 @@ export default function PurchaseRequestsPage() {
                         {activePR.description}
                       </p>
                     </div>
+
+                    {/* Linked Sales Orders / POs */}
+                    {activePR.salesOrderIds && activePR.salesOrderIds.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Sales Orders / PO Terkait</p>
+                        <div className="max-h-[140px] overflow-y-auto rounded-2xl border border-slate-100 dark:border-slate-800 p-3 bg-slate-50/50 dark:bg-slate-800/20 space-y-1.5">
+                          {activePR.salesOrderIds.map(soId => {
+                            const so = salesOrders.find(s => s.id === soId)
+                            if (!so) return null
+                            const client = clients.find(c => c.id === so.clientId)
+                            const items = salesOrderItems.filter(item => item.salesOrderId === so.id)
+                            const total = items.reduce((sum, item) => sum + (item.subtotal || 0), 0)
+                            return (
+                              <div key={soId} className="flex items-center justify-between rounded-xl border border-slate-200/60 bg-white dark:bg-slate-900 px-3 py-2 text-xs font-bold">
+                                <div className="min-w-0">
+                                  <p className="font-extrabold text-slate-950 dark:text-white">{so.poNumber}</p>
+                                  <p className="text-[9px] text-slate-400 font-bold uppercase truncate">
+                                    {client?.companyName || 'Unknown Client'}
+                                  </p>
+                                </div>
+                                <span className="font-black text-emerald-600 dark:text-emerald-400 shrink-0">
+                                  {formatRupiah(total)}
+                                </span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
 
                     <div className="p-5 bg-emerald-950 text-white rounded-[2rem] shadow-md relative overflow-hidden group">
                       <div className="absolute right-0 top-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl" />
