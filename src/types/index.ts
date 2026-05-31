@@ -68,6 +68,7 @@ export interface Vendor {
   createdAt: string;
   paymentTermDays?: number;
   isTempo?: boolean;
+  kind?: 'vendor' | 'toko' | 'perorangan';
 }
 
 export interface Product {
@@ -181,6 +182,7 @@ export interface Purchase {
   budgetTransferDate?: string;  // When Finance transferred funds
   budgetTransferedBy?: string;  // Finance user ID
   budgetBankAccountId?: string; // Source bank account
+  budgetDestBankAccountId?: string; // Explicit advance destination bank (step-4 disbursement)
   operationalSpareAmount?: number; // Extra money for fuel, parking, etc.
   actualSpent?: number;         // Actual total spent by Sourcer
   changeReturned?: number;      // Kembalian from Sourcer
