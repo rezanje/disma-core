@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { useAppStore } from "@/lib/store"
 import { PurchaseRequest, PurchaseRequestStatus } from "@/types"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -95,6 +95,17 @@ export default function PurchaseRequestsPage() {
   const [cfoNote, setCfoNote] = useState("")
 
   const activePR = purchaseRequests.find(pr => pr.id === selectedPRId)
+
+  // Map of SO id -> number of PRs already linked to it (untuk tanda "Sudah Diajukan")
+  const poPRCount = useMemo(() => {
+    const counts = new Map<string, number>()
+    purchaseRequests.forEach(pr => {
+      (pr.salesOrderIds || []).forEach(soId => {
+        counts.set(soId, (counts.get(soId) || 0) + 1)
+      })
+    })
+    return counts
+  }, [purchaseRequests])
 
   // Calculate Summary metrics
   const totalPRCount = purchaseRequests.length
@@ -355,7 +366,8 @@ export default function PurchaseRequestsPage() {
                             const items = salesOrderItems.filter(item => item.salesOrderId === so.id)
                             const total = items.reduce((sum, item) => sum + (item.subtotal || 0), 0)
                             const isChecked = selectedSOIds.includes(so.id)
-                            
+                            const prCount = poPRCount.get(so.id) || 0
+
                             return (
                               <label
                                 key={so.id}
@@ -374,7 +386,14 @@ export default function PurchaseRequestsPage() {
                                     className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 h-3.5 w-3.5 cursor-pointer accent-emerald-600"
                                   />
                                   <div className="min-w-0">
-                                    <p className="font-black text-slate-900 dark:text-slate-100">{so.poNumber}</p>
+                                    <div className="flex items-center gap-1.5">
+                                      <p className="font-black text-slate-900 dark:text-slate-100">{so.poNumber}</p>
+                                      {prCount > 0 && (
+                                        <span className="rounded-full bg-amber-500 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest text-white shadow-sm shrink-0">
+                                          {prCount > 1 ? `${prCount}× Diajukan` : 'Sudah Diajukan'}
+                                        </span>
+                                      )}
+                                    </div>
                                     <p className="text-[9px] text-slate-400 font-bold uppercase truncate">
                                       {client?.companyName || 'Unknown Client'}
                                     </p>
