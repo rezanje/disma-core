@@ -174,6 +174,7 @@ export interface Purchase {
   advanceCode?: string;
   shoppingListDocumentId?: string;
   shoppingListCompiledBy?: string;
+  purchaseRequestId?: string;       // Link ke PR yang jadi dasar pengeluaran ini (wajib diisi)
   // Budget & Reconciliation
   budgetAmount?: number;        // Total estimated budget by Finance
   budgetTransferDate?: string;  // When Finance transferred funds
