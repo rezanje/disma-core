@@ -56,7 +56,6 @@ export default function CashAndBankPage() {
   const bulkDeleteCashTransactions = useAppStore(state => state.bulkDeleteCashTransactions)
   const coas = useAppStore(state => state.coas)
   const createBankWithCoa = useAppStore(state => state.createBankWithCoa)
-  const updateCoa = useAppStore(state => state.updateCoa)
 
   const [isAddTxOpen, setIsAddTxOpen] = useState(false)
   const [isAddBankOpen, setIsAddBankOpen] = useState(false)
@@ -173,11 +172,12 @@ export default function CashAndBankPage() {
 
     const newCode = editingBank.accountCode
     if (newCode !== original.accountCode) {
-      if (coas.some(c => c.accountCode === newCode)) {
-        return toast.error(`Kode COA ${newCode} sudah dipakai bank lain.`)
+      if (!newCode.startsWith('1-1')) {
+        return toast.error("Kode COA bank harus diawali 1-1.")
       }
-      const linkedCoa = coas.find(c => c.accountCode === original.accountCode)
-      if (linkedCoa) await updateCoa(linkedCoa.id, { accountCode: newCode })
+      if (coas.some(c => c.accountCode === newCode)) {
+        return toast.error(`Kode COA ${newCode} sudah dipakai akun lain.`)
+      }
     }
 
     setIsSubmitting(true)
