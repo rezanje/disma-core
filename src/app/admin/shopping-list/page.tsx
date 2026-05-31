@@ -282,6 +282,7 @@ export default function ShoppingListPage() {
       })
       for (const so of selectedSOs) {
         await updateSalesOrder(so.id, {
+          status: 'Belanja',
           shoppingListCompiledAt: generatedAt,
           shoppingListDocumentId: documentId,
           shoppingListCompiledBy: currentUser?.id
