@@ -317,6 +317,85 @@ export default function PurchaseRequestsPage() {
     }
   }
 
+  const handleDisburse = async () => {
+    if (!activePR) return
+    if (activePR.status !== 'Approved') { toast.error('PR belum di-approve CFO.'); return }
+    if (activePR.disbursedAt) { toast.error('PR ini sudah dicairkan.'); return }
+
+    const amount = parseNumber(disburseAmountRaw)
+    const spare = parseNumber(disburseSpareRaw) || 0
+    if (amount <= 0) { toast.error('Nominal harus lebih dari 0.'); return }
+    if (amount > activePR.amount) { toast.error('Nominal tidak boleh melebihi yang disetujui CFO.'); return }
+    if (!disburseBankId) { toast.error('Pilih rekening sumber.'); return }
+
+    const now = new Date().toISOString()
+    setIsDisbursing(true)
+    const loadingId = toast.loading('Memproses transaksi...')
+    try {
+      let ok = false
+
+      if (disburseType === 'sourcing') {
+        const linked = linkedPurchases(activePR)
+        if (linked.length === 0) {
+          toast.error('Belum ada shopping list untuk PR ini. Buat shopping list dulu.', { id: loadingId })
+          setIsDisbursing(false); return
+        }
+        if (linked.length > 1) {
+          toast.error('PR ini punya >1 shopping list. Cairkan lewat masing-masing dokumen.', { id: loadingId })
+          setIsDisbursing(false); return
+        }
+        if (!disburseSourcingId) {
+          toast.error('Pilih penanggung jawab sourcing.', { id: loadingId })
+          setIsDisbursing(false); return
+        }
+        const purchase = linked[0]
+        const user = users.find(u => u.id === disburseSourcingId)
+        ok = await recordBudgetTransfer(purchase.id, amount + spare, disburseBankId, user?.name || 'Sourcing')
+        if (ok) {
+          await updatePurchase(purchase.id, {
+            status: 'Belanja',
+            purchaserId: disburseSourcingId,
+            budgetAmount: amount,
+            budgetTransferDate: now,
+            budgetBankAccountId: disburseBankId,
+            budgetTransferedBy: currentUser?.id,
+            operationalSpareAmount: spare,
+          })
+        }
+      } else if (disburseType === 'vendor') {
+        if (!disburseVendorId) {
+          toast.error('Pilih vendor.', { id: loadingId })
+          setIsDisbursing(false); return
+        }
+        const vendor = vendors.find(v => v.id === disburseVendorId)
+        ok = await recordDirectVendorPayment(
+          activePR.id, amount, disburseBankId, vendor?.companyName || 'Vendor',
+          activePR.category, disburseNote, now
+        )
+      } else {
+        if (!disburseNote.trim()) {
+          toast.error('Isi keterangan pengeluaran.', { id: loadingId })
+          setIsDisbursing(false); return
+        }
+        ok = await recordPRExpense(activePR.id, amount, disburseBankId, activePR.category, disburseNote, now)
+      }
+
+      if (!ok) { toast.error('Gagal mencatat transaksi ke ledger.', { id: loadingId }); return }
+
+      await updatePurchaseRequest(activePR.id, {
+        disbursedAt: now,
+        disbursementType: disburseType,
+        disbursedBy: currentUser?.name || currentUser?.id,
+      })
+      toast.success('Transaksi tercatat & dana dicairkan.', { id: loadingId })
+      setDisburseOpen(false)
+    } catch (e) {
+      toast.error(`Gagal: ${e instanceof Error ? e.message : String(e)}`, { id: loadingId })
+    } finally {
+      setIsDisbursing(false)
+    }
+  }
+
   const getStatusBadge = (status: PurchaseRequestStatus) => {
     switch (status) {
       case "Pending_Finance":
