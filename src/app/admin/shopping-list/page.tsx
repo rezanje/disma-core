@@ -129,7 +129,7 @@ export default function ShoppingListPage() {
   const candidateSOKey = candidateSOs.map(so => so.id).join('|')
 
   // PR Approved bisa dipakai untuk banyak Shopping List — tidak ada batasan 1:1
-  const approvedPRs = purchaseRequests.filter(pr => pr.status === 'Approved')
+  const approvedPRs = purchaseRequests.filter(pr => pr.status === 'Approved' && pr.category === 'Sourcing')
 
   useEffect(() => {
     setSelectedSOIds(new Set(candidateSOs.map(so => so.id)))
