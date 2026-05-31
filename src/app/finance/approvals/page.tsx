@@ -49,6 +49,7 @@ export default function FinanceHubPage() {
   const invoices = useAppStore(state => state.invoices)
   const clients = useAppStore(state => state.clients)
   const vendors = useAppStore(state => state.vendors)
+  const purchaseRequests = useAppStore(state => state.purchaseRequests) || []
   
   const updatePurchase = useAppStore(state => state.updatePurchase)
   const updateReimbursement = useAppStore(state => state.updateReimbursement)
@@ -879,6 +880,20 @@ export default function FinanceHubPage() {
                         <div className="xl:w-1/3 p-8 bg-slate-950 text-white flex flex-col justify-between">
                            <div className="space-y-6">
                               <Badge className="bg-emerald-500/20 text-emerald-400 border-none font-black text-[9px] px-3">ADVANCE REQUEST</Badge>
+                              {(() => {
+                                const linkedPR = purchaseRequests.find(pr => pr.id === purchase.purchaseRequestId)
+                                return linkedPR ? (
+                                  <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-3 py-2">
+                                    <p className="text-[9px] font-black uppercase tracking-widest text-emerald-400 mb-0.5">PR Dasar Pengeluaran</p>
+                                    <p className="text-xs font-black text-white truncate">{linkedPR.title}</p>
+                                    <p className="text-[10px] font-bold text-slate-400">{linkedPR.category} • {formatRupiah(linkedPR.amount)}</p>
+                                  </div>
+                                ) : (
+                                  <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 px-3 py-2">
+                                    <p className="text-[9px] font-black uppercase tracking-widest text-amber-400">⚠ Tidak ada PR terkait</p>
+                                  </div>
+                                )
+                              })()}
                               <div>
                                  <h3 className="text-3xl font-black tracking-tighter uppercase mb-2">{purchase.advanceCode || `ADV-${purchase.id.slice(0,8)}`}</h3>
                                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Ref: {purchase.id.slice(0,8)}</p>
