@@ -941,7 +941,6 @@ export default function FinanceHubPage() {
                                  <p className="text-4xl font-black text-white mt-1 leading-none tracking-tighter">{formatRupiah(totalBudget + (spareAmounts[purchase.id] || 0))}</p>
                               </div>
                            </div>
-                           </div>
                            <div className="mt-12 space-y-4">
                               <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-4">
                                  <div>
