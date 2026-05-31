@@ -7,7 +7,10 @@ export const maxDuration = 60; // Extend Vercel function timeout to 60s
 
 const isMissingTableError = (error: unknown) => {
   const message = error instanceof Error ? error.message : String(error || '');
-  return /could not find the table|schema cache/i.test(message);
+  // Only treat genuine missing-TABLE errors as skippable. A missing-COLUMN
+  // error also mentions "schema cache" ("Could not find the 'x' column ...")
+  // but must NOT be silently skipped — that drops user data without warning.
+  return /could not find the table/i.test(message);
 };
 
 const isNetworkError = (error: unknown) => {
