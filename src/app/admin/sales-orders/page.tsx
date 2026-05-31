@@ -56,6 +56,7 @@ interface LineItem {
   unitPrice: number
   isCustomPrice?: boolean
   priceSource?: string
+  estimatedHpp?: number
 }
 
 export default function SalesOrdersPage() {
@@ -401,7 +402,8 @@ export default function SalesOrdersPage() {
       qty: newLineQty,
       unitPrice: newLinePrice,
       isCustomPrice: newLineIsCustomPrice,
-      priceSource: newLinePriceSource
+      priceSource: newLinePriceSource,
+      estimatedHpp: newLineHpp
     }])
 
     setNewLineProductId("")
@@ -449,7 +451,8 @@ export default function SalesOrdersPage() {
         productId: item.productId,
         qty: item.qty,
         unitPrice: item.unitPrice,
-        subtotal: item.qty * item.unitPrice
+        subtotal: item.qty * item.unitPrice,
+        estimatedHpp: item.estimatedHpp
       }))
 
       await addSalesOrderItems(itemsToAdd)

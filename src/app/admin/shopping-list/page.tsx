@@ -146,7 +146,7 @@ export default function ShoppingListPage() {
       return { 
         productId: item.productId, 
         qty: item.qty, 
-        buyPrice: product?.basePrice || 0,
+        buyPrice: item.estimatedHpp !== undefined ? item.estimatedHpp : (product?.basePrice || 0),
         sellPrice: item.unitPrice,
         salesOrderId: item.salesOrderId // Extract the SO ID
       }

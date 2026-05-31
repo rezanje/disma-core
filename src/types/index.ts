@@ -157,6 +157,7 @@ export interface SalesOrderItem {
   unitPrice: number;
   subtotal: number;         // Original subtotal (qty * unitPrice)
   subtotalFinal?: number;   // Adjusted subtotal (qtyFinal * unitPrice)
+  estimatedHpp?: number;    // PO-specific estimated buy price (HPP)
   qtyAdjustmentReason?: string; // Why the qty changed (e.g. "QC Reject: busuk")
   isPacked?: boolean; // Done by Warehouse (Packing/QC)
   isHandoverChecked?: boolean; // Done by Courier (Checklist before delivery)
