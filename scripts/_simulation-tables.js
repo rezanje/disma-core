@@ -9,6 +9,7 @@ const TRANSACTIONAL_TABLES = [
   'purchase_items',
   'deliveries',
   'invoices',
+  'tukar_faktur',
   'expenses',
   'reimbursements',
   'cash_transactions',

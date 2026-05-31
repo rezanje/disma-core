@@ -2770,6 +2770,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           deliveries: state.deliveries,
           expenses: state.expenses,
           invoices: state.invoices,
+          tukarFakturs: state.tukarFakturs,
           journalEntries: state.journalEntries,
           journalLines: state.journalLines,
           stockMovements: state.stockMovements,
@@ -2808,7 +2809,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         try {
           const tablesToWipe = [
             'sales_order_items', 'purchase_items', 'journal_lines',
-            'deliveries', 'invoices', 'sales_orders', 'purchases', 'purchase_requests', 'journal_entries',
+            'deliveries', 'invoices', 'tukar_faktur', 'sales_orders', 'purchases', 'purchase_requests', 'journal_entries',
             'reimbursements', 'expenses', 'cash_transactions', 'pending_returns', 'rejected_items',
             'stock_movements',
             'bank_accounts', 'products',
@@ -2828,6 +2829,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             purchase_items: snapshot.purchaseItems || [],
             purchase_requests: snapshot.purchaseRequests || [],
             deliveries: snapshot.deliveries || [],
+            tukar_faktur: snapshot.tukarFakturs || [],
             expenses: snapshot.expenses || [],
             invoices: snapshot.invoices || [],
             journal_entries: snapshot.journalEntries || [],
@@ -2888,7 +2890,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         set({
           salesOrders: [], salesOrderItems: [], purchases: [], purchaseItems: [],
           purchaseRequests: [],
-          deliveries: [], expenses: [], invoices: [], vendorBills: [], journalEntries: [],
+          deliveries: [], expenses: [], invoices: [], tukarFakturs: [], vendorBills: [], journalEntries: [],
           journalLines: [], stockMovements: [], leads: [], tasks: [], notifications: [],
           pendingReturns: [], rejectedItems: [], reimbursements: [], cashTransactions: [],
           bankAccounts: INITIAL_BANK_ACCOUNTS, fixedAssets: [], clientPrices: []
@@ -2946,7 +2948,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           clients: CLIENTS_SEED, vendors: VENDORS_SEED, products: PRODUCTS_SEED, 
           salesOrders: [], salesOrderItems: [], purchases: [], purchaseItems: [],
           purchaseRequests: [],
-          deliveries: [], expenses: [], invoices: [], vendorBills: [], journalEntries: [],
+          deliveries: [], expenses: [], invoices: [], tukarFakturs: [], vendorBills: [], journalEntries: [],
           journalLines: [], stockMovements: [], coas: COA_SEED, users: MOCK_USERS, leads: [],
           tasks: [], notifications: [], bankAccounts: INITIAL_BANK_ACCOUNTS,
           rejectedItems: [],

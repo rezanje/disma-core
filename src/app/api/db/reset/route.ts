@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     // Tables ordered by dependency (children first, parents last) to avoid foreign key violations.
     const operationalTables = [
       'sales_order_items', 'purchase_items', 'journal_lines', 'okr_key_results',
-      'deliveries', 'invoices', 'sales_orders', 'vendor_bills', 'purchases', 'purchase_requests', 'journal_entries', 'stock_movements', 'rejected_items', 'okr_objectives',
+      'deliveries', 'invoices', 'tukar_faktur', 'sales_orders', 'vendor_bills', 'purchases', 'purchase_requests', 'journal_entries', 'stock_movements', 'rejected_items', 'okr_objectives',
       'reimbursements', 'expenses', 'cash_transactions', 'pending_returns', 'fixed_assets', 
       'notifications', 'disma_tasks', 'leads', 'employees', 'kpis'
     ];

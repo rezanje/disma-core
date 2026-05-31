@@ -15,6 +15,7 @@ async function resetAllTransactions() {
     'purchase_items',
     'deliveries',
     'invoices',
+    'tukar_faktur',
     'expenses',
     'reimbursements',
     'cash_transactions',
