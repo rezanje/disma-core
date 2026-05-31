@@ -112,6 +112,7 @@ export default function CashAndBankPage() {
   const handleCreateBank = async () => {
     if (!bankForm.name) return toast.error("Nama bank harus diisi!")
     if (!bankForm.accountCode) return toast.error("Kode COA tidak boleh kosong.")
+    if (!bankForm.accountCode.startsWith('1-1')) return toast.error("Kode COA bank harus diawali 1-1.")
     if (coas.some(c => c.accountCode === bankForm.accountCode)) {
       return toast.error(`Kode COA ${bankForm.accountCode} sudah dipakai. Ganti kode di bagian Lanjutan.`)
     }

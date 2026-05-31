@@ -2363,6 +2363,9 @@ export const useAppStore = create<AppState>((set, get) => ({
         if (!acc.accountCode) {
           throw new Error('createBankWithCoa: bank account is missing an accountCode');
         }
+        if (get().coas.some((c) => c.accountCode === acc.accountCode)) {
+          throw new Error(`createBankWithCoa: COA code ${acc.accountCode} already exists`);
+        }
         await get().addCoa({
           id: uuidv4(),
           accountCode: acc.accountCode,
