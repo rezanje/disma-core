@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { v4 as uuidv4 } from "uuid"
 import { createAccountingEntry } from "@/lib/accounting"
 import { computeBankBalances } from "@/lib/bank-balance"
+import { nextBankCoaCode } from "@/lib/coa"
 import ReceiptUpload from "@/components/ui/receipt-upload"
 import { Checkbox } from "@/components/ui/checkbox"
 
@@ -55,11 +56,12 @@ export default function CashAndBankPage() {
   const deleteCashTransaction = useAppStore(state => state.deleteCashTransaction)
   const bulkDeleteCashTransactions = useAppStore(state => state.bulkDeleteCashTransactions)
   const coas = useAppStore(state => state.coas)
+  const createBankWithCoa = useAppStore(state => state.createBankWithCoa)
 
   const [isAddTxOpen, setIsAddTxOpen] = useState(false)
   const [isAddBankOpen, setIsAddBankOpen] = useState(false)
   const [editingBank, setEditingBank] = useState<any>(null)
-  const [bankForm, setBankForm] = useState({ name: '', number: '', balance: 0, accountCode: '1-1000' })
+  const [bankForm, setBankForm] = useState({ name: '', number: '', balance: 0, accountCode: '', coaName: '' })
 
   const [txType, setTxType] = useState<'In' | 'Out' | 'Transfer'>('In')
   const [bankId, setBankId] = useState('')
@@ -110,17 +112,21 @@ export default function CashAndBankPage() {
 
   const handleCreateBank = async () => {
     if (!bankForm.name) return toast.error("Nama bank harus diisi!")
+    if (!bankForm.accountCode) return toast.error("Kode COA tidak boleh kosong.")
+    if (coas.some(c => c.accountCode === bankForm.accountCode)) {
+      return toast.error(`Kode COA ${bankForm.accountCode} sudah dipakai. Ganti kode di bagian Lanjutan.`)
+    }
     setIsSubmitting(true)
     const loadingToast = toast.loading("Mendaftarkan akun bank baru...")
     try {
       const bankId = `bank-${Date.now()}`
-      await addBankAccount({
+      await createBankWithCoa({
         id: bankId,
         name: bankForm.name,
         accountNumber: bankForm.number,
         accountCode: bankForm.accountCode,
         balance: bankForm.balance
-      })
+      }, bankForm.coaName.trim() || bankForm.name)
 
       if (Number(bankForm.balance) > 0) {
         const txId = `opb-${Date.now()}`
@@ -151,7 +157,7 @@ export default function CashAndBankPage() {
       }
 
       setIsAddBankOpen(false)
-      setBankForm({ name: '', number: '', balance: 0, accountCode: '1-1000' })
+      setBankForm({ name: '', number: '', balance: 0, accountCode: '', coaName: '' })
       toast.success(`${bankForm.name} berhasil didaftarkan!`, { id: loadingToast })
     } catch (e: any) {
       toast.error("Gagal mendaftarkan bank: " + e.message, { id: loadingToast })
@@ -498,11 +504,14 @@ export default function CashAndBankPage() {
         </div>
         <div className="flex gap-2">
            <Dialog open={isAddBankOpen} onOpenChange={setIsAddBankOpen}>
-              <DialogTrigger render={
-                 <Button variant="outline" className="rounded-xl h-11 px-6 font-bold uppercase text-[10px] tracking-widest border-slate-200">
-                    <Building2 className="w-4 h-4 mr-2" /> Daftar Bank Baru
-                 </Button>
-              } />
+              <Button variant="outline" className="rounded-xl h-11 px-6 font-bold uppercase text-[10px] tracking-widest border-slate-200"
+                 onClick={() => {
+                    const code = nextBankCoaCode(coas)
+                    setBankForm({ name: '', number: '', balance: 0, accountCode: code, coaName: '' })
+                    setIsAddBankOpen(true)
+                 }}>
+                 <Building2 className="w-4 h-4 mr-2" /> Daftar Bank Baru
+              </Button>
               <DialogContent className="rounded-[2rem] p-8 max-w-sm">
                  <DialogHeader>
                     <DialogTitle className="text-xl font-black uppercase text-slate-800 tracking-tight text-center mb-4">Registrasi Akun Kas/Bank</DialogTitle>
@@ -520,21 +529,26 @@ export default function CashAndBankPage() {
                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 text-center block">Saldo Awal (Rp)</label>
                        <Input type="number" value={bankForm.balance} onChange={e => setBankForm({ ...bankForm, balance: Number(e.target.value) })} className="rounded-xl h-12 font-black text-emerald-600 text-center" />
                     </div>
-                    <div className="space-y-1">
-                       <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 text-center block">Link ke Buku Besar (COA)</label>
-                        <Select value={bankForm.accountCode} onValueChange={(val) => setBankForm({ ...bankForm, accountCode: val || '' })}>
-                           <SelectTrigger className="h-12 rounded-xl text-center font-bold">
-                              <SelectValue placeholder="Pilih Akun" />
-                           </SelectTrigger>
-                           <SelectContent>
-                              {coas.filter(c => c.accountType === 'Asset' && c.accountCode.startsWith('1-1')).map(c => (
-                                 <SelectItem key={c.id} value={c.accountCode}>
-                                    {c.accountCode} - {c.accountName}
-                                 </SelectItem>
-                              ))}
-                           </SelectContent>
-                        </Select>
-                    </div>
+                    <details className="rounded-xl bg-slate-50 px-3 py-2">
+                       <summary className="text-[10px] font-black uppercase text-slate-400 tracking-widest cursor-pointer">
+                          Lanjutan: Akun Buku Besar (COA)
+                       </summary>
+                       <div className="mt-2 space-y-2">
+                          <div className="space-y-1">
+                             <label className="text-[10px] font-bold text-slate-400">Kode COA</label>
+                             <Input value={bankForm.accountCode}
+                                onChange={(e) => setBankForm({ ...bankForm, accountCode: e.target.value })}
+                                className="h-10 rounded-xl" />
+                          </div>
+                          <div className="space-y-1">
+                             <label className="text-[10px] font-bold text-slate-400">Nama COA (kosong = nama bank)</label>
+                             <Input value={bankForm.coaName}
+                                onChange={(e) => setBankForm({ ...bankForm, coaName: e.target.value })}
+                                placeholder={bankForm.name}
+                                className="h-10 rounded-xl" />
+                          </div>
+                       </div>
+                    </details>
                     <Button onClick={handleCreateBank} disabled={isSubmitting} className="w-full h-14 bg-slate-900 text-white rounded-[1.5rem] font-black uppercase text-[10px] tracking-widest shadow-xl mt-4">
                        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Buka Akun Kas/Bank"}
                     </Button>
