@@ -122,7 +122,9 @@ export default function ShoppingListPage() {
 
   const candidateSOs = useMemo(() => {
     return salesOrders
-      .filter(so => so.status === 'Draft' && !so.shoppingListCompiledAt)
+      // Draft = belum diapprove; Belanja = sudah "Go to Sourcing", siap dibelanjakan.
+      // Keduanya valid untuk dikompilasi selama belum masuk dokumen belanja.
+      .filter(so => (so.status === 'Draft' || so.status === 'Belanja') && !so.shoppingListCompiledAt)
       .filter(so => !shoppingDate || toDateInputValue(so.orderDate) === shoppingDate)
       .sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime())
   }, [salesOrders, shoppingDate])
