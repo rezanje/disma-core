@@ -582,8 +582,9 @@ export default function QCPage() {
                     >
                       Konfirmasi QC Sourcing
                     </Button>
-                 </div>
-               )}
+                  </div>
+               </div>
+             )}
             </CardContent>
           </Card>
         </TabsContent>

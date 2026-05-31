@@ -1200,7 +1200,9 @@ export const useAppStore = create<AppState>((set, get) => ({
         const state = get();
         // Guard: Don't save if state looks suspicious/empty to avoid wiping DB during failed init
         const hasNav = Object.keys(state.navConfigs).length > 0;
-        const hasPermissions = Object.values(state.rolePermissions).some(keys => keys.length > 0);
+        const hasPermissions = Object.keys(state.rolePermissions).some(
+          (role) => (state.rolePermissions[role]?.length ?? 0) > 0
+        );
         
         if (!hasNav && !hasPermissions) {
            console.warn("[Storage] Suspending saveToHdd: state looks uninitialized.");
