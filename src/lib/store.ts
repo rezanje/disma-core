@@ -313,6 +313,11 @@ interface AppState {
   isResetting: boolean;
   _ignoreBroadcastUntil: number;
   _lastLocalMutationAt: number;
+  // Roles whose nav config the user edited THIS session. init() must never
+  // overwrite these from a server snapshot — local preference is the source
+  // of truth for the editor until the page reloads.
+  _locallyEditedNavRoles: string[];
+  _locallyEditedPermissionRoles: string[];
   init: () => Promise<void>;
   forceSync: () => Promise<void>;
   saveToHdd: () => Promise<void>;
@@ -629,6 +634,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       isResetting: false,
       _ignoreBroadcastUntil: 0,
       _lastLocalMutationAt: 0,
+      _locallyEditedNavRoles: [],
+      _locallyEditedPermissionRoles: [],
 
       syncTable: async (table: string, data: any, silent = false) => {
         // Stamp local-mutation time so an in-flight init() can detect and discard
@@ -946,12 +953,34 @@ export const useAppStore = create<AppState>((set, get) => ({
 
             // Only update rolePermissions and navConfigs if the server actually provided them
             const finalRolePermissions = hasServerPermissions ? mergedPermissions : get().rolePermissions;
-            const finalNavConfigs = (data.navConfigs && Object.keys(data.navConfigs).length > 0) ? data.navConfigs : get().navConfigs;
+            let resolvedRolePermissions = { ...finalRolePermissions };
+            // PER-ROLE LOCAL LOCK FOR PERMISSIONS: keeps local unsaved changes from being reverted by background poll
+            const editedPermRoles = get()._locallyEditedPermissionRoles || [];
+            if (editedPermRoles.length > 0) {
+              const localPerms = get().rolePermissions;
+              editedPermRoles.forEach((r) => {
+                if (localPerms[r]) resolvedRolePermissions[r] = localPerms[r];
+              });
+            }
+
+            let finalNavConfigs = (data.navConfigs && Object.keys(data.navConfigs).length > 0) ? data.navConfigs : get().navConfigs;
+            // PER-ROLE LOCAL LOCK: any role the user edited this session keeps its
+            // local value, regardless of what the server snapshot says. Prevents the
+            // "save then revert a few seconds later" bug when an in-flight/poll init
+            // applies a server snapshot taken before the save committed.
+            const editedRoles = get()._locallyEditedNavRoles;
+            if (editedRoles.length > 0) {
+              const localNav = get().navConfigs;
+              finalNavConfigs = { ...finalNavConfigs };
+              editedRoles.forEach((r) => {
+                if (localNav[r]) finalNavConfigs[r] = localNav[r];
+              });
+            }
 
             // --- FINAL STATE UPDATE: SERVER DATA WINS ---
             const updatedState: Partial<AppState> = {
               coas: mergedCoas,
-              rolePermissions: finalRolePermissions,
+              rolePermissions: resolvedRolePermissions,
               navConfigs: finalNavConfigs,
               bankAccounts: mergedBanks,
               users: mergedUsers,
@@ -2709,7 +2738,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       },
 
       updateNavConfig: async (role, config) => {
-        set((state) => ({ navConfigs: { ...state.navConfigs, [role]: config } }));
+        set((state) => ({
+          navConfigs: { ...state.navConfigs, [role]: config },
+          // Lock this role so a later init()/poll can't stomp the user's edit
+          // with a stale server snapshot (the revert bug).
+          _locallyEditedNavRoles: state._locallyEditedNavRoles.includes(role)
+            ? state._locallyEditedNavRoles
+            : [...state._locallyEditedNavRoles, role],
+        }));
         await get().saveToHdd();
       },
 
@@ -2771,7 +2807,10 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       updateRolePermissions: async (role, keys) => {
         set((state) => ({ 
-          rolePermissions: { ...state.rolePermissions, [role]: keys }
+          rolePermissions: { ...state.rolePermissions, [role]: keys },
+          _locallyEditedPermissionRoles: state._locallyEditedPermissionRoles.includes(role)
+            ? state._locallyEditedPermissionRoles
+            : [...state._locallyEditedPermissionRoles, role],
         }));
         // Use syncTable directly with silent=true to prevent broadcast → init() race condition
         const state = get();
