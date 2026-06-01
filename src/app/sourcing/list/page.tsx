@@ -35,15 +35,6 @@ export default function SourcingDashboard() {
   const vendors = useAppStore(state => state.vendors)
   const addVendor = useAppStore(state => state.addVendor)
 
-  const { useSearchParams } = require("next/navigation")
-  const searchParams = useSearchParams()
-  const tabParam = searchParams.get("tab")
-
-  const [activeTab, setActiveTab] = useState<'belanja' | 'dompet' | 'ops'>((tabParam as any) || 'belanja')
-
-  useEffect(() => {
-    if (tabParam) setActiveTab(tabParam as any)
-  }, [tabParam])
   const [opsFormData, setOpsFormData] = useState<{
     transactionType: 'Biaya Operasional' | 'Kasbon'
     category: OperationalExpense['category'] | ''
@@ -534,44 +525,8 @@ export default function SourcingDashboard() {
         </div>
       </div>
 
-      {/* Tab Switcher */}
-      <div className="flex gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl mx-1">
-        <Button
-          variant={activeTab === 'belanja' ? 'default' : 'ghost'}
-          className={cn(
-            "flex-1 h-11 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all",
-            activeTab === 'belanja' ? "bg-slate-900 text-white shadow-lg" : "text-slate-400 hover:text-slate-600"
-          )}
-          onClick={() => setActiveTab('belanja')}
-        >
-          <ShoppingBag className="w-3.5 h-3.5 mr-1" />
-          Belanja
-        </Button>
-        <Button
-          variant={activeTab === 'dompet' ? 'default' : 'ghost'}
-          className={cn(
-            "flex-1 h-11 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all",
-            activeTab === 'dompet' ? "bg-slate-900 text-white shadow-lg" : "text-slate-400 hover:text-slate-600"
-          )}
-          onClick={() => setActiveTab('dompet')}
-        >
-          <Wallet className="w-3.5 h-3.5 mr-1" />
-          Riwayat
-        </Button>
-        <Button
-          variant={activeTab === 'ops' ? 'default' : 'ghost'}
-          className={cn(
-            "flex-1 h-11 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all",
-            activeTab === 'ops' ? "bg-slate-900 text-white shadow-lg" : "text-slate-400 hover:text-slate-600"
-          )}
-          onClick={() => setActiveTab('ops')}
-        >
-          <Receipt className="w-3.5 h-3.5 mr-1" />
-          Ops
-        </Button>
-      </div>
-
-      {activeTab === 'belanja' ? (
+      <section className="space-y-4">
+        <h2 className="text-sm font-black uppercase tracking-widest text-slate-500 px-1">Checklist Belanja</h2>
         <>
           {activePurchases.length === 0 && (
             <div className="flex flex-col items-center justify-center text-center py-16 px-6">
@@ -923,7 +878,10 @@ export default function SourcingDashboard() {
       })()}
       </>}
         </>
-      ) : activeTab === 'dompet' ? (
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-sm font-black uppercase tracking-widest text-slate-500 px-1">Dompet & Setor Kas</h2>
         <div className="space-y-4 animate-in slide-in-from-bottom-5 duration-500">
           <div className="flex justify-between items-center px-2">
             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Riwayat Kas Sourcing</h3>
@@ -1110,9 +1068,10 @@ export default function SourcingDashboard() {
           </div>
           )}
         </div>
-      ) : null}
+      </section>
 
-      {activeTab === 'ops' && (
+      <section className="space-y-4">
+        <h2 className="text-sm font-black uppercase tracking-widest text-slate-500 px-1">Pemakaian Operasional</h2>
         <div className="space-y-5 animate-in slide-in-from-bottom-5 duration-300 pb-8">
           <form onSubmit={handleOpsSubmit} className="space-y-5">
             <div className="space-y-2">
@@ -1182,7 +1141,7 @@ export default function SourcingDashboard() {
             </Button>
           </form>
         </div>
-      )}
+      </section>
       {/* QUICK ADD VENDOR DIALOG */}
       <Dialog open={isNewVendorOpen} onOpenChange={setIsNewVendorOpen}>
         <DialogContent className="sm:max-w-md">
