@@ -57,6 +57,7 @@ export default function SourcingDashboard() {
   const [editQty, setEditQty] = useState<number>(0)
   const [editNote, setEditNote] = useState<string>('')
   const [editVendorId, setEditVendorId] = useState<string>('')
+  const [editPaymentMethod, setEditPaymentMethod] = useState<'Cash' | 'Tempo'>('Cash')
   const [isNewVendorOpen, setIsNewVendorOpen] = useState(false)
   const [newVendorName, setNewVendorName] = useState('')
   const [newVendorIsTempo, setNewVendorIsTempo] = useState(true)
@@ -74,6 +75,8 @@ export default function SourcingDashboard() {
       setEditQty(item.qtyPurchased || item.qtyTarget)
       setEditNote(item.notes || '')
       setEditVendorId(item.vendorId || '')
+      const v = vendors.find(vd => vd.id === item.vendorId)
+      setEditPaymentMethod(item.paymentMethod || (v?.isTempo ? 'Tempo' : 'Cash'))
     }
   }
 
@@ -279,6 +282,7 @@ export default function SourcingDashboard() {
           qtyPurchased: editQty || activeItem.qtyTarget,
           notes: editNote,
           vendorId: editVendorId,
+          paymentMethod: editPaymentMethod,
         })
       }
 
@@ -708,6 +712,17 @@ export default function SourcingDashboard() {
                     </div>
 
                     <div className="space-y-2">
+                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Metode Bayar</Label>
+                      <Select value={editPaymentMethod} onValueChange={(val) => setEditPaymentMethod((val as 'Cash' | 'Tempo') ?? 'Cash')}>
+                        <SelectTrigger className="h-12 bg-white/50 border-2 transition-all focus:border-emerald-500 rounded-xl"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Cash">Cash (potong kas sourcing)</SelectItem>
+                          <SelectItem value="Tempo">Tempo (hutang ke vendor)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
                       <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                         Keterangan / Alasan (Opsional)
                       </Label>
@@ -746,6 +761,7 @@ export default function SourcingDashboard() {
                                 qtyPurchased: editQty || item.qtyTarget,
                                 notes: editNote,
                                 vendorId: editVendorId,
+                                paymentMethod: editPaymentMethod,
                                 isChecked: true
                               })
                             }, 10);
