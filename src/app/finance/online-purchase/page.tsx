@@ -137,9 +137,7 @@ export default function OnlinePurchasePage() {
   }
 
   const currentUser = useAppStore(state => state.currentUser)
-  const addExpense = useAppStore(state => state.addExpense)
-
-  const handleCompleteOrder = (itemId: string) => {
+  const handleCompleteOrder = async (itemId: string) => {
     const calc = calculatorState[itemId]
     if (!calc || calc.totalPrice <= 0) {
       toast.error("Masukkan detail harga yang valid.")
@@ -150,35 +148,39 @@ export default function OnlinePurchasePage() {
     const product = products.find(p => p.id === item?.productId)
     if (!item || !product) return
 
-    // Calculate final unit price including fees for stock valuation
-    const landedUnitPrice = calc.totalPrice / item.qtyTarget
-    
-    // 1. Update status to Ordered
-    updatePurchaseItem(itemId, {
+    const toastId = toast.loading(`Memproses order ${product.name}...`)
+
+    // 1. Determine bank account from parent purchase
+    const parentPurchase = purchases.find(p => p.id === item.purchaseId)
+    const bankAccountId = parentPurchase?.budgetBankAccountId || bankAccounts[0]?.id || 'bank-1'
+
+    // 2. Mark item as ordered + checked (so it appears in settlement QC gate)
+    await updatePurchaseItem(itemId, {
       isOnlineOrdered: true,
-      actualUnitPrice: calc.unitPrice, // Product core cost
+      isChecked: true,
+      actualUnitPrice: calc.unitPrice,
       qtyPurchased: item.qtyTarget,
       onlineRef: calc.ref,
       onlineOrderDate: new Date().toISOString(),
       notes: `${item.notes || ''} (Detailed Cost: Unit @${calc.unitPrice}, Admin: ${calc.adminFee}, Ship: ${calc.shippingFee})`
     })
 
-    // 2. Redirect to Finance Hub instead of direct journaling
-    const expenseId = Math.random().toString(36).substr(2, 9);
-    addExpense({
-      id: `exp-online-${expenseId}`,
-      date: new Date().toISOString(),
-      reporterId: currentUser?.id || '00000000-0000-0000-0000-000000000000',
-      category: 'Belanja Online',
-      amount: calc.totalPrice, // Total paid
-      adminFee: calc.adminFee,
-      shippingFee: calc.shippingFee,
-      description: `Online Purchase: ${product.name} (Ref: ${calc.ref})`,
-      status: 'Pending Audit',
-      referenceId: itemId
-    })
+    // 3. Record journal entry + cash transaction immediately (no separate audit step needed)
+    const success = await recordOnlinePurchase(
+      itemId,
+      calc.totalPrice,
+      product.name,
+      calc.adminFee,
+      calc.shippingFee,
+      bankAccountId
+    )
 
-    toast.success(`Order ${product.name} diproses! Silakan validasi pembayaran di Finance Hub.`)
+    if (!success) {
+      toast.error(`Gagal mencatat jurnal untuk ${product.name}.`, { id: toastId })
+      return
+    }
+
+    toast.success(`Order ${product.name} selesai & dijurnal otomatis.`, { id: toastId })
 
     // 3. Auto-advance Sales Order if ALL items are now ready/sourced
     if (item.salesOrderId) {
