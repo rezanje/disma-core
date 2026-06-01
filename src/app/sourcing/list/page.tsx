@@ -288,18 +288,21 @@ export default function SourcingDashboard() {
 
       for (const p of activePurchases) {
         const pItems = currentItems.filter(item => item.purchaseId === p.id && item.isChecked)
-        const pCost = pItems.reduce((sum, item) => {
-           const price = activeItem?.id === item.id ? editPrice : (item.actualUnitPrice || 0)
-           const qty = activeItem?.id === item.id ? (editQty || item.qtyTarget) : (item.qtyPurchased || 0)
-           return sum + (qty * price)
-        }, 0)
+        const lineTotal = (item: PurchaseItem) => {
+          const price = activeItem?.id === item.id ? editPrice : (item.actualUnitPrice || 0)
+          const qty = activeItem?.id === item.id ? (editQty || item.qtyTarget) : (item.qtyPurchased || 0)
+          return qty * price
+        }
+        const pm = (item: PurchaseItem) => (activeItem?.id === item.id ? editPaymentMethod : (item.paymentMethod || 'Cash'))
+        const pTotalCost = pItems.reduce((sum, item) => sum + lineTotal(item), 0)
+        const pCashCost = pItems.reduce((sum, item) => pm(item) !== 'Tempo' ? sum + lineTotal(item) : sum, 0)
         const pBudget = (p.budgetAmount || 0) + (p.operationalSpareAmount || 0)
-        
-        await updatePurchase(p.id, { 
+
+        await updatePurchase(p.id, {
           status: 'Selesai',
           purchaserId: currentUser?.id || '22222222-2222-2222-2222-222222222222',
-          actualSpent: pCost,
-          changeReturned: pBudget > pCost ? pBudget - pCost : 0,
+          actualSpent: pTotalCost,
+          changeReturned: pBudget > pCashCost ? pBudget - pCashCost : 0,
           reconciliationNote: reconciliationNote || 'Sesuai budget (Auto-Consolidated)',
           reconciliationStatus: 'Laporan Masuk',
           reconciliationProofUrl: proofImage || undefined
@@ -405,11 +408,16 @@ export default function SourcingDashboard() {
   }
 
   // Belanjaan real-time (belum disubmit, hanya untuk progress bar saat masih belanja)
-  const totalShopSpentActual = currentItems.reduce((sum, item) => {
+  const itemPM = (item: PurchaseItem) => (activeItem?.id === item.id ? editPaymentMethod : (item.paymentMethod || 'Cash'))
+  const itemLineTotal = (item: PurchaseItem) => {
     const price = activeItem?.id === item.id ? editPrice : (item.actualUnitPrice || 0)
     const qty = activeItem?.id === item.id ? (editQty || item.qtyTarget) : (item.qtyPurchased || 0)
-    return item.isChecked ? sum + (qty * price) : sum
-  }, 0)
+    return qty * price
+  }
+  const totalShopSpentActual = currentItems.reduce((sum, item) =>
+    (item.isChecked && itemPM(item) !== 'Tempo') ? sum + itemLineTotal(item) : sum, 0)
+  const totalTempoActual = currentItems.reduce((sum, item) =>
+    (item.isChecked && itemPM(item) === 'Tempo') ? sum + itemLineTotal(item) : sum, 0)
 
   // Sisa kas = totalHolding sudah derived (advance - submitted shop - all expenses)
   // Kurangi lagi dengan belanjaan yg sedang diisi tapi belum disubmit
