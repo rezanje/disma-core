@@ -30,6 +30,9 @@ const AVAILABLE_KEYS: { id: AccessKey, label: string, module: string }[] = [
   { id: 'courier_dashboard', label: 'Delivery / Kurir', module: 'Operasional' },
   { id: 'warehouse_dashboard', label: 'Gudang Dashboard', module: 'Logistik' },
   { id: 'warehouse_catalog', label: 'Katalog Barang', module: 'Logistik' },
+  { id: 'warehouse_inbound', label: 'Goods Inbound', module: 'Logistik' },
+  { id: 'warehouse_outbound', label: 'Goods Outbound', module: 'Logistik' },
+  { id: 'warehouse_qc', label: 'Quality Control', module: 'Logistik' },
   
   // Keuangan
   { id: 'finance_dashboard', label: 'Finance Hub', module: 'Keuangan' },

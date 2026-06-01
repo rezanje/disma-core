@@ -91,13 +91,13 @@ export const APP_PAGES: NavItemConfig[] = [
   // ==========================================
 
   // Warehouse
-  { key: 'warehouse_dashboard', title: 'WH Dashboard', href: '/warehouse', icon: <LayoutDashboard className="h-4 w-4 opacity-50" />, category: 'Warehouse' },
-  { key: 'warehouse_catalog', title: 'Stock Catalog', href: '/warehouse/catalog', icon: <Boxes className="h-4 w-4 opacity-50" />, category: 'Warehouse' },
-  { key: 'warehouse_inbound', title: 'Goods Inbound', href: '/warehouse/inbound', icon: <Inbox className="h-4 w-4 opacity-50" />, category: 'Warehouse' },
-  { key: 'warehouse_outbound', title: 'Goods Outbound', href: '/warehouse/outbound', icon: <ArrowUpToLine className="h-4 w-4 opacity-50" />, category: 'Warehouse' },
-  { key: 'warehouse_qc', title: 'Quality Control', href: '/warehouse/qc', icon: <CheckCircle2 className="h-4 w-4 opacity-50" />, category: 'Warehouse' },
-  { key: 'warehouse_reject_monitor', title: 'Rejection Monitor', href: '/warehouse/reject-monitor', icon: <Archive className="h-4 w-4 text-rose-500 opacity-50" />, category: 'Warehouse' },
-  { key: 'warehouse_opname', title: 'Stock Opname', href: '/warehouse/opname', icon: <RefreshCw className="h-4 w-4 opacity-50" />, category: 'Warehouse' },
+  { key: 'warehouse_dashboard', title: 'WH Dashboard', href: '/warehouse', icon: <LayoutDashboard className="h-4 w-4" />, category: 'Warehouse' },
+  { key: 'warehouse_catalog', title: 'Stock Catalog', href: '/warehouse/catalog', icon: <Boxes className="h-4 w-4" />, category: 'Warehouse' },
+  { key: 'warehouse_inbound', title: 'Goods Inbound', href: '/warehouse/inbound', icon: <Inbox className="h-4 w-4" />, category: 'Warehouse' },
+  { key: 'warehouse_outbound', title: 'Goods Outbound', href: '/warehouse/outbound', icon: <ArrowUpToLine className="h-4 w-4" />, category: 'Warehouse' },
+  { key: 'warehouse_qc', title: 'Quality Control', href: '/warehouse/qc', icon: <CheckCircle2 className="h-4 w-4" />, category: 'Warehouse' },
+  { key: 'warehouse_reject_monitor', title: 'Rejection Monitor', href: '/warehouse/reject-monitor', icon: <Archive className="h-4 w-4 text-rose-500" />, category: 'Warehouse' },
+  { key: 'warehouse_opname', title: 'Stock Opname', href: '/warehouse/opname', icon: <RefreshCw className="h-4 w-4" />, category: 'Warehouse' },
 
   // Sourcing
   { 
