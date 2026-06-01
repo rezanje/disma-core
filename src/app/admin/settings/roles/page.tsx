@@ -56,7 +56,6 @@ const AVAILABLE_KEYS: { id: AccessKey, label: string, module: string }[] = [
 
 export default function RoleSettingsPage() {
   const currentPermissions = useAppStore(state => state.rolePermissions) || {}
-  const updateRolePermissions = useAppStore(state => state.updateRolePermissions)
   const saveToHdd = useAppStore(state => state.saveToHdd)
   
   // Local state for UI toggles
@@ -82,13 +81,13 @@ export default function RoleSettingsPage() {
   }
 
   const handleSave = async () => {
-    // Commit local changes to Zustand
-    for(const role of Object.keys(localPerms)) {
-       updateRolePermissions(role, localPerms[role]);
-    }
+    // Atomic state update: all roles at once, no per-role HTTP races
+    useAppStore.setState(prev => ({
+      rolePermissions: { ...prev.rolePermissions, ...localPerms }
+    }));
 
     try {
-        await saveToHdd(); // Persist to db.json
+        await saveToHdd();
         toast.success("Konfigurasi Hak Akses berhasil disimpan & disinkron ke server.")
     } catch (err) {
         toast.error("Gagal sinkron database ke server.")
