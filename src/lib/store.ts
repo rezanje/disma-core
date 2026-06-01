@@ -312,6 +312,7 @@ interface AppState {
   isHydrated: boolean;
   isResetting: boolean;
   _ignoreBroadcastUntil: number;
+  _lastLocalMutationAt: number;
   init: () => Promise<void>;
   forceSync: () => Promise<void>;
   saveToHdd: () => Promise<void>;
@@ -626,8 +627,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       isHydrated: false,
       isResetting: false,
       _ignoreBroadcastUntil: 0,
-      
+      _lastLocalMutationAt: 0,
+
       syncTable: async (table: string, data: any, silent = false) => {
+        // Stamp local-mutation time so an in-flight init() can detect and discard
+        // a stale server snapshot taken before this write (prevents value flicker).
+        set({ _lastLocalMutationAt: Date.now() });
         set({ isSyncing: true });
 
         const attemptSync = async (): Promise<boolean> => {
@@ -778,6 +783,10 @@ export const useAppStore = create<AppState>((set, get) => ({
           set({ isSyncing: true });
           console.log('[INIT] Phase 2: Fetching data via API (5 sequential groups)...');
           const ts = Date.now();
+          // Baseline for stale-snapshot detection: if any local mutation lands AFTER
+          // this point while we're still fetching, the server snapshot is stale and
+          // applying it would flicker the just-changed values back to old.
+          const fetchStartedAt = Date.now();
           
           const fetchGroup = async (group: number): Promise<Record<string, any>> => {
             try {
@@ -982,6 +991,15 @@ export const useAppStore = create<AppState>((set, get) => ({
             setIfDefined('okrObjectives', data.okrObjectives);
             if (data.kpiObjectives !== undefined) {
               updatedState.kpiObjectives = data.kpiObjectives.length > 0 ? data.kpiObjectives : KPI_SEED;
+            }
+
+            // STALE-SNAPSHOT GUARD: a local mutation (transfer, cash tx, any write)
+            // committed while this fetch was in flight. The data we just fetched
+            // predates it — applying it would flicker the new values back to old.
+            // Discard this snapshot; the next init()/poll will reconcile cleanly.
+            if (get()._lastLocalMutationAt > fetchStartedAt) {
+              console.warn('[INIT] Local mutation during fetch — discarding stale server snapshot to avoid flicker.');
+              return;
             }
 
             set(updatedState);
@@ -2490,6 +2508,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       addCashTransaction: async (tx) => {
         // Auto-snapshot sebelum setiap transaksi kas supaya bisa di-undo step by step
         get().takeDevSnapshot();
+        // Stamp local-mutation time (this path bypasses syncTable) so an in-flight
+        // init() discards a stale snapshot instead of flickering the balance back.
+        set({ _lastLocalMutationAt: Date.now() });
         const previousCashTransactions = get().cashTransactions;
         const previousBankAccounts = get().bankAccounts;
         const balanceChange = tx.type === 'In' ? tx.amount : -tx.amount;

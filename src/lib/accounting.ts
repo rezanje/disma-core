@@ -235,6 +235,9 @@ export const createAccountingEntry = async (
     }));
 
     useAppStore.setState((state) => ({
+      // Stamp local-mutation time (this path bypasses syncTable) so an in-flight
+      // init() discards a stale snapshot instead of flickering values back.
+      _lastLocalMutationAt: Date.now(),
       journalEntries: state.journalEntries.some((candidate) => candidate.id === entry.id)
         ? state.journalEntries.map((candidate) => candidate.id === entry.id ? entry : candidate)
         : [...state.journalEntries, entry],
