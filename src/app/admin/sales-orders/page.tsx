@@ -466,7 +466,7 @@ export default function SalesOrdersPage() {
     }
   }
 
-  const advanceStatus = (soId: string, currentStatus: string) => {
+  const advanceStatus = async (soId: string, currentStatus: string) => {
     const nextStatus =
       currentStatus === 'Draft' ? 'Belanja' :
       currentStatus === 'Belanja' ? 'Packing' :
@@ -475,6 +475,18 @@ export default function SalesOrdersPage() {
       currentStatus === 'Dikirim' ? 'Terkirim' : currentStatus;
 
     updateSalesOrder(soId, { status: nextStatus as SalesOrderStatus })
+
+    // Manual ship from PO page bypasses courier handover. If warehouse outbound
+    // auto-created a courier pickup mission that no courier has picked up yet
+    // (status 'Menunggu'), delete it so it doesn't linger as a phantom task in
+    // the courier list. If a courier already picked it up ('Dikirim'+), leave it.
+    if (currentStatus === 'Siap Kirim') {
+      const phantom = useAppStore.getState().deliveries.find(
+        d => d.salesOrderId === soId && d.status === 'Menunggu'
+      )
+      if (phantom) await useAppStore.getState().deleteDelivery(phantom.id)
+    }
+
     toast.success(`Status updated to ${nextStatus}`)
   }
 

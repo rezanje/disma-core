@@ -391,6 +391,7 @@ interface AppState {
   deliveries: Delivery[];
   addDelivery: (d: Delivery) => void;
   updateDelivery: (id: string, data: Partial<Delivery>) => void;
+  deleteDelivery: (id: string) => Promise<void>;
 
   expenses: OperationalExpense[];
   addExpense: (e: OperationalExpense) => void;
@@ -1725,6 +1726,22 @@ export const useAppStore = create<AppState>((set, get) => ({
         if (updated) {
           await get().syncTable('deliveries', updated);
           if (before) await get().logHistory({ table: 'deliveries', recordId: id, action: 'update', oldData: before, newData: updated });
+        }
+      },
+      deleteDelivery: async (id) => {
+        const before = get().deliveries.find(d => d.id === id);
+        set((state) => ({ deliveries: state.deliveries.filter(d => d.id !== id) }));
+        try {
+          await fetch('/api/db', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ table: 'deliveries', id })
+          });
+          if (before) await get().logHistory({ table: 'deliveries', recordId: id, action: 'delete', oldData: before, newData: null });
+        } catch (e) {
+          // Restore on failure
+          if (before) set((state) => ({ deliveries: [before, ...state.deliveries] }));
+          throw e;
         }
       },
 
