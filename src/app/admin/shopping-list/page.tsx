@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ShoppingBasket, RefreshCw, Printer, Plus, Search, Check, ChevronsUpDown, Trash2, Globe, ShoppingBag, FileText, X, Download, Loader2, Send, CheckCircle2, Banknote } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import React, { useEffect, useMemo, useState } from "react"
 import { v4 as uuidv4 } from "uuid"
 import { toast } from "sonner"
 import { generateShoppingListPDFDataUrl } from "@/lib/pdf"
@@ -23,8 +23,10 @@ type ShoppingListDocumentItem = {
   totalQty: number
   estimatedPrice: number
   sellPrice: number
-  purchaseMethod: 'Pasar' | 'Online'
+  purchaseMethod: 'Pasar' | 'Online' | 'Transfer'
   salesOrderId?: string
+  vendorId?: string
+  vendorName?: string
 }
 
 const toDateInputValue = (date?: string) => {
@@ -46,6 +48,7 @@ export default function ShoppingListPage() {
   const salesOrderItems = useAppStore(state => state.salesOrderItems)
   const products = useAppStore(state => state.products)
   const clients = useAppStore(state => state.clients)
+  const vendors = useAppStore(state => state.vendors)
   const currentUser = useAppStore(state => state.currentUser)
   const purchases = useAppStore(state => state.purchases)
   const purchaseItems = useAppStore(state => state.purchaseItems)
@@ -68,6 +71,10 @@ export default function ShoppingListPage() {
   const [customPrices, setCustomPrices] = useState<Record<string, number>>(() => {
     if (typeof window === 'undefined') return {}
     try { return JSON.parse(localStorage.getItem('shopping_customPrices') || '{}') } catch { return {} }
+  })
+  const [vendorAssignments, setVendorAssignments] = useState<Record<string, string>>(() => {
+    if (typeof window === 'undefined') return {}
+    try { return JSON.parse(localStorage.getItem('shopping_vendorAssignments') || '{}') } catch { return {} }
   })
 
   // UI States for adding manual item
@@ -105,6 +112,7 @@ export default function ShoppingListPage() {
   // Persist state to localStorage on change
   useEffect(() => { localStorage.setItem('shopping_manualItems', JSON.stringify(manualItems)) }, [manualItems])
   useEffect(() => { localStorage.setItem('shopping_customPrices', JSON.stringify(customPrices)) }, [customPrices])
+  useEffect(() => { localStorage.setItem('shopping_vendorAssignments', JSON.stringify(vendorAssignments)) }, [vendorAssignments])
   useEffect(() => { localStorage.setItem('shopping_onlineProductIds', JSON.stringify(Array.from(onlineProductIds))) }, [onlineProductIds])
   useEffect(() => { localStorage.setItem('shopping_transferProductIds', JSON.stringify(Array.from(transferProductIds))) }, [transferProductIds])
   useEffect(() => { localStorage.setItem('shopping_shoppingDate', shoppingDate) }, [shoppingDate])
@@ -191,6 +199,8 @@ export default function ShoppingListPage() {
       const product = products.find(p => p.id === curr.productId)
       if (product) {
         const customPrice = customPrices[curr.productId]
+        const vId = vendorAssignments[curr.productId]
+        const vName = vendors.find(v => v.id === vId)?.companyName
         acc.push({
           productId: curr.productId,
           productName: product.name,
@@ -199,7 +209,9 @@ export default function ShoppingListPage() {
           estimatedPrice: customPrice !== undefined ? customPrice : (curr.buyPrice || product.basePrice || 0),
           sellPrice: curr.sellPrice,
           purchaseMethod: transferProductIds.has(curr.productId) ? 'Transfer' : onlineProductIds.has(curr.productId) ? 'Online' : 'Pasar',
-          salesOrderId: curr.salesOrderId // Preserve the link!
+          salesOrderId: curr.salesOrderId, // Preserve the link!
+          vendorId: vId,
+          vendorName: vName
         })
       }
     }
@@ -754,125 +766,167 @@ export default function ShoppingListPage() {
             ) : (
               <div className="space-y-6">
                 <div className="rounded-md border bg-slate-50 dark:bg-slate-900 max-h-[300px] overflow-auto shadow-inner">
-                  <Table className="min-w-[800px]">
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[70px]">SKU</TableHead>
-                        <TableHead className="min-w-[200px]">Product</TableHead>
-                        <TableHead className="w-[60px] text-right">Qty</TableHead>
-                        <TableHead className="w-[110px] text-right">Sell Price</TableHead>
-                        <TableHead className="w-[140px] text-right">Est. Buy</TableHead>
-                        <TableHead className="w-[110px] text-right">Subtotal</TableHead>
-                        <TableHead className="w-[90px] text-center">Metode</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {consolidatedList.map((item, idx) => (
-                        <TableRow key={idx}>
-                          <TableCell className="text-xs text-slate-500 truncate">{item.skuCode}</TableCell>
-                          <TableCell className="font-medium leading-tight">
-                            <div className="flex flex-col gap-1 w-full max-w-[200px] whitespace-normal">
-                              <span className="text-xs">{item.productName}</span>
-                              {products.find(p => p.id === item.productId)?.weeklyPriceRange && (
-                                <span className="text-[9px] font-bold text-amber-600 w-fit" title="Harga terendah-tertinggi minggu ini (Kamis-Rabu)">
-                                  Patokan: {formatRupiah(products.find(p => p.id === item.productId)!.weeklyPriceRange!.min)} - {formatRupiah(products.find(p => p.id === item.productId)!.weeklyPriceRange!.max)}
-                                </span>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right font-bold text-slate-600 pr-4">{item.totalQty}</TableCell>
-                          <TableCell className="text-right pr-4">
-                             <div className="flex flex-col items-end">
-                                <span className="font-black text-blue-600">{formatRupiah(item.sellPrice)}</span>
-                                {item.sellPrice > 0 && item.estimatedPrice > 0 && (
-                                   <span className={cn(
-                                      "text-[9px] font-bold px-1 rounded",
-                                      item.sellPrice > item.estimatedPrice ? "text-emerald-500 bg-emerald-50" : "text-rose-500 bg-rose-50"
-                                   )}>
-                                      {item.sellPrice > item.estimatedPrice ? 'Margin OK' : 'Low Margin!'}
-                                   </span>
-                                )}
-                             </div>
-                          </TableCell>
-                          <TableCell className="text-right text-slate-500 pr-4">
-                             <div className="flex items-center justify-end gap-1">
-                                <span className="text-[10px] text-slate-400 font-bold shrink-0">Rp</span>
-                                <Input 
-                                   type="number"
-                                   className="h-8 w-24 text-right text-xs font-black border-slate-200"
-                                   placeholder="0"
-                                   value={item.estimatedPrice || ''}
-                                   onChange={(e) => setCustomPrices(prev => ({ 
-                                      ...prev, 
-                                      [item.productId]: parseFloat(e.target.value) || 0 
-                                   }))}
-                                />
-                             </div>
-                          </TableCell>
-                          <TableCell className="text-right font-bold text-emerald-600 pr-4">{formatRupiah(item.estimatedPrice * item.totalQty)}</TableCell>
-                          <TableCell className="text-center">
-                             <div className="flex items-center justify-center gap-1">
-                                <button
-                                   onClick={() => toggleOnline(item.productId)}
-                                   className={cn(
-                                      "p-2 rounded-xl border transition-all flex items-center justify-center hover:scale-110",
-                                      item.purchaseMethod === 'Online'
-                                         ? "bg-blue-50 border-blue-200 text-blue-600"
-                                         : "bg-emerald-50 border-emerald-200 text-emerald-600"
-                                   )}
-                                   title={item.purchaseMethod === 'Online' ? "Pindah ke Beli di Pasar" : "Pindah ke Beli Online"}
-                                >
-                                   {item.purchaseMethod === 'Online' ? <Globe className="w-4 h-4" /> : <ShoppingBag className="w-4 h-4" />}
-                                </button>
-                                <button
-                                   onClick={() => toggleTransfer(item.productId)}
-                                   className={cn(
-                                      "p-2 rounded-xl border transition-all flex items-center justify-center hover:scale-110",
-                                      item.purchaseMethod === 'Transfer'
-                                         ? "bg-purple-50 border-purple-200 text-purple-600"
-                                         : "bg-slate-50 border-slate-200 text-slate-400"
-                                   )}
-                                   title={item.purchaseMethod === 'Transfer' ? "Transfer: dibayar finance" : "Tandai dibayar via Transfer (finance)"}
-                                >
-                                   <Banknote className="w-4 h-4" />
-                                </button>
-                                <button
-                                   onClick={() => {
-                                      const manualMatch = manualItems.find(mi => mi.productId === item.productId && mi.qty === item.totalQty)
-                                      if (manualMatch) {
-                                         handleRemoveManualItem(manualMatch.id)
-                                         toast.success("Item manual dihapus.")
-                                         return
-                                      }
-                                      if (item.salesOrderId) {
-                                         setSelectedSOIds(prev => {
-                                            const next = new Set(prev)
-                                            next.delete(item.salesOrderId!)
-                                            return next
-                                         })
-                                         toast.success("PO dikeluarkan dari list belanja.")
-                                         return
-                                      }
-                                      toast.error("Item ini tidak bisa dihapus dari sini.")
-                                   }}
-                                   className="p-2 rounded-xl border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 hover:scale-110 transition-all"
-                                   title="Hapus item dari list"
-                                >
-                                   <Trash2 className="w-4 h-4" />
-                                </button>
-                             </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      <TableRow className="bg-emerald-50 dark:bg-emerald-950/30 font-bold border-t-2 border-emerald-200 dark:border-emerald-900">
-                        <TableCell colSpan={5} className="text-right pr-4">Total Modal Belanja:</TableCell>
-                        <TableCell className="text-right text-lg text-emerald-600 pr-4">{formatRupiah(consolidatedList.filter(item => item.purchaseMethod === 'Pasar').reduce((sum, item) => sum + (item.estimatedPrice * item.totalQty), 0))}</TableCell>
-                        <TableCell />
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </div>
-
+                  
+                  {/* Vendor Grouping Logic */}
+                  {(() => {
+                    const groups = { unassigned: [] as typeof consolidatedList };
+                    consolidatedList.forEach(item => {
+                      const key = item.vendorId || 'unassigned';
+                      if (!groups[key]) groups[key] = [];
+                      groups[key].push(item);
+                    });
+                    const vendorKeys = Object.keys(groups).filter(k => k !== 'unassigned');
+                    
+                    return (
+                      <Table className="min-w-[800px]">
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-[70px]">SKU</TableHead>
+                            <TableHead className="min-w-[200px]">Product</TableHead>
+                            <TableHead className="w-[120px]">Vendor</TableHead>
+                            <TableHead className="w-[60px] text-right">Qty</TableHead>
+                            <TableHead className="w-[110px] text-right">Sell Price</TableHead>
+                            <TableHead className="w-[140px] text-right">Est. Buy</TableHead>
+                            <TableHead className="w-[110px] text-right">Subtotal</TableHead>
+                            <TableHead className="w-[90px] text-center">Metode</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {[...vendorKeys, 'unassigned'].map(vKey => {
+                            const items = groups[vKey];
+                            if (items.length === 0) return null;
+                            const vName = vKey === 'unassigned' ? 'Tanpa Vendor / Bebas' : vendors.find(v => v.id === vKey)?.companyName || 'Unknown Vendor';
+                            
+                            return (
+                              <React.Fragment key={vKey}>
+                                <TableRow className="bg-slate-100/50 dark:bg-slate-800/50 border-y-2 border-slate-200">
+                                  <TableCell colSpan={8} className="py-2 px-4">
+                                    <span className="text-xs font-black uppercase tracking-widest text-slate-500">{vName}</span>
+                                  </TableCell>
+                                </TableRow>
+                                {items.map((item, idx) => (
+                                  <TableRow key={idx}>
+                                    <TableCell className="text-xs text-slate-500 truncate">{item.skuCode}</TableCell>
+                                    <TableCell className="font-medium leading-tight">
+                                      <div className="flex flex-col gap-1 w-full max-w-[200px] whitespace-normal">
+                                        <span className="text-xs">{item.productName}</span>
+                                        {products.find(p => p.id === item.productId)?.weeklyPriceRange && (
+                                          <span className="text-[9px] font-bold text-amber-600 w-fit" title="Harga terendah-tertinggi minggu ini (Kamis-Rabu)">
+                                            Patokan: {formatRupiah(products.find(p => p.id === item.productId)!.weeklyPriceRange!.min)} - {formatRupiah(products.find(p => p.id === item.productId)!.weeklyPriceRange!.max)}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </TableCell>
+                                    <TableCell>
+                                      <select
+                                        className="text-[10px] w-full max-w-[120px] p-1 border rounded bg-slate-50 text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                        value={vendorAssignments[item.productId] || ''}
+                                        onChange={(e) => {
+                                          setVendorAssignments(prev => {
+                                            const next = { ...prev };
+                                            if (e.target.value) next[item.productId] = e.target.value;
+                                            else delete next[item.productId];
+                                            return next;
+                                          });
+                                        }}
+                                      >
+                                        <option value="">-- Pilih --</option>
+                                        {vendors.map(v => (
+                                          <option key={v.id} value={v.id}>{v.companyName}</option>
+                                        ))}
+                                      </select>
+                                    </TableCell>
+                                    <TableCell className="text-right font-bold text-slate-600 pr-4">{item.totalQty}</TableCell>
+                                    <TableCell className="text-right pr-4">
+                                       <div className="flex flex-col items-end">
+                                          <span className="font-black text-blue-600">{formatRupiah(item.sellPrice)}</span>
+                                          {item.sellPrice > 0 && item.estimatedPrice > 0 && (
+                                             <span className={cn(
+                                                "text-[9px] font-bold px-1 rounded",
+                                                item.sellPrice > item.estimatedPrice ? "text-emerald-500 bg-emerald-50" : "text-rose-500 bg-rose-50"
+                                             )}>
+                                                {item.sellPrice > item.estimatedPrice ? 'Margin OK' : 'Low Margin!'}
+                                             </span>
+                                          )}
+                                       </div>
+                                    </TableCell>
+                                    <TableCell className="text-right text-slate-500 pr-4">
+                                       <div className="flex items-center justify-end gap-1">
+                                          <span className="text-[10px] text-slate-400 font-bold shrink-0">Rp</span>
+                                          <Input 
+                                             type="number"
+                                             className="h-8 w-24 text-right text-xs font-black border-slate-200"
+                                             placeholder="0"
+                                             value={item.estimatedPrice || ''}
+                                             onChange={(e) => setCustomPrices(prev => ({ 
+                                                ...prev, 
+                                                [item.productId]: parseFloat(e.target.value) || 0 
+                                             }))}
+                                          />
+                                       </div>
+                                    </TableCell>
+                                    <TableCell className="text-right font-bold text-emerald-600 pr-4">{formatRupiah(item.estimatedPrice * item.totalQty)}</TableCell>
+                                    <TableCell className="text-center">
+                                       <div className="flex flex-wrap items-center justify-center gap-1 w-[80px]">
+                                          <button
+                                             onClick={() => toggleOnline(item.productId)}
+                                             className={cn(
+                                                "p-2 rounded-xl border transition-all flex items-center justify-center hover:scale-110",
+                                                item.purchaseMethod === 'Online'
+                                                   ? "bg-blue-50 border-blue-200 text-blue-600"
+                                                   : "bg-emerald-50 border-emerald-200 text-emerald-600"
+                                             )}
+                                             title={item.purchaseMethod === 'Online' ? "Pindah ke Beli di Pasar" : "Pindah ke Beli Online"}
+                                          >
+                                             {item.purchaseMethod === 'Online' ? <Globe className="w-4 h-4" /> : <ShoppingBag className="w-4 h-4" />}
+                                          </button>
+                                          <button
+                                             onClick={() => toggleTransfer(item.productId)}
+                                             className={cn(
+                                                "p-2 rounded-xl border transition-all flex items-center justify-center hover:scale-110",
+                                                item.purchaseMethod === 'Transfer'
+                                                   ? "bg-purple-50 border-purple-200 text-purple-600"
+                                                   : "bg-slate-50 border-slate-200 text-slate-400"
+                                             )}
+                                             title={item.purchaseMethod === 'Transfer' ? "Transfer: dibayar finance" : "Tandai dibayar via Transfer (finance)"}
+                                          >
+                                             <Banknote className="w-4 h-4" />
+                                          </button>
+                                          <button
+                                             onClick={() => {
+                                                const manualMatch = manualItems.find(mi => mi.productId === item.productId && mi.qty === item.totalQty)
+                                                if (manualMatch) {
+                                                   handleRemoveManualItem(manualMatch.id)
+                                                   toast.success("Item manual dihapus.")
+                                                   return
+                                                }
+                                                if (item.salesOrderId) {
+                                                   setSelectedSOIds(prev => {
+                                                      const next = new Set(prev)
+                                                      next.delete(item.salesOrderId!)
+                                                      return next
+                                                   })
+                                                   toast.success("PO dikeluarkan dari list belanja.")
+                                                   return
+                                                }
+                                                toast.error("Item ini tidak bisa dihapus dari sini.")
+                                             }}
+                                             className="p-2 rounded-xl border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 hover:scale-110 transition-all"
+                                             title="Hapus item dari list"
+                                          >
+                                             <Trash2 className="w-4 h-4" />
+                                          </button>
+                                       </div>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </React.Fragment>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    );
+                  })()}
                 {manualItems.filter(item => !onlineProductIds.has(item.productId)).length > 0 && (
                   <div className="space-y-2 p-3 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-lg border border-emerald-100 dark:border-emerald-900/50">
                     <Label className="text-[10px] font-black uppercase tracking-widest text-emerald-500">
