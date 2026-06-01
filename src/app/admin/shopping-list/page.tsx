@@ -4,7 +4,7 @@ import { useAppStore } from "@/lib/store"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ShoppingBasket, RefreshCw, Printer, Plus, Search, Check, ChevronsUpDown, Trash2, Globe, ShoppingBag, FileText, X, Download, Loader2, Send, CheckCircle2, Banknote } from "lucide-react"
+import { ShoppingBasket, RefreshCw, Printer, Plus, Search, Check, ChevronsUpDown, Trash2, Globe, ShoppingBag, FileText, X, Download, Loader2, Send, CheckCircle2, Banknote, Store, Carrot, Apple, Laptop, ShoppingCart, ArrowRightLeft, CircleDollarSign } from "lucide-react"
 import React, { useEffect, useMemo, useState } from "react"
 import { v4 as uuidv4 } from "uuid"
 import { toast } from "sonner"
@@ -537,7 +537,7 @@ export default function ShoppingListPage() {
                              )}
                              onClick={() => setManualPurchaseMethod('Pasar')}
                           >
-                             <ShoppingBag className="w-3.5 h-3.5" /> PASAR
+                             <div className="relative flex items-center justify-center w-4 h-4"><Store className="w-4 h-4" /><div className="absolute -bottom-1 -right-1 flex bg-white/80 rounded-full"><Carrot className="w-2 h-2 text-orange-500 -mr-[1px]" /><Apple className="w-2 h-2 text-rose-500" /></div></div> PASAR
                           </button>
                           <button 
                              className={cn(
@@ -546,7 +546,7 @@ export default function ShoppingListPage() {
                              )}
                              onClick={() => setManualPurchaseMethod('Online')}
                           >
-                             <Globe className="w-3.5 h-3.5" /> ONLINE
+                             <div className="relative flex items-center justify-center w-4 h-4"><Laptop className="w-4 h-4" /><ShoppingCart className="w-2 h-2 absolute top-[2px]" /></div> ONLINE
                           </button>
                        </div>
                     </div>
@@ -878,7 +878,20 @@ export default function ShoppingListPage() {
                                              )}
                                              title={item.purchaseMethod === 'Online' ? "Pindah ke Beli di Pasar" : "Pindah ke Beli Online"}
                                           >
-                                             {item.purchaseMethod === 'Online' ? <Globe className="w-4 h-4" /> : <ShoppingBag className="w-4 h-4" />}
+                                             {item.purchaseMethod === 'Online' ? (
+                                                <div className="relative flex items-center justify-center w-5 h-5">
+                                                   <Laptop className="w-5 h-5" />
+                                                   <ShoppingCart className="w-2.5 h-2.5 absolute top-[3px]" />
+                                                </div>
+                                             ) : (
+                                                <div className="relative flex items-center justify-center w-5 h-5">
+                                                   <Store className="w-5 h-5" />
+                                                   <div className="absolute -bottom-1 -right-1 flex bg-white/80 rounded-full p-[1px]">
+                                                      <Carrot className="w-2.5 h-2.5 text-orange-500 -mr-[2px]" />
+                                                      <Apple className="w-2.5 h-2.5 text-rose-500" />
+                                                   </div>
+                                                </div>
+                                             )}
                                           </button>
                                           <button
                                              onClick={() => toggleTransfer(item.productId)}
@@ -890,7 +903,10 @@ export default function ShoppingListPage() {
                                              )}
                                              title={item.purchaseMethod === 'Transfer' ? "Transfer: dibayar finance" : "Tandai dibayar via Transfer (finance)"}
                                           >
-                                             <Banknote className="w-4 h-4" />
+                                             <div className="relative flex items-center justify-center w-5 h-5">
+                                                <ArrowRightLeft className="w-5 h-5" />
+                                                <CircleDollarSign className="w-3 h-3 text-amber-500 absolute -top-1.5 -right-1.5 bg-white rounded-full" />
+                                             </div>
                                           </button>
                                           <button
                                              onClick={() => {
