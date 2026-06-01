@@ -945,26 +945,103 @@ export default function ShoppingListPage() {
                   })()}
                 </div>
 
-                {manualItems.filter(item => !onlineProductIds.has(item.productId)).length > 0 && (
+                {manualItems.length > 0 && (
                   <div className="space-y-2 p-3 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-lg border border-emerald-100 dark:border-emerald-900/50">
                     <Label className="text-[10px] font-black uppercase tracking-widest text-emerald-500">
                       Item Belanja Manual (Antrean Produk)
                     </Label>
                     <div className="grid gap-2">
-                      {manualItems.filter(item => !onlineProductIds.has(item.productId)).map(item => {
+                      {manualItems.map(item => {
                         const product = products.find(p => p.id === item.productId)
+                        const purchaseMethod = transferProductIds.has(item.productId)
+                          ? 'Transfer'
+                          : onlineProductIds.has(item.productId)
+                            ? 'Online'
+                            : 'Pasar';
+
                         return (
-                          <div key={item.id} className="flex items-center justify-between text-sm bg-white dark:bg-slate-900 p-2 rounded-md border shadow-sm group">
-                            <div className="flex flex-col">
-                              <span className="font-semibold">{product?.name}</span>
-                              <span className="text-[10px] text-slate-400">{product?.skuCode}</span>
+                          <div key={item.id} className="flex flex-col sm:flex-row sm:items-center justify-between text-sm bg-white dark:bg-slate-900 p-3 rounded-xl border shadow-sm group gap-3">
+                            <div className="flex flex-col min-w-[200px]">
+                              <span className="font-semibold text-slate-800 dark:text-slate-200">{product?.name}</span>
+                              <span className="text-[10px] text-slate-400 font-medium">{product?.skuCode}</span>
                             </div>
-                            <div className="flex items-center gap-3">
+
+                            <div className="flex flex-wrap items-center gap-4">
+                              {/* Vendor Selector */}
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Vendor:</span>
+                                <select
+                                  className="text-[10px] p-1 border rounded bg-slate-50 text-slate-700 dark:bg-slate-800 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-emerald-500 min-w-[130px]"
+                                  value={vendorAssignments[item.productId] || ''}
+                                  onChange={(e) => {
+                                    setVendorAssignments(prev => {
+                                      const next = { ...prev };
+                                      if (e.target.value) next[item.productId] = e.target.value;
+                                      else delete next[item.productId];
+                                      return next;
+                                    });
+                                  }}
+                                >
+                                  <option value="">-- Pilih --</option>
+                                  {vendors.map(v => (
+                                    <option key={v.id} value={v.id}>{v.companyName}</option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              {/* Purchase Method Toggles */}
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Metode:</span>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() => toggleOnline(item.productId)}
+                                    className={cn(
+                                      "p-1.5 rounded-lg border transition-all flex items-center justify-center hover:scale-105",
+                                      purchaseMethod === 'Online'
+                                        ? "bg-blue-50 border-blue-200 text-blue-600 dark:bg-blue-950/40 dark:border-blue-900"
+                                        : "bg-emerald-50 border-emerald-200 text-emerald-600 dark:bg-emerald-950/40 dark:border-emerald-900"
+                                    )}
+                                    title={purchaseMethod === 'Online' ? "Pindah ke Beli di Pasar" : "Pindah ke Beli Online"}
+                                  >
+                                    {purchaseMethod === 'Online' ? (
+                                      <div className="relative flex items-center justify-center w-4 h-4">
+                                        <Laptop className="w-4 h-4" />
+                                        <ShoppingCart className="w-2 h-2 absolute top-[2px]" />
+                                      </div>
+                                    ) : (
+                                      <div className="relative flex items-center justify-center w-4 h-4">
+                                        <Store className="w-4 h-4" />
+                                        <div className="absolute -bottom-1 -right-1 flex bg-white/80 dark:bg-slate-800 rounded-full p-[0.5px]">
+                                          <Carrot className="w-2.5 h-2.5 text-orange-500" />
+                                        </div>
+                                      </div>
+                                    )}
+                                  </button>
+                                  <button
+                                    onClick={() => toggleTransfer(item.productId)}
+                                    className={cn(
+                                      "p-1.5 rounded-lg border transition-all flex items-center justify-center hover:scale-105",
+                                      purchaseMethod === 'Transfer'
+                                        ? "bg-purple-50 border-purple-200 text-purple-600 dark:bg-purple-950/40 dark:border-purple-900"
+                                        : "bg-slate-50 border-slate-200 text-slate-400 dark:bg-slate-800 dark:border-slate-700"
+                                    )}
+                                    title={purchaseMethod === 'Transfer' ? "Transfer: dibayar finance" : "Tandai dibayar via Transfer (finance)"}
+                                  >
+                                    <div className="relative flex items-center justify-center w-4 h-4">
+                                      <ArrowRightLeft className="w-4 h-4" />
+                                      <CircleDollarSign className="w-2.5 h-2.5 text-amber-500 absolute -top-1 -right-1 bg-white dark:bg-slate-800 rounded-full" />
+                                    </div>
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-3 ml-auto sm:ml-0">
                               <span className="font-bold text-emerald-600">{item.qty} {product?.uom}</span>
                               <Button 
                                 variant="ghost" 
                                 size="icon" 
-                                className="h-7 w-7 text-rose-400 hover:text-rose-600 hover:bg-rose-50 opacity-0 group-hover:opacity-100 transition-opacity"
+                                className="h-7 w-7 text-rose-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                                 onClick={() => handleRemoveManualItem(item.id)}
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
