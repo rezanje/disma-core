@@ -441,6 +441,14 @@ export default function FinanceHubPage() {
 
       // 4. Process HPP Settlement (Rekon Utama)
       if (purchase.reconciliationStatus === 'Laporan Masuk') {
+         // QC gate: all checked items must be QC-verified before finance can settle
+         const pItems = useAppStore.getState().purchaseItems.filter(pi => pi.purchaseId === purchaseId && pi.isChecked)
+         const isQcComplete = pItems.every(pi => pi.isQCed)
+         if (!isQcComplete) {
+           toast.error("QC gudang belum selesai. Semua item harus diverifikasi oleh Warehouse sebelum settlement.", { id: "rekon" })
+           return
+         }
+
          // Remaining advance = original advance minus ALL ops expenses already/just deducted from wallet
          const allOpsForPurchase = useAppStore.getState().expenses.filter(
            e => e.purchaseId === purchaseId &&
@@ -465,10 +473,8 @@ export default function FinanceHubPage() {
          }
          await updatePurchase(purchaseId, { reconciliationStatus: 'Terverifikasi', status: 'Selesai' })
 
-         const pItems = useAppStore.getState().purchaseItems.filter(pi => pi.purchaseId === purchaseId && pi.isChecked)
-         const updatePurchaseItem = useAppStore.getState().updatePurchaseItem
+         // Update price history (inboundStatus already set by warehouse inbound accept)
          for (const item of pItems) {
-           await updatePurchaseItem(item.id, { inboundStatus: 'pra_inbound' })
            if (item.actualUnitPrice > 0 && item.productId) {
              updateProductPriceHistory(item.productId, item.actualUnitPrice, 'Pasar (Verified)')
            }
