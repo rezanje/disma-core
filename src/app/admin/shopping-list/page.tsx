@@ -769,7 +769,7 @@ export default function ShoppingListPage() {
                   
                   {/* Vendor Grouping Logic */}
                   {(() => {
-                    const groups = { unassigned: [] as typeof consolidatedList };
+                    const groups: Record<string, typeof consolidatedList> = { unassigned: [] };
                     consolidatedList.forEach(item => {
                       const key = item.vendorId || 'unassigned';
                       if (!groups[key]) groups[key] = [];
