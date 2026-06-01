@@ -61,6 +61,7 @@ export default function SourcingSettlementPage() {
 
   // Sub-items for selected purchase
   const pItems = purchaseItems.filter(pi => pi.purchaseId === selectedPurchaseId && pi.isChecked)
+  const isQcComplete = pItems.every(item => item.isQCed)
   const pExpenses = expenses.filter(e => e.purchaseId === selectedPurchaseId && e.status === 'Pending Audit' && e.category !== 'Setoran Pengembalian')
   const pReimbs = reimbursements.filter(r => r.purchaseId === selectedPurchaseId && r.status === 'Pending')
   const pReturns = expenses.filter(e => e.purchaseId === selectedPurchaseId && e.status === 'Pending Audit' && e.category === 'Setoran Pengembalian')
@@ -414,12 +415,28 @@ export default function SourcingSettlementPage() {
                                      </div>
                                   </div>
                                   <Button 
-                                    onClick={handleApproveWholeSession}
-                                    disabled={isProcessing}
-                                    className="mt-8 h-14 w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-2xl transition-all shadow-xl shadow-emerald-500/20 active:scale-95"
-                                  >
-                                    {isProcessing ? "Processing..." : "Approve Sesi Belanja"}
-                                  </Button>
+                                     onClick={handleApproveWholeSession}
+                                     disabled={isProcessing || !isQcComplete}
+                                     className={cn(
+                                        "mt-8 h-14 w-full font-black rounded-2xl transition-all shadow-xl active:scale-95",
+                                        !isQcComplete 
+                                           ? "bg-slate-200 text-slate-400 border border-slate-300 shadow-none cursor-not-allowed" 
+                                           : "bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/20"
+                                     )}
+                                   >
+                                     {isProcessing ? "Processing..." : isQcComplete ? "Approve Sesi Belanja" : "Menunggu QC Gudang"}
+                                   </Button>
+                                   {selectedPurchase && !isQcComplete && (
+                                     <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-[10px] text-left">
+                                       <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                                       <div className="space-y-0.5">
+                                         <p className="font-extrabold text-amber-800 uppercase tracking-wider text-left">QC Belum Selesai</p>
+                                         <p className="text-amber-700 font-bold leading-normal text-left">
+                                           Beberapa item belanjaan sedang diinspeksi oleh Warehouse. Harap tunggu QC selesai untuk verifikasi nominal aktual HPP.
+                                         </p>
+                                       </div>
+                                     </div>
+                                   )}
                                </div>
                                
                                {selectedPurchase.reconciliationStatus !== 'Laporan Masuk' && (
@@ -448,17 +465,36 @@ export default function SourcingSettlementPage() {
                            <CardContent className="p-0">
                               <div className="px-8 pb-8 space-y-3">
                                  {pItems.map(item => {
-                                    const prod = products.find(p => p.id === item.productId)
-                                    return (
-                                       <div key={item.id} className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-50 group hover:bg-white hover:border-slate-100 transition-all">
-                                          <div>
-                                             <p className="text-xs font-black text-slate-800 uppercase leading-none mb-1">{prod?.name}</p>
-                                             <p className="text-[9px] font-bold text-slate-400 uppercase">{item.qtyPurchased} {prod?.uom} @ {formatRupiah(item.actualUnitPrice)}</p>
-                                          </div>
-                                          <span className="text-xs font-black text-slate-900">{formatRupiah(item.actualUnitPrice * item.qtyPurchased)}</span>
-                                       </div>
-                                    )
-                                 })}
+                                     const prod = products.find(p => p.id === item.productId)
+                                     const isQcPending = !item.isQCed
+                                     return (
+                                        <div key={item.id} className={cn(
+                                           "flex justify-between items-center p-4 rounded-2xl border transition-all",
+                                           isQcPending ? "bg-amber-50/40 border-amber-100" : "bg-slate-50 border-slate-50 hover:bg-white hover:border-slate-100"
+                                        )}>
+                                           <div>
+                                              <div className="flex items-center gap-2 mb-1">
+                                                 <p className="text-xs font-black text-slate-800 uppercase leading-none">{prod?.name}</p>
+                                                 {isQcPending ? (
+                                                    <Badge className="bg-amber-500/10 text-amber-600 border-none px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider">Menunggu QC</Badge>
+                                                 ) : (
+                                                    <Badge className="bg-emerald-500/10 text-emerald-600 border-none px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider">Lolos QC</Badge>
+                                                 )}
+                                              </div>
+                                              <p className="text-[9px] font-bold text-slate-400 uppercase">
+                                                 Sourcing: {item.qtyPurchased} {prod?.uom} @ {formatRupiah(item.actualUnitPrice)}
+                                                 {!isQcPending && ` · Masuk QC: ${item.inboundQtyReceived} ${prod?.uom}`}
+                                              </p>
+                                           </div>
+                                           <div className="text-right">
+                                              <span className="text-xs font-black text-slate-900">{formatRupiah(item.actualUnitPrice * item.qtyPurchased)}</span>
+                                              {!isQcPending && item.inboundQtyReceived !== item.qtyPurchased && (
+                                                 <p className="text-[8px] font-black text-rose-500 uppercase mt-0.5">Selisih: {item.qtyPurchased - item.inboundQtyReceived} unit</p>
+                                              )}
+                                           </div>
+                                        </div>
+                                     )
+                                  })}
                               </div>
                            </CardContent>
                         </Card>

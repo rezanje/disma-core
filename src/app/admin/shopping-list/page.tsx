@@ -56,6 +56,7 @@ export default function ShoppingListPage() {
   const updatePurchase = useAppStore(state => state.updatePurchase)
   const purchaseRequests = useAppStore(state => state.purchaseRequests) || []
   const updatePurchaseRequest = useAppStore(state => state.updatePurchaseRequest)
+  const addPurchaseRequest = useAppStore(state => state.addPurchaseRequest)
 
   const [isLoading, setIsLoading] = useState(false)
   const [isDeletingPurchase, setIsDeletingPurchase] = useState<string | null>(null)
@@ -248,16 +249,13 @@ export default function ShoppingListPage() {
       return
     }
 
-    if (!selectedPRId) {
-      toast.error('Pilih Purchase Request yang sudah disetujui CFO terlebih dahulu.', {
-        description: 'Tanpa PR Approved, shopping list tidak bisa dibuat.'
-      })
-      return
-    }
-    const linkedPR = purchaseRequests.find(pr => pr.id === selectedPRId)
-    if (!linkedPR || linkedPR.status !== 'Approved') {
-      toast.error('PR yang dipilih belum berstatus Approved.')
-      return
+    let linkedPR = null
+    if (selectedPRId) {
+      linkedPR = purchaseRequests.find(pr => pr.id === selectedPRId)
+      if (!linkedPR || linkedPR.status !== 'Approved') {
+        toast.error('PR yang dipilih belum berstatus Approved.')
+        return
+      }
     }
 
     const documentItems = consolidatedList.map(item => ({ ...item }))
@@ -276,7 +274,7 @@ export default function ShoppingListPage() {
         advanceCode,
         shoppingListDocumentId: documentId,
         shoppingListCompiledBy: currentUser?.id,
-        purchaseRequestId: selectedPRId,
+        purchaseRequestId: selectedPRId || '',
       })
       await addPurchaseItems(documentItems.map(item => ({
         id: uuidv4(),
@@ -328,11 +326,32 @@ export default function ShoppingListPage() {
       const items = purchaseItems.filter(pi => pi.purchaseId === purchaseId && pi.purchaseMethod === 'Pasar')
       const totalBudget = items.reduce((sum, item) => sum + (item.estimatedUnitPrice * item.qtyTarget), 0)
 
+      let prId = purchase.purchaseRequestId
+      if (!prId) {
+        // Auto-generate Purchase Request for Sourcing
+        prId = `pr-${uuidv4().slice(0, 8)}`
+        const linkedSOs = salesOrders.filter(so => so.shoppingListDocumentId === purchaseId)
+        const salesOrderIds = linkedSOs.map(so => so.id)
+
+        await addPurchaseRequest({
+          id: prId,
+          title: `Belanja PO Sourcing #${purchase.advanceCode || purchase.id.slice(0,8)}`,
+          description: `Perencanaan list belanja #${purchase.advanceCode || purchase.id.slice(0,8)} diajukan oleh Tim Sourcing.`,
+          amount: totalBudget,
+          category: 'Sourcing',
+          status: 'Pending_Finance',
+          requestedBy: currentUser?.name || currentUser?.id || 'Sourcing',
+          salesOrderIds,
+          createdAt: new Date().toISOString(),
+        })
+      }
+
       await updatePurchase(purchaseId, {
         reconciliationStatus: 'Belum Transfer',
-        budgetAmount: totalBudget
+        budgetAmount: totalBudget,
+        purchaseRequestId: prId
       })
-      toast.success("List belanja berhasil dikirim ke Finance untuk pencairan dana. Item Online masuk ke Finance › Online Purchase.", { id: loadingId })
+      toast.success("List belanja berhasil diajukan ke Finance & CFO (PR dibuat).", { id: loadingId })
     } catch (e) {
       toast.error(`Gagal kirim ke Finance: ${e instanceof Error ? e.message : String(e)}`, { id: loadingId })
     } finally {
@@ -886,11 +905,11 @@ export default function ShoppingListPage() {
                   </div>
                 )}
                 
-                {/* PR Selector — wajib sebelum compile */}
-                <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 mt-4">
+                {/* PR Selector — opsional sebelum compile */}
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 mt-4">
                   <div className="flex items-center justify-between mb-3">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-amber-600">
-                      ⚠ Pilih Purchase Request (Wajib)
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                      Pilih Purchase Request (Opsional — Bisa diajukan otomatis)
                     </p>
                     {selectedPRId && (
                       <button
@@ -902,9 +921,8 @@ export default function ShoppingListPage() {
                     )}
                   </div>
                   {approvedPRs.length === 0 ? (
-                    <div className="text-sm font-bold text-slate-500 py-2">
-                      Tidak ada PR Approved yang tersedia.{' '}
-                      <span className="text-amber-600">Buat dan approve PR di menu Admin › Purchase Requests terlebih dahulu.</span>
+                    <div className="text-xs font-bold text-slate-400 py-1">
+                      Belum ada PR Sourcing yang Approved. Anda bisa langsung compile, lalu gunakan tombol **Kirim ke Finance** untuk membuat pengajuan baru otomatis.
                     </div>
                   ) : (
                     <div className="space-y-2 max-h-[240px] overflow-auto pr-1">
