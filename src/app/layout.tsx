@@ -4,6 +4,7 @@ import "./globals.css";
 import GlobalAnnouncement from "@/components/layout/global-announcement";
 import StoreSync from "@/components/providers/store-sync";
 import HydrationGate from "@/components/providers/hydration-gate";
+import { Toaster } from "@/components/ui/sonner";
 
 const sora = Sora({
   variable: "--font-sora",
@@ -38,9 +39,11 @@ export default function RootLayout({
         <HydrationGate>
           {children}
         </HydrationGate>
+        <Toaster />
         <DevOverlay />
       </body>
     </html>
   );
 }
+
 

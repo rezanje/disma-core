@@ -1094,7 +1094,11 @@ export default function PurchaseRequestsPage() {
               <div className="space-y-1">
                 <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Dari Rekening</Label>
                 <Select value={disburseBankId} onValueChange={(v) => setDisburseBankId(v ?? '')}>
-                  <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="-- Pilih rekening --" /></SelectTrigger>
+                  <SelectTrigger className="h-11 rounded-xl">
+                    <SelectValue placeholder="-- Pilih rekening --">
+                      {bankAccounts.find(b => b.id === disburseBankId)?.name}
+                    </SelectValue>
+                  </SelectTrigger>
                   <SelectContent>
                     {bankAccounts.map(b => (
                       <SelectItem key={b.id} value={b.id}>{b.name} ({formatRupiah(b.balance)})</SelectItem>
@@ -1105,10 +1109,25 @@ export default function PurchaseRequestsPage() {
 
               {disburseType === 'sourcing' && (
                 <>
+                  {linkedPurchases(activePR).length === 0 && (
+                    <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div className="space-y-1">
+                        <p className="font-extrabold text-amber-800 uppercase text-[10px] tracking-wider">Peringatan: Belum Ada Shopping List</p>
+                        <p className="text-amber-700 font-medium leading-relaxed">
+                          Sourcing belanja belum dikompilasi di Shopping List. Silakan compile dulu di menu <span className="font-bold">Shopping List</span>, atau cairkan dengan Tipe Transaksi: <span className="font-bold">Pengeluaran / Bayar</span>.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                   <div className="space-y-1">
                     <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Ke Rekening (Tujuan)</Label>
                     <Select value={disburseDestBankId} onValueChange={(v) => setDisburseDestBankId(v ?? '')}>
-                      <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="-- Pilih rekening tujuan --" /></SelectTrigger>
+                      <SelectTrigger className="h-11 rounded-xl">
+                        <SelectValue placeholder="-- Pilih rekening tujuan --">
+                          {bankAccounts.find(b => b.id === disburseDestBankId)?.name}
+                        </SelectValue>
+                      </SelectTrigger>
                       <SelectContent>
                         {bankAccounts.filter(b => b.id !== disburseBankId).map(b => (
                           <SelectItem key={b.id} value={b.id}>{b.name} ({formatRupiah(b.balance)})</SelectItem>
@@ -1119,7 +1138,11 @@ export default function PurchaseRequestsPage() {
                   <div className="space-y-1">
                     <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Penanggung Jawab Sourcing</Label>
                     <Select value={disburseSourcingId} onValueChange={(v) => setDisburseSourcingId(v ?? '')}>
-                      <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="-- Pilih sourcing --" /></SelectTrigger>
+                      <SelectTrigger className="h-11 rounded-xl">
+                        <SelectValue placeholder="-- Pilih sourcing --">
+                          {users.find(u => u.id === disburseSourcingId)?.name}
+                        </SelectValue>
+                      </SelectTrigger>
                       <SelectContent>
                         {users.filter(u => u.role === 'sourcing').map(u => (
                           <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
@@ -1159,7 +1182,14 @@ export default function PurchaseRequestsPage() {
                       </div>
                     ) : (
                       <Select value={disburseContactId} onValueChange={(v) => setDisburseContactId(v ?? '')}>
-                        <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="-- Pilih kontak --" /></SelectTrigger>
+                        <SelectTrigger className="h-11 rounded-xl">
+                          <SelectValue placeholder="-- Pilih kontak --">
+                            {(() => {
+                              const contact = vendors.find(v => v.id === disburseContactId)
+                              return contact ? `${contact.companyName}${contact.kind ? ` (${contact.kind})` : ''}` : undefined
+                            })()}
+                          </SelectValue>
+                        </SelectTrigger>
                         <SelectContent>
                           {vendors.map(v => (
                             <SelectItem key={v.id} value={v.id}>{v.companyName}{v.kind ? ` (${v.kind})` : ''}</SelectItem>
