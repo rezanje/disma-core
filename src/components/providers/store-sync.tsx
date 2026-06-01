@@ -45,6 +45,10 @@ export default function StoreSync() {
         if (state.currentUser !== prevState.currentUser) return;
         if (state._ignoreBroadcastUntil !== prevState._ignoreBroadcastUntil) return;
         
+        // Only run saveToHdd if navigation configurations or role permissions actually changed.
+        // This prevents infinite syncing loops on unrelated state changes (like logs, transactions, etc.).
+        if (state.navConfigs === prevState.navConfigs && state.rolePermissions === prevState.rolePermissions) return;
+        
         if (timerRef.current) clearTimeout(timerRef.current);
         timerRef.current = setTimeout(() => {
            saveToHdd();

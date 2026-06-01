@@ -477,13 +477,13 @@ export default function SourcingSettlementPage() {
                                               </div>
                                               <p className="text-[9px] font-bold text-slate-400 uppercase">
                                                  Sourcing: {item.qtyPurchased} {prod?.uom} @ {formatRupiah(item.actualUnitPrice)}
-                                                 {!isQcPending && ` · Masuk QC: ${item.inboundQtyReceived} ${prod?.uom}`}
+                                                 {!isQcPending && ` · Masuk QC: ${item.inboundQtyReceived ?? 0} ${prod?.uom}`}
                                               </p>
                                            </div>
                                            <div className="text-right">
                                               <span className="text-xs font-black text-slate-900">{formatRupiah(item.actualUnitPrice * item.qtyPurchased)}</span>
                                               {!isQcPending && item.inboundQtyReceived !== item.qtyPurchased && (
-                                                 <p className="text-[8px] font-black text-rose-500 uppercase mt-0.5">Selisih: {item.qtyPurchased - item.inboundQtyReceived} unit</p>
+                                                 <p className="text-[8px] font-black text-rose-500 uppercase mt-0.5">Selisih: {item.qtyPurchased - (item.inboundQtyReceived ?? 0)} unit</p>
                                               )}
                                            </div>
                                         </div>

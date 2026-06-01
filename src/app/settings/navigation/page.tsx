@@ -62,6 +62,7 @@ export default function NavigationSettings() {
   }
 
   const handleReset = () => {
+    isInitialLoad.current = false
     const titles = availablePages.map(p => p.title)
     const newConfig = {
       desktop: { order: titles, hidden: [] },
@@ -73,6 +74,7 @@ export default function NavigationSettings() {
   }
 
   const toggleVisibility = (platform: 'desktop' | 'mobile', key: string) => {
+    isInitialLoad.current = false
     setConfig(prev => {
       const currentHidden = prev[platform].hidden || []
       const isHidden = currentHidden.includes(key)
@@ -89,6 +91,7 @@ export default function NavigationSettings() {
   }
 
   const moveOrder = (platform: 'desktop' | 'mobile', index: number, direction: 'up' | 'down') => {
+    isInitialLoad.current = false
     setConfig(prev => {
       // 1. Get current visible titles in their current order
       const platformConfig = prev[platform]

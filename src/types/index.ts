@@ -340,7 +340,7 @@ export interface JournalEntry {
   id: string;
   transactionDate: string;
   description: string;
-  referenceType?: 'Purchase' | 'Delivery' | 'Invoice' | 'Payment' | 'Expense' | 'Adjustment' | 'Depreciation' | 'Reimbursement' | 'Transfer';
+  referenceType?: 'Purchase' | 'Delivery' | 'Invoice' | 'Payment' | 'Expense' | 'Adjustment' | 'Depreciation' | 'Reimbursement' | 'Transfer' | 'QC';
   referenceId?: string;
 }
 

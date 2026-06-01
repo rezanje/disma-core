@@ -337,8 +337,8 @@ export const recordStockMovement = async (
     note: movement.note,
     createdByUserId: movement.createdByUserId,
     warehouseId: movement.warehouseId || 'main',
-    batchNumber: movement.batchNumber || null,
-    expiryDate: movement.expiryDate || null,
+    batchNumber: movement.batchNumber || undefined,
+    expiryDate: movement.expiryDate || undefined,
     unitCost: Number(movement.unitCost || 0),
   });
 

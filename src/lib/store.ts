@@ -1235,7 +1235,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           id: 'global-settings',
           nav_configs: state.navConfigs,
           role_permissions: state.rolePermissions
-        });
+        }, true);
       },
 
       isSidebarMinimized: false,
