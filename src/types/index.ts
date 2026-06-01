@@ -165,7 +165,7 @@ export interface SalesOrderItem {
 }
 
 export type PurchaseStatus = 'Pending' | 'Belanja' | 'Selesai';
-export type PurchaseMethod = 'Pasar' | 'Online';
+export type PurchaseMethod = 'Pasar' | 'Online' | 'Transfer';
 export type ReconciliationStatus = 'Belum Transfer' | 'Dana Ditransfer' | 'Laporan Masuk' | 'Terverifikasi' | 'Dispute';
 
 export interface Purchase {
@@ -216,6 +216,9 @@ export interface PurchaseItem {
   inboundVerifiedAt?: string;
   inboundVerifiedBy?: string;
   inboundNote?: string;
+  isTransferPaid?: boolean;
+  transferVendorId?: string;
+  transferRef?: string;
   expiryDate?: string;
 }
 
