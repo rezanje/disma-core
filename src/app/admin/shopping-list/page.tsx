@@ -312,7 +312,7 @@ export default function ShoppingListPage() {
     setIsSendingToFinance(purchaseId)
     const loadingId = toast.loading("Mengirim ke Finance...")
     try {
-      const items = purchaseItems.filter(pi => pi.purchaseId === purchaseId && pi.purchaseMethod !== 'Online')
+      const items = purchaseItems.filter(pi => pi.purchaseId === purchaseId && pi.purchaseMethod === 'Pasar')
       const totalBudget = items.reduce((sum, item) => sum + (item.estimatedUnitPrice * item.qtyTarget), 0)
 
       await updatePurchase(purchaseId, {
@@ -822,7 +822,7 @@ export default function ShoppingListPage() {
                       ))}
                       <TableRow className="bg-emerald-50 dark:bg-emerald-950/30 font-bold border-t-2 border-emerald-200 dark:border-emerald-900">
                         <TableCell colSpan={5} className="text-right pr-4">Total Modal Belanja:</TableCell>
-                        <TableCell className="text-right text-lg text-emerald-600 pr-4">{formatRupiah(consolidatedList.filter(item => item.purchaseMethod !== 'Online').reduce((sum, item) => sum + (item.estimatedPrice * item.totalQty), 0))}</TableCell>
+                        <TableCell className="text-right text-lg text-emerald-600 pr-4">{formatRupiah(consolidatedList.filter(item => item.purchaseMethod === 'Pasar').reduce((sum, item) => sum + (item.estimatedPrice * item.totalQty), 0))}</TableCell>
                         <TableCell />
                       </TableRow>
                     </TableBody>
@@ -937,7 +937,7 @@ export default function ShoppingListPage() {
                 </div>
 
                 <div className="flex justify-end pt-2 gap-3">
-                  <Button variant="outline" onClick={() => handleOpenPdfPreview(consolidatedList.filter(item => item.purchaseMethod !== 'Online'))}>
+                  <Button variant="outline" onClick={() => handleOpenPdfPreview(consolidatedList.filter(item => item.purchaseMethod === 'Pasar'))}>
                     <Printer className="mr-2 h-4 w-4" /> Print PDF
                   </Button>
                   <Button onClick={handleGenerateDocument} disabled={isLoading} className="bg-emerald-600 hover:bg-emerald-700 shadow-md shadow-emerald-500/20">

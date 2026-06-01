@@ -231,7 +231,7 @@ export default function FinanceHubPage() {
 
   const openDirectSettle = (purchaseId: string) => {
     setDirectSettleId(purchaseId)
-    const items = purchaseItems.filter(pi => pi.purchaseId === purchaseId && pi.purchaseMethod !== 'Online' && !pi.isOnlineAudited)
+    const items = purchaseItems.filter(pi => pi.purchaseId === purchaseId && pi.purchaseMethod === 'Pasar' && !pi.isOnlineAudited)
     const initialItems: Record<string, { 
       actualPrice: number, 
       qtyPurchased: number, 
@@ -285,7 +285,7 @@ export default function FinanceHubPage() {
     const spareAmount = spareAmounts[purchaseId] || 0
     if (!purchaserId) return toast.error("Pilih penerima dana terlebih dahulu.")
 
-    const items = purchaseItems.filter(pi => pi.purchaseId === purchaseId && pi.purchaseMethod !== 'Online')
+    const items = purchaseItems.filter(pi => pi.purchaseId === purchaseId && pi.purchaseMethod === 'Pasar')
     const itemsBudget = items.reduce((sum, item) => {
       const product = products.find(p => p.id === item.productId)
       const estPrice = item.estimatedUnitPrice || product?.basePrice || 0
@@ -504,7 +504,7 @@ export default function FinanceHubPage() {
     // Validation: all checked items must have vendorId
     const itemsWithoutVendor = Object.entries(settlementItems).filter(([itemId, data]) => {
       const item = purchaseItems.find(pi => pi.id === itemId)
-      if (!item || item.isOnlineAudited || item.purchaseMethod === 'Online') return false
+      if (!item || item.isOnlineAudited || item.purchaseMethod !== 'Pasar') return false
       return !data.vendorId
     })
 
@@ -543,7 +543,7 @@ export default function FinanceHubPage() {
       // 1. Process items (skip online-audited items — already handled via Audit Online flow)
       for (const [itemId, data] of Object.entries(settlementItems)) {
         const item = purchaseItems.find(pi => pi.id === itemId)
-        if (!item || item.isOnlineAudited || item.purchaseMethod === 'Online') continue
+        if (!item || item.isOnlineAudited || item.purchaseMethod !== 'Pasar') continue
         
         await useAppStore.getState().updatePurchaseItem(itemId, { 
           actualUnitPrice: data.actualPrice, 
@@ -868,7 +868,7 @@ export default function FinanceHubPage() {
             ) : (
               <div className="grid gap-6">
                 {needsTransfer.map(purchase => {
-                  const items = purchaseItems.filter(pi => pi.purchaseId === purchase.id && pi.purchaseMethod !== 'Online')
+                  const items = purchaseItems.filter(pi => pi.purchaseId === purchase.id && pi.purchaseMethod === 'Pasar')
                   const totalBudget = items.reduce((sum, item) => {
                     const product = products.find(p => p.id === item.productId)
                     const unitPrice = item.estimatedUnitPrice || product?.basePrice || 0
@@ -1250,7 +1250,7 @@ export default function FinanceHubPage() {
                        <div className="grid gap-6">
                           {awaitingVerification.map(purchase => {
                              const purchaser = users.find(u => u.id === purchase.purchaserId)
-                             const items = purchaseItems.filter(pi => pi.purchaseId === purchase.id && pi.purchaseMethod !== 'Online' && !pi.isOnlineAudited)
+                             const items = purchaseItems.filter(pi => pi.purchaseId === purchase.id && pi.purchaseMethod === 'Pasar' && !pi.isOnlineAudited)
                              const totalBudget = (purchase.budgetAmount || 0) + (purchase.operationalSpareAmount || 0)
                              
                              return (
@@ -1420,7 +1420,7 @@ export default function FinanceHubPage() {
                       <CheckCircle2 className="w-4 h-4" /> Daftar Belanjaan
                     </h3>
                     <div className="grid gap-3">
-                       {purchaseItems.filter(pi => pi.purchaseId === directSettleId && pi.purchaseMethod !== 'Online' && !pi.isOnlineAudited).map(pi => {
+                       {purchaseItems.filter(pi => pi.purchaseId === directSettleId && pi.purchaseMethod === 'Pasar' && !pi.isOnlineAudited).map(pi => {
                           const product = products.find(p => p.id === pi.productId)
                           const itemState = settlementItems[pi.id] || { actualPrice: 0, qtyPurchased: 0, vendorId: '' }
                           
