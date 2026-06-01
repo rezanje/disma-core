@@ -4,7 +4,7 @@ import { useAppStore } from "@/lib/store"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ShoppingBasket, RefreshCw, Printer, Plus, Search, Check, ChevronsUpDown, Trash2, Globe, ShoppingBag, FileText, X, Download, Loader2, Send, CheckCircle2 } from "lucide-react"
+import { ShoppingBasket, RefreshCw, Printer, Plus, Search, Check, ChevronsUpDown, Trash2, Globe, ShoppingBag, FileText, X, Download, Loader2, Send, CheckCircle2, Banknote } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 import { v4 as uuidv4 } from "uuid"
 import { toast } from "sonner"
@@ -80,6 +80,10 @@ export default function ShoppingListPage() {
     if (typeof window === 'undefined') return new Set()
     try { return new Set(JSON.parse(localStorage.getItem('shopping_onlineProductIds') || '[]')) } catch { return new Set() }
   })
+  const [transferProductIds, setTransferProductIds] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set()
+    try { return new Set(JSON.parse(localStorage.getItem('shopping_transferProductIds') || '[]')) } catch { return new Set() }
+  })
   const [manualPurchaseMethod, setManualPurchaseMethod] = useState<'Pasar' | 'Online'>('Pasar')
   const [shoppingDate, setShoppingDate] = useState(() => {
     if (typeof window === 'undefined') return ''
@@ -101,6 +105,7 @@ export default function ShoppingListPage() {
   useEffect(() => { localStorage.setItem('shopping_manualItems', JSON.stringify(manualItems)) }, [manualItems])
   useEffect(() => { localStorage.setItem('shopping_customPrices', JSON.stringify(customPrices)) }, [customPrices])
   useEffect(() => { localStorage.setItem('shopping_onlineProductIds', JSON.stringify(Array.from(onlineProductIds))) }, [onlineProductIds])
+  useEffect(() => { localStorage.setItem('shopping_transferProductIds', JSON.stringify(Array.from(transferProductIds))) }, [transferProductIds])
   useEffect(() => { localStorage.setItem('shopping_shoppingDate', shoppingDate) }, [shoppingDate])
   useEffect(() => { localStorage.setItem('shopping_lastGeneratedDoc', JSON.stringify(lastGeneratedDoc)) }, [lastGeneratedDoc])
 
@@ -108,7 +113,15 @@ export default function ShoppingListPage() {
     setOnlineProductIds(prev => {
       const next = new Set(prev)
       if (next.has(productId)) next.delete(productId)
-      else next.add(productId)
+      else { next.add(productId); setTransferProductIds(t => { const n = new Set(t); n.delete(productId); return n }) }
+      return next
+    })
+  }
+  const toggleTransfer = (productId: string) => {
+    setTransferProductIds(prev => {
+      const next = new Set(prev)
+      if (next.has(productId)) next.delete(productId)
+      else { next.add(productId); setOnlineProductIds(o => { const n = new Set(o); n.delete(productId); return n }) }
       return next
     })
   }
@@ -184,13 +197,13 @@ export default function ShoppingListPage() {
           totalQty: curr.qty,
           estimatedPrice: customPrice !== undefined ? customPrice : (curr.buyPrice || product.basePrice || 0),
           sellPrice: curr.sellPrice,
-          purchaseMethod: onlineProductIds.has(curr.productId) ? 'Online' : 'Pasar',
+          purchaseMethod: transferProductIds.has(curr.productId) ? 'Transfer' : onlineProductIds.has(curr.productId) ? 'Online' : 'Pasar',
           salesOrderId: curr.salesOrderId // Preserve the link!
         })
       }
     }
     return acc
-  }, [] as Array<{productId: string, productName: string, skuCode: string, totalQty: number, estimatedPrice: number, sellPrice: number, purchaseMethod: 'Pasar' | 'Online', salesOrderId?: string}>)
+  }, [] as Array<{productId: string, productName: string, skuCode: string, totalQty: number, estimatedPrice: number, sellPrice: number, purchaseMethod: 'Pasar' | 'Online' | 'Transfer', salesOrderId?: string}>)
 
   const handleAddManualItem = () => {
     if (!selectedProductId || manualQty <= 0) {
@@ -312,7 +325,7 @@ export default function ShoppingListPage() {
     setIsSendingToFinance(purchaseId)
     const loadingId = toast.loading("Mengirim ke Finance...")
     try {
-      const items = purchaseItems.filter(pi => pi.purchaseId === purchaseId && pi.purchaseMethod !== 'Online')
+      const items = purchaseItems.filter(pi => pi.purchaseId === purchaseId && pi.purchaseMethod === 'Pasar')
       const totalBudget = items.reduce((sum, item) => sum + (item.estimatedUnitPrice * item.qtyTarget), 0)
 
       await updatePurchase(purchaseId, {
@@ -793,6 +806,18 @@ export default function ShoppingListPage() {
                                    {item.purchaseMethod === 'Online' ? <Globe className="w-4 h-4" /> : <ShoppingBag className="w-4 h-4" />}
                                 </button>
                                 <button
+                                   onClick={() => toggleTransfer(item.productId)}
+                                   className={cn(
+                                      "p-2 rounded-xl border transition-all flex items-center justify-center hover:scale-110",
+                                      item.purchaseMethod === 'Transfer'
+                                         ? "bg-purple-50 border-purple-200 text-purple-600"
+                                         : "bg-slate-50 border-slate-200 text-slate-400"
+                                   )}
+                                   title={item.purchaseMethod === 'Transfer' ? "Transfer: dibayar finance" : "Tandai dibayar via Transfer (finance)"}
+                                >
+                                   <Banknote className="w-4 h-4" />
+                                </button>
+                                <button
                                    onClick={() => {
                                       const manualMatch = manualItems.find(mi => mi.productId === item.productId && mi.qty === item.totalQty)
                                       if (manualMatch) {
@@ -822,7 +847,7 @@ export default function ShoppingListPage() {
                       ))}
                       <TableRow className="bg-emerald-50 dark:bg-emerald-950/30 font-bold border-t-2 border-emerald-200 dark:border-emerald-900">
                         <TableCell colSpan={5} className="text-right pr-4">Total Modal Belanja:</TableCell>
-                        <TableCell className="text-right text-lg text-emerald-600 pr-4">{formatRupiah(consolidatedList.filter(item => item.purchaseMethod !== 'Online').reduce((sum, item) => sum + (item.estimatedPrice * item.totalQty), 0))}</TableCell>
+                        <TableCell className="text-right text-lg text-emerald-600 pr-4">{formatRupiah(consolidatedList.filter(item => item.purchaseMethod === 'Pasar').reduce((sum, item) => sum + (item.estimatedPrice * item.totalQty), 0))}</TableCell>
                         <TableCell />
                       </TableRow>
                     </TableBody>
@@ -937,7 +962,7 @@ export default function ShoppingListPage() {
                 </div>
 
                 <div className="flex justify-end pt-2 gap-3">
-                  <Button variant="outline" onClick={() => handleOpenPdfPreview(consolidatedList.filter(item => item.purchaseMethod !== 'Online'))}>
+                  <Button variant="outline" onClick={() => handleOpenPdfPreview(consolidatedList.filter(item => item.purchaseMethod === 'Pasar'))}>
                     <Printer className="mr-2 h-4 w-4" /> Print PDF
                   </Button>
                   <Button onClick={handleGenerateDocument} disabled={isLoading} className="bg-emerald-600 hover:bg-emerald-700 shadow-md shadow-emerald-500/20">

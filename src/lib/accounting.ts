@@ -1318,3 +1318,62 @@ export const recordPRExpensePayment = async (
   }
   return success;
 };
+
+/** Finance pays a vendor by transfer for a market item; sourcing only picks it up.
+ *  Mirrors recordOnlinePurchase: books goods to AP-accrual, HPP finalized at QC. */
+export const recordVendorTransferPurchase = async (
+  itemId: string,
+  amount: number,
+  productName: string,
+  vendorId: string,
+  vendorName: string,
+  bankAccountId: string,
+  transferRef: string = ''
+) => {
+  const store = useAppStore.getState();
+  const total = Number(amount || 0);
+  const existing = store.purchaseItems.find(pi => pi.id === itemId);
+  if (existing?.isTransferPaid) {
+    console.warn(`[Accounting] Transfer purchase already recorded for item ${itemId}`);
+    return true;
+  }
+
+  const bank = store.bankAccounts.find(b => b.id === bankAccountId);
+  const bankAccountCode = bank?.accountCode || '1-1200';
+
+  const success = await createAccountingEntry(
+    `Transfer Vendor: ${productName} (${vendorName}) - Ref: ${itemId.slice(0, 8)}`,
+    'Purchase',
+    itemId,
+    [{ accountCode: '2-1100', amount: total }],
+    [{ accountCode: bankAccountCode, amount: total }]
+  );
+
+  if (success) {
+    if (total > 0) {
+      await store.addCashTransaction({
+        id: uuidv4(),
+        date: new Date().toISOString(),
+        amount: total,
+        type: 'Out',
+        category: 'Transfer Vendor',
+        description: `Transfer Vendor: ${productName} (${vendorName})`,
+        bankAccountId,
+        counterpartName: vendorName,
+        referenceId: itemId,
+        referenceType: 'Purchase',
+      });
+    }
+    const qty = existing?.qtyTarget || 1;
+    await store.updatePurchaseItem(itemId, {
+      isTransferPaid: true,
+      transferVendorId: vendorId,
+      vendorId,
+      transferRef,
+      actualUnitPrice: total / qty,
+    });
+    const product = store.products.find(p => p.id === existing?.productId);
+    if (product) updateProductPriceHistory(product.id, total / qty, 'Transfer Vendor');
+  }
+  return success;
+};
