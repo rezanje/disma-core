@@ -471,6 +471,7 @@ export default function SalesOrdersPage() {
       currentStatus === 'Draft' ? 'Belanja' :
       currentStatus === 'Belanja' ? 'Packing' :
       currentStatus === 'Packing' ? 'Dikirim' :
+      currentStatus === 'Siap Kirim' ? 'Dikirim' :
       currentStatus === 'Dikirim' ? 'Terkirim' : currentStatus;
 
     updateSalesOrder(soId, { status: nextStatus as SalesOrderStatus })
@@ -1164,11 +1165,11 @@ export default function SalesOrdersPage() {
                               Mulai Packing
                             </Button>
                           )}
-                          {so.status === 'Packing' && (
-                            <Button 
-                              size="sm" 
+                          {(so.status === 'Packing' || so.status === 'Siap Kirim') && (
+                            <Button
+                              size="sm"
                               variant="outline"
-                              className="text-blue-600 border-blue-200 bg-blue-50 hover:bg-blue-100 font-bold" 
+                              className="text-blue-600 border-blue-200 bg-blue-50 hover:bg-blue-100 font-bold"
                               onClick={() => advanceStatus(so.id, so.status)}
                             >
                               Kirim Pesanan
