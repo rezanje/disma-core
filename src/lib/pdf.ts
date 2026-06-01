@@ -403,9 +403,22 @@ function buildShoppingListPDF(items: Array<{productId: string, productName: stri
   doc.text("Cek", 185, y + 7)
 
   doc.setFont("helvetica", "normal")
-  y += 18
   
   const printItems = items.filter(item => item.purchaseMethod !== 'Online')
+  const totalBudget = printItems
+    .filter(item => item.purchaseMethod !== 'Transfer')
+    .reduce((sum, item) => sum + ((item.estimatedPrice || 0) * (item.totalQty || 0)), 0)
+
+  // Print estimated cash on the right side
+  doc.setFont("helvetica", "bold")
+  doc.setTextColor(10, 100, 70) // emerald-ish
+  const budgetText = `Estimasi Uang Tunai/Cash: ${formatRupiah(totalBudget)}`
+  const budgetWidth = doc.getTextWidth(budgetText)
+  doc.text(budgetText, 196 - budgetWidth, 60)
+  doc.setTextColor(0, 0, 0)
+  doc.setFont("helvetica", "normal")
+
+  y += 18
   
   // Group by vendorName
   const groupedItems: Record<string, typeof printItems> = {}
