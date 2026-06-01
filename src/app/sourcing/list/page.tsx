@@ -35,15 +35,6 @@ export default function SourcingDashboard() {
   const vendors = useAppStore(state => state.vendors)
   const addVendor = useAppStore(state => state.addVendor)
 
-  const { useSearchParams } = require("next/navigation")
-  const searchParams = useSearchParams()
-  const tabParam = searchParams.get("tab")
-
-  const [activeTab, setActiveTab] = useState<'belanja' | 'dompet' | 'ops'>((tabParam as any) || 'belanja')
-
-  useEffect(() => {
-    if (tabParam) setActiveTab(tabParam as any)
-  }, [tabParam])
   const [opsFormData, setOpsFormData] = useState<{
     transactionType: 'Biaya Operasional' | 'Kasbon'
     category: OperationalExpense['category'] | ''
@@ -57,6 +48,7 @@ export default function SourcingDashboard() {
   const [editQty, setEditQty] = useState<number>(0)
   const [editNote, setEditNote] = useState<string>('')
   const [editVendorId, setEditVendorId] = useState<string>('')
+  const [editPaymentMethod, setEditPaymentMethod] = useState<'Cash' | 'Tempo'>('Cash')
   const [isNewVendorOpen, setIsNewVendorOpen] = useState(false)
   const [newVendorName, setNewVendorName] = useState('')
   const [newVendorIsTempo, setNewVendorIsTempo] = useState(true)
@@ -74,6 +66,8 @@ export default function SourcingDashboard() {
       setEditQty(item.qtyPurchased || item.qtyTarget)
       setEditNote(item.notes || '')
       setEditVendorId(item.vendorId || '')
+      const v = vendors.find(vd => vd.id === item.vendorId)
+      setEditPaymentMethod(item.paymentMethod || (v?.isTempo ? 'Tempo' : 'Cash'))
     }
   }
 
@@ -279,23 +273,27 @@ export default function SourcingDashboard() {
           qtyPurchased: editQty || activeItem.qtyTarget,
           notes: editNote,
           vendorId: editVendorId,
+          paymentMethod: editPaymentMethod,
         })
       }
 
       for (const p of activePurchases) {
         const pItems = currentItems.filter(item => item.purchaseId === p.id && item.isChecked)
-        const pCost = pItems.reduce((sum, item) => {
-           const price = activeItem?.id === item.id ? editPrice : (item.actualUnitPrice || 0)
-           const qty = activeItem?.id === item.id ? (editQty || item.qtyTarget) : (item.qtyPurchased || 0)
-           return sum + (qty * price)
-        }, 0)
+        const lineTotal = (item: PurchaseItem) => {
+          const price = activeItem?.id === item.id ? editPrice : (item.actualUnitPrice || 0)
+          const qty = activeItem?.id === item.id ? (editQty || item.qtyTarget) : (item.qtyPurchased || 0)
+          return qty * price
+        }
+        const pm = (item: PurchaseItem) => (activeItem?.id === item.id ? editPaymentMethod : (item.paymentMethod || 'Cash'))
+        const pTotalCost = pItems.reduce((sum, item) => sum + lineTotal(item), 0)
+        const pCashCost = pItems.reduce((sum, item) => pm(item) !== 'Tempo' ? sum + lineTotal(item) : sum, 0)
         const pBudget = (p.budgetAmount || 0) + (p.operationalSpareAmount || 0)
-        
-        await updatePurchase(p.id, { 
+
+        await updatePurchase(p.id, {
           status: 'Selesai',
           purchaserId: currentUser?.id || '22222222-2222-2222-2222-222222222222',
-          actualSpent: pCost,
-          changeReturned: pBudget > pCost ? pBudget - pCost : 0,
+          actualSpent: pTotalCost,
+          changeReturned: pBudget > pCashCost ? pBudget - pCashCost : 0,
           reconciliationNote: reconciliationNote || 'Sesuai budget (Auto-Consolidated)',
           reconciliationStatus: 'Laporan Masuk',
           reconciliationProofUrl: proofImage || undefined
@@ -401,11 +399,16 @@ export default function SourcingDashboard() {
   }
 
   // Belanjaan real-time (belum disubmit, hanya untuk progress bar saat masih belanja)
-  const totalShopSpentActual = currentItems.reduce((sum, item) => {
+  const itemPM = (item: PurchaseItem) => (activeItem?.id === item.id ? editPaymentMethod : (item.paymentMethod || 'Cash'))
+  const itemLineTotal = (item: PurchaseItem) => {
     const price = activeItem?.id === item.id ? editPrice : (item.actualUnitPrice || 0)
     const qty = activeItem?.id === item.id ? (editQty || item.qtyTarget) : (item.qtyPurchased || 0)
-    return item.isChecked ? sum + (qty * price) : sum
-  }, 0)
+    return qty * price
+  }
+  const totalShopSpentActual = currentItems.reduce((sum, item) =>
+    (item.isChecked && itemPM(item) !== 'Tempo') ? sum + itemLineTotal(item) : sum, 0)
+  const totalTempoActual = currentItems.reduce((sum, item) =>
+    (item.isChecked && itemPM(item) === 'Tempo') ? sum + itemLineTotal(item) : sum, 0)
 
   // Sisa kas = totalHolding sudah derived (advance - submitted shop - all expenses)
   // Kurangi lagi dengan belanjaan yg sedang diisi tapi belum disubmit
@@ -458,6 +461,9 @@ export default function SourcingDashboard() {
                <p className={cn("text-xl font-black tracking-tighter", remainingCash < 0 ? "text-rose-400" : "text-emerald-400")}>
                  {formatRupiah(remainingCash)}
                </p>
+               {totalTempoActual > 0 && (
+                 <p className="text-[8px] font-black uppercase text-amber-400 tracking-widest leading-none mt-1">+ Tempo (hutang): {formatRupiah(totalTempoActual)}</p>
+               )}
              </div>
           </div>
           
@@ -519,44 +525,8 @@ export default function SourcingDashboard() {
         </div>
       </div>
 
-      {/* Tab Switcher */}
-      <div className="flex gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl mx-1">
-        <Button
-          variant={activeTab === 'belanja' ? 'default' : 'ghost'}
-          className={cn(
-            "flex-1 h-11 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all",
-            activeTab === 'belanja' ? "bg-slate-900 text-white shadow-lg" : "text-slate-400 hover:text-slate-600"
-          )}
-          onClick={() => setActiveTab('belanja')}
-        >
-          <ShoppingBag className="w-3.5 h-3.5 mr-1" />
-          Belanja
-        </Button>
-        <Button
-          variant={activeTab === 'dompet' ? 'default' : 'ghost'}
-          className={cn(
-            "flex-1 h-11 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all",
-            activeTab === 'dompet' ? "bg-slate-900 text-white shadow-lg" : "text-slate-400 hover:text-slate-600"
-          )}
-          onClick={() => setActiveTab('dompet')}
-        >
-          <Wallet className="w-3.5 h-3.5 mr-1" />
-          Riwayat
-        </Button>
-        <Button
-          variant={activeTab === 'ops' ? 'default' : 'ghost'}
-          className={cn(
-            "flex-1 h-11 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all",
-            activeTab === 'ops' ? "bg-slate-900 text-white shadow-lg" : "text-slate-400 hover:text-slate-600"
-          )}
-          onClick={() => setActiveTab('ops')}
-        >
-          <Receipt className="w-3.5 h-3.5 mr-1" />
-          Ops
-        </Button>
-      </div>
-
-      {activeTab === 'belanja' ? (
+      <section className="space-y-4">
+        <h2 className="text-sm font-black uppercase tracking-widest text-slate-500 px-1">Checklist Belanja</h2>
         <>
           {activePurchases.length === 0 && (
             <div className="flex flex-col items-center justify-center text-center py-16 px-6">
@@ -625,6 +595,9 @@ export default function SourcingDashboard() {
                   <div>
                     <h3 className={`font-semibold text-[15px] leading-tight ${item.isChecked ? 'line-through text-slate-500' : ''}`}>
                       {product.name}
+                {(item.paymentMethod === 'Tempo') && (
+                  <span className="ml-2 rounded-full bg-amber-500 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest text-white">Tempo</span>
+                )}
                     </h3>
                     <p className="text-xs text-emerald-600 font-medium mt-0.5">
                       Target Beli: {item.qtyTarget} {product.uom}
@@ -708,6 +681,17 @@ export default function SourcingDashboard() {
                     </div>
 
                     <div className="space-y-2">
+                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Metode Bayar</Label>
+                      <Select value={editPaymentMethod} onValueChange={(val) => setEditPaymentMethod((val as 'Cash' | 'Tempo') ?? 'Cash')}>
+                        <SelectTrigger className="h-12 bg-white/50 border-2 transition-all focus:border-emerald-500 rounded-xl"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Cash">Cash (potong kas sourcing)</SelectItem>
+                          <SelectItem value="Tempo">Tempo (hutang ke vendor)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
                       <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                         Keterangan / Alasan (Opsional)
                       </Label>
@@ -746,6 +730,7 @@ export default function SourcingDashboard() {
                                 qtyPurchased: editQty || item.qtyTarget,
                                 notes: editNote,
                                 vendorId: editVendorId,
+                                paymentMethod: editPaymentMethod,
                                 isChecked: true
                               })
                             }, 10);
@@ -893,7 +878,10 @@ export default function SourcingDashboard() {
       })()}
       </>}
         </>
-      ) : activeTab === 'dompet' ? (
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-sm font-black uppercase tracking-widest text-slate-500 px-1">Dompet & Setor Kas</h2>
         <div className="space-y-4 animate-in slide-in-from-bottom-5 duration-500">
           <div className="flex justify-between items-center px-2">
             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Riwayat Kas Sourcing</h3>
@@ -1080,9 +1068,10 @@ export default function SourcingDashboard() {
           </div>
           )}
         </div>
-      ) : null}
+      </section>
 
-      {activeTab === 'ops' && (
+      <section className="space-y-4">
+        <h2 className="text-sm font-black uppercase tracking-widest text-slate-500 px-1">Pemakaian Operasional</h2>
         <div className="space-y-5 animate-in slide-in-from-bottom-5 duration-300 pb-8">
           <form onSubmit={handleOpsSubmit} className="space-y-5">
             <div className="space-y-2">
@@ -1152,7 +1141,7 @@ export default function SourcingDashboard() {
             </Button>
           </form>
         </div>
-      )}
+      </section>
       {/* QUICK ADD VENDOR DIALOG */}
       <Dialog open={isNewVendorOpen} onOpenChange={setIsNewVendorOpen}>
         <DialogContent className="sm:max-w-md">
