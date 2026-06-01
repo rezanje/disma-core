@@ -470,6 +470,9 @@ export default function SourcingDashboard() {
                <p className={cn("text-xl font-black tracking-tighter", remainingCash < 0 ? "text-rose-400" : "text-emerald-400")}>
                  {formatRupiah(remainingCash)}
                </p>
+               {totalTempoActual > 0 && (
+                 <p className="text-[8px] font-black uppercase text-amber-400 tracking-widest leading-none mt-1">+ Tempo (hutang): {formatRupiah(totalTempoActual)}</p>
+               )}
              </div>
           </div>
           
@@ -637,6 +640,9 @@ export default function SourcingDashboard() {
                   <div>
                     <h3 className={`font-semibold text-[15px] leading-tight ${item.isChecked ? 'line-through text-slate-500' : ''}`}>
                       {product.name}
+                {(item.paymentMethod === 'Tempo') && (
+                  <span className="ml-2 rounded-full bg-amber-500 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest text-white">Tempo</span>
+                )}
                     </h3>
                     <p className="text-xs text-emerald-600 font-medium mt-0.5">
                       Target Beli: {item.qtyTarget} {product.uom}
