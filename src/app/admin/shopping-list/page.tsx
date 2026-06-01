@@ -927,6 +927,8 @@ export default function ShoppingListPage() {
                       </Table>
                     );
                   })()}
+                </div>
+
                 {manualItems.filter(item => !onlineProductIds.has(item.productId)).length > 0 && (
                   <div className="space-y-2 p-3 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-lg border border-emerald-100 dark:border-emerald-900/50">
                     <Label className="text-[10px] font-black uppercase tracking-widest text-emerald-500">
