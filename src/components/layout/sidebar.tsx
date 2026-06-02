@@ -11,6 +11,8 @@ import {
   ChevronLeft, ChevronRight, Menu, CheckSquare, Bell, Search, User as UserIcon, Settings, ChevronDown
 } from "lucide-react"
 import { useAppStore, clearAllOperationalCaches } from "@/lib/store"
+import { useTaskNotifications } from "@/lib/use-task-notifications"
+import CommandPalette from "./command-palette"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -50,7 +52,8 @@ export default function Sidebar({ roleName }: SidebarProps) {
   const rolePermissions = useAppStore(state => state.rolePermissions) || {}
   const isMinimized = useAppStore(state => state.isSidebarMinimized)
   const toggleSidebar = useAppStore(state => state.toggleSidebar)
-  const notifications = useAppStore(state => state.notifications)
+  const { items: userNotifications, unreadCount, markAllRead, markRead } = useTaskNotifications()
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
 
   const handleLogout = () => {
     setCurrentUser(null)
@@ -124,9 +127,6 @@ export default function Sidebar({ roleName }: SidebarProps) {
     'Global': 'System'
   }
 
-  const userNotifications = notifications.filter(n => n.userId === currentUser?.id)
-  const unreadNotifications = userNotifications.filter(n => !n.read)
-
   return (
     <div 
       className={cn(
@@ -170,7 +170,10 @@ export default function Sidebar({ roleName }: SidebarProps) {
         "px-4 mb-6 flex items-center gap-2",
         isMinimized ? "flex-col" : "justify-between px-6"
       )}>
-        <button className={cn(
+        <button
+          onClick={() => setIsSearchOpen(true)}
+          title="Search"
+          className={cn(
           "p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 rounded-xl transition-all",
           isMinimized ? "w-10 h-10 flex items-center justify-center" : ""
         )}>
@@ -203,18 +206,15 @@ export default function Sidebar({ roleName }: SidebarProps) {
             isMinimized ? "w-10 h-10 flex items-center justify-center" : ""
           )}>
             <Bell className="w-4 h-4" />
-            {unreadNotifications.length > 0 && (
+            {unreadCount > 0 && (
               <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border border-white ring-2 ring-rose-500/20 animate-pulse"></span>
             )}
           </DropdownMenuTrigger>
           <DropdownMenuContent align={isMinimized ? "start" : "center"} side={isMinimized ? "right" : "bottom"} className="w-80 liquid-card p-0 border-none overflow-hidden ml-2">
              <div className="p-4 border-b bg-slate-50/50 flex items-center justify-between">
                 <h4 className="text-xs font-black uppercase tracking-widest text-slate-800">Notifications</h4>
-                <button 
-                  onClick={() => {
-                    unreadNotifications
-                      .forEach(n => useAppStore.getState().markNotificationRead(n.id))
-                  }}
+                <button
+                  onClick={markAllRead}
                   className="text-[10px] font-bold text-emerald-600 hover:underline"
                 >
                   Mark all read
@@ -224,15 +224,16 @@ export default function Sidebar({ roleName }: SidebarProps) {
                 {userNotifications.length === 0 ? (
                   <div className="p-8 text-center text-slate-400">
                      <Bell className="w-8 h-8 mx-auto mb-2 opacity-20" />
-                     <p className="text-[10px] font-bold uppercase tracking-widest">No notifications yet</p>
+                     <p className="text-[10px] font-bold uppercase tracking-widest">No assigned tasks</p>
                   </div>
                 ) : (
                   userNotifications.map((n) => (
-                      <div 
-                        key={n.id} 
-                        onClick={() => useAppStore.getState().markNotificationRead(n.id)}
+                      <Link
+                        key={n.id}
+                        href={n.href}
+                        onClick={() => markRead(n.id)}
                         className={cn(
-                          "p-4 border-b last:border-0 cursor-pointer transition-colors hover:bg-slate-50",
+                          "block p-4 border-b last:border-0 cursor-pointer transition-colors hover:bg-slate-50",
                           !n.read ? "bg-emerald-50/30" : "bg-white"
                         )}
                       >
@@ -244,7 +245,7 @@ export default function Sidebar({ roleName }: SidebarProps) {
                         <p className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">
                           {new Date(n.createdAt).toLocaleString()}
                         </p>
-                      </div>
+                      </Link>
                     ))
                 )}
              </div>
@@ -400,6 +401,12 @@ export default function Sidebar({ roleName }: SidebarProps) {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      <CommandPalette
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+        onOpen={() => setIsSearchOpen(true)}
+      />
     </div>
   )
 }

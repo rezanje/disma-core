@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useAppStore } from "@/lib/store"
+import { useTaskNotifications } from "@/lib/use-task-notifications"
 import CommandPalette from "./command-palette"
 import { 
   Bell, 
@@ -42,6 +43,7 @@ export default function Topbar({ title, navItems = [], displayAllNav = false }: 
   const currentUser = useAppStore(state => state.currentUser)
   const setCurrentUser = useAppStore(state => state.setCurrentUser)
   const navConfigs = useAppStore(state => state.navConfigs) || {}
+  const { items: notifItems, unreadCount, markAllRead, markRead } = useTaskNotifications()
   const pathname = usePathname()
   const router = useRouter()
 
@@ -112,39 +114,34 @@ export default function Topbar({ title, navItems = [], displayAllNav = false }: 
           <DropdownMenu>
             <DropdownMenuTrigger className="relative p-2 text-slate-500 hover:text-emerald-600 hover:bg-white rounded-full transition-all outline-none">
               <Bell className="w-4 h-4" />
-              {useAppStore(state => state.notifications).filter(n => n.userId === currentUser?.id && !n.read).length > 0 && (
+              {unreadCount > 0 && (
                 <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border border-white ring-2 ring-rose-500/20 animate-pulse"></span>
               )}
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-80 liquid-card mt-2 p-0 border-none overflow-hidden">
                <div className="p-4 border-b bg-slate-50/50 flex items-center justify-between">
                   <h4 className="text-xs font-black uppercase tracking-widest text-slate-800">Notifications</h4>
-                  <button 
-                    onClick={() => {
-                      useAppStore.getState().notifications
-                        .filter(n => n.userId === currentUser?.id && !n.read)
-                        .forEach(n => useAppStore.getState().markNotificationRead(n.id))
-                    }}
+                  <button
+                    onClick={markAllRead}
                     className="text-[10px] font-bold text-emerald-600 hover:underline"
                   >
                     Mark all read
                   </button>
                </div>
                <div className="max-h-[300px] overflow-y-auto">
-                  {useAppStore(state => state.notifications).filter(n => n.userId === currentUser?.id).length === 0 ? (
+                  {notifItems.length === 0 ? (
                     <div className="p-8 text-center text-slate-400">
                        <Bell className="w-8 h-8 mx-auto mb-2 opacity-20" />
-                       <p className="text-[10px] font-bold uppercase tracking-widest">No notifications yet</p>
+                       <p className="text-[10px] font-bold uppercase tracking-widest">No assigned tasks</p>
                     </div>
                   ) : (
-                    useAppStore(state => state.notifications)
-                      .filter(n => n.userId === currentUser?.id)
-                      .map((n) => (
-                        <div 
-                          key={n.id} 
-                          onClick={() => useAppStore.getState().markNotificationRead(n.id)}
+                    notifItems.map((n) => (
+                        <Link
+                          key={n.id}
+                          href={n.href}
+                          onClick={() => markRead(n.id)}
                           className={cn(
-                            "p-4 border-b last:border-0 cursor-pointer transition-colors hover:bg-slate-50",
+                            "block p-4 border-b last:border-0 cursor-pointer transition-colors hover:bg-slate-50",
                             !n.read ? "bg-emerald-50/30" : "bg-white"
                           )}
                         >
@@ -156,7 +153,7 @@ export default function Topbar({ title, navItems = [], displayAllNav = false }: 
                           <p className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">
                             {new Date(n.createdAt).toLocaleString()}
                           </p>
-                        </div>
+                        </Link>
                       ))
                   )}
                </div>
