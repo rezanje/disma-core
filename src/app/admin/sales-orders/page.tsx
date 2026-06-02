@@ -770,10 +770,11 @@ export default function SalesOrdersPage() {
                       </Label>
                       <Input
                         type="number"
-                        min="1"
+                        min="0.001"
+                        step="any"
                         className="bg-white dark:bg-slate-950 h-10"
                         value={newLineQty}
-                        onChange={(e) => setNewLineQty(parseInt(e.target.value) || 1)}
+                        onChange={(e) => setNewLineQty(parseFloat(e.target.value) || 0)}
                       />
                     </div>
                     

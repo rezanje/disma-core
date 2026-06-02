@@ -645,6 +645,8 @@ export default function SourcingDashboard() {
                         </Label>
                         <Input 
                             type="number"
+                            min="0"
+                            step="any"
                             className="h-12 text-lg font-bold bg-white/50 border-2 transition-all focus:border-emerald-500"
                             placeholder={`${item.qtyTarget}`}
                             value={editQty || ''}

@@ -121,7 +121,7 @@ export default function ClientOrderPage() {
   const updateQty = (productId: string, delta: number) => {
     setOrderItems(orderItems.map(item => {
       if (item.product.id === productId) {
-        const newQty = Math.max(1, item.qty + delta)
+        const newQty = Math.max(0.01, item.qty + delta)
         return { ...item, qty: newQty }
       }
       return item
@@ -437,14 +437,15 @@ export default function ClientOrderPage() {
                       </button>
                       <input 
                         type="number"
-                        min="1"
+                        min="0.01"
+                        step="any"
                         value={item.qty || ""}
                         onChange={(e) => {
-                          const val = e.target.value === "" ? 0 : parseInt(e.target.value)
+                          const val = e.target.value === "" ? 0 : parseFloat(e.target.value)
                           setQty(item.product.id, val)
                         }}
                         onBlur={() => {
-                          if (item.qty < 1) setQty(item.product.id, 1)
+                          if (item.qty < 0.01) setQty(item.product.id, 0.01)
                         }}
                         className="w-10 text-center font-black text-sm bg-transparent border-none focus:ring-0 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />

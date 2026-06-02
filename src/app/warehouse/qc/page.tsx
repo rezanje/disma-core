@@ -436,9 +436,11 @@ export default function QCPage() {
                           <div className="flex items-center gap-3">
                              <Input 
                                type="number" 
+                               min="0"
+                               step="any"
                                className="text-2xl font-black h-14 rounded-xl border-none shadow-sm"
                                value={qtyPassToClient || ''}
-                               onChange={(e) => setQtyPassToClient(parseInt(e.target.value) || 0)}
+                               onChange={(e) => setQtyPassToClient(parseFloat(e.target.value) || 0)}
                              />
                           </div>
                           <p className="text-[8px] font-bold text-indigo-400 uppercase">Langsung untuk PO Customer</p>
@@ -451,9 +453,11 @@ export default function QCPage() {
                         </Label>
                         <Input 
                            type="number" 
+                           min="0"
+                           step="any"
                            className="text-2xl font-black h-14 rounded-xl border-none shadow-sm"
                            value={qtyPassToInventory || ''}
-                           onChange={(e) => setQtyPassToInventory(parseInt(e.target.value) || 0)}
+                           onChange={(e) => setQtyPassToInventory(parseFloat(e.target.value) || 0)}
                          />
                          <p className="text-[8px] font-bold text-emerald-400 uppercase">Masuk Stok Gudang (Ready)</p>
                       </div>
@@ -464,9 +468,11 @@ export default function QCPage() {
                         </Label>
                         <Input 
                            type="number" 
+                           min="0"
+                           step="any"
                            className="text-2xl font-black h-14 rounded-xl border-none shadow-sm"
                            value={qtyReject || ''}
-                           onChange={(e) => setQtyReject(parseInt(e.target.value) || 0)}
+                           onChange={(e) => setQtyReject(parseFloat(e.target.value) || 0)}
                          />
                          <p className="text-[8px] font-bold text-rose-400 uppercase">Buang / Shrinkage</p>
                       </div>
@@ -653,9 +659,11 @@ export default function QCPage() {
                         </Label>
                         <Input 
                            type="number" 
+                           min="0"
+                           step="any"
                            className="text-2xl font-black h-14 rounded-xl border-none shadow-sm"
                            value={retQtyPass || ''}
-                           onChange={(e) => setRetQtyPass(parseInt(e.target.value) || 0)}
+                           onChange={(e) => setRetQtyPass(parseFloat(e.target.value) || 0)}
                         />
                       </div>
                       <div className="bg-rose-50/50 p-6 rounded-[2rem] border border-rose-100/50 space-y-4">
@@ -664,9 +672,11 @@ export default function QCPage() {
                         </Label>
                         <Input 
                            type="number" 
+                           min="0"
+                           step="any"
                            className="text-2xl font-black h-14 rounded-xl border-none shadow-sm"
                            value={retQtyReject || ''}
-                           onChange={(e) => setRetQtyReject(parseInt(e.target.value) || 0)}
+                           onChange={(e) => setRetQtyReject(parseFloat(e.target.value) || 0)}
                         />
                       </div>
                     </div>

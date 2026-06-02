@@ -510,6 +510,8 @@ export default function ShoppingListPage() {
                       <Input
                         id="qty"
                         type="number"
+                        min="0.001"
+                        step="any"
                         placeholder="0"
                         value={manualQty || ''}
                         onChange={(e) => setManualQty(parseFloat(e.target.value) || 0)}

@@ -33,7 +33,7 @@ export default function StockOpnamePage() {
     ? (warehouseId === 'b2c' ? (activeProduct.b2cStock || 0) : activeProduct.currentStock)
     : 0
 
-  const physicalCount = physicalCountRaw !== "" ? parseInt(physicalCountRaw) || 0 : 0
+  const physicalCount = physicalCountRaw !== "" ? parseFloat(physicalCountRaw) || 0 : 0
   const delta = physicalCount - systemStock
   const unitCost = unitCostRaw !== "" ? parseNumber(unitCostRaw) : (activeProduct?.basePrice || 0)
   const valuationDelta = Math.abs(delta) * unitCost
@@ -249,6 +249,8 @@ export default function StockOpnamePage() {
                       <Label className="text-[9px] font-black uppercase tracking-wider text-indigo-700">Hitung Fisik Aktual</Label>
                       <Input 
                         type="number"
+                        min="0"
+                        step="any"
                         placeholder="0"
                         value={physicalCountRaw}
                         onChange={(e) => setPhysicalCountRaw(e.target.value)}

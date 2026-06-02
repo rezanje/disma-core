@@ -1500,6 +1500,8 @@ export default function FinanceHubPage() {
                                       <label className="text-[9px] font-bold text-slate-400 uppercase">Qty Aktual</label>
                                       <input 
                                         type="number"
+                                        min="0"
+                                        step="any"
                                         className="w-20 h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 font-bold text-xs text-slate-700 outline-none focus:border-orange-500 transition-all"
                                         value={itemState.qtyPurchased || ''}
                                         onChange={(e) => setSettlementItems(prev => ({...prev, [pi.id]: { ...itemState, qtyPurchased: parseFloat(e.target.value) || 0 }}))}
