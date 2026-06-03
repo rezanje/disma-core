@@ -115,6 +115,7 @@ export default function ShoppingListPage() {
   })
   const [pdfPreview, setPdfPreview] = useState<{ url: string, title: string } | null>(null)
   const [selectedPRId, setSelectedPRId] = useState<string>('')
+  const [bulkVendorId, setBulkVendorId] = useState<string>('')
 
   // Persist state to localStorage on change
   useEffect(() => { localStorage.setItem('shopping_manualItems', JSON.stringify(manualItems)) }, [manualItems])
@@ -149,6 +150,32 @@ export default function ShoppingListPage() {
       else next.add(productId)
       return next
     })
+  }
+
+  // Bulk-assign the chosen vendor to every consolidated item (or only those without
+  // a vendor yet), so the user doesn't have to set each row one by one.
+  const applyBulkVendor = (onlyEmpty: boolean) => {
+    if (!bulkVendorId) { toast.error("Pilih vendor dulu di dropdown borongan."); return }
+    let count = 0
+    setVendorAssignments(prev => {
+      const next = { ...prev }
+      consolidatedList.forEach(item => {
+        if (onlyEmpty && next[item.productId]) return
+        next[item.productId] = bulkVendorId
+        count++
+      })
+      return next
+    })
+    const vName = vendors.find(v => v.id === bulkVendorId)?.companyName || 'vendor'
+    toast.success(`${count} item di-assign ke ${vName}.`)
+  }
+  const clearAllVendors = () => {
+    setVendorAssignments(prev => {
+      const next = { ...prev }
+      consolidatedList.forEach(item => { delete next[item.productId] })
+      return next
+    })
+    toast.success("Vendor semua item dikosongkan.")
   }
 
   // Quantity already reserved (booked) against warehouse stock from prior bookings.
@@ -836,8 +863,48 @@ export default function ShoppingListPage() {
               )
             ) : (
               <div className="space-y-6">
+                {/* Bulk vendor assignment */}
+                <div className="flex flex-wrap items-center gap-2 p-3 rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/40">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 mr-1">Set Vendor Borongan</span>
+                  <select
+                    className="text-xs p-2 border rounded-lg bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500 min-w-[160px]"
+                    value={bulkVendorId}
+                    onChange={(e) => setBulkVendorId(e.target.value)}
+                  >
+                    <option value="">-- Pilih Vendor --</option>
+                    {vendors.map(v => (
+                      <option key={v.id} value={v.id}>{v.companyName}</option>
+                    ))}
+                  </select>
+                  <Button
+                    size="sm"
+                    className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] uppercase tracking-widest"
+                    disabled={!bulkVendorId}
+                    onClick={() => applyBulkVendor(false)}
+                  >
+                    Terapkan ke Semua
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-9 font-black text-[10px] uppercase tracking-widest border-emerald-200 text-emerald-700"
+                    disabled={!bulkVendorId}
+                    onClick={() => applyBulkVendor(true)}
+                  >
+                    Isi yang Kosong
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-9 font-black text-[10px] uppercase tracking-widest text-slate-400 hover:text-rose-600"
+                    onClick={clearAllVendors}
+                  >
+                    Reset
+                  </Button>
+                </div>
+
                 <div className="rounded-md border bg-slate-50 dark:bg-slate-900 max-h-[300px] overflow-auto shadow-inner">
-                  
+
                   {/* Vendor Grouping Logic */}
                   {(() => {
                     const groups: Record<string, typeof consolidatedList> = { unassigned: [] };
