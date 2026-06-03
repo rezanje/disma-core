@@ -369,7 +369,7 @@ export default function Sidebar({ roleName }: SidebarProps) {
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{currentUser?.role}</p>
               </DropdownMenuLabel>
               <DropdownMenuSeparator className="bg-slate-100" />
-              {(currentUser?.role === 'super_admin' || currentUser?.role === 'ceo') && (
+              {(currentUser?.role === 'super_admin' || currentUser?.role === 'ceo' || currentUser?.role === 'coo') && (
                 <Link href="/admin/users">
                   <DropdownMenuItem className="flex items-center gap-3 px-3 py-2.5 rounded-2xl hover:bg-emerald-50 text-emerald-600 cursor-pointer outline-none group">
                       <Shield className="w-4 h-4" />
