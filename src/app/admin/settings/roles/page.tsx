@@ -17,6 +17,7 @@ const ROLES_LIST: { id: Role; label: string; desc: string }[] = [
   { id: 'kurir', label: 'Kurir / Logistik', desc: 'Tim distribusi eksternal.' },
   { id: 'finance', label: 'Finance Staff', desc: 'PIC pembukuan, budget, & laporan laba rugi.' },
   { id: 'ceo', label: 'CEO (Damar)', desc: 'C-Level executive visibility.' },
+  { id: 'coo', label: 'COO (Syahmi)', desc: 'C-Level operations — full access.' },
   { id: 'cmo', label: 'CMO (Hanif)', desc: 'Marketing & sales pipeline oversight.' },
   { id: 'super_admin', label: 'Super Admin', desc: 'Sistem Administrator (High Authority).' },
 ]

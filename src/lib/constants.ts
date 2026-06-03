@@ -60,6 +60,12 @@ export const MOCK_USERS: any[] = [
     "pin": "7777",
     "name": "Hanif (CMO)",
     "role": "cmo"
+  },
+  {
+    "id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+    "pin": "8888",
+    "name": "Syahmi (COO)",
+    "role": "coo"
   }
 ];
 

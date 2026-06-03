@@ -1,4 +1,4 @@
-export type Role = 'admin_po' | 'sourcing' | 'gudang' | 'kurir' | 'finance' | 'ceo' | 'super_admin' | 'cmo';
+export type Role = 'admin_po' | 'sourcing' | 'gudang' | 'kurir' | 'finance' | 'ceo' | 'super_admin' | 'cmo' | 'coo';
 
 export interface User {
   id: string;
@@ -100,6 +100,7 @@ export type StockMovementKind =
   | 'RETURN_RESTOCK'
   | 'RETURN_REJECT'
   | 'ADJUSTMENT'
+  | 'BOOKING'
   | 'INITIAL';
 
 export interface StockMovement {

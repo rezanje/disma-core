@@ -78,6 +78,7 @@ export default function LoginForm() {
         case 'ceo':
         case 'super_admin':
         case 'cmo':
+        case 'coo':
           router.push('/admin')
           break
         default:

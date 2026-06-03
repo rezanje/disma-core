@@ -67,6 +67,7 @@ export default function AuthGuard({ children, allowedRoles }: AuthGuardProps) {
         case 'ceo': 
         case 'super_admin':
         case 'cmo':
+        case 'coo':
           router.push('/admin'); break;
         default: router.push('/');
       }
@@ -87,6 +88,7 @@ export default function AuthGuard({ children, allowedRoles }: AuthGuardProps) {
         case 'ceo': 
         case 'super_admin':
         case 'cmo':
+        case 'coo':
           router.push('/admin'); break;
         default: router.push('/login');
       }
