@@ -36,6 +36,7 @@ import { format } from "date-fns"
 
 export default function ProductsPage() {
   const products = useAppStore(state => state.products)
+  const vendors = useAppStore(state => state.vendors)
   const addProduct = useAppStore(state => state.addProduct)
   const addProducts = useAppStore(state => state.addProducts)
   const updateProduct = useAppStore(state => state.updateProduct)
@@ -49,6 +50,7 @@ export default function ProductsPage() {
     skuCode: "",
     name: "",
     category: "",
+    defaultVendorId: "",
     uom: "kg",
     basePrice: 0,
     sellingPrice: 0,
@@ -121,7 +123,7 @@ export default function ProductsPage() {
   }
 
   const resetForm = () => {
-    setFormData({ skuCode: "", name: "", category: "", uom: "kg", basePrice: 0, sellingPrice: 0, tier1Price: 0, tier2Price: 0, tier3Price: 0, tier4Price: 0, tier5Price: 0, currentStock: 0 })
+    setFormData({ skuCode: "", name: "", category: "", defaultVendorId: "", uom: "kg", basePrice: 0, sellingPrice: 0, tier1Price: 0, tier2Price: 0, tier3Price: 0, tier4Price: 0, tier5Price: 0, currentStock: 0 })
     setEditingProduct(null)
   }
 
@@ -183,6 +185,7 @@ export default function ProductsPage() {
       skuCode: product.skuCode || "",
       name: product.name || "",
       category: product.category || "",
+      defaultVendorId: product.defaultVendorId || "",
       uom: product.uom || "kg",
       basePrice: product.basePrice || 0,
       sellingPrice: product.sellingPrice || 0,
@@ -426,13 +429,28 @@ export default function ProductsPage() {
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="category">Category</Label>
-                  <Input 
-                    id="category" 
+                  <Input
+                    id="category"
                     value={formData.category}
                     onChange={(e) => setFormData({...formData, category: e.target.value})}
-                    placeholder="Sayur, Daging, ATK..." 
+                    placeholder="Sayur, Daging, ATK..."
                   />
                 </div>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="defaultVendor">Vendor Langganan (Default)</Label>
+                <select
+                  id="defaultVendor"
+                  className="h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none"
+                  value={formData.defaultVendorId}
+                  onChange={(e) => setFormData({...formData, defaultVendorId: e.target.value})}
+                >
+                  <option value="">— Tidak ada / pilih saat belanja —</option>
+                  {vendors.map(v => (
+                    <option key={v.id} value={v.id}>{v.companyName}</option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-muted-foreground">Otomatis ke-assign ke vendor ini saat produk masuk daftar belanja.</p>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">

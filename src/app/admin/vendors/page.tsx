@@ -33,6 +33,7 @@ import { Vendor, VendorBill } from "@/types"
 export default function VendorsPage() {
   const vendors = useAppStore(state => state.vendors)
   const vendorBills = useAppStore(state => state.vendorBills)
+  const products = useAppStore(state => state.products)
   const addVendor = useAppStore(state => state.addVendor)
   const updateVendor = useAppStore(state => state.updateVendor)
 
@@ -86,6 +87,14 @@ export default function VendorsPage() {
   }, [detailVendor, billsByVendor])
 
   const detailStats = detailVendor ? vendorStats.get(detailVendor.id) : undefined
+
+  // Products whose default ("langganan") vendor is this one — what they supply.
+  const suppliedProducts = useMemo(() => {
+    if (!detailVendor) return []
+    return products
+      .filter(p => p.defaultVendorId === detailVendor.id)
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+  }, [detailVendor, products])
   
   const [formData, setFormData] = useState({
     companyName: "",
@@ -357,6 +366,31 @@ export default function VendorsPage() {
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-600">Total Pernah Belanja</p>
               <p className="text-lg font-black text-slate-700">{formatRupiah(detailStats?.everSpent ?? 0)}</p>
             </div>
+          </div>
+
+          {/* Products supplied by this vendor (default vendor) */}
+          <div className="rounded-md border">
+            <div className="flex items-center justify-between px-3 py-2 bg-emerald-50/60 border-b">
+              <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700">Barang yang Disupply ({suppliedProducts.length})</p>
+              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">Vendor langganan default</p>
+            </div>
+            {suppliedProducts.length === 0 ? (
+              <p className="h-16 flex items-center justify-center text-xs text-muted-foreground italic">
+                Belum ada produk dengan vendor langganan ini. Set di Product Master.
+              </p>
+            ) : (
+              <div className="max-h-[200px] overflow-y-auto divide-y">
+                {suppliedProducts.map(p => (
+                  <div key={p.id} className="flex items-center justify-between px-3 py-2">
+                    <div className="flex flex-col">
+                      <span className="text-xs font-bold text-slate-800">{p.name}</span>
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{p.skuCode}{p.category ? ` • ${p.category}` : ''}</span>
+                    </div>
+                    <span className="text-[10px] font-black text-slate-500">{p.uom}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Bill history */}
