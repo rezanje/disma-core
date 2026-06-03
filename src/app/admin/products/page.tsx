@@ -256,19 +256,21 @@ export default function ProductsPage() {
             variant="ghost" 
             className="text-red-600 hover:text-red-700 hover:bg-red-50"
             onClick={async () => {
-              if (confirm("Bersihkan SEMUA data? Ini akan menghapus Produk, Nota Pesanan, dan Transaksi agar import 1400 barang lo lancar. Lanjut?")) {
-                toast.loading("Membersihkan seluruh database...", { id: "master_wipe" });
+              if (confirm("Hapus SEMUA produk? Hanya data Produk yang dihapus — Client, Vendor, COA, Nota Pesanan, dan Transaksi TETAP AMAN. Lanjut?")) {
+                toast.loading("Menghapus semua produk...", { id: "wipe_products" });
                 try {
                   const res = await fetch('/api/db/reset', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'master' })
+                    body: JSON.stringify({ action: 'products_only' })
                   });
-                  if (!res.ok) throw new Error("Gagal membersihkan database");
-                  toast.success("Database bersih total! Me-reload...", { id: "master_wipe" });
+                  if (!res.ok) throw new Error("Gagal menghapus produk");
+                  // Clear local product cache so wiped products don't rehydrate on reload
+                  try { window.localStorage.removeItem('disma_local_products_cache'); } catch {}
+                  toast.success("Semua produk dihapus! Me-reload...", { id: "wipe_products" });
                   setTimeout(() => window.location.reload(), 800);
                 } catch (err: any) {
-                  toast.error("Gagal: " + err.message, { id: "master_wipe" });
+                  toast.error("Gagal: " + err.message, { id: "wipe_products" });
                 }
               }
             }}
