@@ -376,6 +376,7 @@ interface AppState {
   addSalesOrderItem: (item: SalesOrderItem) => void;
   addSalesOrderItems: (items: SalesOrderItem[]) => void;
   updateSalesOrderItem: (id: string, data: Partial<SalesOrderItem>) => void;
+  deleteSalesOrderItem: (id: string) => void;
 
   purchases: Purchase[];
   addPurchase: (p: Purchase) => void;
@@ -1573,6 +1574,14 @@ export const useAppStore = create<AppState>((set, get) => ({
           await get().syncTable('sales_order_items', updated);
           if (before) await get().logHistory({ table: 'sales_order_items', recordId: id, action: 'update', oldData: before, newData: updated });
         }
+      },
+      deleteSalesOrderItem: async (id) => {
+        const before = get().salesOrderItems.find(item => item.id === id);
+        const updatedSalesOrderItems = get().salesOrderItems.filter(item => item.id !== id);
+        set({ salesOrderItems: updatedSalesOrderItems });
+        saveLocalSalesOrderItemsCache(updatedSalesOrderItems);
+        await fetch('/api/db', { method: 'DELETE', body: JSON.stringify({ table: 'sales_order_items', id }) });
+        if (before) await get().logHistory({ table: 'sales_order_items', recordId: id, action: 'delete', oldData: before, newData: null });
       },
 
       purchases: [],
