@@ -100,6 +100,7 @@ export type StockMovementKind =
   | 'RETURN_RESTOCK'
   | 'RETURN_REJECT'
   | 'ADJUSTMENT'
+  | 'BOOKING'
   | 'INITIAL';
 
 export interface StockMovement {

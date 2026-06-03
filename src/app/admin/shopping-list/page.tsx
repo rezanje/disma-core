@@ -4,7 +4,7 @@ import { useAppStore } from "@/lib/store"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ShoppingBasket, RefreshCw, Printer, Plus, Search, Check, ChevronsUpDown, Trash2, Globe, ShoppingBag, FileText, X, Download, Loader2, Send, CheckCircle2, Banknote, Store, Carrot, Apple, Laptop, ShoppingCart, ArrowRightLeft, CircleDollarSign } from "lucide-react"
+import { ShoppingBasket, RefreshCw, Printer, Plus, Search, Check, ChevronsUpDown, Trash2, Globe, ShoppingBag, FileText, X, Download, Loader2, Send, CheckCircle2, Banknote, Store, Carrot, Apple, Laptop, ShoppingCart, ArrowRightLeft, CircleDollarSign, Warehouse, AlertTriangle } from "lucide-react"
 import React, { useEffect, useMemo, useState } from "react"
 import { v4 as uuidv4 } from "uuid"
 import { toast } from "sonner"
@@ -60,6 +60,8 @@ export default function ShoppingListPage() {
   const purchaseRequests = useAppStore(state => state.purchaseRequests) || []
   const updatePurchaseRequest = useAppStore(state => state.updatePurchaseRequest)
   const addPurchaseRequest = useAppStore(state => state.addPurchaseRequest)
+  const stockMovements = useAppStore(state => state.stockMovements)
+  const addStockMovement = useAppStore(state => state.addStockMovement)
 
   const [isLoading, setIsLoading] = useState(false)
   const [isDeletingPurchase, setIsDeletingPurchase] = useState<string | null>(null)
@@ -92,6 +94,11 @@ export default function ShoppingListPage() {
     if (typeof window === 'undefined') return new Set()
     try { return new Set(JSON.parse(localStorage.getItem('shopping_transferProductIds') || '[]')) } catch { return new Set() }
   })
+  // Products fulfilled from warehouse stock (booking) — excluded from the buy list
+  const [stockBookedProductIds, setStockBookedProductIds] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set()
+    try { return new Set(JSON.parse(localStorage.getItem('shopping_stockBookedProductIds') || '[]')) } catch { return new Set() }
+  })
   const [manualPurchaseMethod, setManualPurchaseMethod] = useState<'Pasar' | 'Online'>('Pasar')
   const [shoppingDate, setShoppingDate] = useState(() => {
     if (typeof window === 'undefined') return ''
@@ -115,6 +122,7 @@ export default function ShoppingListPage() {
   useEffect(() => { localStorage.setItem('shopping_vendorAssignments', JSON.stringify(vendorAssignments)) }, [vendorAssignments])
   useEffect(() => { localStorage.setItem('shopping_onlineProductIds', JSON.stringify(Array.from(onlineProductIds))) }, [onlineProductIds])
   useEffect(() => { localStorage.setItem('shopping_transferProductIds', JSON.stringify(Array.from(transferProductIds))) }, [transferProductIds])
+  useEffect(() => { localStorage.setItem('shopping_stockBookedProductIds', JSON.stringify(Array.from(stockBookedProductIds))) }, [stockBookedProductIds])
   useEffect(() => { localStorage.setItem('shopping_shoppingDate', shoppingDate) }, [shoppingDate])
   useEffect(() => { localStorage.setItem('shopping_lastGeneratedDoc', JSON.stringify(lastGeneratedDoc)) }, [lastGeneratedDoc])
 
@@ -134,6 +142,24 @@ export default function ShoppingListPage() {
       return next
     })
   }
+  const toggleStockBooked = (productId: string) => {
+    setStockBookedProductIds(prev => {
+      const next = new Set(prev)
+      if (next.has(productId)) next.delete(productId)
+      else next.add(productId)
+      return next
+    })
+  }
+
+  // Quantity already reserved (booked) against warehouse stock from prior bookings.
+  // Used to compute available-to-promise stock = currentStock - alreadyBooked.
+  const bookedQtyByProduct = useMemo(() => {
+    const map: Record<string, number> = {}
+    ;(stockMovements || []).forEach(m => {
+      if (m.kind === 'BOOKING') map[m.productId] = (map[m.productId] || 0) + Number(m.quantity || 0)
+    })
+    return map
+  }, [stockMovements])
 
   const filteredProducts = products
     .filter(p => 
@@ -211,12 +237,13 @@ export default function ShoppingListPage() {
           purchaseMethod: transferProductIds.has(curr.productId) ? 'Transfer' : onlineProductIds.has(curr.productId) ? 'Online' : 'Pasar',
           salesOrderId: curr.salesOrderId, // Preserve the link!
           vendorId: vId,
-          vendorName: vName
+          vendorName: vName,
+          fromStock: stockBookedProductIds.has(curr.productId)
         })
       }
     }
     return acc
-  }, [] as Array<{productId: string, productName: string, skuCode: string, totalQty: number, estimatedPrice: number, sellPrice: number, purchaseMethod: 'Pasar' | 'Online' | 'Transfer', salesOrderId?: string}>)
+  }, [] as Array<{productId: string, productName: string, skuCode: string, totalQty: number, estimatedPrice: number, sellPrice: number, purchaseMethod: 'Pasar' | 'Online' | 'Transfer', salesOrderId?: string, vendorId?: string, vendorName?: string, fromStock?: boolean}>)
 
   const handleAddManualItem = () => {
     if (!selectedProductId || manualQty <= 0) {
@@ -270,7 +297,10 @@ export default function ShoppingListPage() {
       }
     }
 
-    const documentItems = consolidatedList.map(item => ({ ...item }))
+    // Items fulfilled from warehouse stock are booked (reserved), NOT bought.
+    const buyItems = consolidatedList.filter(item => !item.fromStock)
+    const stockItems = consolidatedList.filter(item => item.fromStock)
+    const documentItems = buyItems.map(item => ({ ...item }))
     const documentId = uuidv4()
     const generatedAt = new Date().toISOString()
     const advanceCode = `ADV-${toDateInputValue(generatedAt).replaceAll('-', '')}-${String(purchases.length + 1).padStart(3, '0')}`
@@ -300,6 +330,32 @@ export default function ShoppingListPage() {
         isChecked: false,
         purchaseMethod: item.purchaseMethod
       })))
+
+      // Reserve (book) warehouse stock for items fulfilled from inventory. These were
+      // excluded from the buy list above so Sourcing won't purchase them. The movement
+      // uses stockDelta 0 — on-hand stock is NOT reduced yet; this is a reservation
+      // until the warehouse actually pulls it for delivery.
+      for (const item of stockItems) {
+        const product = products.find(p => p.id === item.productId)
+        await addStockMovement({
+          id: uuidv4(),
+          date: generatedAt,
+          productId: item.productId,
+          productName: product?.name,
+          skuCode: product?.skuCode,
+          quantity: item.totalQty,
+          stockDelta: 0,
+          resultingStock: product?.currentStock ?? 0,
+          direction: 'Info',
+          kind: 'BOOKING',
+          source: 'Booking Gudang (Shopping List)',
+          referenceType: 'Delivery',
+          referenceId: documentId,
+          salesOrderId: item.salesOrderId,
+          createdByUserId: currentUser?.id,
+          note: `Booking ${item.totalQty} ${product?.uom || ''} dari stok gudang`,
+        })
+      }
       setLastGeneratedDoc({
         purchaseId: documentId,
         generatedAt,
@@ -314,11 +370,24 @@ export default function ShoppingListPage() {
         })
       }
       setSelectedPRId('')
+      // Clear "from stock" selections that were just processed into bookings.
+      if (stockItems.length > 0) {
+        setStockBookedProductIds(prev => {
+          const next = new Set(prev)
+          stockItems.forEach(it => next.delete(it.productId))
+          return next
+        })
+      }
       setPdfPreview({
         title,
         url: generateShoppingListPDFDataUrl(documentItems)
       })
-      toast.success("Dokumen list belanja berhasil dibuat.", { id: loadingId })
+      toast.success(
+        stockItems.length > 0
+          ? `Dokumen dibuat. ${buyItems.length} item dibeli, ${stockItems.length} item dibooking dari gudang.`
+          : "Dokumen list belanja berhasil dibuat.",
+        { id: loadingId }
+      )
     } catch (e) {
       toast.error(`Gagal buat dokumen: ${e instanceof Error ? e.message : String(e)}`, { id: loadingId })
     } finally {
@@ -817,6 +886,24 @@ export default function ShoppingListPage() {
                                             Patokan: {formatRupiah(products.find(p => p.id === item.productId)!.weeklyPriceRange!.min)} - {formatRupiah(products.find(p => p.id === item.productId)!.weeklyPriceRange!.max)}
                                           </span>
                                         )}
+                                        {item.fromStock && (() => {
+                                          const prod = products.find(p => p.id === item.productId)
+                                          const avail = (prod?.currentStock ?? 0) - (bookedQtyByProduct[item.productId] || 0)
+                                          const short = item.totalQty > avail
+                                          return (
+                                            <span className={cn(
+                                              "w-fit text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded flex items-center gap-1",
+                                              short ? "bg-rose-50 text-rose-600" : "bg-amber-100 text-amber-700"
+                                            )}>
+                                              <Warehouse className="w-2.5 h-2.5" /> Dari Gudang
+                                              {short && (
+                                                <span className="flex items-center gap-0.5" title="Stok tersedia kurang dari kebutuhan">
+                                                  <AlertTriangle className="w-2.5 h-2.5" /> stok {avail}/{item.totalQty}
+                                                </span>
+                                              )}
+                                            </span>
+                                          )
+                                        })()}
                                       </div>
                                     </TableCell>
                                     <TableCell>
@@ -909,6 +996,18 @@ export default function ShoppingListPage() {
                                                 <ArrowRightLeft className="w-5 h-5" />
                                                 <CircleDollarSign className="w-3 h-3 text-amber-500 absolute -top-1.5 -right-1.5 bg-white rounded-full" />
                                              </div>
+                                          </button>
+                                          <button
+                                             onClick={() => toggleStockBooked(item.productId)}
+                                             className={cn(
+                                                "p-2 rounded-xl border transition-all flex items-center justify-center hover:scale-110",
+                                                item.fromStock
+                                                   ? "bg-amber-50 border-amber-300 text-amber-600 ring-2 ring-amber-200"
+                                                   : "bg-slate-50 border-slate-200 text-slate-400"
+                                             )}
+                                             title={item.fromStock ? "Ambil dari Gudang (booking) — klik untuk batal" : "Ambil dari stok Gudang (tidak dibeli, stok dibooking)"}
+                                          >
+                                             <Warehouse className="w-5 h-5" />
                                           </button>
                                           <button
                                              onClick={() => {
