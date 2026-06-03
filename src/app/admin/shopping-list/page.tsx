@@ -20,6 +20,7 @@ type ShoppingListDocumentItem = {
   productId: string
   productName: string
   skuCode: string
+  uom?: string
   totalQty: number
   estimatedPrice: number
   sellPrice: number
@@ -257,6 +258,7 @@ export default function ShoppingListPage() {
           productId: curr.productId,
           productName: product.name,
           skuCode: product.skuCode,
+          uom: product.uom,
           totalQty: curr.qty,
           estimatedPrice: customPrice !== undefined ? customPrice : (curr.buyPrice || product.basePrice || 0),
           sellPrice: curr.sellPrice,
@@ -269,7 +271,7 @@ export default function ShoppingListPage() {
       }
     }
     return acc
-  }, [] as Array<{productId: string, productName: string, skuCode: string, totalQty: number, estimatedPrice: number, sellPrice: number, purchaseMethod: 'Pasar' | 'Online' | 'Transfer', salesOrderId?: string, vendorId?: string, vendorName?: string, fromStock?: boolean}>)
+  }, [] as Array<{productId: string, productName: string, skuCode: string, uom?: string, totalQty: number, estimatedPrice: number, sellPrice: number, purchaseMethod: 'Pasar' | 'Online' | 'Transfer', salesOrderId?: string, vendorId?: string, vendorName?: string, fromStock?: boolean}>)
 
   const handleAddManualItem = () => {
     if (!selectedProductId || manualQty <= 0) {

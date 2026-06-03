@@ -387,7 +387,7 @@ export function generateTukarFakturBundle(invoiceId: string, outputType: 'save' 
   doc.save(`Tukar_Faktur_${inv.id.substring(0,8)}.pdf`)
 }
 
-function buildShoppingListPDF(items: Array<{productId: string, productName: string, skuCode: string, totalQty: number, estimatedPrice: number, purchaseMethod?: string, vendorName?: string}>) {
+function buildShoppingListPDF(items: Array<{productId: string, productName: string, skuCode: string, uom?: string, totalQty: number, estimatedPrice: number, purchaseMethod?: string, vendorName?: string}>) {
   // OPTIMIZATION: Enable compression
   const doc = new jsPDF({ compress: true })
   drawHeader(doc, "MASTER SHOPPING LIST (DAFTAR BELANJA)", `SL-${format(new Date(), 'yyyyMMdd-HHmm')}`, new Date())
@@ -470,7 +470,7 @@ function buildShoppingListPDF(items: Array<{productId: string, productName: stri
       const priceText = item.purchaseMethod === 'Transfer' ? '(Dibayar Kantor)' : formatRupiah(item.estimatedPrice)
       doc.text(priceText, 120, y)
       
-      doc.text(`${item.totalQty}`, 160, y)
+      doc.text(`${item.totalQty}${item.uom ? ' ' + item.uom : ''}`, 160, y)
       doc.rect(185, y - 4, 6, 6) // Checkbox box
       
       // Adjust y based on number of lines in product name
@@ -483,11 +483,11 @@ function buildShoppingListPDF(items: Array<{productId: string, productName: stri
   return doc
 }
 
-export function generateShoppingListPDFDataUrl(items: Array<{productId: string, productName: string, skuCode: string, totalQty: number, estimatedPrice: number, purchaseMethod?: string, vendorName?: string}>) {
+export function generateShoppingListPDFDataUrl(items: Array<{productId: string, productName: string, skuCode: string, uom?: string, totalQty: number, estimatedPrice: number, purchaseMethod?: string, vendorName?: string}>) {
   return buildShoppingListPDF(items).output('datauristring')
 }
 
-export function generateShoppingListPDF(items: Array<{productId: string, productName: string, skuCode: string, totalQty: number, estimatedPrice: number, purchaseMethod?: string, vendorName?: string}>) {
+export function generateShoppingListPDF(items: Array<{productId: string, productName: string, skuCode: string, uom?: string, totalQty: number, estimatedPrice: number, purchaseMethod?: string, vendorName?: string}>) {
   buildShoppingListPDF(items).save(`Daftar_Belanja_${format(new Date(), 'dd_MMM_yyyy')}.pdf`)
 }
 
