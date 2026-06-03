@@ -116,6 +116,7 @@ export default function ShoppingListPage() {
   const [pdfPreview, setPdfPreview] = useState<{ url: string, title: string } | null>(null)
   const [selectedPRId, setSelectedPRId] = useState<string>('')
   const [bulkVendorId, setBulkVendorId] = useState<string>('')
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set())
 
   // Persist state to localStorage on change
   useEffect(() => { localStorage.setItem('shopping_manualItems', JSON.stringify(manualItems)) }, [manualItems])
@@ -152,30 +153,27 @@ export default function ShoppingListPage() {
     })
   }
 
-  // Bulk-assign the chosen vendor to every consolidated item (or only those without
-  // a vendor yet), so the user doesn't have to set each row one by one.
-  const applyBulkVendor = (onlyEmpty: boolean) => {
-    if (!bulkVendorId) { toast.error("Pilih vendor dulu di dropdown borongan."); return }
-    let count = 0
+  const toggleSelectItem = (productId: string) => {
+    setSelectedItemIds(prev => {
+      const next = new Set(prev)
+      if (next.has(productId)) next.delete(productId)
+      else next.add(productId)
+      return next
+    })
+  }
+
+  // Assign the chosen vendor to all checked items at once.
+  const applyVendorToSelected = () => {
+    if (!bulkVendorId) { toast.error("Pilih vendor dulu di dropdown."); return }
+    if (selectedItemIds.size === 0) { toast.error("Centang item dulu yang mau di-set."); return }
     setVendorAssignments(prev => {
       const next = { ...prev }
-      consolidatedList.forEach(item => {
-        if (onlyEmpty && next[item.productId]) return
-        next[item.productId] = bulkVendorId
-        count++
-      })
+      selectedItemIds.forEach(pid => { next[pid] = bulkVendorId })
       return next
     })
     const vName = vendors.find(v => v.id === bulkVendorId)?.companyName || 'vendor'
-    toast.success(`${count} item di-assign ke ${vName}.`)
-  }
-  const clearAllVendors = () => {
-    setVendorAssignments(prev => {
-      const next = { ...prev }
-      consolidatedList.forEach(item => { delete next[item.productId] })
-      return next
-    })
-    toast.success("Vendor semua item dikosongkan.")
+    toast.success(`${selectedItemIds.size} item di-assign ke ${vName}.`)
+    setSelectedItemIds(new Set())
   }
 
   // Quantity already reserved (booked) against warehouse stock from prior bookings.
@@ -252,7 +250,8 @@ export default function ShoppingListPage() {
       const product = products.find(p => p.id === curr.productId)
       if (product) {
         const customPrice = customPrices[curr.productId]
-        const vId = vendorAssignments[curr.productId]
+        // Manual assignment wins; otherwise fall back to the product's default ("langganan") vendor.
+        const vId = vendorAssignments[curr.productId] || product.defaultVendorId || undefined
         const vName = vendors.find(v => v.id === vId)?.companyName
         acc.push({
           productId: curr.productId,
@@ -863,9 +862,23 @@ export default function ShoppingListPage() {
               )
             ) : (
               <div className="space-y-6">
-                {/* Bulk vendor assignment */}
+                {/* Bulk vendor assignment — select items then apply */}
                 <div className="flex flex-wrap items-center gap-2 p-3 rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/40">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 mr-1">Set Vendor Borongan</span>
+                  <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-emerald-700 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      className="w-4 h-4 accent-emerald-600"
+                      checked={consolidatedList.length > 0 && selectedItemIds.size === consolidatedList.length}
+                      onChange={(e) => {
+                        if (e.target.checked) setSelectedItemIds(new Set(consolidatedList.map(i => i.productId)))
+                        else setSelectedItemIds(new Set())
+                      }}
+                    />
+                    Pilih Semua
+                  </label>
+                  <span className="text-[10px] font-bold text-slate-500">{selectedItemIds.size} dipilih</span>
+                  <div className="h-5 w-px bg-emerald-200 mx-1" />
+                  <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Set Vendor</span>
                   <select
                     className="text-xs p-2 border rounded-lg bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500 min-w-[160px]"
                     value={bulkVendorId}
@@ -879,28 +892,21 @@ export default function ShoppingListPage() {
                   <Button
                     size="sm"
                     className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] uppercase tracking-widest"
-                    disabled={!bulkVendorId}
-                    onClick={() => applyBulkVendor(false)}
+                    disabled={!bulkVendorId || selectedItemIds.size === 0}
+                    onClick={applyVendorToSelected}
                   >
-                    Terapkan ke Semua
+                    Terapkan ke {selectedItemIds.size} item
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-9 font-black text-[10px] uppercase tracking-widest border-emerald-200 text-emerald-700"
-                    disabled={!bulkVendorId}
-                    onClick={() => applyBulkVendor(true)}
-                  >
-                    Isi yang Kosong
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-9 font-black text-[10px] uppercase tracking-widest text-slate-400 hover:text-rose-600"
-                    onClick={clearAllVendors}
-                  >
-                    Reset
-                  </Button>
+                  {selectedItemIds.size > 0 && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-9 font-black text-[10px] uppercase tracking-widest text-slate-400 hover:text-slate-700"
+                      onClick={() => setSelectedItemIds(new Set())}
+                    >
+                      Batal Pilih
+                    </Button>
+                  )}
                 </div>
 
                 <div className="rounded-md border bg-slate-50 dark:bg-slate-900 max-h-[300px] overflow-auto shadow-inner">
@@ -943,8 +949,18 @@ export default function ShoppingListPage() {
                                   </TableCell>
                                 </TableRow>
                                 {items.map((item, idx) => (
-                                  <TableRow key={idx}>
-                                    <TableCell className="text-xs text-slate-500 truncate">{item.skuCode}</TableCell>
+                                  <TableRow key={idx} className={cn(selectedItemIds.has(item.productId) && "bg-emerald-50/40")}>
+                                    <TableCell className="text-xs text-slate-500 truncate">
+                                      <div className="flex items-center gap-2">
+                                        <input
+                                          type="checkbox"
+                                          className="w-4 h-4 accent-emerald-600 shrink-0"
+                                          checked={selectedItemIds.has(item.productId)}
+                                          onChange={() => toggleSelectItem(item.productId)}
+                                        />
+                                        <span className="truncate">{item.skuCode}</span>
+                                      </div>
+                                    </TableCell>
                                     <TableCell className="font-medium leading-tight">
                                       <div className="flex flex-col gap-1 w-full max-w-[200px] whitespace-normal">
                                         <span className="text-xs">{item.productName}</span>

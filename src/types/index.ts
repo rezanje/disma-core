@@ -76,6 +76,7 @@ export interface Product {
   skuCode: string;
   name: string;
   category?: string; // e.g., 'Sayur', 'Daging', 'ATK'
+  defaultVendorId?: string; // Preferred/"langganan" vendor — auto-assigned in shopping list
   uom: string; // Unit of Measure (e.g., pcs, kg)
   basePrice: number;
   sellingPrice: number;
