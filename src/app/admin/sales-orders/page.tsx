@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useAppStore } from "@/lib/store"
 import { cn, formatRupiah, formatNumber, parseNumber } from "@/lib/utils"
 import { Plus, Trash2, ShoppingCart, Search, ChevronsUpDown, Check, Eye, FileText, Download, Loader2 } from "lucide-react"
@@ -59,6 +59,57 @@ interface LineItem {
   estimatedHpp?: number
 }
 
+/**
+ * Number input that keeps a local string buffer so the field can be cleared and
+ * retyped freely (no forced "0" that traps the cursor — fixes the "gabisa balik"
+ * editing bug). Commits a parsed number to the parent on every keystroke.
+ *  - format=true  → thousand-separated currency display (integer), uses parseNumber
+ *  - decimal=true → allows decimals (e.g. qty in Kg)
+ */
+function EditNumber({
+  value, onCommit, format = false, decimal = false, ...rest
+}: {
+  value: number
+  onCommit: (n: number) => void
+  format?: boolean
+  decimal?: boolean
+} & Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange">) {
+  const display = (v: number) => (format ? formatNumber(v) : v === 0 ? "" : String(v))
+  const [raw, setRaw] = useState<string>(display(value))
+  const lastNum = useRef<number>(value)
+
+  // Re-sync when the parent value changes from the outside (not from our own typing)
+  useEffect(() => {
+    if (value !== lastNum.current) {
+      lastNum.current = value
+      setRaw(display(value))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value])
+
+  const parse = (s: string): number => {
+    if (format) return parseNumber(s)
+    if (s.trim() === "") return 0
+    const n = decimal ? parseFloat(s.replace(",", ".")) : parseInt(s.replace(/[^\d]/g, ""), 10)
+    return isNaN(n) ? 0 : n
+  }
+
+  return (
+    <Input
+      {...rest}
+      value={raw}
+      onChange={(e) => {
+        let v = e.target.value
+        if (!format && decimal) v = v.replace(/[^0-9.,]/g, "")
+        setRaw(v)
+        const n = parse(v)
+        lastNum.current = n
+        onCommit(n)
+      }}
+    />
+  )
+}
+
 export default function SalesOrdersPage() {
   const salesOrders = useAppStore(state => state.salesOrders)
   const salesOrderItems = useAppStore(state => state.salesOrderItems)
@@ -67,8 +118,10 @@ export default function SalesOrdersPage() {
   const invoices = useAppStore(state => state.invoices)
   const addSalesOrder = useAppStore(state => state.addSalesOrder)
   const addSalesOrderItems = useAppStore(state => state.addSalesOrderItems)
+  const addSalesOrderItem = useAppStore(state => state.addSalesOrderItem)
   const updateSalesOrder = useAppStore(state => state.updateSalesOrder)
   const updateSalesOrderItem = useAppStore(state => state.updateSalesOrderItem)
+  const deleteSalesOrderItem = useAppStore(state => state.deleteSalesOrderItem)
   const getHistoricalClientPrice = useAppStore(state => state.getHistoricalClientPrice)
   const clientPrices = useAppStore(state => state.clientPrices) || []
   const addDelivery = useAppStore(state => state.addDelivery)
@@ -124,6 +177,12 @@ export default function SalesOrdersPage() {
   const [newClientData, setNewClientData] = useState({ companyName: "", picName: "", email: "", phone: "", address: "", parentId: "" })
   const [newProductData, setNewProductData] = useState({ skuCode: "", name: "", uom: "kg", basePrice: 0, sellingPrice: 0 })
   const [editingItems, setEditingItems] = useState<{ [id: string]: { qty: number, price: number } }>({})
+
+  // Add-item-to-existing-order (detail modal) state
+  const [addItemProductId, setAddItemProductId] = useState("")
+  const [addItemQty, setAddItemQty] = useState(1)
+  const [addItemSearch, setAddItemSearch] = useState("")
+  const [isAddItemOpen, setIsAddItemOpen] = useState(false)
   
   // New line item draft
   const [newLineProductId, setNewLineProductId] = useState("")
@@ -222,13 +281,53 @@ export default function SalesOrdersPage() {
 
   const saveOrderEdits = () => {
     Object.entries(editingItems).forEach(([itemId, data]) => {
-      updateSalesOrderItem(itemId, { 
-        qty: data.qty, 
+      updateSalesOrderItem(itemId, {
+        qty: data.qty,
         unitPrice: data.price,
         subtotal: data.qty * data.price
       })
     })
     toast.success("Perubahan pesanan berhasil disimpan")
+  }
+
+  // Add a new line item to the order currently open in the detail modal (Draft / Pending only)
+  const handleAddItemToOrder = () => {
+    const so = salesOrders.find(s => s.id === detailSOId)
+    if (!so) return
+    if (!addItemProductId) { toast.error("Pilih produk dulu"); return }
+    if (addItemQty <= 0) { toast.error("Qty harus lebih dari 0"); return }
+
+    const existing = salesOrderItems.find(it => it.salesOrderId === so.id && it.productId === addItemProductId)
+    if (existing) {
+      toast.error("Produk sudah ada di pesanan. Ubah qty-nya di tabel.")
+      return
+    }
+
+    const { price } = resolveClientPrice(addItemProductId, so.clientId)
+    const newItem: SalesOrderItem = {
+      id: uuidv4(),
+      salesOrderId: so.id,
+      productId: addItemProductId,
+      qty: addItemQty,
+      unitPrice: price,
+      subtotal: addItemQty * price,
+    }
+    addSalesOrderItem(newItem)
+    setEditingItems(prev => ({ ...prev, [newItem.id]: { qty: addItemQty, price } }))
+    setAddItemProductId("")
+    setAddItemQty(1)
+    setAddItemSearch("")
+    toast.success("Item ditambahkan ke pesanan")
+  }
+
+  const handleRemoveItemFromOrder = (itemId: string) => {
+    deleteSalesOrderItem(itemId)
+    setEditingItems(prev => {
+      const next = { ...prev }
+      delete next[itemId]
+      return next
+    })
+    toast.success("Item dihapus dari pesanan")
   }
 
   const handleQuickAddClient = () => {
@@ -768,13 +867,13 @@ export default function SalesOrdersPage() {
                           </span>
                         ) : null}
                       </Label>
-                      <Input
-                        type="number"
-                        min="0.001"
-                        step="any"
+                      <EditNumber
+                        decimal
+                        inputMode="decimal"
+                        placeholder="0"
                         className="bg-white dark:bg-slate-950 h-10"
                         value={newLineQty}
-                        onChange={(e) => setNewLineQty(parseFloat(e.target.value) || 0)}
+                        onCommit={setNewLineQty}
                       />
                     </div>
                     
@@ -1621,11 +1720,13 @@ export default function SalesOrdersPage() {
                                  </TableCell>
                                  <TableCell className="text-center">
                                      {isEditable ? (
-                                       <Input 
-                                         type="number"
+                                       <EditNumber
+                                         decimal
+                                         inputMode="decimal"
+                                         placeholder="0"
                                          className="h-8 w-16 mx-auto text-center text-xs font-bold border-emerald-100 bg-emerald-50/10"
                                          value={currentEdit.qty}
-                                         onChange={(e) => handleUpdateItem(item.id, 'qty', parseFloat(e.target.value) || 0)}
+                                         onCommit={(n) => handleUpdateItem(item.id, 'qty', n)}
                                        />
                                      ) : (
                                        <div>
@@ -1645,12 +1746,12 @@ export default function SalesOrdersPage() {
                                     {isEditable ? (
                                       <div className="relative inline-block w-28">
                                         <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold">Rp</span>
-                                        <Input 
-                                          type="text"
+                                        <EditNumber
+                                          format
                                           inputMode="numeric"
                                           className="h-8 pl-7 pr-1 text-right text-xs font-black text-emerald-600 border-emerald-100 bg-emerald-50/10"
-                                          value={formatNumber(currentEdit.price)}
-                                          onChange={(e) => handleUpdateItem(item.id, 'price', parseNumber(e.target.value) || 0)}
+                                          value={currentEdit.price}
+                                          onCommit={(n) => handleUpdateItem(item.id, 'price', n)}
                                         />
                                       </div>
                                     ) : (
@@ -1658,7 +1759,18 @@ export default function SalesOrdersPage() {
                                     )}
                                  </TableCell>
                                  <TableCell className="text-right font-black text-sm text-slate-900">
-                                    {formatRupiah(currentEdit.qty * currentEdit.price)}
+                                    <div className="flex items-center justify-end gap-2">
+                                       <span>{formatRupiah(currentEdit.qty * currentEdit.price)}</span>
+                                       {isEditable && (
+                                         <button
+                                           onClick={() => handleRemoveItemFromOrder(item.id)}
+                                           title="Hapus item"
+                                           className="text-slate-300 hover:text-rose-600 transition-colors shrink-0"
+                                         >
+                                           <Trash2 className="w-3.5 h-3.5" />
+                                         </button>
+                                       )}
+                                    </div>
                                  </TableCell>
                               </TableRow>
                            )
@@ -1666,6 +1778,89 @@ export default function SalesOrdersPage() {
                      </TableBody>
                   </Table>
                </div>
+
+               {(selectedSO?.status === 'Draft' || selectedSO?.status === 'Pending Approval') && (
+                 <div className="mt-1 p-3 rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/30 space-y-2">
+                   <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600 flex items-center gap-1.5">
+                     <Plus className="w-3.5 h-3.5" /> Tambah Item
+                   </p>
+                   <div className="flex gap-2 items-stretch">
+                     <Popover open={isAddItemOpen} onOpenChange={setIsAddItemOpen}>
+                       <PopoverTrigger render={
+                         <Button
+                           variant="outline"
+                           role="combobox"
+                           className="flex-1 h-9 justify-between font-normal bg-white rounded-xl border-slate-200 text-xs"
+                         >
+                           <span className="truncate">
+                             {addItemProductId
+                               ? products.find(p => p.id === addItemProductId)?.name
+                               : "Pilih produk..."}
+                           </span>
+                           <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+                         </Button>
+                       } />
+                       <PopoverContent className="w-[320px] p-0" align="start">
+                         <div className="flex items-center border-b px-3 h-10">
+                           <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                           <input
+                             placeholder="Cari produk / SKU..."
+                             className="flex h-full w-full bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground"
+                             value={addItemSearch}
+                             onChange={(e) => setAddItemSearch(e.target.value)}
+                           />
+                         </div>
+                         <div className="max-h-[260px] overflow-y-auto p-1">
+                           {(() => {
+                             const q = addItemSearch.toLowerCase()
+                             const list = products
+                               .filter(p => !q || p.name.toLowerCase().includes(q) || (p.skuCode || '').toLowerCase().includes(q))
+                               .slice(0, 50)
+                             if (list.length === 0) {
+                               return <div className="py-6 text-center text-xs text-slate-400 italic font-bold uppercase tracking-widest">Produk tidak ditemukan</div>
+                             }
+                             return list.map(p => (
+                               <button
+                                 key={p.id}
+                                 className={cn(
+                                   "flex w-full items-center rounded-xl py-2 px-3 text-sm outline-none hover:bg-slate-100 transition-colors",
+                                   addItemProductId === p.id && "bg-slate-100"
+                                 )}
+                                 onClick={() => { setAddItemProductId(p.id); setIsAddItemOpen(false); setAddItemSearch("") }}
+                               >
+                                 <div className="flex flex-col text-left">
+                                   <span className="font-bold text-slate-900 text-xs">{p.name}</span>
+                                   <span className="text-[9px] text-slate-400 font-bold uppercase">{p.skuCode} • {p.uom}</span>
+                                 </div>
+                               </button>
+                             ))
+                           })()}
+                         </div>
+                       </PopoverContent>
+                     </Popover>
+                     <EditNumber
+                       decimal
+                       inputMode="decimal"
+                       placeholder="Qty"
+                       className="h-9 w-20 text-center text-xs font-bold bg-white rounded-xl border-slate-200"
+                       value={addItemQty}
+                       onCommit={setAddItemQty}
+                     />
+                     <Button
+                       onClick={handleAddItemToOrder}
+                       disabled={!addItemProductId}
+                       className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl px-4"
+                     >
+                       Tambah
+                     </Button>
+                   </div>
+                   {addItemProductId && selectedSO && (
+                     <p className="text-[10px] text-slate-500 font-bold pl-1">
+                       Harga otomatis: {formatRupiah(resolveClientPrice(addItemProductId, selectedSO.clientId).price)} <span className="text-slate-400">(dari price list client)</span>
+                     </p>
+                   )}
+                 </div>
+               )}
             </div>
 
             {/* SECTION: ARCHIVED DOCUMENTS (FOR TUKAR FAKTUR) */}
