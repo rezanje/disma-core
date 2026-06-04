@@ -80,6 +80,7 @@ export default function CashAndBankPage() {
   const [isBulkDeleteConfirmOpen, setIsBulkDeleteConfirmOpen] = useState(false)
   const [txToDelete, setTxToDelete] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc')
 
   // Extract unique categories from cash transactions for the filter dropdown
   const uniqueCategories = useMemo(() => {
@@ -102,10 +103,20 @@ export default function CashAndBankPage() {
     const matchCategory = selectedCategoryFilter ? tx.category === selectedCategoryFilter : true;
     return matchSearch && matchBank && matchCategory;
   }).sort((a,b) => {
-    const dt = new Date(b.date).getTime() - new Date(a.date).getTime()
-    if (dt !== 0) return dt
-    // Tiebreaker: lower store index = newer (prepend pattern in addCashTransaction)
-    return (txIndex.get(a.id) ?? 0) - (txIndex.get(b.id) ?? 0)
+    const timeA = new Date(a.date).getTime()
+    const timeB = new Date(b.date).getTime()
+    
+    if (sortOrder === 'desc') {
+      const dt = timeB - timeA
+      if (dt !== 0) return dt
+      // Tiebreaker: lower store index = newer (prepend pattern in addCashTransaction)
+      return (txIndex.get(a.id) ?? 0) - (txIndex.get(b.id) ?? 0)
+    } else {
+      const dt = timeA - timeB
+      if (dt !== 0) return dt
+      // Tiebreaker: lower store index = newer, so reverse it for ascending (oldest first)
+      return (txIndex.get(b.id) ?? 0) - (txIndex.get(a.id) ?? 0)
+    }
   })
 
   const handleCreateBank = async () => {
@@ -955,6 +966,20 @@ export default function CashAndBankPage() {
                                  {formatCategory(cat)}
                               </SelectItem>
                            ))}
+                        </SelectContent>
+                     </Select>
+                  </div>
+                  <div className="w-48">
+                     <Select 
+                        value={sortOrder} 
+                        onValueChange={(val) => setSortOrder(val as 'desc' | 'asc')}
+                     >
+                        <SelectTrigger className="h-10 rounded-xl bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-xs font-semibold">
+                           <SelectValue placeholder="Urutkan Waktu" />
+                        </SelectTrigger>
+                        <SelectContent>
+                           <SelectItem value="desc" className="text-xs">🕒 Terbaru ke Terlama</SelectItem>
+                           <SelectItem value="asc" className="text-xs">🕒 Terlama ke Terbaru</SelectItem>
                         </SelectContent>
                      </Select>
                   </div>
