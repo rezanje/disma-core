@@ -587,9 +587,13 @@ export default function ShoppingListPage() {
                                   <div className="flex flex-col">
                                     <div className="flex justify-between items-center w-full">
                                       <span className="font-semibold">{product.name}</span>
-                                      {product.weeklyPriceRange && (
+                                      {product.weeklyPriceRange && product.weeklyPriceRange.min > 0 && product.weeklyPriceRange.max > 0 ? (
                                         <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0 rounded border border-amber-200">
                                           Patokan: {formatRupiah(product.weeklyPriceRange.min)} - {formatRupiah(product.weeklyPriceRange.max)}
+                                        </span>
+                                      ) : (
+                                        <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0 rounded border border-amber-200">
+                                          Patokan: {formatRupiah(product.basePrice)}
                                         </span>
                                       )}
                                     </div>
@@ -966,11 +970,21 @@ export default function ShoppingListPage() {
                                     <TableCell className="font-medium leading-tight">
                                       <div className="flex flex-col gap-1 w-full max-w-[200px] whitespace-normal">
                                         <span className="text-xs">{item.productName}</span>
-                                        {products.find(p => p.id === item.productId)?.weeklyPriceRange && (
-                                          <span className="text-[9px] font-bold text-amber-600 w-fit" title="Harga terendah-tertinggi minggu ini (Kamis-Rabu)">
-                                            Patokan: {formatRupiah(products.find(p => p.id === item.productId)!.weeklyPriceRange!.min)} - {formatRupiah(products.find(p => p.id === item.productId)!.weeklyPriceRange!.max)}
-                                          </span>
-                                        )}
+                                        {(() => {
+                                           const prod = products.find(p => p.id === item.productId)
+                                           if (prod?.weeklyPriceRange && prod.weeklyPriceRange.min > 0 && prod.weeklyPriceRange.max > 0) {
+                                             return (
+                                               <span className="text-[9px] font-bold text-amber-600 w-fit" title="Harga terendah-tertinggi minggu ini (Kamis-Rabu)">
+                                                 Patokan: {formatRupiah(prod.weeklyPriceRange.min)} - {formatRupiah(prod.weeklyPriceRange.max)}
+                                               </span>
+                                             )
+                                           }
+                                           return (
+                                             <span className="text-[9px] font-bold text-amber-600 w-fit" title="Harga Acuan (Base Price)">
+                                               Patokan: {formatRupiah(prod?.basePrice || 0)}
+                                             </span>
+                                           )
+                                         })()}
                                         {item.fromStock && (() => {
                                           const prod = products.find(p => p.id === item.productId)
                                           const avail = (prod?.currentStock ?? 0) - (bookedQtyByProduct[item.productId] || 0)

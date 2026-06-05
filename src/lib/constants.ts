@@ -249,6 +249,24 @@ export const COA_SEED: any[] = [
     "accountCode": "2-4000",
     "accountName": "Pinjaman Bank (Utang)",
     "accountType": "Liability"
+  },
+  {
+    "id": "coa-10-talangan",
+    "accountCode": "2-1500",
+    "accountName": "Utang Talangan Karyawan",
+    "accountType": "Liability"
+  },
+  {
+    "id": "coa-ap-accrual",
+    "accountCode": "2-1100",
+    "accountName": "Hutang Akrual Belum Ditagih (AP Accrual)",
+    "accountType": "Liability"
+  },
+  {
+    "id": "coa-persediaan-b2c",
+    "accountCode": "1-3100",
+    "accountName": "Persediaan Peralihan B2C",
+    "accountType": "Asset"
   }
 ];
 

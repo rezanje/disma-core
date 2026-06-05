@@ -648,10 +648,10 @@ export default function ProductsPage() {
                     </span>
                   </TableCell>
                   <TableCell className="text-right">
-                    {p.weeklyPriceRange ? (
+                    {p.weeklyPriceRange && typeof p.weeklyPriceRange.min === 'number' && p.weeklyPriceRange.min > 0 ? (
                       <div className="flex flex-col items-end">
                         <div className="flex items-center gap-1.5 font-mono text-[10px] font-black text-slate-700 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
-                          {formatRupiah(p.weeklyPriceRange.min || 0)} - {formatRupiah(p.weeklyPriceRange.max || 0)}
+                          {formatRupiah(p.weeklyPriceRange.min)} - {formatRupiah(p.weeklyPriceRange.max || p.weeklyPriceRange.min)}
                         </div>
                         <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter mt-1">
                           Updated: {p.weeklyPriceRange.lastUpdated ? format(new Date(p.weeklyPriceRange.lastUpdated), "dd/MM HH:mm") : "-"}
@@ -692,7 +692,7 @@ export default function ProductsPage() {
           </DialogHeader>
           <div className="space-y-4">
             {/* Weekly Range Summary */}
-            {historyProduct.weeklyPriceRange && (
+             {historyProduct.weeklyPriceRange && typeof historyProduct.weeklyPriceRange.min === 'number' && historyProduct.weeklyPriceRange.min > 0 && (
               <div className="bg-emerald-50 dark:bg-emerald-950/30 rounded-xl p-4 flex justify-between items-center border border-emerald-100 dark:border-emerald-900">
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Range Harga Minggu Ini</p>

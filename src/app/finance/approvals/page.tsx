@@ -328,15 +328,18 @@ export default function FinanceHubPage() {
     const lockKey = `auditExpense_${expenseId}`
     if (!acquireLock(lockKey)) return
     try {
-    const exp = expenses.find(e => e.id === expenseId)
+    const freshExpenses = useAppStore.getState().expenses
+    const exp = freshExpenses.find(e => e.id === expenseId)
     if (!exp) return
 
     if (status === 'Approved') {
        // If tied to a purchase, the wallet owner is the purchaser, not necessarily the reporter (e.g., if Finance direct-settles)
-       const relatedPurchase = purchases.find(p => p.id === exp.purchaseId)
+       const freshPurchases = useAppStore.getState().purchases
+       const freshBankAccounts = useAppStore.getState().bankAccounts
+       const relatedPurchase = freshPurchases.find(p => p.id === exp.purchaseId)
        const walletUserId = relatedPurchase?.purchaserId || exp.reporterId
        const advanceWallet = getAdvanceWalletByUserId(walletUserId)
-       const bank = bankAccounts.find(b => b.id === selectedBank)
+       const bank = freshBankAccounts.find(b => b.id === selectedBank)
 
        toast.loading("Mencatat transaksi keuangan...", { id: "audit-exp" })
 
@@ -437,6 +440,11 @@ export default function FinanceHubPage() {
       // 2. Process Reimbursements
       for (const reimb of pReimbs) {
          await handlePayReimbursement(reimb.id)
+      }
+
+      // 3. Process Returns
+      if (pReturn) {
+         await handleAuditExpense(pReturn.id, 'Approved')
       }
 
       // 4. Process HPP Settlement (Rekon Utama)
@@ -759,9 +767,11 @@ export default function FinanceHubPage() {
     const lockKey = `payReimburse_${reimbId}`
     if (!acquireLock(lockKey)) return
     try {
-    const reimb = reimbursements.find(r => r.id === reimbId)
+    const freshReimbursements = useAppStore.getState().reimbursements
+    const reimb = freshReimbursements.find(r => r.id === reimbId)
     if (!reimb) return
-    const user = users.find(u => u.id === reimb.userId)
+    const freshUsers = useAppStore.getState().users
+    const user = freshUsers.find(u => u.id === reimb.userId)
 
     toast.loading("Memproses pembayaran talangan...", { id: "reimb" })
     const success = await recordReimbursementPayment(reimb.id, reimb.amount, reimb.title || 'Reimburse', selectedBank, user?.name || 'Karyawan')

@@ -845,9 +845,13 @@ export default function SalesOrdersPage() {
                                   <span className="font-semibold">{p.name}</span>
                                   <div className="flex gap-2 items-center mt-1">
                                     <span className="text-[10px] text-muted-foreground">{p.skuCode} • {formatRupiah(p.sellingPrice)}</span>
-                                    {p.weeklyPriceRange && (
+                                    {p.weeklyPriceRange && p.weeklyPriceRange.min > 0 && p.weeklyPriceRange.max > 0 ? (
                                       <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200" title="Patokan Harga Mingguan (Kamis-Rabu)">
                                         Patokan: {formatRupiah(p.weeklyPriceRange.min)} - {formatRupiah(p.weeklyPriceRange.max)}
+                                      </span>
+                                    ) : (
+                                      <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200" title="Patokan Harga Acuan (Base Price)">
+                                        Patokan: {formatRupiah(p.basePrice)}
                                       </span>
                                     )}
                                   </div>

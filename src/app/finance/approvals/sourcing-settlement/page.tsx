@@ -77,15 +77,18 @@ export default function SourcingSettlementPage() {
   const returnDiscrepancy = totalReturns - expectedReturns
 
   const handleAuditExpense = async (expenseId: string, status: 'Approved' | 'Rejected') => {
-    const exp = expenses.find(e => e.id === expenseId)
+    const latestExpenses = useAppStore.getState().expenses
+    const exp = latestExpenses.find(e => e.id === expenseId)
     if (!exp) return
 
     if (status === 'Approved') {
-       const relatedPurchase = purchases.find(p => p.id === exp.purchaseId)
+       const latestPurchases = useAppStore.getState().purchases
+       const relatedPurchase = latestPurchases.find(p => p.id === exp.purchaseId)
        const walletUserId = relatedPurchase?.purchaserId || exp.reporterId
        const advanceWallet = getAdvanceWalletByUserId(walletUserId)
-       const selectedBank = selectedPurchase?.budgetBankAccountId || 'bank-1'
-       const bank = bankAccounts.find(b => b.id === selectedBank)
+       const selectedBank = relatedPurchase?.budgetBankAccountId || 'bank-1'
+       const latestBankAccounts = useAppStore.getState().bankAccounts
+       const bank = latestBankAccounts.find(b => b.id === selectedBank)
 
        if (exp.category === 'Setoran Pengembalian') {
           const success = await recordAdvanceReturn(exp.amount, walletUserId, selectedBank)
@@ -117,16 +120,87 @@ export default function SourcingSettlementPage() {
   }
 
   const handlePayReimbursement = async (reimbId: string) => {
-    const reimb = reimbursements.find(r => r.id === reimbId)
+    const latestReimbursements = useAppStore.getState().reimbursements
+    const reimb = latestReimbursements.find(r => r.id === reimbId)
     if (!reimb) return
-    const user = users.find(u => u.id === reimb.userId)
-    const selectedBank = selectedPurchase?.budgetBankAccountId || 'bank-1'
+    const latestUsers = useAppStore.getState().users
+    const user = latestUsers.find(u => u.id === reimb.userId)
+    const latestPurchases = useAppStore.getState().purchases
+    const relatedPurchase = latestPurchases.find(p => p.id === reimb.purchaseId)
+    const selectedBank = relatedPurchase?.budgetBankAccountId || 'bank-1'
     
     const success = await recordReimbursementPayment(reimb.id, reimb.amount, reimb.title || 'Reimburse', selectedBank, user?.name || 'Karyawan')
     if (success) {
       await updateReimbursement(reimbId, { status: 'Paid' })
     } else {
       throw new Error("Gagal mencatat transaksi reimbursement.")
+    }
+  }
+
+  const processApprovalCore = async (purchaseId: string) => {
+    const state = useAppStore.getState()
+    const latestPurchase = state.purchases.find(p => p.id === purchaseId)
+    if (!latestPurchase) throw new Error("Sesi belanja tidak ditemukan.")
+
+    // Fetch fresh items and expenses from the state to avoid stale closure variables
+    const freshItems = state.purchaseItems.filter(pi => pi.purchaseId === purchaseId && pi.isChecked)
+    const freshExpenses = state.expenses.filter(e => e.purchaseId === purchaseId && e.status === 'Pending Audit' && e.category !== 'Setoran Pengembalian')
+    const freshReimbs = state.reimbursements.filter(r => r.purchaseId === purchaseId && r.status === 'Pending')
+    const freshReturns = state.expenses.filter(e => e.purchaseId === purchaseId && e.status === 'Pending Audit' && e.category === 'Setoran Pengembalian')
+
+    const totalBudget = (latestPurchase.budgetAmount || 0) + (latestPurchase.operationalSpareAmount || 0)
+    const totalShopSpent = freshItems.reduce((sum, item) => sum + (item.actualUnitPrice * item.qtyPurchased), 0)
+
+    // 1. Approve all operational expenses
+    for (const op of freshExpenses) {
+      await handleAuditExpense(op.id, 'Approved')
+    }
+
+    // 2. Approve all reimbursements
+    for (const reimb of freshReimbs) {
+      await handlePayReimbursement(reimb.id)
+    }
+
+    // 3. Approve all returns
+    for (const ret of freshReturns) {
+      await handleAuditExpense(ret.id, 'Approved')
+    }
+
+    // 4. Settle HPP and sync budget
+    const success = await recordReconciliationSettlement(
+      purchaseId,
+      totalShopSpent,
+      0, // Ops already handled above as individual expenses
+      totalBudget,
+      latestPurchase.budgetBankAccountId || 'bank-1'
+    )
+
+    if (!success) throw new Error("Gagal settle rekonsiliasi jurnal HPP.")
+
+    // 5. Update purchase status & sync actualSpent to live total
+    await updatePurchase(purchaseId, {
+      actualSpent: totalShopSpent,
+      reconciliationStatus: 'Terverifikasi',
+      status: 'Selesai' // unlock QC workflow (warehouse/qc filter requires this)
+    })
+
+    // 5b. Advance linked Sales Orders to QC so downstream (Packing → Kirim → Terkirim) can run
+    const linkedSoIds = new Set(
+      freshItems.map(pi => pi.salesOrderId).filter((id): id is string => !!id)
+    )
+    const updateSO = useAppStore.getState().updateSalesOrder
+    for (const soId of linkedSoIds) {
+      const so = useAppStore.getState().salesOrders.find(s => s.id === soId)
+      if (so && (so.status === 'Belanja' || so.status === 'Draft')) {
+        await updateSO(soId, { status: 'QC' })
+      }
+    }
+
+    // 6. Update price history for checked items
+    for (const item of freshItems) {
+      if (item.actualUnitPrice > 0 && item.productId) {
+        updateProductPriceHistory(item.productId, item.actualUnitPrice, 'Pasar (Verified)')
+      }
     }
   }
 
@@ -137,60 +211,15 @@ export default function SourcingSettlementPage() {
     const toastId = toast.loading("Memproses persetujuan seluruh sesi...")
 
     try {
-      // 1. Approve all operational expenses
-      for (const op of pExpenses) {
-        await handleAuditExpense(op.id, 'Approved')
+      // Check if QC is complete before approving standard session
+      const state = useAppStore.getState()
+      const freshItems = state.purchaseItems.filter(pi => pi.purchaseId === selectedPurchaseId && pi.isChecked)
+      const isQcComplete = freshItems.every(item => item.isQCed)
+      if (!isQcComplete) {
+         throw new Error("Menunggu QC Gudang selesai sebelum menyetujui.")
       }
 
-      // 2. Approve all reimbursements
-      for (const reimb of pReimbs) {
-        await handlePayReimbursement(reimb.id)
-      }
-
-      // 3. Approve all returns
-      for (const ret of pReturns) {
-        await handleAuditExpense(ret.id, 'Approved')
-      }
-
-      // 4. Settle HPP and sync budget
-      // Use live computed totalShopSpent (sum of checked purchase items) instead of
-      // stale purchase.actualSpent — sourcer/finance may have edited item prices after submit.
-      const success = await recordReconciliationSettlement(
-        selectedPurchaseId,
-        totalShopSpent,
-        0, // Ops already handled above as individual expenses
-        totalBudget,
-        selectedPurchase.budgetBankAccountId || 'bank-1'
-      )
-
-      if (!success) throw new Error("Gagal settle rekonsiliasi jurnal HPP.")
-
-      // 5. Update purchase status & sync actualSpent to live total
-      await updatePurchase(selectedPurchaseId, {
-        actualSpent: totalShopSpent,
-        reconciliationStatus: 'Terverifikasi',
-        status: 'Selesai' // unlock QC workflow (warehouse/qc filter requires this)
-      })
-
-      // 5b. Advance linked Sales Orders to QC so downstream (Packing → Kirim → Terkirim) can run
-      const linkedSoIds = new Set(
-        pItems.map(pi => pi.salesOrderId).filter((id): id is string => !!id)
-      )
-      const updateSO = useAppStore.getState().updateSalesOrder
-      for (const soId of linkedSoIds) {
-        const so = useAppStore.getState().salesOrders.find(s => s.id === soId)
-        if (so && (so.status === 'Belanja' || so.status === 'Draft')) {
-          await updateSO(soId, { status: 'QC' })
-        }
-      }
-
-      // 6. Update price history for checked items
-      for (const item of pItems) {
-        if (item.actualUnitPrice > 0 && item.productId) {
-          updateProductPriceHistory(item.productId, item.actualUnitPrice, 'Pasar (Verified)')
-        }
-      }
-
+      await processApprovalCore(selectedPurchaseId)
       toast.success("Sesi Sourcing berhasil diselesaikan!", { id: toastId })
       setSelectedPurchaseId(null)
     } catch (err: any) {
@@ -256,22 +285,22 @@ export default function SourcingSettlementPage() {
         })
       }
 
-      // 4. Update purchase actual spent
+      // 4. Update purchase actual spent & status
       await updatePurchase(selectedPurchaseId, { 
         actualSpent: directSettleData.hpp,
         changeReturned: directSettleData.returned,
         reconciliationStatus: 'Laporan Masuk'
       })
 
-      // 5. Run the standard verification logic
-      // Note: We need to wait a bit for the state to sync or use the locally created items
-      // To be safe, we just reuse handleApproveWholeSession's logic
-      await handleApproveWholeSession()
+      // 5. Run the core approval flow (this will read the newly created records from the store)
+      await processApprovalCore(selectedPurchaseId)
       
+      toast.success("Sesi Sourcing berhasil diselesaikan via Direct Input!", { id: toastId })
       setIsDirectSettleOpen(false)
+      setSelectedPurchaseId(null)
       setDirectSettleData({ hpp: 0, ops: 0, returned: 0, proofUrl: "" })
-    } catch (err) {
-      toast.error("Gagal memproses settlement mandiri.", { id: toastId })
+    } catch (err: any) {
+      toast.error(err.message || "Gagal memproses settlement mandiri.", { id: toastId })
     } finally {
       setIsProcessing(false)
     }
