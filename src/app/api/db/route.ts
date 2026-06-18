@@ -125,12 +125,14 @@ export async function GET(request: Request) {
 
     // --- GROUP 3: Finance ---
     if (group === '3') {
-      const [coas, bankAccounts, cashTransactions, journalEntries, journalLines, invoices, expenses, reimbursements, vendorBills, tukarFakturs] = await Promise.all([
+      const [coas, bankAccounts, cashTransactions, journalEntries, journalLines, invoices, expenses, reimbursements, vendorBills, tukarFakturs, budgetPlans, budgetCategories, budgetSubCategories, budgetAdjustments] = await Promise.all([
         fetchTable('coas'), fetchTable('bank_accounts'),
         fetchTable('cash_transactions'), fetchTable('journal_entries'),
         fetchTable('journal_lines'), fetchTable('invoices'),
         fetchTable('expenses'), fetchTable('reimbursements'),
-        fetchTable('vendor_bills'), fetchTable('tukar_faktur')
+        fetchTable('vendor_bills'), fetchTable('tukar_faktur'),
+        fetchTable('budget_plans'), fetchTable('budget_categories'),
+        fetchTable('budget_sub_categories'), fetchTable('budget_adjustments')
       ]);
       return NextResponse.json({
         coas: toCamel(coas),
@@ -143,6 +145,10 @@ export async function GET(request: Request) {
         reimbursements: toCamel(reimbursements),
         vendorBills: toCamel(vendorBills),
         tukarFakturs: toCamel(tukarFakturs),
+        budgetPlans: toCamel(budgetPlans),
+        budgetCategories: toCamel(budgetCategories),
+        budgetSubCategories: toCamel(budgetSubCategories),
+        budgetAdjustments: toCamel(budgetAdjustments),
       }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
     }
 

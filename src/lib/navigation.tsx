@@ -45,6 +45,7 @@ export const APP_PAGES: NavItemConfig[] = [
     ]
   },
   { key: 'finance_cash_bank', title: 'Cash & Bank', href: '/finance/cash-bank', icon: <Bank className="h-4 w-4" />, category: 'Finance' },
+  { key: 'finance_budget', title: 'Perencanaan Budget', href: '/finance/budget', icon: <Target className="h-4 w-4 text-rose-500" />, category: 'Finance' },
   { key: 'finance_tukar_faktur', title: 'Tukar Faktur', href: '/finance/tukar-faktur', icon: <FileSpreadsheet className="h-4 w-4" />, category: 'Finance' },
   { key: 'finance_expenses', title: 'Pengeluaran Umum', href: '/finance/expenses', icon: <TrendingDown className="h-4 w-4" />, category: 'Finance' },
   { key: 'finance_reports', title: 'Financial Reports', href: '/finance/reports', icon: <FileSpreadsheet className="h-4 w-4" />, category: 'Finance' },

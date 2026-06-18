@@ -6,7 +6,8 @@ import {
   JournalLine, OperationalExpense, User, Vendor, Role, Lead, Announcement, AppTask, AppNotification,
   BankAccount, CashTransaction, Reimbursement, FixedAsset,
   Employee, SmartKpi, OkrObjective, OkrKeyResult, RolePermissionMap, AccessKey, PendingReturn, RejectedItem, StockMovement, ClientPrice,
-  VendorBill, VendorBillPayment, TukarFaktur, PurchaseRequest
+  VendorBill, VendorBillPayment, TukarFaktur, PurchaseRequest,
+  BudgetPlan, BudgetCategory, BudgetSubCategory, BudgetAdjustment
 } from '@/types';
 import { COA_SEED, CLIENTS_SEED, VENDORS_SEED, MOCK_USERS, KPI_SEED } from './constants';
 import { PRODUCTS_SEED } from './products_seed';
@@ -29,6 +30,10 @@ const LOCAL_DELIVERIES_CACHE_KEY = 'disma_local_deliveries_cache';
 const LOCAL_LEADS_CACHE_KEY = 'disma_local_leads_cache';
 const LOCAL_CURRENT_USER_KEY = 'disma_core_current_user';
 const LOCAL_PURCHASE_REQUESTS_CACHE_KEY = 'disma_local_purchase_requests_cache';
+const LOCAL_BUDGET_PLANS_CACHE_KEY = 'disma_local_budget_plans_cache';
+const LOCAL_BUDGET_CATEGORIES_CACHE_KEY = 'disma_local_budget_categories_cache';
+const LOCAL_BUDGET_SUB_CATEGORIES_CACHE_KEY = 'disma_local_budget_sub_categories_cache';
+const LOCAL_BUDGET_ADJUSTMENTS_CACHE_KEY = 'disma_local_budget_adjustments_cache';
 
 const loadLocalPurchaseRequestsCache = (): PurchaseRequest[] => {
   if (typeof window === 'undefined') return [];
@@ -519,6 +524,17 @@ interface AppState {
   devHistoryStack: Partial<AppState>[];
   takeDevSnapshot: () => void;
   undoDevSnapshot: () => Promise<void>;
+
+  // Budget Planning
+  budgetPlans: BudgetPlan[];
+  budgetCategories: BudgetCategory[];
+  budgetSubCategories: BudgetSubCategory[];
+  budgetAdjustments: BudgetAdjustment[];
+  upsertBudgetPlan: (plan: BudgetPlan) => Promise<void>;
+  deleteBudgetPlan: (id: string) => Promise<void>;
+  upsertBudgetCategory: (category: BudgetCategory) => Promise<void>;
+  upsertBudgetSubCategory: (subCategory: BudgetSubCategory) => Promise<void>;
+  upsertBudgetAdjustment: (adjustment: BudgetAdjustment) => Promise<void>;
 }
 
 
@@ -626,6 +642,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       users: MOCK_USERS,
       rolePermissions: initialRolePermissions,
       navConfigs: {},
+      budgetPlans: [],
+      budgetCategories: [],
+      budgetSubCategories: [],
+      budgetAdjustments: [],
       addUser: async (user) => {
         set((state) => ({ users: [...state.users, user] }));
         await get().syncTable('users', user);
@@ -768,13 +788,17 @@ export const useAppStore = create<AppState>((set, get) => ({
           const cachedDeliveries = loadLocalCache<Delivery>(LOCAL_DELIVERIES_CACHE_KEY);
           const cachedLeads = loadLocalLeadsCache();
           const cachedPurchaseRequests = loadLocalPurchaseRequestsCache();
+          const cachedBudgetPlans = loadLocalCache<BudgetPlan>(LOCAL_BUDGET_PLANS_CACHE_KEY);
+          const cachedBudgetCategories = loadLocalCache<BudgetCategory>(LOCAL_BUDGET_CATEGORIES_CACHE_KEY);
+          const cachedBudgetSubCategories = loadLocalCache<BudgetSubCategory>(LOCAL_BUDGET_SUB_CATEGORIES_CACHE_KEY);
+          const cachedBudgetAdjustments = loadLocalCache<BudgetAdjustment>(LOCAL_BUDGET_ADJUSTMENTS_CACHE_KEY);
           let cachedClientPrices: any[] = [];
           try {
             const cpRaw = window.localStorage.getItem(LOCAL_CLIENT_PRICES_CACHE_KEY);
             if (cpRaw) cachedClientPrices = JSON.parse(cpRaw) || [];
           } catch {}
 
-          const hasCache = cachedClients.length > 0 || cachedProducts.length > 0 || cachedSalesOrders.length > 0 || cachedLeads.length > 0 || cachedPurchaseRequests.length > 0;
+          const hasCache = cachedClients.length > 0 || cachedProducts.length > 0 || cachedSalesOrders.length > 0 || cachedLeads.length > 0 || cachedPurchaseRequests.length > 0 || cachedBudgetPlans.length > 0;
           if (hasCache) {
             console.log('[INIT] Phase 1: Hydrating from localStorage cache...');
             set({
@@ -793,6 +817,10 @@ export const useAppStore = create<AppState>((set, get) => ({
               deliveries: cachedDeliveries.length > 0 ? cachedDeliveries : get().deliveries,
               leads: cachedLeads.length > 0 ? cachedLeads : get().leads,
               purchaseRequests: cachedPurchaseRequests.length > 0 ? cachedPurchaseRequests : get().purchaseRequests,
+              budgetPlans: cachedBudgetPlans.length > 0 ? cachedBudgetPlans : get().budgetPlans,
+              budgetCategories: cachedBudgetCategories.length > 0 ? cachedBudgetCategories : get().budgetCategories,
+              budgetSubCategories: cachedBudgetSubCategories.length > 0 ? cachedBudgetSubCategories : get().budgetSubCategories,
+              budgetAdjustments: cachedBudgetAdjustments.length > 0 ? cachedBudgetAdjustments : get().budgetAdjustments,
             });
           }
           // Mark as hydrated — UI can render with cached data now
@@ -1032,6 +1060,10 @@ export const useAppStore = create<AppState>((set, get) => ({
             setIfDefined('pendingReturns', data.pendingReturns);
             setIfDefined('rejectedItems', data.rejectedItems);
             setIfDefined('okrObjectives', data.okrObjectives);
+            setIfDefined('budgetPlans', data.budgetPlans);
+            setIfDefined('budgetCategories', data.budgetCategories);
+            setIfDefined('budgetSubCategories', data.budgetSubCategories);
+            setIfDefined('budgetAdjustments', data.budgetAdjustments);
             if (data.kpiObjectives !== undefined) {
               updatedState.kpiObjectives = data.kpiObjectives.length > 0 ? data.kpiObjectives : KPI_SEED;
             }
@@ -1067,6 +1099,10 @@ export const useAppStore = create<AppState>((set, get) => ({
             if (data.invoices !== undefined) saveLocalCache(LOCAL_INVOICES_CACHE_KEY, data.invoices);
             if (data.deliveries !== undefined) saveLocalCache(LOCAL_DELIVERIES_CACHE_KEY, data.deliveries);
             if (data.leads !== undefined) saveLocalLeadsCache(data.leads);
+            if (data.budgetPlans !== undefined) saveLocalCache(LOCAL_BUDGET_PLANS_CACHE_KEY, data.budgetPlans);
+            if (data.budgetCategories !== undefined) saveLocalCache(LOCAL_BUDGET_CATEGORIES_CACHE_KEY, data.budgetCategories);
+            if (data.budgetSubCategories !== undefined) saveLocalCache(LOCAL_BUDGET_SUB_CATEGORIES_CACHE_KEY, data.budgetSubCategories);
+            if (data.budgetAdjustments !== undefined) saveLocalCache(LOCAL_BUDGET_ADJUSTMENTS_CACHE_KEY, data.budgetAdjustments);
 
             // --- LEGACY HPP BACKFILL ---
             // Before the HPP mapping fix, market sourcing settlements were posted to inventory (1-3000).
@@ -2949,6 +2985,65 @@ export const useAppStore = create<AppState>((set, get) => ({
         } catch(e: any) {
           toast.error("Undo local OK, tapi gagal sync DB: " + e.message, { id: toastId });
         }
+      },
+      upsertBudgetPlan: async (plan) => {
+        const plans = get().budgetPlans;
+        const exists = plans.some(p => p.id === plan.id);
+        const updatedPlans = exists ? plans.map(p => p.id === plan.id ? plan : p) : [...plans, plan];
+        set({ budgetPlans: updatedPlans });
+        saveLocalCache(LOCAL_BUDGET_PLANS_CACHE_KEY, updatedPlans);
+        await get().syncTable('budget_plans', plan);
+      },
+      deleteBudgetPlan: async (id) => {
+        const updatedPlans = get().budgetPlans.filter(p => p.id !== id);
+        set({ budgetPlans: updatedPlans });
+        saveLocalCache(LOCAL_BUDGET_PLANS_CACHE_KEY, updatedPlans);
+        
+        // Cascade delete local sub states to prevent sync issues
+        const categoriesToDelete = get().budgetCategories.filter(c => c.planId === id);
+        const categoryIds = categoriesToDelete.map(c => c.id);
+        const updatedCategories = get().budgetCategories.filter(c => c.planId !== id);
+        set({ budgetCategories: updatedCategories });
+        saveLocalCache(LOCAL_BUDGET_CATEGORIES_CACHE_KEY, updatedCategories);
+
+        const updatedSubCategories = get().budgetSubCategories.filter(sc => !categoryIds.includes(sc.categoryId));
+        set({ budgetSubCategories: updatedSubCategories });
+        saveLocalCache(LOCAL_BUDGET_SUB_CATEGORIES_CACHE_KEY, updatedSubCategories);
+
+        const updatedAdjustments = get().budgetAdjustments.filter(a => a.planId !== id);
+        set({ budgetAdjustments: updatedAdjustments });
+        saveLocalCache(LOCAL_BUDGET_ADJUSTMENTS_CACHE_KEY, updatedAdjustments);
+
+        // Delete remotely
+        await fetch('/api/db', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ table: 'budget_plans', id })
+        });
+      },
+      upsertBudgetCategory: async (category) => {
+        const categories = get().budgetCategories;
+        const exists = categories.some(c => c.id === category.id);
+        const updatedCategories = exists ? categories.map(c => c.id === category.id ? category : c) : [...categories, category];
+        set({ budgetCategories: updatedCategories });
+        saveLocalCache(LOCAL_BUDGET_CATEGORIES_CACHE_KEY, updatedCategories);
+        await get().syncTable('budget_categories', category);
+      },
+      upsertBudgetSubCategory: async (subCategory) => {
+        const subCategories = get().budgetSubCategories;
+        const exists = subCategories.some(sc => sc.id === subCategory.id);
+        const updatedSubCategories = exists ? subCategories.map(sc => sc.id === subCategory.id ? subCategory : sc) : [...subCategories, subCategory];
+        set({ budgetSubCategories: updatedSubCategories });
+        saveLocalCache(LOCAL_BUDGET_SUB_CATEGORIES_CACHE_KEY, updatedSubCategories);
+        await get().syncTable('budget_sub_categories', subCategory);
+      },
+      upsertBudgetAdjustment: async (adjustment) => {
+        const adjustments = get().budgetAdjustments;
+        const exists = adjustments.some(a => a.id === adjustment.id);
+        const updatedAdjustments = exists ? adjustments.map(a => a.id === adjustment.id ? adjustment : a) : [...adjustments, adjustment];
+        set({ budgetAdjustments: updatedAdjustments });
+        saveLocalCache(LOCAL_BUDGET_ADJUSTMENTS_CACHE_KEY, updatedAdjustments);
+        await get().syncTable('budget_adjustments', adjustment);
       },
 
       resetSimulation: async () => {

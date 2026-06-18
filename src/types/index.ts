@@ -634,3 +634,47 @@ export interface PurchaseRequest {
   createdAt: string;
 }
 
+// --- NEW BUDGET PLANNING FEATURE TYPES ---
+export interface BudgetPlan {
+  id: string;
+  month: string; // 'YYYY-MM'
+  status: 'Draft' | 'Active' | 'Closed';
+  totalPlanned: number;
+  notes?: string;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BudgetCategory {
+  id: string;
+  planId: string;
+  name: string;
+  icon?: string;
+  plannedAmount: number;
+  orderIndex?: number;
+  color?: string;
+}
+
+export interface BudgetSubCategory {
+  id: string;
+  categoryId: string;
+  name: string;
+  plannedAmount: number;
+  mappedTxCategories?: string[];
+  orderIndex?: number;
+}
+
+export interface BudgetAdjustment {
+  id: string;
+  planId: string;
+  date: string;
+  type: 'Reallocation' | 'Adjustment';
+  fromCategoryId?: string;
+  toCategoryId?: string;
+  subCategoryId?: string;
+  amount: number;
+  reason: string;
+  createdBy?: string;
+}
+
