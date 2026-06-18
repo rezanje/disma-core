@@ -133,6 +133,7 @@ export default function VendorsPage() {
   }
 
   const handleApprovePrice = async (vp: VendorPrice, applyToProduct: boolean) => {
+    const vendorName = detailVendor?.companyName ?? ''
     await updateVendorPrice(vp.id, { status: 'active', lastUpdated: new Date().toISOString() })
     if (applyToProduct && vp.productId) {
       const productsState = useAppStore.getState().products
@@ -142,7 +143,7 @@ export default function VendorsPage() {
         const priceHistory = [...(product.priceHistory || []), {
           date: new Date().toISOString(),
           price: vp.price,
-          source: `vendor:${detailVendor?.companyName}`
+          source: `vendor:${vendorName}`
         }]
         await updateProduct(vp.productId, { basePrice: vp.price, priceHistory })
         toast.success(`Harga ${product.name} diupdate ke ${formatRupiah(vp.price)}`)
