@@ -656,8 +656,10 @@ export default function VendorsPage() {
                     .map(p => (
                       <button
                         key={p.id}
+                        type="button"
                         className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50"
-                        onClick={() => {
+                        onMouseDown={e => {
+                          e.preventDefault()
                           setPriceForm(f => ({ ...f, productId: p.id, uom: p.uom }))
                           setPriceProductSearch(p.name)
                         }}
