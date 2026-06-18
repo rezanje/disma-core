@@ -91,6 +91,24 @@ export interface Product {
   weeklyPriceRange?: { min: number, max: number, lastUpdated: string };
 }
 
+export type VendorPriceStatus = 'pending' | 'active' | 'rejected' | 'expired';
+
+export interface VendorPrice {
+  id: string;
+  vendorId: string;
+  productId?: string;       // undefined = request for new product
+  proposedName?: string;    // filled when productId is undefined
+  price: number;
+  uom: string;
+  validFrom: string;        // ISO date 'YYYY-MM-DD'
+  validTo: string;          // ISO date 'YYYY-MM-DD'
+  status: VendorPriceStatus;
+  source: 'portal' | 'admin';
+  notes?: string;
+  lastUpdated: string;      // ISO timestamp
+  createdAt: string;        // ISO timestamp
+}
+
 export type StockMovementDirection = 'In' | 'Out' | 'Transfer' | 'Info';
 export type StockMovementKind =
   | 'QC_RECEIPT'
