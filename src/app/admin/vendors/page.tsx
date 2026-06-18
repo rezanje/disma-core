@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react"
 import { useAppStore } from "@/lib/store"
-import { Plus, Pencil, History } from "lucide-react"
+import { Plus, Pencil, History, Check, X, Copy } from "lucide-react"
 import { v4 as uuidv4 } from "uuid"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -25,10 +25,10 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { toast } from "sonner"
-import { format, parseISO, differenceInDays } from "date-fns"
+import { format, parseISO, differenceInDays, isAfter, addDays } from "date-fns"
 import { id as localeId } from "date-fns/locale"
 import { formatRupiah } from "@/lib/utils"
-import { Vendor, VendorBill } from "@/types"
+import { Vendor, VendorBill, VendorPrice } from "@/types"
 
 export default function VendorsPage() {
   const vendors = useAppStore(state => state.vendors)
@@ -36,6 +36,22 @@ export default function VendorsPage() {
   const products = useAppStore(state => state.products)
   const addVendor = useAppStore(state => state.addVendor)
   const updateVendor = useAppStore(state => state.updateVendor)
+  const vendorPrices = useAppStore(state => state.vendorPrices)
+  const addVendorPrice = useAppStore(state => state.addVendorPrice)
+  const updateVendorPrice = useAppStore(state => state.updateVendorPrice)
+
+  const [copiedLink, setCopiedLink] = useState(false)
+  const [isAddPriceOpen, setIsAddPriceOpen] = useState(false)
+  const [priceForm, setPriceForm] = useState({
+    productId: '',
+    proposedName: '',
+    price: 0,
+    uom: '',
+    validFrom: format(new Date(), 'yyyy-MM-dd'),
+    validTo: format(addDays(new Date(), 7), 'yyyy-MM-dd'),
+    notes: '',
+  })
+  const [priceProductSearch, setPriceProductSearch] = useState('')
 
   const [isOpen, setIsOpen] = useState(false)
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null)
@@ -95,7 +111,84 @@ export default function VendorsPage() {
       .filter(p => p.defaultVendorId === detailVendor.id)
       .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
   }, [detailVendor, products])
-  
+
+  const detailVendorPrices = useMemo(() => {
+    if (!detailVendor) return []
+    return vendorPrices
+      .filter(vp => vp.vendorId === detailVendor.id)
+      .sort((a, b) => b.lastUpdated.localeCompare(a.lastUpdated))
+  }, [detailVendor, vendorPrices])
+
+  const pendingPricesCount = useMemo(
+    () => detailVendorPrices.filter(vp => vp.status === 'pending').length,
+    [detailVendorPrices]
+  )
+
+  const handleCopyLink = () => {
+    const link = `${window.location.origin}/supply/${detailVendor?.id}`
+    navigator.clipboard.writeText(link)
+    setCopiedLink(true)
+    setTimeout(() => setCopiedLink(false), 2000)
+    toast.success('Link portal disalin!')
+  }
+
+  const handleApprovePrice = async (vp: VendorPrice, applyToProduct: boolean) => {
+    await updateVendorPrice(vp.id, { status: 'active', lastUpdated: new Date().toISOString() })
+    if (applyToProduct && vp.productId) {
+      const productsState = useAppStore.getState().products
+      const updateProduct = useAppStore.getState().updateProduct
+      const product = productsState.find(p => p.id === vp.productId)
+      if (product) {
+        const priceHistory = [...(product.priceHistory || []), {
+          date: new Date().toISOString(),
+          price: vp.price,
+          source: `vendor:${detailVendor?.companyName}`
+        }]
+        await updateProduct(vp.productId, { basePrice: vp.price, priceHistory })
+        toast.success(`Harga ${product.name} diupdate ke ${formatRupiah(vp.price)}`)
+      }
+    } else {
+      toast.success('Harga vendor disetujui')
+    }
+  }
+
+  const handleRejectPrice = async (vpId: string) => {
+    await updateVendorPrice(vpId, { status: 'rejected', lastUpdated: new Date().toISOString() })
+    toast.success('Penawaran harga ditolak')
+  }
+
+  const handleAddAdminPrice = async () => {
+    if (!detailVendor || !priceForm.price || (!priceForm.productId && !priceForm.proposedName)) {
+      toast.error('Pilih produk dan isi harga')
+      return
+    }
+    const selectedProduct = products.find(p => p.id === priceForm.productId)
+    await addVendorPrice({
+      id: uuidv4(),
+      vendorId: detailVendor.id,
+      productId: priceForm.productId || undefined,
+      proposedName: priceForm.productId ? undefined : priceForm.proposedName,
+      price: priceForm.price,
+      uom: priceForm.uom || selectedProduct?.uom || '',
+      validFrom: priceForm.validFrom,
+      validTo: priceForm.validTo,
+      status: 'active',
+      source: 'admin',
+      notes: priceForm.notes || undefined,
+      lastUpdated: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+    })
+    setIsAddPriceOpen(false)
+    setPriceForm({
+      productId: '', proposedName: '', price: 0, uom: '',
+      validFrom: format(new Date(), 'yyyy-MM-dd'),
+      validTo: format(addDays(new Date(), 7), 'yyyy-MM-dd'),
+      notes: '',
+    })
+    setPriceProductSearch('')
+    toast.success('Harga vendor ditambahkan')
+  }
+
   const [formData, setFormData] = useState({
     companyName: "",
     picName: "",
@@ -368,27 +461,118 @@ export default function VendorsPage() {
             </div>
           </div>
 
-          {/* Products supplied by this vendor (default vendor) */}
+          {/* Vendor Price Catalog */}
           <div className="rounded-md border">
             <div className="flex items-center justify-between px-3 py-2 bg-emerald-50/60 border-b">
-              <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700">Barang yang Disupply ({suppliedProducts.length})</p>
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">Vendor langganan default</p>
+              <div className="flex items-center gap-2">
+                <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700">
+                  Katalog Harga ({detailVendorPrices.length})
+                </p>
+                {pendingPricesCount > 0 && (
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-black">
+                    {pendingPricesCount} pending
+                  </span>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-[10px] font-black gap-1"
+                  onClick={handleCopyLink}
+                >
+                  {copiedLink ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                  {copiedLink ? 'Tersalin!' : 'Link Portal'}
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-7 text-[10px] font-black gap-1"
+                  onClick={() => setIsAddPriceOpen(true)}
+                >
+                  <Plus className="h-3 w-3" /> Tambah Harga
+                </Button>
+              </div>
             </div>
-            {suppliedProducts.length === 0 ? (
+            {detailVendorPrices.length === 0 ? (
               <p className="h-16 flex items-center justify-center text-xs text-muted-foreground italic">
-                Belum ada produk dengan vendor langganan ini. Set di Product Master.
+                Belum ada katalog harga. Bagikan link portal ke vendor atau tambah manual.
               </p>
             ) : (
-              <div className="max-h-[200px] overflow-y-auto divide-y">
-                {suppliedProducts.map(p => (
-                  <div key={p.id} className="flex items-center justify-between px-3 py-2">
-                    <div className="flex flex-col">
-                      <span className="text-xs font-bold text-slate-800">{p.name}</span>
-                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{p.skuCode}{p.category ? ` • ${p.category}` : ''}</span>
-                    </div>
-                    <span className="text-[10px] font-black text-slate-500">{p.uom}</span>
-                  </div>
-                ))}
+              <div className="max-h-[240px] overflow-y-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-slate-50">
+                      <TableHead className="text-[9px] uppercase font-black">Produk</TableHead>
+                      <TableHead className="text-[9px] uppercase font-black text-right">Harga Beli</TableHead>
+                      <TableHead className="text-[9px] uppercase font-black">Berlaku s/d</TableHead>
+                      <TableHead className="text-[9px] uppercase font-black">Update</TableHead>
+                      <TableHead className="text-[9px] uppercase font-black text-center">Status</TableHead>
+                      <TableHead className="text-[9px] uppercase font-black w-[80px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {detailVendorPrices.map(vp => {
+                      const product = products.find(p => p.id === vp.productId)
+                      const productName = product?.name ?? vp.proposedName ?? '—'
+                      const isExpiredEntry = vp.status === 'active' && isAfter(new Date(), parseISO(vp.validTo))
+                      const displayStatus = isExpiredEntry ? 'expired' : vp.status
+                      return (
+                        <TableRow key={vp.id}>
+                          <TableCell className="text-xs font-bold">
+                            {productName}
+                            {!vp.productId && (
+                              <span className="ml-1 text-[9px] px-1 py-0.5 rounded bg-amber-50 text-amber-600 font-black">request</span>
+                            )}
+                            <div className="text-[9px] text-slate-400">{vp.uom}</div>
+                          </TableCell>
+                          <TableCell className="text-right text-xs font-black text-emerald-700">
+                            {formatRupiah(vp.price)}
+                          </TableCell>
+                          <TableCell className="text-xs text-slate-500">
+                            {format(parseISO(vp.validTo), 'd MMM yy', { locale: localeId })}
+                          </TableCell>
+                          <TableCell className="text-[10px] text-slate-400">
+                            {format(parseISO(vp.lastUpdated), 'd MMM yy', { locale: localeId })}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded font-black ${
+                              displayStatus === 'active' ? 'bg-emerald-100 text-emerald-700' :
+                              displayStatus === 'pending' ? 'bg-amber-100 text-amber-700' :
+                              displayStatus === 'expired' ? 'bg-slate-100 text-slate-500' :
+                              'bg-rose-100 text-rose-700'
+                            }`}>
+                              {displayStatus}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            {vp.status === 'pending' && (
+                              <div className="flex gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 text-emerald-600 hover:bg-emerald-50"
+                                  title="Approve & apply ke base price"
+                                  onClick={() => handleApprovePrice(vp, !!vp.productId)}
+                                >
+                                  <Check className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 text-rose-500 hover:bg-rose-50"
+                                  title="Tolak"
+                                  onClick={() => handleRejectPrice(vp.id)}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
               </div>
             )}
           </div>
@@ -441,6 +625,91 @@ export default function VendorsPage() {
                 )}
               </TableBody>
             </Table>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add admin price dialog */}
+      <Dialog open={isAddPriceOpen} onOpenChange={setIsAddPriceOpen}>
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle>Tambah Harga Vendor Manual</DialogTitle>
+            <DialogDescription>{detailVendor?.companyName}</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 py-2">
+            <div className="grid gap-1">
+              <Label>Produk</Label>
+              <Input
+                placeholder="Cari nama produk..."
+                value={priceProductSearch}
+                onChange={e => {
+                  setPriceProductSearch(e.target.value)
+                  setPriceForm(f => ({ ...f, productId: '', proposedName: e.target.value }))
+                }}
+              />
+              {priceProductSearch && (
+                <div className="border rounded-md max-h-32 overflow-y-auto divide-y bg-white shadow">
+                  {products
+                    .filter(p => p.name.toLowerCase().includes(priceProductSearch.toLowerCase()))
+                    .slice(0, 6)
+                    .map(p => (
+                      <button
+                        key={p.id}
+                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50"
+                        onClick={() => {
+                          setPriceForm(f => ({ ...f, productId: p.id, uom: p.uom }))
+                          setPriceProductSearch(p.name)
+                        }}
+                      >
+                        <span className="font-bold">{p.name}</span>
+                        <span className="text-slate-400 ml-1">({p.uom})</span>
+                      </button>
+                    ))
+                  }
+                </div>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1">
+                <Label>Harga Beli (Rp)</Label>
+                <Input
+                  type="number"
+                  value={priceForm.price || ''}
+                  onChange={e => setPriceForm(f => ({ ...f, price: parseFloat(e.target.value) || 0 }))}
+                  placeholder="15000"
+                />
+              </div>
+              <div className="grid gap-1">
+                <Label>UOM</Label>
+                <Input
+                  value={priceForm.uom}
+                  onChange={e => setPriceForm(f => ({ ...f, uom: e.target.value }))}
+                  placeholder="kg"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1">
+                <Label>Berlaku Dari</Label>
+                <Input
+                  type="date"
+                  value={priceForm.validFrom}
+                  onChange={e => setPriceForm(f => ({ ...f, validFrom: e.target.value }))}
+                />
+              </div>
+              <div className="grid gap-1">
+                <Label>Berlaku Sampai</Label>
+                <Input
+                  type="date"
+                  value={priceForm.validTo}
+                  onChange={e => setPriceForm(f => ({ ...f, validTo: e.target.value }))}
+                />
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 mt-2">
+            <Button variant="outline" onClick={() => setIsAddPriceOpen(false)}>Batal</Button>
+            <Button onClick={handleAddAdminPrice}>Simpan</Button>
           </div>
         </DialogContent>
       </Dialog>
