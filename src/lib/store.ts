@@ -6,7 +6,7 @@ import {
   JournalLine, OperationalExpense, User, Vendor, Role, Lead, Announcement, AppTask, AppNotification,
   BankAccount, CashTransaction, Reimbursement, FixedAsset,
   Employee, SmartKpi, OkrObjective, OkrKeyResult, RolePermissionMap, AccessKey, PendingReturn, RejectedItem, StockMovement, ClientPrice,
-  VendorBill, VendorBillPayment, TukarFaktur, PurchaseRequest,
+  VendorBill, VendorBillPayment, TukarFaktur, PurchaseRequest, VendorPrice,
   BudgetPlan, BudgetCategory, BudgetSubCategory, BudgetAdjustment
 } from '@/types';
 import { COA_SEED, CLIENTS_SEED, VENDORS_SEED, MOCK_USERS, KPI_SEED } from './constants';
@@ -357,6 +357,10 @@ interface AppState {
   vendors: Vendor[];
   addVendor: (vendor: Vendor) => void;
   updateVendor: (id: string, data: Partial<Vendor>) => void;
+  vendorPrices: VendorPrice[];
+  addVendorPrice: (vp: VendorPrice) => Promise<void>;
+  updateVendorPrice: (id: string, data: Partial<VendorPrice>) => Promise<void>;
+  deleteVendorPrice: (id: string) => Promise<void>;
   
   products: Product[];
   addProduct: (product: Product) => void;
@@ -1053,6 +1057,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             setIfDefined('expenses', data.expenses);
             setIfDefined('stockMovements', data.stockMovements);
             setIfDefined('clientPrices', data.clientPrices);
+            setIfDefined('vendorPrices', data.vendorPrices);
             setIfDefined('vendors', data.vendors);
             setIfDefined('notifications', data.notifications);
             setIfDefined('employees', data.employees);
@@ -2849,6 +2854,33 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
       },
 
+      vendorPrices: [],
+      addVendorPrice: async (vp) => {
+        set((state) => ({ vendorPrices: [...state.vendorPrices, vp] }));
+        await get().syncTable('vendor_prices', vp);
+      },
+      updateVendorPrice: async (id, data) => {
+        const before = get().vendorPrices.find(v => v.id === id);
+        set((state) => ({
+          vendorPrices: state.vendorPrices.map(v => v.id === id ? { ...v, ...data } : v)
+        }));
+        const updated = get().vendorPrices.find(v => v.id === id);
+        if (updated) {
+          await get().syncTable('vendor_prices', updated);
+          if (before) await get().logHistory({ table: 'vendor_prices', recordId: id, action: 'update', oldData: before, newData: updated });
+        }
+      },
+      deleteVendorPrice: async (id) => {
+        const before = get().vendorPrices.find(v => v.id === id);
+        set((state) => ({ vendorPrices: state.vendorPrices.filter(v => v.id !== id) }));
+        await fetch('/api/db', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ table: 'vendor_prices', id })
+        });
+        if (before) await get().logHistory({ table: 'vendor_prices', recordId: id, action: 'delete', oldData: before, newData: null });
+      },
+
       pendingReturns: [],
       addPendingReturn: async (ret) => {
         set((state) => ({ pendingReturns: [...state.pendingReturns, ret] }));
@@ -3086,7 +3118,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           deliveries: [], expenses: [], invoices: [], tukarFakturs: [], vendorBills: [], journalEntries: [],
           journalLines: [], stockMovements: [], leads: [], tasks: [], notifications: [],
           pendingReturns: [], rejectedItems: [], reimbursements: [], cashTransactions: [],
-          bankAccounts: INITIAL_BANK_ACCOUNTS, fixedAssets: [], clientPrices: []
+          bankAccounts: INITIAL_BANK_ACCOUNTS, fixedAssets: [], clientPrices: [], vendorPrices: []
         });
         
         clearAllOperationalCaches();
