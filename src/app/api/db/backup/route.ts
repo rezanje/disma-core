@@ -14,7 +14,7 @@ const TABLES_IN_WIPE_ORDER = [
   'stock_movements', 'rejected_items', 'okr_objectives', 'reimbursements', 
   'expenses', 'cash_transactions', 'pending_returns', 'fixed_assets', 
   'notifications', 'disma_tasks', 'leads', 'employees', 'kpis', 'record_history',
-  'client_prices', 'bank_accounts', 'coas', 'products', 'vendors', 'clients', 'users'
+  'vendor_prices', 'client_prices', 'bank_accounts', 'coas', 'products', 'vendors', 'clients', 'users'
 ];
 
 const TABLES_IN_INSERT_ORDER = [...TABLES_IN_WIPE_ORDER].reverse();
