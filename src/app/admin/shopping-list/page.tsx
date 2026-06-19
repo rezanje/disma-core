@@ -4,7 +4,7 @@ import { useAppStore } from "@/lib/store"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ShoppingBasket, RefreshCw, Printer, Plus, Search, Check, ChevronsUpDown, Trash2, Globe, ShoppingBag, FileText, X, Download, Loader2, Send, CheckCircle2, Banknote, Store, Carrot, Apple, Laptop, ShoppingCart, ArrowRightLeft, CircleDollarSign, Warehouse, AlertTriangle } from "lucide-react"
+import { ShoppingBasket, RefreshCw, Printer, Plus, Search, Check, ChevronsUpDown, Trash2, Globe, ShoppingBag, FileText, X, Download, Loader2, Send, CheckCircle2, Banknote, Store, Carrot, Apple, Laptop, ShoppingCart, ArrowRightLeft, CircleDollarSign, Warehouse, AlertTriangle, Undo2 } from "lucide-react"
 import React, { useEffect, useMemo, useState } from "react"
 import { v4 as uuidv4 } from "uuid"
 import { toast } from "sonner"
@@ -129,27 +129,128 @@ export default function ShoppingListPage() {
   useEffect(() => { localStorage.setItem('shopping_shoppingDate', shoppingDate) }, [shoppingDate])
   useEffect(() => { localStorage.setItem('shopping_lastGeneratedDoc', JSON.stringify(lastGeneratedDoc)) }, [lastGeneratedDoc])
 
-  const toggleOnline = (productId: string) => {
-    setOnlineProductIds(prev => {
-      const next = new Set(prev)
-      if (next.has(productId)) next.delete(productId)
-      else { next.add(productId); setTransferProductIds(t => { const n = new Set(t); n.delete(productId); return n }) }
-      return next
-    })
+  // State Snapshot history for undoing actions
+  const [history, setHistory] = useState<Array<{
+    manualItems: Array<{id: string, productId: string, qty: number, price: number}>;
+    customPrices: Record<string, number>;
+    vendorAssignments: Record<string, string>;
+    onlineProductIds: Set<string>;
+    transferProductIds: Set<string>;
+    stockBookedProductIds: Set<string>;
+    selectedSOIds: Set<string>;
+  }>>([])
+  const [isUndoing, setIsUndoing] = useState(false)
+
+  const saveToHistory = () => {
+    setHistory(prev => [
+      ...prev,
+      {
+        manualItems: [...manualItems],
+        customPrices: { ...customPrices },
+        vendorAssignments: { ...vendorAssignments },
+        onlineProductIds: new Set(onlineProductIds),
+        transferProductIds: new Set(transferProductIds),
+        stockBookedProductIds: new Set(stockBookedProductIds),
+        selectedSOIds: new Set(selectedSOIds)
+      }
+    ])
   }
-  const toggleTransfer = (productId: string) => {
-    setTransferProductIds(prev => {
-      const next = new Set(prev)
-      if (next.has(productId)) next.delete(productId)
-      else { next.add(productId); setOnlineProductIds(o => { const n = new Set(o); n.delete(productId); return n }) }
-      return next
-    })
+
+  const handleUndo = () => {
+    if (history.length === 0) return
+    setIsUndoing(true)
+    setTimeout(() => {
+      setHistory(prev => {
+        const next = [...prev]
+        const last = next.pop()
+        if (last) {
+          setManualItems(last.manualItems)
+          setCustomPrices(last.customPrices)
+          setVendorAssignments(last.vendorAssignments)
+          setOnlineProductIds(last.onlineProductIds)
+          setTransferProductIds(last.transferProductIds)
+          setStockBookedProductIds(last.stockBookedProductIds)
+          setSelectedSOIds(last.selectedSOIds)
+          toast.success("Aksi berhasil dibatalkan (Undone).")
+        }
+        return next
+      })
+      setIsUndoing(false)
+    }, 500)
   }
-  const toggleStockBooked = (productId: string) => {
+
+  const selectPasar = (productId: string) => {
+    saveToHistory()
     setStockBookedProductIds(prev => {
       const next = new Set(prev)
-      if (next.has(productId)) next.delete(productId)
-      else next.add(productId)
+      next.delete(productId)
+      return next
+    })
+    setOnlineProductIds(prev => {
+      const next = new Set(prev)
+      next.delete(productId)
+      return next
+    })
+    setTransferProductIds(prev => {
+      const next = new Set(prev)
+      next.delete(productId)
+      return next
+    })
+  }
+
+  const selectOnline = (productId: string) => {
+    saveToHistory()
+    setStockBookedProductIds(prev => {
+      const next = new Set(prev)
+      next.delete(productId)
+      return next
+    })
+    setOnlineProductIds(prev => {
+      const next = new Set(prev)
+      next.add(productId)
+      return next
+    })
+    setTransferProductIds(prev => {
+      const next = new Set(prev)
+      next.delete(productId)
+      return next
+    })
+  }
+
+  const selectTransfer = (productId: string) => {
+    saveToHistory()
+    setStockBookedProductIds(prev => {
+      const next = new Set(prev)
+      next.delete(productId)
+      return next
+    })
+    setTransferProductIds(prev => {
+      const next = new Set(prev)
+      next.add(productId)
+      return next
+    })
+    setOnlineProductIds(prev => {
+      const next = new Set(prev)
+      next.delete(productId)
+      return next
+    })
+  }
+
+  const toggleStockBooked = (productId: string) => {
+    saveToHistory()
+    setStockBookedProductIds(prev => {
+      const next = new Set(prev)
+      if (next.has(productId)) {
+        next.delete(productId)
+      } else {
+        next.add(productId)
+        // Clear vendor assignments when taken from warehouse
+        setVendorAssignments(v => {
+          const n = { ...v }
+          delete n[productId]
+          return n
+        })
+      }
       return next
     })
   }
@@ -167,9 +268,13 @@ export default function ShoppingListPage() {
   const applyVendorToSelected = () => {
     if (!bulkVendorId) { toast.error("Pilih vendor dulu di dropdown."); return }
     if (selectedItemIds.size === 0) { toast.error("Centang item dulu yang mau di-set."); return }
+    saveToHistory()
     setVendorAssignments(prev => {
       const next = { ...prev }
-      selectedItemIds.forEach(pid => { next[pid] = bulkVendorId })
+      selectedItemIds.forEach(pid => {
+        if (stockBookedProductIds.has(pid)) return
+        next[pid] = bulkVendorId
+      })
       return next
     })
     const vName = vendors.find(v => v.id === bulkVendorId)?.companyName || 'vendor'
@@ -513,9 +618,27 @@ export default function ShoppingListPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center">
-                <RefreshCw className="mr-2 h-5 w-5 text-emerald-500" />
-                Auto-Consolidator
+              <div className="flex items-center gap-3">
+                <div className="flex items-center">
+                  <RefreshCw className="mr-2 h-5 w-5 text-emerald-500" />
+                  Auto-Consolidator
+                </div>
+                {history.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleUndo}
+                    disabled={isUndoing}
+                    className="h-8 gap-1.5 border-dashed hover:bg-slate-50 text-slate-600 transition-all flex items-center justify-center"
+                  >
+                    {isUndoing ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-500" />
+                    ) : (
+                      <Undo2 className="h-3.5 w-3.5 text-slate-500" />
+                    )}
+                    <span>Undo ({history.length})</span>
+                  </Button>
+                )}
               </div>
               
               <Dialog open={isAddManualOpen} onOpenChange={setIsAddManualOpen}>
@@ -1006,23 +1129,30 @@ export default function ShoppingListPage() {
                                       </div>
                                     </TableCell>
                                     <TableCell>
-                                      <select
-                                        className="text-[10px] w-full max-w-[120px] p-1 border rounded bg-slate-50 text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                                        value={vendorAssignments[item.productId] || ''}
-                                        onChange={(e) => {
-                                          setVendorAssignments(prev => {
-                                            const next = { ...prev };
-                                            if (e.target.value) next[item.productId] = e.target.value;
-                                            else delete next[item.productId];
-                                            return next;
-                                          });
-                                        }}
-                                      >
-                                        <option value="">-- Pilih --</option>
-                                        {vendors.map(v => (
-                                          <option key={v.id} value={v.id}>{v.companyName}</option>
-                                        ))}
-                                      </select>
+                                      {item.fromStock ? (
+                                        <span className="text-[10px] font-black uppercase bg-slate-100 text-slate-600 px-2 py-1 rounded inline-flex items-center gap-1" title="Barang diambil dari Gudang">
+                                          <Warehouse className="w-3.5 h-3.5 text-slate-500" /> Gudang
+                                        </span>
+                                      ) : (
+                                        <select
+                                          className="text-[10px] w-full max-w-[120px] p-1 border rounded bg-slate-50 text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                          value={vendorAssignments[item.productId] || ''}
+                                          onChange={(e) => {
+                                            saveToHistory();
+                                            setVendorAssignments(prev => {
+                                              const next = { ...prev };
+                                              if (e.target.value) next[item.productId] = e.target.value;
+                                              else delete next[item.productId];
+                                              return next;
+                                            });
+                                          }}
+                                        >
+                                          <option value="">-- Pilih --</option>
+                                          {vendors.map(v => (
+                                            <option key={v.id} value={v.id}>{v.companyName}</option>
+                                          ))}
+                                        </select>
+                                      )}
                                     </TableCell>
                                     <TableCell className="text-right font-bold text-slate-600 pr-4">{item.totalQty}</TableCell>
                                     <TableCell className="text-right pr-4">
@@ -1046,47 +1176,63 @@ export default function ShoppingListPage() {
                                              className="h-8 w-24 text-right text-xs font-black border-slate-200"
                                              placeholder="0"
                                              value={item.estimatedPrice || ''}
-                                             onChange={(e) => setCustomPrices(prev => ({ 
-                                                ...prev, 
-                                                [item.productId]: parseFloat(e.target.value) || 0 
-                                             }))}
+                                             onChange={(e) => {
+                                                saveToHistory();
+                                                setCustomPrices(prev => ({ 
+                                                   ...prev, 
+                                                   [item.productId]: parseFloat(e.target.value) || 0 
+                                                }));
+                                             }}
                                           />
                                        </div>
                                     </TableCell>
                                     <TableCell className="text-right font-bold text-emerald-600 pr-4">{formatRupiah(item.estimatedPrice * item.totalQty)}</TableCell>
                                     <TableCell className="text-center">
-                                       <div className="flex flex-wrap items-center justify-center gap-1 w-[80px]">
+                                       <div className="flex flex-wrap items-center justify-center gap-1 w-[120px]">
+                                          {/* Button Pasar */}
                                           <button
-                                             onClick={() => toggleOnline(item.productId)}
+                                             onClick={() => selectPasar(item.productId)}
                                              className={cn(
                                                 "p-2 rounded-xl border transition-all flex items-center justify-center hover:scale-110",
-                                                item.purchaseMethod === 'Online'
-                                                   ? "bg-blue-50 border-blue-200 text-blue-600"
-                                                   : "bg-emerald-50 border-emerald-200 text-emerald-600"
+                                                item.purchaseMethod === 'Pasar' && !item.fromStock
+                                                   ? "bg-emerald-50 border-emerald-200 text-emerald-600 ring-2 ring-emerald-100"
+                                                   : "bg-slate-50 border-slate-200 text-slate-400"
                                              )}
-                                             title={item.purchaseMethod === 'Online' ? "Pindah ke Beli di Pasar" : "Pindah ke Beli Online"}
+                                             title="Pindah ke Beli di Pasar"
                                           >
-                                             {item.purchaseMethod === 'Online' ? (
-                                                <div className="relative flex items-center justify-center w-5 h-5">
-                                                   <Laptop className="w-5 h-5" />
-                                                   <ShoppingCart className="w-2.5 h-2.5 absolute top-[3px]" />
+                                             <div className="relative flex items-center justify-center w-5 h-5">
+                                                <Store className="w-5 h-5" />
+                                                <div className="absolute -bottom-1 -right-1 flex bg-white/80 rounded-full p-[1px]">
+                                                   <Carrot className="w-2.5 h-2.5 text-orange-500 -mr-[2px]" />
+                                                   <Apple className="w-2.5 h-2.5 text-rose-500" />
                                                 </div>
-                                             ) : (
-                                                <div className="relative flex items-center justify-center w-5 h-5">
-                                                   <Store className="w-5 h-5" />
-                                                   <div className="absolute -bottom-1 -right-1 flex bg-white/80 rounded-full p-[1px]">
-                                                      <Carrot className="w-2.5 h-2.5 text-orange-500 -mr-[2px]" />
-                                                      <Apple className="w-2.5 h-2.5 text-rose-500" />
-                                                   </div>
-                                                </div>
-                                             )}
+                                             </div>
                                           </button>
+
+                                          {/* Button Online */}
                                           <button
-                                             onClick={() => toggleTransfer(item.productId)}
+                                             onClick={() => selectOnline(item.productId)}
                                              className={cn(
                                                 "p-2 rounded-xl border transition-all flex items-center justify-center hover:scale-110",
-                                                item.purchaseMethod === 'Transfer'
-                                                   ? "bg-purple-50 border-purple-200 text-purple-600"
+                                                item.purchaseMethod === 'Online' && !item.fromStock
+                                                   ? "bg-blue-50 border-blue-200 text-blue-600 ring-2 ring-blue-100"
+                                                   : "bg-slate-50 border-slate-200 text-slate-400"
+                                             )}
+                                             title="Pindah ke Beli Online"
+                                          >
+                                             <div className="relative flex items-center justify-center w-5 h-5">
+                                                <Laptop className="w-5 h-5" />
+                                                <ShoppingCart className="w-2.5 h-2.5 absolute top-[3px]" />
+                                             </div>
+                                          </button>
+
+                                          {/* Button Transfer */}
+                                          <button
+                                             onClick={() => selectTransfer(item.productId)}
+                                             className={cn(
+                                                "p-2 rounded-xl border transition-all flex items-center justify-center hover:scale-110",
+                                                item.purchaseMethod === 'Transfer' && !item.fromStock
+                                                   ? "bg-purple-50 border-purple-200 text-purple-600 ring-2 ring-purple-100"
                                                    : "bg-slate-50 border-slate-200 text-slate-400"
                                              )}
                                              title={item.purchaseMethod === 'Transfer' ? "Transfer: dibayar finance" : "Tandai dibayar via Transfer (finance)"}
@@ -1096,6 +1242,8 @@ export default function ShoppingListPage() {
                                                 <CircleDollarSign className="w-3 h-3 text-amber-500 absolute -top-1.5 -right-1.5 bg-white rounded-full" />
                                              </div>
                                           </button>
+
+                                          {/* Button Gudang */}
                                           <button
                                              onClick={() => toggleStockBooked(item.productId)}
                                              className={cn(
@@ -1167,65 +1315,84 @@ export default function ShoppingListPage() {
                             </div>
 
                             <div className="flex flex-wrap items-center gap-4">
-                              {/* Vendor Selector */}
                               <div className="flex items-center gap-1.5">
                                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Vendor:</span>
-                                <select
-                                  className="text-[10px] p-1 border rounded bg-slate-50 text-slate-700 dark:bg-slate-800 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-emerald-500 min-w-[130px]"
-                                  value={vendorAssignments[item.productId] || ''}
-                                  onChange={(e) => {
-                                    setVendorAssignments(prev => {
-                                      const next = { ...prev };
-                                      if (e.target.value) next[item.productId] = e.target.value;
-                                      else delete next[item.productId];
-                                      return next;
-                                    });
-                                  }}
-                                >
-                                  <option value="">-- Pilih --</option>
-                                  {vendors.map(v => (
-                                    <option key={v.id} value={v.id}>{v.companyName}</option>
-                                  ))}
-                                </select>
+                                {stockBookedProductIds.has(item.productId) ? (
+                                  <span className="text-[10px] font-black uppercase bg-slate-100 text-slate-600 px-2 py-1 rounded inline-flex items-center gap-1" title="Barang diambil dari Gudang">
+                                    <Warehouse className="w-3.5 h-3.5 text-slate-500" /> Gudang
+                                  </span>
+                                ) : (
+                                  <select
+                                    className="text-[10px] p-1 border rounded bg-slate-50 text-slate-700 dark:bg-slate-800 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-emerald-500 min-w-[130px]"
+                                    value={vendorAssignments[item.productId] || ''}
+                                    onChange={(e) => {
+                                      saveToHistory();
+                                      setVendorAssignments(prev => {
+                                        const next = { ...prev };
+                                        if (e.target.value) next[item.productId] = e.target.value;
+                                        else delete next[item.productId];
+                                        return next;
+                                      });
+                                    }}
+                                  >
+                                    <option value="">-- Pilih --</option>
+                                    {vendors.map(v => (
+                                      <option key={v.id} value={v.id}>{v.companyName}</option>
+                                    ))}
+                                  </select>
+                                )}
                               </div>
 
                               {/* Purchase Method Toggles */}
                               <div className="flex items-center gap-1.5">
                                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Metode:</span>
                                 <div className="flex items-center gap-1">
+                                  {/* Button Pasar */}
                                   <button
-                                    onClick={() => toggleOnline(item.productId)}
+                                    onClick={() => selectPasar(item.productId)}
                                     className={cn(
                                       "p-1.5 rounded-lg border transition-all flex items-center justify-center hover:scale-105",
-                                      purchaseMethod === 'Online'
-                                        ? "bg-blue-50 border-blue-200 text-blue-600 dark:bg-blue-950/40 dark:border-blue-900"
-                                        : "bg-emerald-50 border-emerald-200 text-emerald-600 dark:bg-emerald-950/40 dark:border-emerald-900"
-                                    )}
-                                    title={purchaseMethod === 'Online' ? "Pindah ke Beli di Pasar" : "Pindah ke Beli Online"}
-                                  >
-                                    {purchaseMethod === 'Online' ? (
-                                      <div className="relative flex items-center justify-center w-4 h-4">
-                                        <Laptop className="w-4 h-4" />
-                                        <ShoppingCart className="w-2 h-2 absolute top-[2px]" />
-                                      </div>
-                                    ) : (
-                                      <div className="relative flex items-center justify-center w-4 h-4">
-                                        <Store className="w-4 h-4" />
-                                        <div className="absolute -bottom-1 -right-1 flex bg-white/80 dark:bg-slate-800 rounded-full p-[0.5px]">
-                                          <Carrot className="w-2.5 h-2.5 text-orange-500" />
-                                        </div>
-                                      </div>
-                                    )}
-                                  </button>
-                                  <button
-                                    onClick={() => toggleTransfer(item.productId)}
-                                    className={cn(
-                                      "p-1.5 rounded-lg border transition-all flex items-center justify-center hover:scale-105",
-                                      purchaseMethod === 'Transfer'
-                                        ? "bg-purple-50 border-purple-200 text-purple-600 dark:bg-purple-950/40 dark:border-purple-900"
+                                      purchaseMethod === 'Pasar' && !stockBookedProductIds.has(item.productId)
+                                        ? "bg-emerald-50 border-emerald-200 text-emerald-600 dark:bg-emerald-950/40 dark:border-emerald-900 ring-2 ring-emerald-100"
                                         : "bg-slate-50 border-slate-200 text-slate-400 dark:bg-slate-800 dark:border-slate-700"
                                     )}
-                                    title={purchaseMethod === 'Transfer' ? "Transfer: dibayar finance" : "Tandai dibayar via Transfer (finance)"}
+                                    title="Pindah ke Beli di Pasar"
+                                  >
+                                    <div className="relative flex items-center justify-center w-4 h-4">
+                                      <Store className="w-4 h-4" />
+                                      <div className="absolute -bottom-1 -right-1 flex bg-white/80 dark:bg-slate-800 rounded-full p-[0.5px]">
+                                        <Carrot className="w-2.5 h-2.5 text-orange-500" />
+                                      </div>
+                                    </div>
+                                  </button>
+
+                                  {/* Button Online */}
+                                  <button
+                                    onClick={() => selectOnline(item.productId)}
+                                    className={cn(
+                                      "p-1.5 rounded-lg border transition-all flex items-center justify-center hover:scale-105",
+                                      purchaseMethod === 'Online' && !stockBookedProductIds.has(item.productId)
+                                        ? "bg-blue-50 border-blue-200 text-blue-600 dark:bg-blue-950/40 dark:border-blue-900 ring-2 ring-blue-100"
+                                        : "bg-slate-50 border-slate-200 text-slate-400 dark:bg-slate-800 dark:border-slate-700"
+                                    )}
+                                    title="Pindah ke Beli Online"
+                                  >
+                                    <div className="relative flex items-center justify-center w-4 h-4">
+                                      <Laptop className="w-4 h-4" />
+                                      <ShoppingCart className="w-2 h-2 absolute top-[2px]" />
+                                    </div>
+                                  </button>
+
+                                  {/* Button Transfer */}
+                                  <button
+                                    onClick={() => selectTransfer(item.productId)}
+                                    className={cn(
+                                      "p-1.5 rounded-lg border transition-all flex items-center justify-center hover:scale-105",
+                                      purchaseMethod === 'Transfer' && !stockBookedProductIds.has(item.productId)
+                                        ? "bg-purple-50 border-purple-200 text-purple-600 dark:bg-purple-950/40 dark:border-purple-900 ring-2 ring-purple-100"
+                                        : "bg-slate-50 border-slate-200 text-slate-400 dark:bg-slate-800 dark:border-slate-700"
+                                    )}
+                                    title="Transfer: dibayar finance"
                                   >
                                     <div className="relative flex items-center justify-center w-4 h-4">
                                       <ArrowRightLeft className="w-4 h-4" />
