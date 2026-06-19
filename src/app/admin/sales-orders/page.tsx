@@ -676,7 +676,7 @@ export default function SalesOrdersPage() {
               <Plus className="mr-2 h-4 w-4" /> New Sales Order
             </Button>
           } />
-          <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-[95vw] w-[95vw] max-h-[95vh] overflow-y-auto rounded-[2rem]">
             <DialogHeader>
               <DialogTitle>Create New Sales Order</DialogTitle>
             </DialogHeader>
@@ -1637,7 +1637,7 @@ export default function SalesOrdersPage() {
 
       {/* Sales Order Detail Dialog */}
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="sm:max-w-[600px] h-[90vh] flex flex-col p-0 overflow-hidden rounded-[2rem]">
+        <DialogContent className="sm:max-w-[95vw] w-[95vw] h-[90vh] flex flex-col p-0 overflow-hidden rounded-[2rem]">
           <DialogHeader className="p-6 pb-0">
             <div className="flex justify-between items-start pr-8">
               <div>
@@ -2001,7 +2001,7 @@ export default function SalesOrdersPage() {
 
       {/* PDF PREVIEW MODAL */}
       <Dialog open={!!pdfPreview} onOpenChange={(open) => !open && setPdfPreview(null)}>
-        <DialogContent className="max-w-5xl h-[90vh] p-0 rounded-[2rem] overflow-hidden border-none bg-slate-900 shadow-2xl flex flex-col">
+        <DialogContent className="max-w-[96vw] w-[96vw] h-[96vh] p-0 rounded-[2rem] overflow-hidden border-none bg-slate-900 shadow-2xl flex flex-col">
           <DialogHeader className="p-6 bg-slate-900 text-white flex flex-row items-center justify-between shrink-0">
              <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400">

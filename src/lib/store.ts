@@ -528,6 +528,10 @@ interface AppState {
   devHistoryStack: Partial<AppState>[];
   takeDevSnapshot: () => void;
   undoDevSnapshot: () => Promise<void>;
+  isUndoing: boolean;
+  shoppingListUndo: (() => void) | null;
+  shoppingListHistoryLength: number;
+  setShoppingListUndo: (cb: (() => void) | null, length: number) => void;
 
   // Budget Planning
   budgetPlans: BudgetPlan[];
@@ -1544,6 +1548,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
       },
       deleteSalesOrder: async (id: string) => {
+        get().takeDevSnapshot();
         const orderBefore = get().salesOrders.find(so => so.id === id);
         const itemsToDelete = get().salesOrderItems.filter(item => item.salesOrderId === id);
         const itemIds = itemsToDelete.map(item => item.id);
@@ -1573,6 +1578,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
       },
       deleteMultipleSalesOrders: async (ids: string[]) => {
+        get().takeDevSnapshot();
         const ordersBefore = get().salesOrders.filter(so => ids.includes(so.id));
         const itemsToDelete = get().salesOrderItems.filter(item => ids.includes(item.salesOrderId));
         const itemIds = itemsToDelete.map(item => item.id);
@@ -2924,6 +2930,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       },
 
       devHistoryStack: [],
+      isUndoing: false,
+      shoppingListUndo: null,
+      shoppingListHistoryLength: 0,
+      setShoppingListUndo: (cb, length) => set({ shoppingListUndo: cb, shoppingListHistoryLength: length }),
       takeDevSnapshot: () => {
         const state = get();
         // Simpan hanya data operasional yang relevan (bukan functions/stack itu sendiri)
@@ -2958,64 +2968,98 @@ export const useAppStore = create<AppState>((set, get) => ({
           toast.error("Tidak ada history untuk di-undo.");
           return;
         }
+        set({ isUndoing: true });
         const toastId = toast.loading(`Undoing... (${devHistoryStack.length} step tersisa)`);
-        const newStack = [...devHistoryStack];
-        const snapshot = newStack.pop()!;
-        // Restore state lokal
-        set({ ...snapshot, devHistoryStack: newStack });
-        if (snapshot.clients) saveLocalClientsCache(snapshot.clients);
-        if (snapshot.products) saveLocalProductsCache(snapshot.products);
-        if (snapshot.salesOrders) saveLocalSalesOrdersCache(snapshot.salesOrders);
-        if (snapshot.salesOrderItems) saveLocalSalesOrderItemsCache(snapshot.salesOrderItems);
-        if (snapshot.purchases) saveLocalPurchasesCache(snapshot.purchases);
-        if (snapshot.purchaseItems) saveLocalPurchaseItemsCache(snapshot.purchaseItems);
-        if (snapshot.purchaseRequests) saveLocalPurchaseRequestsCache(snapshot.purchaseRequests);
-
-        // Sync ke DB — wipe semua tabel operasional lalu seed ulang dari snapshot
+        
         try {
-          const tablesToWipe = [
-            'sales_order_items', 'purchase_items', 'journal_lines',
-            'deliveries', 'invoices', 'tukar_faktur', 'sales_orders', 'purchases', 'purchase_requests', 'journal_entries',
-            'reimbursements', 'expenses', 'cash_transactions', 'pending_returns', 'rejected_items',
-            'stock_movements',
-            'bank_accounts', 'products',
-          ];
-          // Step 1: Wipe semua tabel sekaligus
-          await fetch('/api/db/reset', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'custom', tables: tablesToWipe })
-          });
+          const newStack = [...devHistoryStack];
+          const snapshot = newStack.pop()!;
+          const state = get();
 
-          // Step 2: Seed dari snapshot — kirim semua sekaligus
-          const seedData: Record<string, any[]> = {
-            sales_orders: snapshot.salesOrders || [],
-            sales_order_items: snapshot.salesOrderItems || [],
-            purchases: snapshot.purchases || [],
-            purchase_items: snapshot.purchaseItems || [],
-            purchase_requests: snapshot.purchaseRequests || [],
-            deliveries: snapshot.deliveries || [],
-            tukar_faktur: snapshot.tukarFakturs || [],
-            expenses: snapshot.expenses || [],
-            invoices: snapshot.invoices || [],
-            journal_entries: snapshot.journalEntries || [],
-            journal_lines: snapshot.journalLines || [],
-            stock_movements: snapshot.stockMovements || [],
-            cash_transactions: snapshot.cashTransactions || [],
-            bank_accounts: snapshot.bankAccounts || [],
-            reimbursements: snapshot.reimbursements || [],
-            rejected_items: snapshot.rejectedItems || [],
-            products: snapshot.products || [],
+          const ZUSTAND_TO_DB_TABLES: Record<string, string> = {
+            salesOrders: 'sales_orders',
+            salesOrderItems: 'sales_order_items',
+            purchases: 'purchases',
+            purchaseItems: 'purchase_items',
+            purchaseRequests: 'purchase_requests',
+            deliveries: 'deliveries',
+            expenses: 'expenses',
+            invoices: 'invoices',
+            tukarFakturs: 'tukar_faktur',
+            journalEntries: 'journal_entries',
+            journalLines: 'journal_lines',
+            stockMovements: 'stock_movements',
+            cashTransactions: 'cash_transactions',
+            bankAccounts: 'bank_accounts',
+            pendingReturns: 'pending_returns',
+            reimbursements: 'reimbursements',
+            rejectedItems: 'rejected_items',
+            products: 'products',
           };
-          await fetch('/api/db/reset', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'seed', seedData })
-          });
+
+          for (const [storeKey, dbTable] of Object.entries(ZUSTAND_TO_DB_TABLES)) {
+            const snapList = (snapshot as any)[storeKey] || [];
+            const curList = (state as any)[storeKey] || [];
+
+            const snapMap = new Map(snapList.map((r: any) => [r.id, r]));
+            const curMap = new Map(curList.map((r: any) => [r.id, r]));
+
+            const toDelete: string[] = [];
+            const toUpsert: any[] = [];
+
+            // 1. Find deleted or updated items
+            for (const snapItem of snapList) {
+              const curItem = curMap.get(snapItem.id);
+              if (!curItem) {
+                toUpsert.push(snapItem);
+              } else if (JSON.stringify(snapItem) !== JSON.stringify(curItem)) {
+                toUpsert.push(snapItem);
+              }
+            }
+
+            // 2. Find inserted items
+            for (const curItem of curList) {
+              if (!snapMap.has(curItem.id)) {
+                toDelete.push(curItem.id);
+              }
+            }
+
+            // 3. Sync deletions
+            if (toDelete.length > 0) {
+              const delRes = await fetch('/api/db', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ table: dbTable, id: toDelete })
+              });
+              if (!delRes.ok) throw new Error(`Failed deletion for ${dbTable}`);
+            }
+
+            // 4. Sync upserts
+            if (toUpsert.length > 0) {
+              const upsRes = await fetch('/api/db', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ table: dbTable, data: toUpsert })
+              });
+              if (!upsRes.ok) throw new Error(`Failed update/insert for ${dbTable}`);
+            }
+          }
+
+          // Restore state lokal
+          set({ ...snapshot, devHistoryStack: newStack });
+          if (snapshot.clients) saveLocalClientsCache(snapshot.clients);
+          if (snapshot.products) saveLocalProductsCache(snapshot.products);
+          if (snapshot.salesOrders) saveLocalSalesOrdersCache(snapshot.salesOrders);
+          if (snapshot.salesOrderItems) saveLocalSalesOrderItemsCache(snapshot.salesOrderItems);
+          if (snapshot.purchases) saveLocalPurchasesCache(snapshot.purchases);
+          if (snapshot.purchaseItems) saveLocalPurchaseItemsCache(snapshot.purchaseItems);
+          if (snapshot.purchaseRequests) saveLocalPurchaseRequestsCache(snapshot.purchaseRequests);
 
           toast.success(`Undo berhasil! (${newStack.length} step tersisa)`, { id: toastId });
-        } catch(e: any) {
-          toast.error("Undo local OK, tapi gagal sync DB: " + e.message, { id: toastId });
+        } catch (e: any) {
+          toast.error("Gagal melakukan undo: " + e.message, { id: toastId });
+        } finally {
+          set({ isUndoing: false });
         }
       },
       upsertBudgetPlan: async (plan) => {

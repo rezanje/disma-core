@@ -22,6 +22,7 @@ export const metadata: Metadata = {
 };
 
 import DevOverlay from "@/components/dev-overlay";
+import GlobalUndoButton from "@/components/global-undo-button";
 
 export default function RootLayout({
   children,
@@ -41,6 +42,7 @@ export default function RootLayout({
         </HydrationGate>
         <Toaster />
         <DevOverlay />
+        <GlobalUndoButton />
       </body>
     </html>
   );

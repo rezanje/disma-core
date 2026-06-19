@@ -179,6 +179,12 @@ export default function ShoppingListPage() {
     }, 500)
   }
 
+  const setShoppingListUndo = useAppStore(state => state.setShoppingListUndo)
+  useEffect(() => {
+    setShoppingListUndo(handleUndo, history.length)
+    return () => setShoppingListUndo(null, 0)
+  }, [history.length, handleUndo, setShoppingListUndo])
+
   const selectPasar = (productId: string) => {
     saveToHistory()
     setStockBookedProductIds(prev => {
@@ -441,6 +447,7 @@ export default function ShoppingListPage() {
     const loadingId = toast.loading("Membuat dokumen list belanja...")
     const title = `Daftar_Belanja_${new Date().toISOString().slice(0, 10)}`
     try {
+      useAppStore.getState().takeDevSnapshot()
       await addPurchase({
         id: documentId,
         date: generatedAt,
@@ -537,6 +544,7 @@ export default function ShoppingListPage() {
     setIsSendingToFinance(purchaseId)
     const loadingId = toast.loading("Mengirim ke Finance...")
     try {
+      useAppStore.getState().takeDevSnapshot()
       const items = purchaseItems.filter(pi => pi.purchaseId === purchaseId && pi.purchaseMethod === 'Pasar')
       const totalBudget = items.reduce((sum, item) => sum + (item.estimatedUnitPrice * item.qtyTarget), 0)
 
@@ -587,6 +595,7 @@ export default function ShoppingListPage() {
 
     setIsDeletingPurchase(purchaseId)
     try {
+      useAppStore.getState().takeDevSnapshot()
       await deletePurchase(purchaseId)
       if (lastGeneratedDoc?.purchaseId === purchaseId) setLastGeneratedDoc(null)
       toast.success("Dokumen list belanja dihapus.")
@@ -618,27 +627,9 @@ export default function ShoppingListPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex items-center">
-                  <RefreshCw className="mr-2 h-5 w-5 text-emerald-500" />
-                  Auto-Consolidator
-                </div>
-                {history.length > 0 && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleUndo}
-                    disabled={isUndoing}
-                    className="h-8 gap-1.5 border-dashed hover:bg-slate-50 text-slate-600 transition-all flex items-center justify-center"
-                  >
-                    {isUndoing ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-500" />
-                    ) : (
-                      <Undo2 className="h-3.5 w-3.5 text-slate-500" />
-                    )}
-                    <span>Undo ({history.length})</span>
-                  </Button>
-                )}
+              <div className="flex items-center">
+                <RefreshCw className="mr-2 h-5 w-5 text-emerald-500" />
+                Auto-Consolidator
               </div>
               
               <Dialog open={isAddManualOpen} onOpenChange={setIsAddManualOpen}>
@@ -1604,7 +1595,7 @@ export default function ShoppingListPage() {
       </div>
 
       <Dialog open={!!pdfPreview} onOpenChange={(open) => !open && setPdfPreview(null)}>
-        <DialogContent className="max-w-5xl h-[90vh] p-0 rounded-[2rem] overflow-hidden border-none bg-slate-900 shadow-2xl flex flex-col">
+        <DialogContent className="max-w-[96vw] w-[96vw] h-[96vh] p-0 rounded-[2rem] overflow-hidden border-none bg-slate-900 shadow-2xl flex flex-col">
           <DialogHeader className="p-6 bg-slate-900 text-white flex flex-row items-center justify-between shrink-0 space-y-0">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400">

@@ -58,7 +58,7 @@ export default function DevOverlay() {
 
 
   if (!isVisible) return (
-    <div className="fixed bottom-4 right-4 z-[9999]">
+    <div className="fixed bottom-24 right-4 z-[9999]">
       <Button 
         variant="outline" 
         size="icon" 
@@ -71,7 +71,7 @@ export default function DevOverlay() {
   )
 
   return (
-    <div className="fixed bottom-4 right-4 z-[9999] animate-in slide-in-from-right-10 duration-500">
+    <div className="fixed bottom-24 right-4 z-[9999] animate-in slide-in-from-right-10 duration-500">
       <div className="bg-slate-900/90 backdrop-blur-xl border border-white/20 p-2 rounded-[2rem] shadow-2xl flex items-center gap-2 pr-6">
         <Button 
           variant="ghost" 
@@ -83,16 +83,6 @@ export default function DevOverlay() {
         </Button>
         
         <div className="h-8 w-[1px] bg-white/10" />
-        
-        <Button 
-          onClick={handleUndo}
-          variant="ghost"
-          className="h-10 rounded-full text-slate-300 hover:text-white hover:bg-white/10 gap-2 font-bold text-xs uppercase tracking-tight disabled:opacity-30"
-          disabled={historyCount === 0}
-        >
-          <Undo2 className="w-4 h-4" />
-          Undo {historyCount > 0 && <span className="bg-white/20 rounded-full px-1.5 py-0.5 text-[10px]">{historyCount}</span>}
-        </Button>
 
         <Button 
           onClick={handleRunResetSimulation}
