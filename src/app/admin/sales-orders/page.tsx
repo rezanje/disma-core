@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import GlobalUndoButton from "@/components/global-undo-button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { STATUS_COLORS } from "@/lib/constants"
@@ -670,8 +671,10 @@ export default function SalesOrdersPage() {
           <p className="text-muted-foreground">Manage incoming client orders and track their fulfillment status.</p>
         </div>
         
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
-          <DialogTrigger render={
+        <div className="flex items-center gap-2">
+          <GlobalUndoButton inline />
+          <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger render={
             <Button>
               <Plus className="mr-2 h-4 w-4" /> New Sales Order
             </Button>
@@ -1072,6 +1075,7 @@ export default function SalesOrdersPage() {
             </div>
           </DialogContent>
         </Dialog>
+      </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
