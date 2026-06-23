@@ -675,10 +675,10 @@ export default function SalesOrdersPage() {
           <GlobalUndoButton inline />
           <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger render={
-            <Button>
-              <Plus className="mr-2 h-4 w-4" /> New Sales Order
-            </Button>
-          } />
+              <Button>
+                <Plus className="mr-2 h-4 w-4" /> New Sales Order
+              </Button>
+            } />
           <DialogContent className="sm:max-w-[95vw] w-[95vw] max-h-[95vh] overflow-y-auto rounded-[2rem]">
             <DialogHeader>
               <DialogTitle>Create New Sales Order</DialogTitle>
@@ -1074,8 +1074,8 @@ export default function SalesOrdersPage() {
               </Button>
             </div>
           </DialogContent>
-        </Dialog>
-      </div>
+          </Dialog>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
