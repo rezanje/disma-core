@@ -610,6 +610,7 @@ export interface RejectedItem {
   referenceId?: string;
   reportedBy: string;
   imageUrl?: string;
+  shoppingCompiledAt?: string;
 }
 
 export type HistoryAction = 'create' | 'update' | 'delete' | 'rollback';

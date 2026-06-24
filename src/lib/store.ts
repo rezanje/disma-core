@@ -518,6 +518,7 @@ interface AppState {
   removePendingReturn: (id: string) => void;
   rejectedItems: RejectedItem[];
   addRejectedItem: (item: RejectedItem) => void;
+  updateRejectedItem: (item: RejectedItem) => Promise<void>;
 
   // Helpers
   resetDb: () => Promise<void>;
@@ -2897,6 +2898,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       rejectedItems: [],
       addRejectedItem: async (item) => {
         set((state) => ({ rejectedItems: [item, ...state.rejectedItems] }));
+        await get().syncTable('rejected_items', item);
+      },
+      updateRejectedItem: async (item) => {
+        set((state) => ({
+          rejectedItems: state.rejectedItems.map(ri => ri.id === item.id ? item : ri)
+        }));
         await get().syncTable('rejected_items', item);
       },
 
