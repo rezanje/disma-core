@@ -387,10 +387,13 @@ export function generateTukarFakturBundle(invoiceId: string, outputType: 'save' 
   doc.save(`Tukar_Faktur_${inv.id.substring(0,8)}.pdf`)
 }
 
-function buildShoppingListPDF(items: Array<{productId: string, productName: string, skuCode: string, uom?: string, totalQty: number, estimatedPrice: number, purchaseMethod?: string, vendorName?: string}>) {
+function buildShoppingListPDF(
+  items: Array<{productId: string, productName: string, skuCode: string, uom?: string, totalQty: number, estimatedPrice: number, purchaseMethod?: string, vendorName?: string}>,
+  titleOverride?: string
+) {
   // OPTIMIZATION: Enable compression
   const doc = new jsPDF({ compress: true })
-  drawHeader(doc, "MASTER SHOPPING LIST (DAFTAR BELANJA)", `SL-${format(new Date(), 'yyyyMMdd-HHmm')}`, new Date())
+  drawHeader(doc, titleOverride || "MASTER SHOPPING LIST (DAFTAR BELANJA)", `SL-${format(new Date(), 'yyyyMMdd-HHmm')}`, new Date())
 
   let y = 70
   doc.setFillColor(240, 240, 240)
@@ -483,12 +486,21 @@ function buildShoppingListPDF(items: Array<{productId: string, productName: stri
   return doc
 }
 
-export function generateShoppingListPDFDataUrl(items: Array<{productId: string, productName: string, skuCode: string, uom?: string, totalQty: number, estimatedPrice: number, purchaseMethod?: string, vendorName?: string}>) {
-  return buildShoppingListPDF(items).output('datauristring')
+export function generateShoppingListPDFDataUrl(
+  items: Array<{productId: string, productName: string, skuCode: string, uom?: string, totalQty: number, estimatedPrice: number, purchaseMethod?: string, vendorName?: string}>,
+  titleOverride?: string
+) {
+  return buildShoppingListPDF(items, titleOverride).output('datauristring')
 }
 
-export function generateShoppingListPDF(items: Array<{productId: string, productName: string, skuCode: string, uom?: string, totalQty: number, estimatedPrice: number, purchaseMethod?: string, vendorName?: string}>) {
-  buildShoppingListPDF(items).save(`Daftar_Belanja_${format(new Date(), 'dd_MMM_yyyy')}.pdf`)
+export function generateShoppingListPDF(
+  items: Array<{productId: string, productName: string, skuCode: string, uom?: string, totalQty: number, estimatedPrice: number, purchaseMethod?: string, vendorName?: string}>,
+  titleOverride?: string
+) {
+  const filename = titleOverride 
+    ? `${titleOverride.replace(/\s+/g, '_')}_${format(new Date(), 'dd_MMM_yyyy')}.pdf`
+    : `Daftar_Belanja_${format(new Date(), 'dd_MMM_yyyy')}.pdf`
+  buildShoppingListPDF(items, titleOverride).save(filename)
 }
 
 export function generateFinancialReportPDF(data: {

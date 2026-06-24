@@ -1,10 +1,24 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { useAppStore } from "@/lib/store"
 import { cn, formatRupiah, formatNumber, parseNumber } from "@/lib/utils"
-import { Plus, Trash2, ShoppingCart, Search, ChevronsUpDown, Check, Eye, FileText, Download, Loader2 } from "lucide-react"
+import { Plus, Trash2, ShoppingCart, Search, ChevronsUpDown, Check, Eye, FileText, Download, Loader2, X } from "lucide-react"
 import { v4 as uuidv4 } from "uuid"
+
+const toDateInputValue = (date?: string) => {
+  if (!date) return ""
+  const isoDate = date.match(/^\d{4}-\d{2}-\d{2}/)?.[0]
+  if (isoDate) return isoDate
+
+  const parsed = new Date(date)
+  if (Number.isNaN(parsed.getTime())) return ""
+
+  const year = parsed.getFullYear()
+  const month = `${parsed.getMonth() + 1}`.padStart(2, "0")
+  const day = `${parsed.getDate()}`.padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -137,6 +151,21 @@ export default function SalesOrdersPage() {
   const [targetDate, setTargetDate] = useState(() => format(new Date(Date.now() + 86400000 * 3), 'yyyy-MM-dd')) // 3 days from now
   const [lineItems, setLineItems] = useState<LineItem[]>([])
   
+  const [filterOrderDate, setFilterOrderDate] = useState("")
+  const [filterDeliveryDate, setFilterDeliveryDate] = useState("")
+
+  const filteredSalesOrders = useMemo(() => {
+    return salesOrders.filter(so => {
+      const matchOrderDate = !filterOrderDate || toDateInputValue(so.orderDate) === filterOrderDate;
+      const matchDeliveryDate = !filterDeliveryDate || toDateInputValue(so.targetDeliveryDate) === filterDeliveryDate;
+      return matchOrderDate && matchDeliveryDate;
+    });
+  }, [salesOrders, filterOrderDate, filterDeliveryDate]);
+
+  const pendingSos = useMemo(() => {
+    return filteredSalesOrders.filter(so => so.status === 'Pending Approval');
+  }, [filteredSalesOrders]);
+
   // Detail view state
   const [detailSOId, setDetailSOId] = useState<string | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
@@ -598,7 +627,7 @@ export default function SalesOrdersPage() {
     )
   }
 
-  const activeSos = salesOrders.filter(so => so.status !== 'Pending Approval')
+  const activeSos = useMemo(() => filteredSalesOrders.filter(so => so.status !== 'Pending Approval'), [filteredSalesOrders])
   const allSelected = activeSos.length > 0 && activeSos.every(so => selectedSoIds.includes(so.id))
 
   const toggleSelectAll = () => {
@@ -1078,14 +1107,68 @@ export default function SalesOrdersPage() {
         </div>
       </div>
 
+      {/* Date filter bar */}
+      <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-100 bg-white/80 px-4 py-3 shadow-sm">
+        <div className="flex flex-col gap-1 min-w-[160px]">
+          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tanggal PO</label>
+          <div className="relative flex items-center">
+            <Input
+              type="date"
+              value={filterOrderDate}
+              onChange={e => setFilterOrderDate(e.target.value)}
+              className="h-9 rounded-xl border-slate-200 pr-8 text-sm font-bold text-slate-700"
+            />
+            {filterOrderDate && (
+              <button
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                onClick={() => setFilterOrderDate('')}
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-col gap-1 min-w-[160px]">
+          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tanggal Kirim</label>
+          <div className="relative flex items-center">
+            <Input
+              type="date"
+              value={filterDeliveryDate}
+              onChange={e => setFilterDeliveryDate(e.target.value)}
+              className="h-9 rounded-xl border-slate-200 pr-8 text-sm font-bold text-slate-700"
+            />
+            {filterDeliveryDate && (
+              <button
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                onClick={() => setFilterDeliveryDate('')}
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+        {(filterOrderDate || filterDeliveryDate) && (
+          <button
+            className="mb-0.5 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600"
+            onClick={() => { setFilterOrderDate(''); setFilterDeliveryDate('') }}
+          >
+            Reset Filter
+          </button>
+        )}
+        <div className="ml-auto flex items-center gap-2 text-[10px] font-bold text-slate-500">
+          <span>{activeSos.length + pendingSos.length} PO</span>
+          {(filterOrderDate || filterDeliveryDate) && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-700">Filtered</span>}
+        </div>
+      </div>
+
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="bg-white/50 dark:bg-slate-900/50 p-1 rounded-xl glass-card">
           <TabsTrigger value="active" className="rounded-lg px-6">Order Aktif</TabsTrigger>
           <TabsTrigger value="pending" className="rounded-lg px-6 flex items-center gap-2">
             Request Client
-            {salesOrders.filter(so => so.status === 'Pending Approval').length > 0 && (
+            {pendingSos.length > 0 && (
               <Badge className="bg-rose-500 text-white h-5 min-w-[20px] px-1 animate-pulse">
-                {salesOrders.filter(so => so.status === 'Pending Approval').length}
+                {pendingSos.length}
               </Badge>
             )}
           </TabsTrigger>
@@ -1143,14 +1226,14 @@ export default function SalesOrdersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {salesOrders.filter(so => so.status !== 'Pending Approval').length === 0 ? (
+                {activeSos.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
                       No active sales orders found.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  salesOrders.filter(so => so.status !== 'Pending Approval').map((so) => {
+                  activeSos.map((so) => {
                     const client = clients.find(c => c.id === so.clientId)
                     const items = salesOrderItems.filter(item => item.salesOrderId === so.id)
                     const total = items.reduce((sum, item) => sum + item.subtotal, 0)
@@ -1327,14 +1410,14 @@ export default function SalesOrdersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {salesOrders.filter(so => so.status === 'Pending Approval').length === 0 ? (
+                {pendingSos.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="h-32 text-center text-muted-foreground italic">
                       Belum ada request order baru dari Client.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  salesOrders.filter(so => so.status === 'Pending Approval').map((so) => {
+                  pendingSos.map((so) => {
                     const client = clients.find(c => c.id === so.clientId)
                     const items = salesOrderItems.filter(item => item.salesOrderId === so.id)
                     const total = items.reduce((sum, item) => sum + item.subtotal, 0)

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
+import GlobalUndoButton from "@/components/global-undo-button"
 import {
   Table,
   TableBody,
@@ -230,6 +231,7 @@ export default function ProductsPage() {
         </div>
         
         <div className="flex gap-2">
+          <GlobalUndoButton inline />
           <Button 
             variant="outline" 
             size="sm"

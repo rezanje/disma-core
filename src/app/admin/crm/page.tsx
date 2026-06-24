@@ -37,6 +37,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import AuthGuard from "@/components/auth/auth-guard"
+import GlobalUndoButton from "@/components/global-undo-button"
 
 export default function CRMPipelinePage() {
   const leads = useAppStore(state => state.leads)
@@ -127,6 +128,7 @@ export default function CRMPipelinePage() {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
+            <GlobalUndoButton inline />
             <Dialog open={isAddLeadOpen} onOpenChange={setIsAddLeadOpen}>
               <DialogTrigger
                 render={

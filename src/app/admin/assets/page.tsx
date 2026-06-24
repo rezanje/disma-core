@@ -15,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import GlobalUndoButton from "@/components/global-undo-button"
 
 const ASSETS = [
   {
@@ -105,9 +106,12 @@ export default function AssetsPage() {
           </h1>
           <p className="text-slate-500 mt-1">Track and manage your physical assets with 3D visualization.</p>
         </div>
-        <Button className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/20 rounded-xl px-6">
-          <Plus className="mr-2 h-4 w-4" /> Add New Asset
-        </Button>
+        <div className="flex items-center gap-2">
+          <GlobalUndoButton inline />
+          <Button className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/20 rounded-xl px-6">
+            <Plus className="mr-2 h-4 w-4" /> Add New Asset
+          </Button>
+        </div>
       </div>
 
       {/* Controls Section */}

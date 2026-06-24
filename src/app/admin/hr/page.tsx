@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog"
 import { v4 as uuidv4 } from "uuid"
 import { toast } from "sonner"
+import GlobalUndoButton from "@/components/global-undo-button"
 import { Employee, SmartKpi, getKpiGrade, GRADE_META, SmartKpiGrade } from "@/types"
 
 // --- SMART KPI CATEGORIES ---
@@ -186,6 +187,7 @@ export default function HRDashboardPage() {
             </p>
           </div>
           <div className="flex gap-2">
+            <GlobalUndoButton inline />
             <Dialog open={isAddEmpOpen} onOpenChange={setIsAddEmpOpen}>
               <DialogTrigger>
                 <div role="button" className="inline-flex cursor-pointer items-center justify-center whitespace-nowrap bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-200 shadow-md font-bold rounded-xl h-10 px-4 text-sm transition-colors">

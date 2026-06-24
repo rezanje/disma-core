@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog"
 import { v4 as uuidv4 } from "uuid"
 import { toast } from "sonner"
+import GlobalUndoButton from "@/components/global-undo-button"
 import { OkrObjective, OkrKeyResult } from "@/types"
 
 function KRProgressUpdater({ kr, okrId, updateOkr, okrs }: any) {
@@ -170,6 +171,7 @@ export default function OkrFrameworkPage() {
             </p>
           </div>
           <div className="flex gap-2">
+            <GlobalUndoButton inline />
             <Dialog open={isAddOkrOpen} onOpenChange={setIsAddOkrOpen}>
               <DialogTrigger>
                 <div className="inline-flex cursor-pointer items-center justify-center bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200 shadow-md font-bold rounded-xl h-10 px-4 text-sm transition-colors">

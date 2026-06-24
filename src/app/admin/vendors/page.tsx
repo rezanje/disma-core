@@ -4,6 +4,7 @@ import { useState, useMemo } from "react"
 import { useAppStore } from "@/lib/store"
 import { Plus, Pencil, History, Check, X, Copy } from "lucide-react"
 import { v4 as uuidv4 } from "uuid"
+import GlobalUndoButton from "@/components/global-undo-button"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -262,95 +263,98 @@ export default function VendorsPage() {
           <p className="text-muted-foreground">Manage your suppliers and sourcing partners.</p>
         </div>
         
-        <Dialog open={isOpen} onOpenChange={(open) => {
-          setIsOpen(open)
-          if (!open) resetForm()
-        }}>
-          <DialogTrigger render={
-            <Button>
-              <Plus className="mr-2 h-4 w-4" /> Add Vendor
-            </Button>
-          } />
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle>{editingVendor ? "Edit Vendor" : "Add New Vendor"}</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="companyName">Company Name</Label>
-                <Input 
-                  id="companyName" 
-                  value={formData.companyName}
-                  onChange={(e) => setFormData({...formData, companyName: e.target.value})}
-                  placeholder="Supplier Sayur Maju" 
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="picName">PIC Name</Label>
-                <Input 
-                  id="picName" 
-                  value={formData.picName}
-                  onChange={(e) => setFormData({...formData, picName: e.target.value})}
-                  placeholder="Pak Budi" 
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="email">Email</Label>
-                <Input 
-                  id="email" 
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  placeholder="budi@supplier.com" 
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="phone">Phone Number</Label>
-                <Input 
-                  id="phone" 
-                  value={formData.phone}
-                  onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                  placeholder="0812345678" 
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="address">Address</Label>
-                <Input 
-                  id="address" 
-                  value={formData.address}
-                  onChange={(e) => setFormData({...formData, address: e.target.value})}
-                  placeholder="Pasar Induk Kramat Jati" 
-                />
-              </div>
-              
-              <div className="flex items-center gap-2 pt-2">
-                <Checkbox 
-                  id="isTempo" 
-                  checked={formData.isTempo} 
-                  onCheckedChange={(checked) => setFormData({...formData, isTempo: !!checked})}
-                />
-                <Label htmlFor="isTempo" className="cursor-pointer">Pembayaran Tempo</Label>
-              </div>
-
-              {formData.isTempo && (
+        <div className="flex items-center gap-2">
+          <GlobalUndoButton inline />
+          <Dialog open={isOpen} onOpenChange={(open) => {
+            setIsOpen(open)
+            if (!open) resetForm()
+          }}>
+            <DialogTrigger render={
+              <Button>
+                <Plus className="mr-2 h-4 w-4" /> Add Vendor
+              </Button>
+            } />
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>{editingVendor ? "Edit Vendor" : "Add New Vendor"}</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="paymentTermDays">Jatuh Tempo (Hari)</Label>
+                  <Label htmlFor="companyName">Company Name</Label>
                   <Input 
-                    id="paymentTermDays" 
-                    type="number"
-                    value={formData.paymentTermDays}
-                    onChange={(e) => setFormData({...formData, paymentTermDays: parseInt(e.target.value) || 0})}
-                    placeholder="14" 
+                    id="companyName" 
+                    value={formData.companyName}
+                    onChange={(e) => setFormData({...formData, companyName: e.target.value})}
+                    placeholder="Supplier Sayur Maju" 
                   />
                 </div>
-              )}
-            </div>
-            <div className="flex justify-end gap-3 mt-4">
-              <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
-              <Button onClick={handleSave}>Save Vendor</Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+                <div className="grid gap-2">
+                  <Label htmlFor="picName">PIC Name</Label>
+                  <Input 
+                    id="picName" 
+                    value={formData.picName}
+                    onChange={(e) => setFormData({...formData, picName: e.target.value})}
+                    placeholder="Pak Budi" 
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input 
+                    id="email" 
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                    placeholder="budi@supplier.com" 
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="phone">Phone Number</Label>
+                  <Input 
+                    id="phone" 
+                    value={formData.phone}
+                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                    placeholder="0812345678" 
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="address">Address</Label>
+                  <Input 
+                    id="address" 
+                    value={formData.address}
+                    onChange={(e) => setFormData({...formData, address: e.target.value})}
+                    placeholder="Pasar Induk Kramat Jati" 
+                  />
+                </div>
+                
+                <div className="flex items-center gap-2 pt-2">
+                  <Checkbox 
+                    id="isTempo" 
+                    checked={formData.isTempo} 
+                    onCheckedChange={(checked) => setFormData({...formData, isTempo: !!checked})}
+                  />
+                  <Label htmlFor="isTempo" className="cursor-pointer">Pembayaran Tempo</Label>
+                </div>
+
+                {formData.isTempo && (
+                  <div className="grid gap-2">
+                    <Label htmlFor="paymentTermDays">Jatuh Tempo (Hari)</Label>
+                    <Input 
+                      id="paymentTermDays" 
+                      type="number"
+                      value={formData.paymentTermDays}
+                      onChange={(e) => setFormData({...formData, paymentTermDays: parseInt(e.target.value) || 0})}
+                      placeholder="14" 
+                    />
+                  </div>
+                )}
+              </div>
+              <div className="flex justify-end gap-3 mt-4">
+                <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
+                <Button onClick={handleSave}>Save Vendor</Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <div className="rounded-md border bg-white dark:bg-slate-950">

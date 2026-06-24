@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
+import GlobalUndoButton from "@/components/global-undo-button"
 import { Client, SalesOrder, SalesOrderItem, Invoice, Product, Purchase, PurchaseItem } from "@/types"
 
 export default function ClientsPage() {
@@ -860,6 +861,7 @@ export default function ClientsPage() {
         </div>
         
         <div className="flex gap-2">
+          <GlobalUndoButton inline />
           <Button 
             variant="outline" 
             className="rounded-full h-12 px-6 font-bold border-slate-200 hover:bg-slate-50 transition-all shadow-sm"

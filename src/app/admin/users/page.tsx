@@ -31,6 +31,7 @@ import { Shield, UserCog, AlertCircle, Plus, Edit2, Check, Users as UsersIcon } 
 import { toast } from "sonner"
 import AuthGuard from "@/components/auth/auth-guard"
 import { ResponsiveTable } from "@/components/ui/responsive-table"
+import GlobalUndoButton from "@/components/global-undo-button"
 
 import { APP_PAGES } from "@/lib/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -154,60 +155,63 @@ export default function UserManagementPage() {
             <p className="text-slate-500 text-sm">Kelola akses, perizinan role, dan personil DISMA.</p>
           </div>
           
-          <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-            <DialogTrigger 
-              render={
-                <Button className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-6 h-10 font-bold transition-colors">
-                  <Plus className="w-4 h-4 mr-2" /> Tambah User Baru
-                </Button>
-              }
-            />
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>Tambah User Baru</DialogTitle>
-                <DialogDescription>Daftarkan personil baru ke dalam sistem DISMA Core.</DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="id">ID User / Username</Label>
-                  <Input 
-                    id="id" 
-                    placeholder="misal: ahmad_sourcing" 
-                    value={newUser.id}
-                    onChange={(e) => setNewUser({...newUser, id: e.target.value})}
-                  />
+          <div className="flex items-center gap-2">
+            <GlobalUndoButton inline />
+            <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+              <DialogTrigger 
+                render={
+                  <Button className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-6 h-10 font-bold transition-colors">
+                    <Plus className="w-4 h-4 mr-2" /> Tambah User Baru
+                  </Button>
+                }
+              />
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Tambah User Baru</DialogTitle>
+                  <DialogDescription>Daftarkan personil baru ke dalam sistem DISMA Core.</DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="id">ID User / Username</Label>
+                    <Input 
+                      id="id" 
+                      placeholder="misal: ahmad_sourcing" 
+                      value={newUser.id}
+                      onChange={(e) => setNewUser({...newUser, id: e.target.value})}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="name">Nama Lengkap</Label>
+                    <Input 
+                      id="name" 
+                      placeholder="Nama Karyawan" 
+                      value={newUser.name}
+                      onChange={(e) => setNewUser({...newUser, name: e.target.value})}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="role">Role / Jabatan</Label>
+                    <Select 
+                      value={newUser.role} 
+                      onValueChange={(val) => setNewUser({...newUser, role: val as Role})}
+                    >
+                      <SelectTrigger id="role">
+                        <SelectValue placeholder="Pilih Role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(ROLE_LABELS).map(([role, label]) => (
+                           <SelectItem key={role} value={role}>{label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="name">Nama Lengkap</Label>
-                  <Input 
-                    id="name" 
-                    placeholder="Nama Karyawan" 
-                    value={newUser.name}
-                    onChange={(e) => setNewUser({...newUser, name: e.target.value})}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="role">Role / Jabatan</Label>
-                  <Select 
-                    value={newUser.role} 
-                    onValueChange={(val) => setNewUser({...newUser, role: val as Role})}
-                  >
-                    <SelectTrigger id="role">
-                      <SelectValue placeholder="Pilih Role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(ROLE_LABELS).map(([role, label]) => (
-                         <SelectItem key={role} value={role}>{label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button onClick={handleAddUser} className="bg-emerald-600 hover:bg-emerald-700">Simpan User</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+                <DialogFooter>
+                  <Button onClick={handleAddUser} className="bg-emerald-600 hover:bg-emerald-700">Simpan User</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">

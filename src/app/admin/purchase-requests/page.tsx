@@ -20,6 +20,7 @@ import {
 import { recordBudgetTransfer, recordPRExpensePayment } from "@/lib/accounting"
 import { toast } from "sonner"
 import { v4 as uuidv4 } from "uuid"
+import GlobalUndoButton from "@/components/global-undo-button"
 
 const CATEGORY_OPTIONS = [
   "Sourcing",
@@ -71,6 +72,7 @@ export default function PurchaseRequestsPage() {
   const [newAmountRaw, setNewAmountRaw] = useState("")
   const [newCategory, setNewCategory] = useState("Sourcing")
   const [selectedSOIds, setSelectedSOIds] = useState<string[]>([])
+  const [filterSODate, setFilterSODate] = useState<string>("")
   const [includeManualItems, setIncludeManualItems] = useState(false)
   const [manualItemsList, setManualItemsList] = useState<any[]>([])
 
@@ -452,12 +454,15 @@ export default function PurchaseRequestsPage() {
           </p>
         </div>
         
-        <Button 
-          onClick={() => setIsFormOpen(!isFormOpen)}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl px-6 h-12 font-extrabold text-xs uppercase tracking-wider transition-all shadow-lg shadow-emerald-600/20 active:scale-95"
-        >
-          {isFormOpen ? "Tutup Form" : "Buat Pengajuan Baru"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <GlobalUndoButton inline />
+          <Button 
+            onClick={() => setIsFormOpen(!isFormOpen)}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl px-6 h-12 font-extrabold text-xs uppercase tracking-wider transition-all shadow-lg shadow-emerald-600/20 active:scale-95"
+          >
+            {isFormOpen ? "Tutup Form" : "Buat Pengajuan Baru"}
+          </Button>
+        </div>
       </div>
 
       {/* METRIC CARDS */}
@@ -557,6 +562,30 @@ export default function PurchaseRequestsPage() {
                         </span>
                       )}
                     </Label>
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="flex-1">
+                        <Label htmlFor="so-date-filter" className="text-[9px] font-black uppercase tracking-wider text-slate-400">
+                          Filter Tanggal SO / Kirim
+                        </Label>
+                        <Input
+                          id="so-date-filter"
+                          type="date"
+                          value={filterSODate}
+                          onChange={(e) => setFilterSODate(e.target.value)}
+                          className="h-9 rounded-lg text-xs font-bold w-full bg-white dark:bg-slate-950 border-slate-200"
+                        />
+                      </div>
+                      {filterSODate && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => setFilterSODate("")}
+                          className="h-9 self-end text-[10px] font-black text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                        >
+                          Clear
+                        </Button>
+                      )}
+                    </div>
                     
                     {salesOrders.filter(so => so.status !== 'Batal' && so.status !== 'Selesai').length === 0 ? (
                       <div className="text-xs font-bold text-slate-400 py-2 border border-dashed rounded-xl px-4 text-center">
@@ -566,6 +595,14 @@ export default function PurchaseRequestsPage() {
                       <div className="max-h-[160px] overflow-y-auto rounded-xl border border-slate-150 dark:border-slate-800 p-3 bg-slate-50/50 dark:bg-slate-900/50 space-y-2">
                         {salesOrders
                           .filter(so => so.status !== 'Batal' && so.status !== 'Selesai')
+                          .filter(so => {
+                            const isChecked = selectedSOIds.includes(so.id)
+                            if (isChecked) return true
+                            if (!filterSODate) return true
+                            const orderDatePrefix = so.orderDate?.split('T')[0] || so.orderDate || ""
+                            const deliveryDatePrefix = so.targetDeliveryDate?.split('T')[0] || so.targetDeliveryDate || ""
+                            return orderDatePrefix === filterSODate || deliveryDatePrefix === filterSODate
+                          })
                           .map(so => {
                             const client = clients?.find(c => c.id === so.clientId)
                             const total = soHppTotal(so.id)

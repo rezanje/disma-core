@@ -31,7 +31,22 @@ export default function GlobalUndoButton({ inline = false }: GlobalUndoButtonPro
 
     if (!isAllowedPath) return null
     if (pathname?.startsWith("/tri-chess")) return null
-    if (pathname === "/admin/sales-orders") return null // Hide floating version on sales-orders page
+
+    // Hide floating version on pages that render it inline in the header
+    const pathsWithInlineUndo = [
+      "/admin/sales-orders",
+      "/admin/purchase-requests",
+      "/admin/vendors",
+      "/admin/products",
+      "/admin/assets",
+      "/admin/crm",
+      "/admin/clients",
+      "/admin/hr",
+      "/admin/okr",
+      "/admin/users",
+      "/admin/shopping-list"
+    ]
+    if (pathsWithInlineUndo.includes(pathname || "")) return null
   }
 
   const isShoppingList = pathname === "/admin/shopping-list"
