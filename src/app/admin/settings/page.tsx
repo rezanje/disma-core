@@ -9,7 +9,8 @@ import {
   Cog, 
   Lock,
   RefreshCw,
-  Users
+  Users,
+  TrendingUp
 } from "lucide-react"
 import AuthGuard from "@/components/auth/auth-guard"
 import { cn } from "@/lib/utils"
@@ -21,6 +22,14 @@ const SETTINGS_OPTIONS = [
     href: "/admin/settings/roles",
     icon: <Users className="w-6 h-6 text-indigo-600" />,
     color: "bg-indigo-50",
+    roleRequired: ["super_admin"]
+  },
+  {
+    title: "Pricing Margins Settings",
+    description: "Atur rumusan persentase margin bawaan untuk setiap tier harga (Tier 1 s/d Tier 5) yang digunakan saat penawaran barang client.",
+    href: "/admin/settings/pricing",
+    icon: <TrendingUp className="w-6 h-6 text-emerald-600" />,
+    color: "bg-emerald-50",
     roleRequired: ["super_admin"]
   },
   {

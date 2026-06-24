@@ -711,8 +711,8 @@ export function generatePriceListPDF(clientId: string, outputType: 'save' | 'dat
   doc.text("Harga Penawaran", 195, y + 7, { align: 'right' })
 
   doc.setFont("helvetica", "normal")
-  y += 18
-  const targetProducts = store.products.filter(p => clientPrices.some(cp => cp.productId === p.id))
+  const hasDefaultTier = client.defaultPriceTier && client.defaultPriceTier !== 'Standard'
+  const targetProducts = store.products.filter(p => hasDefaultTier || clientPrices.some(cp => cp.productId === p.id))
 
   // Group products for categorization
   const groups: Record<string, Product[]> = {}
@@ -781,15 +781,20 @@ export function generatePriceListPDF(clientId: string, outputType: 'save' | 'dat
       // Base = weekly low (fresh Thu-Wed window) else master HPP.
       // Anchors quoted price to lowest market HPP captured during reconciliation.
       const { price: basePrice } = getEffectiveBasePrice(product)
+      const tierMargins = store.tierMargins || { 'Tier 1': 50, 'Tier 2': 30, 'Tier 3': 20, 'Tier 4': 15, 'Tier 5': 10 }
 
       if (record) {
         hasSpecialPrice = true
         if (record.tier === 'Custom') priceToDisplay = record.agreedPrice
-        else if (record.tier === 'Tier 1') priceToDisplay = product.tier1Price || Math.round(basePrice * 1.5) || product.sellingPrice
-        else if (record.tier === 'Tier 2') priceToDisplay = product.tier2Price || Math.round(basePrice * 1.3) || product.sellingPrice
-        else if (record.tier === 'Tier 3') priceToDisplay = product.tier3Price || Math.round(basePrice * 1.2) || product.sellingPrice
-        else if (record.tier === 'Tier 4') priceToDisplay = product.tier4Price || Math.round(basePrice * 1.15) || product.sellingPrice
-        else if (record.tier === 'Tier 5') priceToDisplay = product.tier5Price || Math.round(basePrice * 1.1) || product.sellingPrice
+        else {
+          const marginPct = tierMargins[record.tier] || 0
+          priceToDisplay = (product[`tier${record.tier.replace('Tier ', '')}Price` as keyof Product] as number) || Math.round(basePrice * (1 + marginPct / 100)) || product.sellingPrice
+        }
+      } else if (hasDefaultTier) {
+        hasSpecialPrice = true
+        const tier = client.defaultPriceTier!
+        const marginPct = tierMargins[tier] || 0
+        priceToDisplay = (product[`tier${tier.replace('Tier ', '')}Price` as keyof Product] as number) || Math.round(basePrice * (1 + marginPct / 100)) || product.sellingPrice
       }
 
       doc.setFontSize(9)

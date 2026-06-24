@@ -54,23 +54,27 @@ export default function ClientOrderPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
 
+  const tierMargins = useAppStore(state => state.tierMargins) || { 'Tier 1': 50, 'Tier 2': 30, 'Tier 3': 20, 'Tier 4': 15, 'Tier 5': 10 }
+  const hasDefaultTier = client?.defaultPriceTier && client.defaultPriceTier !== 'Standard'
+
   // Calculate dynamic price based on tier preference
   const calculateEffectivePrice = (product: Product, record?: ClientPrice) => {
-    if (!record) return { price: 0, isCustom: false } // Price Request
+    if (!record) {
+      const defaultTier = client?.defaultPriceTier
+      if (defaultTier && defaultTier !== 'Standard') {
+        const marginPct = tierMargins[defaultTier] || 0
+        const price = (product[`tier${defaultTier.replace('Tier ', '')}Price` as keyof Product] as number) || Math.round(product.basePrice * (1 + marginPct / 100)) || product.sellingPrice
+        return { price, isCustom: true }
+      }
+      return { price: 0, isCustom: false } // Price Request
+    }
     
     let price = product.sellingPrice
     if (record.tier === 'Custom') {
       price = record.agreedPrice
-    } else if (record.tier === 'Tier 1') {
-      price = product.tier1Price || Math.round(product.basePrice * 1.5) || product.sellingPrice
-    } else if (record.tier === 'Tier 2') {
-      price = product.tier2Price || Math.round(product.basePrice * 1.3) || product.sellingPrice
-    } else if (record.tier === 'Tier 3') {
-      price = product.tier3Price || Math.round(product.basePrice * 1.2) || product.sellingPrice
-    } else if (record.tier === 'Tier 4') {
-      price = product.tier4Price || Math.round(product.basePrice * 1.15) || product.sellingPrice
-    } else if (record.tier === 'Tier 5') {
-      price = product.tier5Price || Math.round(product.basePrice * 1.1) || product.sellingPrice
+    } else {
+      const marginPct = tierMargins[record.tier] || 0
+      price = (product[`tier${record.tier.replace('Tier ', '')}Price` as keyof Product] as number) || Math.round(product.basePrice * (1 + marginPct / 100)) || product.sellingPrice
     }
     return { price, isCustom: true }
   }
@@ -87,23 +91,23 @@ export default function ClientOrderPage() {
   // Products configured in Price List (Katalog Penawaran)
   const configuredProducts = useMemo(() => {
     return products
-      .filter(p => clientPriceMap.has(p.id))
+      .filter(p => hasDefaultTier || clientPriceMap.has(p.id))
       .filter(p => !catalogSearch || p.name.toLowerCase().includes(catalogSearch.toLowerCase()) || p.skuCode.toLowerCase().includes(catalogSearch.toLowerCase()))
       .map(p => {
         const record = clientPriceMap.get(p.id)
         const { price } = calculateEffectivePrice(p, record)
         return { product: p, effectivePrice: price, record }
       })
-  }, [products, clientPriceMap, catalogSearch])
+  }, [products, clientPriceMap, catalogSearch, hasDefaultTier, client])
 
   // Products NOT in Price List (Request Harga)
   const availableProducts = useMemo(() => {
     if (!searchTerm) return []
     return products
-      .filter(p => !clientPriceMap.has(p.id))
+      .filter(p => !hasDefaultTier && !clientPriceMap.has(p.id))
       .filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.skuCode.toLowerCase().includes(searchTerm.toLowerCase()))
       .slice(0, 5)
-  }, [products, clientPriceMap, searchTerm])
+  }, [products, clientPriceMap, searchTerm, hasDefaultTier])
 
   const addToOrder = (product: Product, isPriceRequest: boolean, effectivePrice: number) => {
     const existing = orderItems.find(item => item.product.id === product.id)

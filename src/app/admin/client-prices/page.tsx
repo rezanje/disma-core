@@ -61,6 +61,7 @@ export default function ClientPricesPage() {
   const deleteMultipleClientPrices = useAppStore(state => state.deleteMultipleClientPrices)
   const updateProduct = useAppStore(state => state.updateProduct)
   const currentUser = useAppStore(state => state.currentUser)
+  const tierMargins = useAppStore(state => state.tierMargins)
 
   const [selectedClientId, setSelectedClientId] = useState<string>("")
   const [searchQuery, setSearchQuery] = useState("")
@@ -90,9 +91,16 @@ export default function ClientPricesPage() {
     c.picName.toLowerCase().includes(clientSearch.toLowerCase())
   ).slice(0, 50)
 
+  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([])
+
   useEffect(() => {
     setCurrentPage(1)
+    setSelectedItemIds([])
   }, [selectedClientId, searchQuery])
+
+  useEffect(() => {
+    setSelectedItemIds([])
+  }, [currentPage])
 
   // Only show products THAT ARE IN the price list for this client
   // Optimized indexing for fast lookups
@@ -162,29 +170,29 @@ export default function ClientPricesPage() {
   // Keeps client pricelist anchored to lowest market HPP captured during reconciliation.
   const calculateEffectivePrice = (product: Product, record?: ClientPrice) => {
     const { price: basePrice, source: baseSource } = getEffectiveBasePrice(product)
+    const activeTierMargins = tierMargins || { 'Tier 1': 50, 'Tier 2': 30, 'Tier 3': 20, 'Tier 4': 15, 'Tier 5': 10 }
 
     if (!record) {
+      const defaultTier = activeClient?.defaultPriceTier
+      if (defaultTier && defaultTier !== 'Standard') {
+        const marginPct = activeTierMargins[defaultTier] || 0
+        const price = (product[`tier${defaultTier.replace('Tier ', '')}Price` as keyof Product] as number) || Math.round(basePrice * (1 + marginPct / 100)) || product.sellingPrice
+        const margin = price - basePrice
+        const marginPctReal = (margin / (basePrice || 1)) * 100
+        return { price, isCustom: false, margin, marginPct: marginPctReal, basePrice, baseSource }
+      }
+
       const margin = product.sellingPrice - basePrice
       const marginPct = (margin / (basePrice || 1)) * 100
       return { price: product.sellingPrice, isCustom: false, margin, marginPct, basePrice, baseSource }
     }
 
     let price = product.sellingPrice
-    // Tier price overrides only kick in when the master tier price is explicitly set
-    // (non-zero). Otherwise we recompute from the effective base price so the weekly
-    // low flows into the client quote automatically.
     if (record.tier === 'Custom') {
       price = record.agreedPrice
-    } else if (record.tier === 'Tier 1') {
-      price = product.tier1Price || Math.round(basePrice * 1.5) || product.sellingPrice
-    } else if (record.tier === 'Tier 2') {
-      price = product.tier2Price || Math.round(basePrice * 1.3) || product.sellingPrice
-    } else if (record.tier === 'Tier 3') {
-      price = product.tier3Price || Math.round(basePrice * 1.2) || product.sellingPrice
-    } else if (record.tier === 'Tier 4') {
-      price = product.tier4Price || Math.round(basePrice * 1.15) || product.sellingPrice
-    } else if (record.tier === 'Tier 5') {
-      price = product.tier5Price || Math.round(basePrice * 1.1) || product.sellingPrice
+    } else {
+      const marginPct = activeTierMargins[record.tier] || 0
+      price = (product[`tier${record.tier.replace('Tier ', '')}Price` as keyof Product] as number) || Math.round(basePrice * (1 + marginPct / 100)) || product.sellingPrice
     }
 
     const margin = price - basePrice
@@ -296,6 +304,99 @@ export default function ClientPricesPage() {
         toast.success("Daftar harga client berhasil dikosongkan!", { id: "bulk_op" })
       } catch (err) {
         toast.error("Gagal menghapus massal", { id: "bulk_op" })
+      }
+    }, 100)
+  }
+
+  const handleToggleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedItemIds(paginatedProducts.map(p => p.id))
+    } else {
+      setSelectedItemIds([])
+    }
+  }
+
+  const handleToggleSelectItem = (productId: string) => {
+    setSelectedItemIds(prev => 
+      prev.includes(productId) 
+        ? prev.filter(id => id !== productId)
+        : [...prev, productId]
+    )
+  }
+
+  const handleSelectedSetTier = async (tier: ClientPriceTier) => {
+    if (!selectedClientId || selectedItemIds.length === 0) return
+    const recordsToUpdate = clientPrices.filter(cp => cp.clientId === selectedClientId && selectedItemIds.includes(cp.productId))
+    
+    // For items that don't have override records yet, we need to create them
+    const missingProductIds = selectedItemIds.filter(pid => !recordsToUpdate.some(r => r.productId === pid))
+
+    setTimeout(async () => {
+      if (!confirm(`Ubah ${selectedItemIds.length} barang terpilih menjadi tier ${TIER_LABELS[tier]}?`)) return
+
+      toast.loading(`Sedang mengupdate ${selectedItemIds.length} barang...`, { id: "bulk_op" })
+      
+      try {
+        // Update existing records
+        if (recordsToUpdate.length > 0) {
+          const chunkSize = 20
+          for (let i = 0; i < recordsToUpdate.length; i += chunkSize) {
+            const chunk = recordsToUpdate.slice(i, i + chunkSize)
+            await Promise.all(chunk.map(record => updateClientPrice(record.id, {
+              tier: tier,
+              lastUpdated: new Date().toISOString(),
+              updatedByUserId: currentUser?.id
+            })))
+          }
+        }
+
+        // Add missing records
+        if (missingProductIds.length > 0) {
+          const chunkSize = 15
+          for (let i = 0; i < missingProductIds.length; i += chunkSize) {
+            const chunk = missingProductIds.slice(i, i + chunkSize)
+            await Promise.all(chunk.map(pid => addClientPrice({
+              id: uuidv4(),
+              clientId: selectedClientId,
+              productId: pid,
+              tier: tier,
+              agreedPrice: 0,
+              lastUpdated: new Date().toISOString(),
+              updatedByUserId: currentUser?.id
+            })))
+          }
+        }
+        
+        setSelectedItemIds([])
+        toast.success("Update tier barang terpilih berhasil!", { id: "bulk_op" })
+      } catch (err) {
+        toast.error("Gagal melakukan update", { id: "bulk_op" })
+      }
+    }, 100)
+  }
+
+  const handleSelectedDelete = async () => {
+    if (!selectedClientId || selectedItemIds.length === 0) return
+    const recordsToDelete = clientPrices.filter(cp => cp.clientId === selectedClientId && selectedItemIds.includes(cp.productId))
+    if (recordsToDelete.length === 0) {
+      setSelectedItemIds([])
+      toast.info("Barang terpilih tidak memiliki override harga khusus.")
+      return
+    }
+
+    setTimeout(async () => {
+      if (!confirm(`Hapus ${recordsToDelete.length} override harga khusus dari barang terpilih?`)) return
+
+      toast.loading(`Sedang menghapus ${recordsToDelete.length} override...`, { id: "bulk_op" })
+      
+      try {
+        const idsToDelete = recordsToDelete.map(r => r.id)
+        await deleteMultipleClientPrices(idsToDelete)
+        
+        setSelectedItemIds([])
+        toast.success("Berhasil menghapus override barang terpilih!", { id: "bulk_op" })
+      } catch (err) {
+        toast.error("Gagal menghapus override", { id: "bulk_op" })
       }
     }, 100)
   }
@@ -667,12 +768,45 @@ export default function ClientPricesPage() {
 
               <Popover>
                 <PopoverTrigger render={
-                  <Button variant="outline" size="sm" className="h-9 border-amber-200 text-amber-700 bg-amber-50/50 hover:bg-amber-100 font-bold">
-                    <ChevronsUpDown className="mr-2 h-4 w-4" /> Bulk Actions
+                  <Button variant="outline" size="sm" className={cn(
+                    "h-9 font-bold transition-all",
+                    selectedItemIds.length > 0 
+                      ? "border-emerald-500 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 ring-2 ring-emerald-500/20"
+                      : "border-amber-200 text-amber-700 bg-amber-50/50 hover:bg-amber-100"
+                  )}>
+                    <ChevronsUpDown className="mr-2 h-4 w-4" /> 
+                    {selectedItemIds.length > 0 ? `Bulk Actions (${selectedItemIds.length})` : 'Bulk Actions'}
                   </Button>
                 } />
                 <PopoverContent className="w-64 p-3 bg-white shadow-xl border border-amber-100 rounded-xl" side="bottom" align="end">
                   <div className="space-y-3">
+                    {selectedItemIds.length > 0 && (
+                      <div className="pb-2 border-b border-emerald-50">
+                        <h4 className="font-bold text-xs uppercase tracking-widest text-emerald-700">Aksi Terpilih ({selectedItemIds.length})</h4>
+                        <p className="text-[10px] text-slate-400">Terapkan ke barang yang dicentang.</p>
+                        <div className="grid grid-cols-1 gap-1 mt-2">
+                          {Object.entries(TIER_LABELS).filter(([k]) => k !== 'Custom').map(([key, label]) => (
+                            <Button 
+                              key={`selected-set-${key}`}
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-7 text-[10px] justify-start px-2 hover:bg-emerald-50 hover:text-emerald-700 font-semibold"
+                              onClick={() => handleSelectedSetTier(key as ClientPriceTier)}
+                            >
+                              Set Terpilih to {label}
+                            </Button>
+                          ))}
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-7 text-[10px] justify-start px-2 hover:bg-rose-50 hover:text-rose-700 font-bold border border-transparent hover:border-rose-100"
+                            onClick={handleSelectedDelete}
+                          >
+                            <Trash2 className="mr-2 h-3.5 w-3.5" /> Hapus Terpilih
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                     <div className="pb-2 border-b border-amber-50">
                       <h4 className="font-bold text-xs uppercase tracking-widest text-slate-500">Massal Update Tier</h4>
                       <p className="text-[10px] text-slate-400">Terapkan tier ke semua barang di list ini.</p>
@@ -781,6 +915,14 @@ export default function ClientPricesPage() {
           <Table>
             <TableHeader className="bg-slate-50">
               <TableRow>
+                <TableHead className="w-[50px] text-center">
+                  <input 
+                    type="checkbox"
+                    className="rounded border-slate-300 h-4 w-4 cursor-pointer accent-emerald-600"
+                    checked={paginatedProducts.length > 0 && selectedItemIds.length === paginatedProducts.length}
+                    onChange={(e) => handleToggleSelectAll(e.target.checked)}
+                  />
+                </TableHead>
                 <TableHead className="w-[80px] uppercase text-[10px] font-bold tracking-wider">SKU</TableHead>
                 <TableHead className="uppercase text-[10px] font-bold tracking-wider min-w-[150px]">Nama Produk</TableHead>
                 <TableHead className="text-right uppercase text-[10px] font-bold tracking-wider">HPP (Modal)</TableHead>
@@ -793,7 +935,7 @@ export default function ClientPricesPage() {
             <TableBody>
               {configuredProducts.length === 0 ? (
                  <TableRow>
-                    <TableCell colSpan={7} className="h-32 text-center text-slate-400 italic font-medium">
+                    <TableCell colSpan={8} className="h-32 text-center text-slate-400 italic font-medium">
                        Belum ada barang di daftar harga client ini.<br/>
                        Klik tombol "Tambah Barang" untuk memulai.
                     </TableCell>
@@ -802,7 +944,7 @@ export default function ClientPricesPage() {
                 Object.entries(groupedProducts).map(([category, items]) => (
                   <React.Fragment key={`cat-group-${category}`}>
                     <TableRow key={`cat-header-${category}`} className="bg-slate-50 border-y border-slate-200">
-                      <TableCell colSpan={7} className="py-2.5 px-4 font-black text-[12px] uppercase tracking-wider text-slate-600">
+                      <TableCell colSpan={8} className="py-2.5 px-4 font-black text-[12px] uppercase tracking-wider text-slate-600">
                         <div className="flex items-center gap-2">
                           <div className="h-4 w-1 bg-emerald-500 rounded-full" />
                           KATEGORI: {category} ({items.length} items)
@@ -813,8 +955,16 @@ export default function ClientPricesPage() {
                       const record = getRecord(p.id)
                       const { price, isCustom, margin, marginPct, basePrice: effectiveBase, baseSource } = calculateEffectivePrice(p, record)
                       return (
-                        <TableRow key={p.id} className={isCustom ? "bg-emerald-50/20" : ""}>
-                      <TableCell className="font-mono text-[10px] font-bold text-slate-500">
+                        <TableRow key={p.id} className={cn(isCustom ? "bg-emerald-50/20" : "", selectedItemIds.includes(p.id) ? "bg-slate-100/50" : "")}>
+                          <TableCell className="text-center w-[50px] py-2 px-3">
+                            <input 
+                              type="checkbox"
+                              className="rounded border-slate-300 h-4 w-4 cursor-pointer accent-emerald-600"
+                              checked={selectedItemIds.includes(p.id)}
+                              onChange={() => handleToggleSelectItem(p.id)}
+                            />
+                          </TableCell>
+                          <TableCell className="font-mono text-[10px] font-bold text-slate-500">
                         <Popover>
                           <PopoverTrigger render={
                             <button className="hover:text-emerald-600 hover:underline transition-all">

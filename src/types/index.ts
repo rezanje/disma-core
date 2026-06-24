@@ -45,6 +45,7 @@ export interface Client {
   notes?: string;
   parentId?: string | null;
   isBrand?: boolean;
+  defaultPriceTier?: ClientPriceTier;
 }
 
 export type ClientPriceTier = 'Standard' | 'Tier 1' | 'Tier 2' | 'Tier 3' | 'Tier 4' | 'Tier 5' | 'Custom';

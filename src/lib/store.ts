@@ -5,7 +5,7 @@ import {
   PurchaseItem, Delivery, Invoice, InvoiceStatus, ChartOfAccount, JournalEntry, 
   JournalLine, OperationalExpense, User, Vendor, Role, Lead, Announcement, AppTask, AppNotification,
   BankAccount, CashTransaction, Reimbursement, FixedAsset,
-  Employee, SmartKpi, OkrObjective, OkrKeyResult, RolePermissionMap, AccessKey, PendingReturn, RejectedItem, StockMovement, ClientPrice,
+  Employee, SmartKpi, OkrObjective, OkrKeyResult, RolePermissionMap, AccessKey, PendingReturn, RejectedItem, StockMovement, ClientPrice, ClientPriceTier,
   VendorBill, VendorBillPayment, TukarFaktur, PurchaseRequest, VendorPrice,
   BudgetPlan, BudgetCategory, BudgetSubCategory, BudgetAdjustment
 } from '@/types';
@@ -340,6 +340,9 @@ interface AppState {
   // Sidebar State
   isSidebarMinimized: boolean;
   toggleSidebar: () => void;
+
+  tierMargins: Record<ClientPriceTier, number>;
+  updateTierMargins: (margins: Record<ClientPriceTier, number>) => Promise<void>;
 
   clients: Client[];
   addClient: (client: Client) => void;
@@ -1027,6 +1030,16 @@ export const useAppStore = create<AppState>((set, get) => ({
               });
             }
 
+            const defaultMargins = {
+              'Standard': 0,
+              'Tier 1': 50,
+              'Tier 2': 30,
+              'Tier 3': 20,
+              'Tier 4': 15,
+              'Tier 5': 10,
+              'Custom': 0
+            };
+
             // --- FINAL STATE UPDATE: SERVER DATA WINS ---
             const updatedState: Partial<AppState> = {
               coas: mergedCoas,
@@ -1034,6 +1047,9 @@ export const useAppStore = create<AppState>((set, get) => ({
               navConfigs: finalNavConfigs,
               bankAccounts: mergedBanks,
               users: mergedUsers,
+              tierMargins: data.tierMargins && typeof data.tierMargins === 'object' && Object.keys(data.tierMargins).length > 0
+                ? { ...defaultMargins, ...data.tierMargins }
+                : defaultMargins
             };
 
             const setIfDefined = (key: keyof AppState, val: any) => {
@@ -1321,13 +1337,38 @@ export const useAppStore = create<AppState>((set, get) => ({
 
         await state.syncTable('app_settings', {
           id: 'global-settings',
-          nav_configs: state.navConfigs,
+          nav_configs: {
+            ...state.navConfigs,
+            tier_margins: state.tierMargins
+          },
           role_permissions: state.rolePermissions
         }, true);
       },
 
       isSidebarMinimized: false,
       toggleSidebar: () => set((state) => ({ isSidebarMinimized: !state.isSidebarMinimized })),
+
+      tierMargins: {
+        'Standard': 0,
+        'Tier 1': 50,
+        'Tier 2': 30,
+        'Tier 3': 20,
+        'Tier 4': 15,
+        'Tier 5': 10,
+        'Custom': 0
+      },
+      updateTierMargins: async (margins) => {
+        set({ tierMargins: margins });
+        const state = get();
+        await state.syncTable('app_settings', {
+          id: 'global-settings',
+          nav_configs: {
+            ...state.navConfigs,
+            tier_margins: margins
+          },
+          role_permissions: state.rolePermissions
+        }, true);
+      },
 
       clients: CLIENTS_SEED,
       addClient: async (client) => {
@@ -2918,7 +2959,10 @@ export const useAppStore = create<AppState>((set, get) => ({
         const state = get();
         await state.syncTable('app_settings', {
           id: 'global-settings',
-          nav_configs: state.navConfigs,
+          nav_configs: {
+            ...state.navConfigs,
+            tier_margins: state.tierMargins
+          },
           role_permissions: state.rolePermissions
         }, true);
       },

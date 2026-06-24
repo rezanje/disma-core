@@ -145,6 +145,7 @@ export default function SalesOrdersPage() {
   const deleteSalesOrder = useAppStore(state => state.deleteSalesOrder)
   const deleteMultipleSalesOrders = useAppStore(state => state.deleteMultipleSalesOrders)
   const updateProduct = useAppStore(state => state.updateProduct)
+  const tierMargins = useAppStore(state => state.tierMargins)
   
   const [isOpen, setIsOpen] = useState(false)
   const [clientId, setClientId] = useState("")
@@ -407,13 +408,20 @@ export default function SalesOrdersPage() {
       if (activeRecord) {
         let specializedPrice = product.sellingPrice
         if (activeRecord.tier === 'Custom') specializedPrice = activeRecord.agreedPrice
-        else if (activeRecord.tier === 'Tier 1') specializedPrice = product.tier1Price || Math.round(product.basePrice * 1.5) || product.sellingPrice
-        else if (activeRecord.tier === 'Tier 2') specializedPrice = product.tier2Price || Math.round(product.basePrice * 1.3) || product.sellingPrice
-        else if (activeRecord.tier === 'Tier 3') specializedPrice = product.tier3Price || Math.round(product.basePrice * 1.2) || product.sellingPrice
-        else if (activeRecord.tier === 'Tier 4') specializedPrice = product.tier4Price || Math.round(product.basePrice * 1.15) || product.sellingPrice
-        else if (activeRecord.tier === 'Tier 5') specializedPrice = product.tier5Price || Math.round(product.basePrice * 1.1) || product.sellingPrice
-        
+        else {
+          const marginPct = (tierMargins as any)[activeRecord.tier] || 0
+          specializedPrice = (product as any)[`tier${activeRecord.tier.replace('Tier ', '')}Price`] || Math.round(product.basePrice * (1 + marginPct / 100)) || product.sellingPrice
+        }
         return { price: specializedPrice, isCustom: true, source: activeRecord.tier }
+      }
+
+      // Check client-wide default tier
+      const client = clients.find(c => c.id === targetClientId)
+      if (client?.defaultPriceTier && client.defaultPriceTier !== 'Standard') {
+        const tier = client.defaultPriceTier
+        const marginPct = (tierMargins as any)[tier] || 0
+        const specializedPrice = (product as any)[`tier${tier.replace('Tier ', '')}Price`] || Math.round(product.basePrice * (1 + marginPct / 100)) || product.sellingPrice
+        return { price: specializedPrice, isCustom: true, source: `${tier} (Default)` }
       }
 
       const historicalPrice = getHistoricalClientPrice(targetClientId, pid)
@@ -456,24 +464,14 @@ export default function SalesOrdersPage() {
   const getPriceForTier = (product: any, tier: string, overrideHpp?: number) => {
     if (!product) return 0
     const hpp = overrideHpp ?? product.basePrice
-    switch (tier) {
-      case 'Standard':
-        return product.sellingPrice
-      case 'Tier 1':
-        return product.tier1Price || Math.round(hpp * 1.5)
-      case 'Tier 2':
-        return product.tier2Price || Math.round(hpp * 1.3)
-      case 'Tier 3':
-        return product.tier3Price || Math.round(hpp * 1.2)
-      case 'Tier 4':
-        return product.tier4Price || Math.round(hpp * 1.15)
-      case 'Tier 5':
-        return product.tier5Price || Math.round(hpp * 1.1)
-      case 'HPP':
-        return hpp
-      default:
-        return product.sellingPrice
+    const cleanTier = tier.replace(' (Default)', '')
+    if (cleanTier === 'Standard') return product.sellingPrice
+    if (cleanTier === 'HPP') return hpp
+    if (cleanTier.startsWith('Tier')) {
+      const marginPct = (tierMargins as any)[cleanTier] || 0
+      return (product as any)[`tier${cleanTier.replace('Tier ', '')}Price`] || Math.round(hpp * (1 + marginPct / 100))
     }
+    return product.sellingPrice
   }
 
   const handleTierChange = (tier: string | null) => {

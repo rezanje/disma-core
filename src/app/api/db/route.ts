@@ -104,6 +104,7 @@ export async function GET(request: Request) {
         clientPrices: toCamel(clientPrices),
         navConfigs: globalSettings?.nav_configs || {},
         rolePermissions: globalSettings?.role_permissions || {},
+        tierMargins: globalSettings?.nav_configs?.tier_margins || {},
       }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
     }
 

@@ -29,7 +29,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import GlobalUndoButton from "@/components/global-undo-button"
-import { Client, SalesOrder, SalesOrderItem, Invoice, Product, Purchase, PurchaseItem } from "@/types"
+import { Client, SalesOrder, SalesOrderItem, Invoice, Product, Purchase, PurchaseItem, ClientPriceTier } from "@/types"
 
 export default function ClientsPage() {
   const clients: Client[] = useAppStore(state => state.clients)
@@ -42,6 +42,7 @@ export default function ClientsPage() {
   const products: Product[] = useAppStore(state => state.products)
   const purchases: Purchase[] = useAppStore(state => state.purchases)
   const purchaseItems: PurchaseItem[] = useAppStore(state => state.purchaseItems)
+  const tierMargins = useAppStore(state => state.tierMargins)
   
   const [isOpen, setIsOpen] = useState(false)
   const [editingClient, setEditingClient] = useState<Client | null>(null)
@@ -89,7 +90,17 @@ export default function ClientsPage() {
   
   const selectedClient = clients.find(c => c.id === selectedClientId)
   
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    companyName: string
+    picName: string
+    email: string
+    phone: string
+    address: string
+    paymentTermDays: number
+    isBrand: boolean
+    parentId: string
+    defaultPriceTier: ClientPriceTier
+  }>({
     companyName: "",
     picName: "",
     email: "",
@@ -97,7 +108,8 @@ export default function ClientsPage() {
     address: "",
     paymentTermDays: 30,
     isBrand: false,
-    parentId: ""
+    parentId: "",
+    defaultPriceTier: "Standard"
   })
 
   const resetForm = () => {
@@ -109,7 +121,8 @@ export default function ClientsPage() {
       address: "", 
       paymentTermDays: 30,
       isBrand: false,
-      parentId: ""
+      parentId: "",
+      defaultPriceTier: "Standard"
     })
     setEditingClient(null)
   }
@@ -124,7 +137,8 @@ export default function ClientsPage() {
       address: client.address,
       paymentTermDays: client.paymentTermDays,
       isBrand: client.isBrand || false,
-      parentId: client.parentId || ""
+      parentId: client.parentId || "",
+      defaultPriceTier: client.defaultPriceTier || "Standard"
     })
     setIsOpen(true)
   }
@@ -146,7 +160,8 @@ export default function ClientsPage() {
         address: formData.address,
         paymentTermDays: formData.paymentTermDays,
         isBrand: formData.isBrand,
-        parentId: formData.parentId || null
+        parentId: formData.parentId || null,
+        defaultPriceTier: formData.defaultPriceTier
       }
       if (editingClient) {
         await updateClient(editingClient.id, payload)
@@ -1048,6 +1063,29 @@ export default function ClientsPage() {
                       className="h-11 rounded-xl border-slate-200 font-bold"
                       onChange={(e) => setFormData({...formData, paymentTermDays: parseInt(e.target.value) || 0})}
                     />
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label htmlFor="defaultPriceTier" className="text-xs font-black uppercase text-slate-400 tracking-widest">Default Price Tier</Label>
+                    <Select 
+                      value={formData.defaultPriceTier}
+                      onValueChange={(val) => setFormData({ ...formData, defaultPriceTier: val as ClientPriceTier })}
+                    >
+                      <SelectTrigger id="defaultPriceTier" className="h-11 rounded-xl bg-white border-slate-200 text-xs font-bold text-slate-700">
+                        <SelectValue placeholder="Pilih Tier..." />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-2xl border-none shadow-2xl">
+                        <SelectItem value="Standard">Standard (No default tier)</SelectItem>
+                        {['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4', 'Tier 5'].map((tier) => {
+                          const margin = tierMargins?.[tier as ClientPriceTier] ?? 0;
+                          return (
+                            <SelectItem key={tier} value={tier}>
+                              {tier} (+{margin}%)
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
                   </div>
                   
                   {/* BRAND / GROUPING FIELDS */}
