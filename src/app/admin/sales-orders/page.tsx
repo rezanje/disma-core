@@ -952,7 +952,14 @@ export default function SalesOrdersPage() {
                 
                 {/* === Detail Pesanan: checklist when pricelist exists, single-select otherwise === */}
                 {(() => {
-                  const clientPriceRows = clientPrices.filter(cp => cp.clientId === clientId)
+                  const clientPriceRows = (() => {
+                    const seen = new Set<string>()
+                    return clientPrices.filter(cp => {
+                      if (cp.clientId !== clientId || seen.has(cp.productId)) return false
+                      seen.add(cp.productId)
+                      return true
+                    })
+                  })()
                   const hasPricelist = clientId && clientPriceRows.length > 0
 
                   if (hasPricelist) {
