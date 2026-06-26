@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useAppStore } from "@/lib/store"
 import { Plus, Pencil, Trash2, Share2, DollarSign, Receipt, TrendingUp, History, FileText, Download, Upload, Eye, Search, Filter, Printer, Mail, ChevronRight, ChevronDown, CheckCircle2, X, Loader2, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react"
 import { v4 as uuidv4 } from "uuid"
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { cn, formatRupiah } from "@/lib/utils"
-import { format } from "date-fns"
+import { format, parseISO, differenceInDays } from "date-fns"
 import { generateInvoicePDF, generateTukarFakturBundle } from "@/lib/pdf"
 import { 
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -87,8 +87,137 @@ export default function ClientsPage() {
   const [selectedHistoryClient, setSelectedHistoryClient] = useState<Client | null>(null)
   const [selectedClientIds, setSelectedClientIds] = useState<string[]>([])
   const [bulkParentId, setBulkParentId] = useState<string>("")
-  
+
+  const [productSearch, setProductSearch] = useState("")
+  const [outletFilter, setOutletFilter] = useState("all")
+  const [productSort, setProductSort] = useState<"qty" | "revenue" | "name">("qty")
+  const [historyTimeFilter, setHistoryTimeFilter] = useState<'all' | '7days' | '30days' | 'thismonth' | 'custom'>('all')
+  const [historyStartDate, setHistoryStartDate] = useState("")
+  const [historyEndDate, setHistoryEndDate] = useState("")
+
   const selectedClient = clients.find(c => c.id === selectedClientId)
+
+  const isHistoryDateInSelectedRange = (dateStr: string) => {
+    if (!dateStr) return false
+    try {
+      const date = parseISO(dateStr)
+      const today = new Date()
+      if (historyTimeFilter === '7days') {
+        const diff = differenceInDays(today, date)
+        return diff >= 0 && diff <= 7
+      }
+      if (historyTimeFilter === '30days') {
+        const diff = differenceInDays(today, date)
+        return diff >= 0 && diff <= 30
+      }
+      if (historyTimeFilter === 'thismonth') {
+        return date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear()
+      }
+      if (historyTimeFilter === 'custom') {
+        if (historyStartDate) {
+          const start = new Date(historyStartDate)
+          start.setHours(0, 0, 0, 0)
+          if (date < start) return false
+        }
+        if (historyEndDate) {
+          const end = new Date(historyEndDate)
+          end.setHours(23, 59, 59, 999)
+          if (date > end) return false
+        }
+        return true
+      }
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  const clientProductHistory = useMemo(() => {
+    if (!selectedClient) return []
+
+    const targetClientIds = new Set<string>()
+    if (selectedClient.isBrand && outletFilter === 'all') {
+      targetClientIds.add(selectedClient.id)
+      clients.filter(c => c.parentId === selectedClient.id).forEach(c => targetClientIds.add(c.id))
+    } else if (selectedClient.isBrand && outletFilter !== 'all' && outletFilter !== 'parent_only') {
+      targetClientIds.add(outletFilter)
+    } else {
+      targetClientIds.add(selectedClient.id)
+    }
+
+    const filteredOrders = salesOrders.filter(so => {
+      if (!targetClientIds.has(so.clientId)) return false
+      if (so.status === 'Batal') return false
+      return isHistoryDateInSelectedRange(so.orderDate)
+    })
+
+    const orderIds = new Set(filteredOrders.map(so => so.id))
+
+    const aggregation: {
+      [productId: string]: {
+        productId: string
+        totalQtyFinal: number
+        totalQtyOriginal: number
+        totalValue: number
+        lastOrderDate: string
+      }
+    } = {}
+
+    salesOrderItems.forEach(item => {
+      if (!orderIds.has(item.salesOrderId)) return
+
+      const qtyFinal = item.qtyFinal !== undefined && item.qtyFinal !== null ? item.qtyFinal : item.qty
+      const value = item.subtotalFinal !== undefined && item.subtotalFinal !== null ? item.subtotalFinal : item.subtotal
+      const order = filteredOrders.find(so => so.id === item.salesOrderId)
+      const orderDate = order ? order.orderDate : ''
+
+      if (!aggregation[item.productId]) {
+        aggregation[item.productId] = {
+          productId: item.productId,
+          totalQtyFinal: qtyFinal,
+          totalQtyOriginal: item.qty,
+          totalValue: value,
+          lastOrderDate: orderDate
+        }
+      } else {
+        const agg = aggregation[item.productId]
+        agg.totalQtyFinal += qtyFinal
+        agg.totalQtyOriginal += item.qty
+        agg.totalValue += value
+        if (orderDate && (!agg.lastOrderDate || new Date(orderDate) > new Date(agg.lastOrderDate))) {
+          agg.lastOrderDate = orderDate
+        }
+      }
+    })
+
+    let result = Object.values(aggregation)
+      .map(agg => {
+        const product = products.find(p => p.id === agg.productId)
+        return {
+          ...agg,
+          productName: product?.name || 'Produk Tidak Dikenal',
+          skuCode: product?.skuCode || '-',
+          category: product?.category || '-',
+          uom: product?.uom || 'pcs',
+          avgPrice: agg.totalQtyFinal > 0 ? agg.totalValue / agg.totalQtyFinal : 0
+        }
+      })
+      .filter(item => {
+        if (!productSearch) return true
+        const term = productSearch.toLowerCase()
+        return item.productName.toLowerCase().includes(term) || item.skuCode.toLowerCase().includes(term)
+      })
+
+    if (productSort === 'qty') {
+      result.sort((a, b) => b.totalQtyFinal - a.totalQtyFinal)
+    } else if (productSort === 'revenue') {
+      result.sort((a, b) => b.totalValue - a.totalValue)
+    } else if (productSort === 'name') {
+      result.sort((a, b) => a.productName.localeCompare(b.productName))
+    }
+
+    return result
+  }, [selectedClient, outletFilter, historyTimeFilter, historyStartDate, historyEndDate, salesOrders, salesOrderItems, products, clients, productSearch, productSort])
   
   const [formData, setFormData] = useState<{
     companyName: string
