@@ -305,21 +305,38 @@ export default function PurchaseRequestsPage() {
   }
 
   // Finance Verification Handler
-  const handleFinanceVerify = async (status: 'Pending_CFO' | 'Rejected') => {
+  // Untuk PR kategori Sourcing: Finance langsung approve (skip CFO)
+  // Untuk non-Sourcing: tetap diteruskan ke CFO seperti biasa
+  const handleFinanceVerify = async (action: 'approve' | 'reject') => {
     if (!activePR) return
     if (!financeNote.trim()) {
       toast.error("Catatan Finance wajib diisi untuk verifikasi/penolakan!")
       return
     }
 
+    const isSourcing = activePR.category === 'Sourcing'
+    // Sourcing: approve langsung, non-sourcing: teruskan ke CFO
+    const nextStatus = action === 'reject' ? 'Rejected' : (isSourcing ? 'Approved' : 'Pending_CFO')
+
     toast.loading("Memproses verifikasi Finance...", { id: "finance-verify" })
     try {
-      await updatePurchaseRequest(activePR.id, {
-        status,
+      const updatePayload: Partial<PurchaseRequest> = {
+        status: nextStatus,
         approvedByFinance: currentUser?.name || currentUser?.id || "Finance Admin",
         financeNote: financeNote
-      })
-      toast.success(status === 'Pending_CFO' ? "PR Terverifikasi & diteruskan ke CFO!" : "PR berhasil ditolak oleh Finance.", { id: "finance-verify" })
+      }
+      // Jika sourcing dan langsung approved, catat juga sebagai "approvedByCfo" dengan sistem
+      if (isSourcing && action === 'approve') {
+        updatePayload.approvedByCfo = `Auto (Finance) - ${currentUser?.name || currentUser?.id || "Finance Admin"}`
+        updatePayload.cfoNote = "Disetujui langsung oleh Finance (kategori Sourcing)"
+      }
+      await updatePurchaseRequest(activePR.id, updatePayload)
+      const successMsg = action === 'reject'
+        ? "PR berhasil ditolak oleh Finance."
+        : isSourcing
+          ? "PR Sourcing disetujui langsung oleh Finance! Dana siap dicairkan."
+          : "PR Terverifikasi & diteruskan ke CFO!"
+      toast.success(successMsg, { id: "finance-verify" })
       setFinanceNote("")
       setSelectedPRId(null)
     } catch (err) {
@@ -327,6 +344,7 @@ export default function PurchaseRequestsPage() {
       toast.error("Gagal memproses verifikasi", { id: "finance-verify" })
     }
   }
+
 
   // CFO Approval / Release Funds Handler
   const handleCfoApprove = async (status: 'Approved' | 'Rejected') => {
@@ -961,21 +979,27 @@ export default function PurchaseRequestsPage() {
                   {activePR.status === 'Pending_Finance' && isFinanceRole && (
                     <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
                       <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Tindakan Audit Finance</Label>
+                      {activePR.category === 'Sourcing' && (
+                        <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-emerald-50 border border-emerald-100">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span className="text-[10px] font-black text-emerald-700 uppercase tracking-wider">Sourcing PR — Finance bisa approve langsung tanpa CFO</span>
+                        </div>
+                      )}
                       <Textarea 
-                        placeholder="Tambahkan catatan kelayakan anggaran untuk CFO..."
+                        placeholder={activePR.category === 'Sourcing' ? "Tambahkan catatan persetujuan (kelayakan anggaran)..." : "Tambahkan catatan kelayakan anggaran untuk CFO..."}
                         value={financeNote}
                         onChange={(e) => setFinanceNote(e.target.value)}
                         className="min-h-[80px] rounded-xl text-xs"
                       />
                       <div className="grid grid-cols-2 gap-2">
                         <Button 
-                          onClick={() => handleFinanceVerify('Pending_CFO')}
+                          onClick={() => handleFinanceVerify('approve')}
                           className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[10px] uppercase tracking-wider h-11 rounded-xl"
                         >
-                          Verify & Diteruskan
+                          {activePR.category === 'Sourcing' ? 'Approve Langsung' : 'Verify & Diteruskan'}
                         </Button>
                         <Button 
-                          onClick={() => handleFinanceVerify('Rejected')}
+                          onClick={() => handleFinanceVerify('reject')}
                           variant="outline"
                           className="border-rose-200 hover:bg-rose-50 text-rose-600 font-extrabold text-[10px] uppercase tracking-wider h-11 rounded-xl"
                         >
@@ -984,6 +1008,7 @@ export default function PurchaseRequestsPage() {
                       </div>
                     </div>
                   )}
+
 
                   {activePR.status === 'Pending_CFO' && isCfoRole && (
                     <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
