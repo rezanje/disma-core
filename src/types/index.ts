@@ -12,7 +12,7 @@ export type AccessKey =
   | 'admin_dashboard' | 'admin_vendors' | 'admin_clients' | 'admin_products' 
   | 'admin_sales_orders' | 'admin_shopping_list' | 'admin_assets' | 'admin_hr' | 'admin_crm' 
   | 'admin_documents' | 'admin_okr' | 'admin_users' | 'admin_settings' | 'admin_tasks' | 'admin_maintenance' | 'admin_price_lists' | 'admin_activity_log'
-  | 'admin_purchase_requests'
+  | 'admin_purchase_requests' | 'admin_loss_analytics'
   // Finance
   | 'finance_dashboard' | 'finance_approvals' | 'finance_reports' | 'finance_assets'
   | 'finance_budget' | 'finance_cash_bank' | 'finance_expenses' | 'finance_ledger' | 'finance_invoices' | 'finance_collections'

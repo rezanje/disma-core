@@ -614,7 +614,7 @@ const initialRolePermissions: RolePermissionMap = {
     'warehouse_dashboard', 'warehouse_catalog', 'warehouse_inbound', 'warehouse_outbound', 'warehouse_qc', 'warehouse_reject_monitor',
     'sourcing_dashboard', 'sourcing_list', 'sourcing_expenses',
     'courier_dashboard', 'courier_list', 'courier_handover', 'courier_history', 'courier_expenses',
-    'tasks_global', 'settings_global'
+    'tasks_global', 'settings_global', 'admin_loss_analytics'
   ],
   ceo: [
     'admin_dashboard', 'admin_vendors', 'admin_clients', 'admin_products',
@@ -623,7 +623,7 @@ const initialRolePermissions: RolePermissionMap = {
     'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets',
     'finance_budget', 'finance_cash_bank', 'finance_expenses', 'finance_ledger', 'finance_invoices', 'finance_ar_aging', 'finance_ap_aging', 'finance_collections',
     'finance_audit', 'finance_documents',
-    'warehouse_dashboard', 'warehouse_catalog', 'tasks_global', 'settings_global'
+    'warehouse_dashboard', 'warehouse_catalog', 'tasks_global', 'settings_global', 'admin_loss_analytics'
   ],
   coo: [
     'admin_dashboard', 'admin_vendors', 'admin_clients', 'admin_products',

@@ -1128,28 +1128,46 @@ export default function CeoDashboard() {
                 {[
                   { name: "Piutang Usaha (AR)", val: totalOutstandingAR, icon: "💰", alert: totalOutstandingAR > 50000000 },
                   { name: "Hutang Usaha (AP)", val: getBalance('2-1000'), icon: "🧾" },
-                  { name: "Inventory Value", val: totalInventoryValue, icon: "📦" },
+                  { name: "Inventory Value", val: totalInventoryValue, icon: "📦", href: "/warehouse/catalog" },
                   { name: "Internal Cash & Bank", val: getBalance('1-1000') + getBalance('1-1200') + getBalance('1-1300'), icon: "🏦", alert: (getBalance('1-1000') + getBalance('1-1200') + getBalance('1-1300')) < 10000000 },
-                  { name: "Wastage & Spoilage Rate", val: wastageRate, isPercent: true, icon: "🍂", alert: wastageRate > 5 },
+                  { name: "Wastage & Spoilage Rate", val: wastageRate, isPercent: true, icon: "🍂", alert: wastageRate > 5, href: "/admin/loss-analytics" },
                   { name: "OTIF Rate", val: otifRate, isPercent: true, icon: "⏱️", alert: otifRate < 90 },
-                ].map((acc, i) => (
-                  <div key={i} className="py-5 flex items-center justify-between group">
-                    <div className="flex items-center gap-4">
-                      <span className="text-2xl emoji-3d">{acc.icon}</span>
-                      <div className="flex flex-col">
-                        <p className="text-xs font-black text-slate-800 tracking-tight">{acc.name}</p>
-                        {acc.alert && (
-                          <span className="text-[8px] font-black uppercase tracking-widest text-rose-500 mt-1 flex items-center gap-1">
-                            <Activity className="w-2.5 h-2.5" /> High Attention Required
-                          </span>
-                        )}
+                ].map((acc, i) => {
+                  const inner = (
+                    <div className={cn(
+                      "py-5 flex items-center justify-between group/item",
+                      acc.href && "cursor-pointer hover:bg-slate-50/80 rounded-xl px-2 -mx-2 transition-colors"
+                    )}>
+                      <div className="flex items-center gap-4">
+                        <span className="text-2xl emoji-3d">{acc.icon}</span>
+                        <div className="flex flex-col">
+                          <p className="text-xs font-black text-slate-800 tracking-tight flex items-center gap-1.5">
+                            {acc.name}
+                            {acc.href && <ArrowRight className="w-3 h-3 opacity-0 group-hover/item:opacity-100 transition-opacity text-slate-400" />}
+                          </p>
+                          {acc.alert && (
+                            <span className="text-[8px] font-black uppercase tracking-widest text-rose-500 mt-1 flex items-center gap-1">
+                              <Activity className="w-2.5 h-2.5" /> High Attention Required
+                            </span>
+                          )}
+                        </div>
                       </div>
+                      <p className={cn("text-sm font-black", acc.alert ? "text-rose-600" : "text-slate-900")}>
+                        {acc.isPercent ? `${acc.val.toFixed(1)}%` : formatRupiah(Number(acc.val))}
+                      </p>
                     </div>
-                    <p className={cn("text-sm font-black", acc.alert ? "text-rose-600" : "text-slate-900")}>
-                      {acc.isPercent ? `${acc.val.toFixed(1)}%` : formatRupiah(Number(acc.val))}
-                    </p>
-                  </div>
-                ))}
+                  );
+
+                  if (acc.href) {
+                    return (
+                      <Link href={acc.href} key={i} className="block border-none">
+                        {inner}
+                      </Link>
+                    );
+                  }
+
+                  return <div key={i}>{inner}</div>;
+                })}
               </div>
            </CardContent>
         </Card>

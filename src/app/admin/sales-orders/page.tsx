@@ -1032,7 +1032,7 @@ export default function SalesOrdersPage() {
                                     <td className="py-2.5">
                                       <div className="flex flex-col gap-0.5">
                                         <span className={cn("font-semibold", checked && "text-emerald-800 dark:text-emerald-300")}>{product.name}</span>
-                                        <span className="text-[10px] text-slate-400 font-medium">{product.skuCode} • {product.uom}</span>
+                                        <span className="text-[10px] text-slate-400 font-medium">{product.skuCode} • {product.uom} • Stok: {product.currentStock}</span>
                                       </div>
                                     </td>
                                     <td className="text-right pr-3 font-bold text-slate-700 dark:text-slate-200 whitespace-nowrap">
@@ -1096,7 +1096,7 @@ export default function SalesOrdersPage() {
                                         <button key={p.id} className={cn("relative flex w-full cursor-default select-none flex-col items-start rounded-sm py-2 pl-8 pr-2 text-sm outline-none hover:bg-slate-100 dark:hover:bg-slate-800", newLineProductId === p.id && "bg-slate-100 dark:bg-slate-800")} onClick={() => { handleProductSelect(p.id); setIsProductSearchOpen(false); setProductSearch("") }}>
                                           <span className="absolute left-2 top-2.5 flex h-3.5 w-3.5 items-center justify-center">{newLineProductId === p.id && <Check className="h-4 w-4" />}</span>
                                           <span className="font-semibold">{p.name}</span>
-                                          <span className="text-[10px] text-muted-foreground">{p.skuCode} • {formatRupiah(p.sellingPrice)}</span>
+                                          <span className="text-[10px] text-muted-foreground">{p.skuCode} • {formatRupiah(p.sellingPrice)} • Stok: {p.currentStock}</span>
                                         </button>
                                       ))}
                                     </div>
@@ -1176,7 +1176,7 @@ export default function SalesOrdersPage() {
                                     <span className="absolute left-2 top-2.5 flex h-3.5 w-3.5 items-center justify-center">{newLineProductId === p.id && <Check className="h-4 w-4" />}</span>
                                     <span className="font-semibold">{p.name}</span>
                                     <div className="flex gap-2 items-center mt-1">
-                                      <span className="text-[10px] text-muted-foreground">{p.skuCode} • {formatRupiah(p.sellingPrice)}</span>
+                                      <span className="text-[10px] text-muted-foreground">{p.skuCode} • {formatRupiah(p.sellingPrice)} • Stok: {p.currentStock}</span>
                                     </div>
                                   </button>
                                 ))}

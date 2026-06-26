@@ -86,6 +86,7 @@ export const APP_PAGES: NavItemConfig[] = [
   { key: 'admin_settings', title: 'System Settings', href: '/admin/settings', icon: <Cog className="h-4 w-4" />, category: 'Admin' },
   { key: 'admin_tasks', title: 'Admin Tasks', href: '/admin/tasks', icon: <ListChecks className="h-4 w-4" />, category: 'Admin' },
   { key: 'admin_activity_log', title: 'Activity Log', href: '/admin/activity-log', icon: <History className="h-4 w-4" />, category: 'Admin' },
+  { key: 'admin_loss_analytics', title: 'Analisa Kerugian & Stok', href: '/admin/loss-analytics', icon: <TrendingDown className="h-4 w-4 text-rose-500" />, category: 'Admin' },
 
   // ==========================================
   // PARKED MODULES (SECONDARY)
