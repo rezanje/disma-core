@@ -29,6 +29,15 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import GlobalUndoButton from "@/components/global-undo-button"
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as ChartTooltip,
+  ResponsiveContainer
+} from "recharts"
 import { Client, SalesOrder, SalesOrderItem, Invoice, Product, Purchase, PurchaseItem, ClientPriceTier } from "@/types"
 
 export default function ClientsPage() {
@@ -1025,6 +1034,41 @@ export default function ClientsPage() {
                                value={historyEndDate}
                                onChange={(e) => setHistoryEndDate(e.target.value)}
                             />
+                         </div>
+                      </div>
+                   )}
+
+                   {/* Visual Composition Section */}
+                   {clientProductHistory.length > 0 && (
+                      <div className="bg-slate-50 border border-slate-100 p-6 rounded-2xl shadow-sm mb-4">
+                         <div className="mb-4">
+                            <h4 className="text-sm font-black text-slate-800">Top 5 Produk Terlaris</h4>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Berdasarkan Volume Kuantitas Terkirim (qtyFinal)</p>
+                         </div>
+                         <div className="h-60 w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                               <BarChart
+                                  layout="vertical"
+                                  data={clientProductHistory.slice(0, 5)}
+                                  margin={{ top: 10, right: 30, left: 30, bottom: 5 }}
+                               >
+                                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                                  <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 900, fill: '#64748B' }} />
+                                  <YAxis 
+                                     type="category" 
+                                     dataKey="productName" 
+                                     axisLine={false} 
+                                     tickLine={false} 
+                                     tick={{ fontSize: 10, fontWeight: 900, fill: '#1e293b' }}
+                                     width={120}
+                                  />
+                                  <ChartTooltip 
+                                     formatter={(value: any) => [`${value} unit`, 'Kuantitas']}
+                                     contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.05)' }}
+                                  />
+                                  <Bar dataKey="totalQtyFinal" fill="#10B981" radius={[0, 4, 4, 0]} barSize={16} />
+                               </BarChart>
+                            </ResponsiveContainer>
                          </div>
                       </div>
                    )}
