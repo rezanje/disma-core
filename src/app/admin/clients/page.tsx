@@ -613,7 +613,7 @@ export default function ClientsPage() {
     if (selectedClient.isBrand) {
       tabsList.push('Cabang / Outlets')
     }
-    tabsList.push('Purchase Orders', 'Invoices', 'Payment History', 'Notes')
+    tabsList.push('Purchase Orders', 'Invoices', 'Histori Produk', 'Payment History', 'Notes')
 
     return (
       <div className="space-y-6">
@@ -928,6 +928,162 @@ export default function ClientsPage() {
                  </TableBody>
                </Table>
             </TabsContent>
+
+             <TabsContent value="histori-produk" className="p-8 space-y-6 flex-1 bg-white">
+                <div className="flex flex-col gap-4">
+                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      {/* Search Bar */}
+                      <div className="relative">
+                         <Input 
+                            placeholder="Cari nama produk atau SKU..." 
+                            className="h-10 pl-10 rounded-xl bg-slate-50 border-slate-200 text-xs font-bold text-slate-700 shadow-sm focus-visible:ring-emerald-500/20"
+                            value={productSearch}
+                            onChange={(e) => setProductSearch(e.target.value)}
+                         />
+                         <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
+                            <Search className="w-4 h-4" />
+                         </div>
+                      </div>
+
+                      {/* Time Filter */}
+                      <div>
+                         <Select 
+                            value={historyTimeFilter} 
+                            onValueChange={(val: any) => setHistoryTimeFilter(val)}
+                         >
+                            <SelectTrigger className="h-10 rounded-xl bg-slate-50 border-slate-200 text-xs font-bold text-slate-700 shadow-sm">
+                               <SelectValue placeholder="Pilih Waktu" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl border-slate-200 shadow-xl">
+                               <SelectItem value="all">Semua Waktu</SelectItem>
+                               <SelectItem value="7days">7 Hari Terakhir</SelectItem>
+                               <SelectItem value="30days">30 Hari Terakhir</SelectItem>
+                               <SelectItem value="thismonth">Bulan Ini</SelectItem>
+                               <SelectItem value="custom">Kustom Tanggal</SelectItem>
+                            </SelectContent>
+                         </Select>
+                      </div>
+
+                      {/* Brand Outlet Filter */}
+                      {selectedClient.isBrand && (
+                         <div>
+                            <Select 
+                               value={outletFilter} 
+                               onValueChange={(val: any) => setOutletFilter(val)}
+                            >
+                               <SelectTrigger className="h-10 rounded-xl bg-slate-50 border-slate-200 text-xs font-bold text-slate-700 shadow-sm">
+                                  <SelectValue placeholder="Pilih Outlet" />
+                               </SelectTrigger>
+                               <SelectContent className="rounded-xl border-slate-200 shadow-xl">
+                                  <SelectItem value="all">Semua Outlet & Induk</SelectItem>
+                                  <SelectItem value="parent_only">Hanya Induk</SelectItem>
+                                  {brandBranches.map(branch => (
+                                     <SelectItem key={branch.id} value={branch.id}>
+                                        {branch.companyName}
+                                     </SelectItem>
+                                  ))}
+                               </SelectContent>
+                            </Select>
+                         </div>
+                      )}
+
+                      {/* Product Sort */}
+                      <div>
+                         <Select 
+                            value={productSort} 
+                            onValueChange={(val: any) => setProductSort(val)}
+                         >
+                            <SelectTrigger className="h-10 rounded-xl bg-slate-50 border-slate-200 text-xs font-bold text-slate-700 shadow-sm">
+                               <SelectValue placeholder="Urutkan" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl border-slate-200 shadow-xl">
+                               <SelectItem value="qty">Urutkan: Kuantitas Terbanyak</SelectItem>
+                               <SelectItem value="revenue">Urutkan: Pendapatan Tertinggi</SelectItem>
+                               <SelectItem value="name">Urutkan: Nama Produk</SelectItem>
+                            </SelectContent>
+                         </Select>
+                      </div>
+                   </div>
+
+                   {/* Custom Date Picker Inputs */}
+                   {historyTimeFilter === 'custom' && (
+                      <div className="flex flex-col sm:flex-row items-center gap-4 p-4 bg-slate-50 border border-slate-100 rounded-2xl animate-in fade-in slide-in-from-top-2 duration-200">
+                         <div className="flex items-center gap-2 w-full sm:w-auto">
+                            <Label className="text-xs font-bold text-slate-500 whitespace-nowrap">Mulai:</Label>
+                            <Input 
+                               type="date" 
+                               className="h-9 rounded-lg border-slate-200 text-xs font-bold text-slate-700 bg-white"
+                               value={historyStartDate}
+                               onChange={(e) => setHistoryStartDate(e.target.value)}
+                            />
+                         </div>
+                         <div className="flex items-center gap-2 w-full sm:w-auto">
+                            <Label className="text-xs font-bold text-slate-500 whitespace-nowrap">Sampai:</Label>
+                            <Input 
+                               type="date" 
+                               className="h-9 rounded-lg border-slate-200 text-xs font-bold text-slate-700 bg-white"
+                               value={historyEndDate}
+                               onChange={(e) => setHistoryEndDate(e.target.value)}
+                            />
+                         </div>
+                      </div>
+                   )}
+
+                   {/* Product History Table */}
+                   <div className="border border-slate-100 rounded-2xl overflow-hidden shadow-sm mt-4">
+                      <Table>
+                         <TableHeader className="bg-slate-50">
+                            <TableRow>
+                               <TableHead className="font-black text-[10px] uppercase pl-6 py-4">SKU</TableHead>
+                               <TableHead className="font-black text-[10px] uppercase">Nama Produk</TableHead>
+                               <TableHead className="font-black text-[10px] uppercase">Kategori</TableHead>
+                               <TableHead className="font-black text-[10px] uppercase text-right">Kuantitas</TableHead>
+                               <TableHead className="font-black text-[10px] uppercase text-right">Avg Price</TableHead>
+                               <TableHead className="font-black text-[10px] uppercase text-right">Total Nilai</TableHead>
+                               <TableHead className="font-black text-[10px] uppercase text-center">Terakhir Dipesan</TableHead>
+                            </TableRow>
+                         </TableHeader>
+                         <TableBody>
+                            {clientProductHistory.length === 0 ? (
+                               <TableRow>
+                                  <TableCell colSpan={7} className="h-32 text-center text-slate-400 italic">
+                                     No product history found.
+                                  </TableCell>
+                               </TableRow>
+                            ) : (
+                               clientProductHistory.map((item) => (
+                                  <TableRow key={item.productId} className="hover:bg-slate-50 transition-colors">
+                                     <TableCell className="pl-6 py-4 text-xs font-black text-slate-500 uppercase">
+                                        {item.skuCode}
+                                     </TableCell>
+                                     <TableCell className="text-xs font-bold text-slate-900">
+                                        {item.productName}
+                                     </TableCell>
+                                     <TableCell className="text-xs text-slate-600">
+                                        <Badge className="bg-slate-100 text-slate-600 hover:bg-slate-100 border-none text-[9px] font-black uppercase px-2 py-0.5 rounded-full">
+                                           {item.category}
+                                        </Badge>
+                                     </TableCell>
+                                     <TableCell className="text-right text-xs font-black text-slate-700">
+                                        {item.totalQtyFinal} {item.uom}
+                                     </TableCell>
+                                     <TableCell className="text-right text-xs font-black text-slate-700">
+                                        {formatRupiah(item.avgPrice)}
+                                     </TableCell>
+                                     <TableCell className="text-right text-xs font-black text-emerald-600">
+                                        {formatRupiah(item.totalValue)}
+                                     </TableCell>
+                                     <TableCell className="text-center text-xs font-bold text-slate-500">
+                                        {item.lastOrderDate ? format(new Date(item.lastOrderDate), 'dd MMM yyyy') : '-'}
+                                     </TableCell>
+                                  </TableRow>
+                               ))
+                            )}
+                         </TableBody>
+                      </Table>
+                   </div>
+                </div>
+             </TabsContent>
 
             <TabsContent value="payment-history" className="p-0 flex-1">
                <Table>
