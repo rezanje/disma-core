@@ -238,6 +238,9 @@ export default function SalesOrdersPage() {
   const [editingSO, setEditingSO] = useState<SalesOrder | null>(null)
   // ponytail: toggle state to filter products by client's custom pricelist
   const [showPricelistOnly, setShowPricelistOnly] = useState(true)
+  // ponytail: checklist draft { productId -> qty } for pricelist bulk-add
+  const [pricelistDraft, setPricelistDraft] = useState<Record<string, number>>({})
+  const [showManualAdd, setShowManualAdd] = useState(false)
 
   const closeSOModal = () => {
     setIsOpen(false)
@@ -246,6 +249,8 @@ export default function SalesOrdersPage() {
     setLineItems([])
     setPoNumberDraft("")
     setShowPricelistOnly(true)
+    setPricelistDraft({})
+    setShowManualAdd(false)
   }
 
   const handleEditSO = (so: SalesOrder) => {
@@ -254,6 +259,8 @@ export default function SalesOrdersPage() {
     setTargetDate(toDateInputValue(so.targetDeliveryDate))
     setPoNumberDraft(so.poNumber)
     setShowPricelistOnly(true)
+    setPricelistDraft({})
+    setShowManualAdd(false)
     
     // load line items
     const relatedItems = salesOrderItems.filter(item => item.salesOrderId === so.id)
@@ -426,6 +433,8 @@ export default function SalesOrdersPage() {
     setClientId(id)
     setShareClientId(id)
     setShowPricelistOnly(true)
+    setPricelistDraft({})
+    setShowManualAdd(false)
     setIsClientQuickAddOpen(false)
     setNewClientData({ companyName: "", picName: "", email: "", phone: "", address: "", parentId: "" })
     toast.success("Client added and selected")
@@ -592,6 +601,24 @@ export default function SalesOrdersPage() {
 
   const removeLineItem = (id: string) => {
     setLineItems(lineItems.filter(item => item.id !== id))
+  }
+
+  // ponytail: bulk-add all checked pricelist rows to lineItems
+  const addFromPricelist = () => {
+    const toAdd = Object.entries(pricelistDraft).filter(([, qty]) => qty > 0)
+    if (!toAdd.length) return
+    const newItems = toAdd.flatMap(([pid, qty]) => {
+      const product = products.find(p => p.id === pid)
+      if (!product) return []
+      const { price, isCustom, source } = resolveClientPrice(pid, clientId)
+      return [{ id: uuidv4(), productId: product.id, productName: product.name, qty, unitPrice: price, isCustomPrice: isCustom, priceSource: source, estimatedHpp: product.basePrice || 0 }]
+    })
+    setLineItems(prev => {
+      const existingIds = new Set(prev.map(i => i.productId))
+      return [...prev, ...newItems.filter(i => !existingIds.has(i.productId))]
+    })
+    setPricelistDraft({})
+    setShowManualAdd(false)
   }
 
 
@@ -923,251 +950,293 @@ export default function SalesOrdersPage() {
                   </h3>
                 </div>
                 
-                <div className="space-y-4 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-dashed animate-in fade-in duration-300">
-                  {/* Row 1: Product Selection, Qty, Margin Tier */}
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-                    <div className="md:col-span-6 space-y-1">
-                      <div className="flex justify-between items-center px-1">
-                        <div className="flex items-center gap-2">
-                          <Label className="text-xs font-semibold">Pilih Produk</Label>
-                          {clientId && (
-                            <label className="flex items-center gap-1.5 text-[10px] font-black text-emerald-600 cursor-pointer bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 select-none">
-                              <input 
-                                type="checkbox" 
-                                checked={showPricelistOnly} 
-                                onChange={(e) => setShowPricelistOnly(e.target.checked)}
-                                className="w-3.5 h-3.5 accent-emerald-600 cursor-pointer"
-                              />
-                              Hanya Price List Client
-                            </label>
-                          )}
+                {/* === Detail Pesanan: checklist when pricelist exists, single-select otherwise === */}
+                {(() => {
+                  const clientPriceRows = clientPrices.filter(cp => cp.clientId === clientId)
+                  const hasPricelist = clientId && clientPriceRows.length > 0
+
+                  if (hasPricelist) {
+                    const checkedCount = Object.values(pricelistDraft).filter(q => q > 0).length
+                    return (
+                      <div className="space-y-3 animate-in fade-in duration-200">
+                        {/* Header */}
+                        <div className="flex items-center justify-between">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                            Price List Client ({clientPriceRows.length} produk)
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setIsProductQuickAddOpen(true)}
+                              className="text-[10px] text-slate-400 font-bold hover:text-emerald-600 hover:underline"
+                            >
+                              + SKU Baru
+                            </button>
+                            {checkedCount > 0 && (
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={addFromPricelist}
+                                className="h-7 px-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                              >
+                                Tambah {checkedCount} item ke Order
+                              </Button>
+                            )}
+                          </div>
                         </div>
-                        <button 
-                          type="button" 
-                          onClick={() => setIsProductQuickAddOpen(true)}
-                          className="text-[10px] text-emerald-600 font-bold hover:underline"
-                        >
-                          + SKU Baru
-                        </button>
-                      </div>
-                      <Popover open={isProductSearchOpen} onOpenChange={setIsProductSearchOpen}>
-                        <PopoverTrigger render={
-                          <Button
-                            variant="outline"
-                            role="combobox"
-                            aria-expanded={isProductSearchOpen}
-                            className="w-full justify-between font-normal bg-white dark:bg-slate-950 h-10"
-                          >
-                            <span className="truncate">
-                              {newLineProductId 
-                                ? products.find((p) => p.id === newLineProductId)?.name 
-                                : "Pilih barang..."}
-                            </span>
-                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                          </Button>
-                        } />
-                        <PopoverContent className="w-[350px] p-0" align="start">
-                          <div className="flex items-center border-b px-3 h-10">
-                            <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
-                            <input
-                              placeholder="Cari nama atau SKU..."
-                              className="flex h-full w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                              value={productSearch}
-                              onChange={(e) => setProductSearch(e.target.value)}
-                            />
-                          </div>
-                          <div className="max-h-[300px] overflow-y-auto p-1">
-                            {filteredProducts.length === 0 ? (
-                              <div className="py-6 text-center text-sm">
-                                <p className="text-slate-500 font-semibold">Barang tidak ditemukan.</p>
-                                {clientId && showPricelistOnly && (
-                                  <p className="text-[10px] text-slate-400 mt-1 max-w-[300px] mx-auto px-2">Daftar harga khusus untuk client ini kosong. Matikan filter "Hanya Price List Client" di atas untuk memilih dari semua barang.</p>
-                                )}
-                              </div>
-                            ) : (
-                              filteredProducts.map((p) => (
-                                <button
-                                  key={p.id}
-                                  className={cn(
-                                    "relative flex w-full cursor-default select-none flex-col items-start rounded-sm py-2 pl-8 pr-2 text-sm outline-none hover:bg-slate-100 dark:hover:bg-slate-800",
-                                    newLineProductId === p.id && "bg-slate-100 dark:bg-slate-800"
-                                  )}
-                                  onClick={() => {
-                                    handleProductSelect(p.id)
-                                    setIsProductSearchOpen(false)
-                                    setProductSearch("")
-                                  }}
-                                >
-                                  <span className="absolute left-2 top-2.5 flex h-3.5 w-3.5 items-center justify-center">
-                                    {newLineProductId === p.id && <Check className="h-4 w-4" />}
-                                  </span>
-                                  <span className="font-semibold">{p.name}</span>
-                                  <div className="flex gap-2 items-center mt-1">
-                                    <span className="text-[10px] text-muted-foreground">{p.skuCode} • {formatRupiah(p.sellingPrice)}</span>
-                                    {p.weeklyPriceRange && p.weeklyPriceRange.min > 0 && p.weeklyPriceRange.max > 0 ? (
-                                      <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200" title="Patokan Harga Mingguan (Kamis-Rabu)">
-                                        Patokan: {formatRupiah(p.weeklyPriceRange.min)} - {formatRupiah(p.weeklyPriceRange.max)}
-                                      </span>
-                                    ) : (
-                                      <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200" title="Patokan Harga Acuan (Base Price)">
-                                        Patokan: {formatRupiah(p.basePrice)}
-                                      </span>
+
+                        {/* Checklist table */}
+                        <div className="rounded-lg border bg-white dark:bg-slate-950 overflow-hidden">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="bg-slate-50 dark:bg-slate-900/60 border-b">
+                                <th className="w-8 px-3 py-2"></th>
+                                <th className="text-left text-xs font-bold text-slate-500 py-2">Produk</th>
+                                <th className="text-right text-xs font-bold text-slate-500 py-2 pr-3">Harga</th>
+                                <th className="text-center text-xs font-bold text-slate-500 py-2 w-28">Qty</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {clientPriceRows.map(cp => {
+                                const product = products.find(p => p.id === cp.productId)
+                                if (!product) return null
+                                const { price } = resolveClientPrice(cp.productId, clientId)
+                                const qty = pricelistDraft[cp.productId] ?? 0
+                                const checked = qty > 0
+                                return (
+                                  <tr
+                                    key={cp.productId}
+                                    className={cn(
+                                      "border-b last:border-b-0 transition-colors",
+                                      checked ? "bg-emerald-50/60 dark:bg-emerald-950/20" : "hover:bg-slate-50 dark:hover:bg-slate-900/30"
                                     )}
-                                  </div>
-                                </button>
-                              ))
-                            )}
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                    
-                    <div className="md:col-span-2 space-y-1">
-                      <Label className="text-xs font-semibold">
-                        Qty{newLineProductId ? (
-                          <span className="ml-1 text-[10px] font-normal text-slate-400">
-                            ({products.find(p => p.id === newLineProductId)?.uom || '-'})
-                          </span>
-                        ) : null}
-                      </Label>
-                      <EditNumber
-                        decimal
-                        inputMode="decimal"
-                        placeholder="0"
-                        className="bg-white dark:bg-slate-950 h-10"
-                        value={newLineQty}
-                        onCommit={setNewLineQty}
-                      />
-                    </div>
-                    
-                    <div className="md:col-span-4 space-y-1">
-                      <Label className="text-xs font-semibold">Pilih Margin / Tier</Label>
-                      <Select
-                        value={newLineTier}
-                        onValueChange={handleTierChange}
-                        disabled={!newLineProductId}
-                      >
-                        <SelectTrigger className="w-full bg-white dark:bg-slate-950 h-10">
-                          <SelectValue placeholder="Pilih Margin/Tier" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Standard">Harga Jual Standard</SelectItem>
-                          <SelectItem value="Tier 1">Tier 1 (+50% Margin)</SelectItem>
-                          <SelectItem value="Tier 2">Tier 2 (+30% Margin)</SelectItem>
-                          <SelectItem value="Tier 3">Tier 3 (+20% Margin)</SelectItem>
-                          <SelectItem value="Tier 4">Tier 4 (+15% Margin)</SelectItem>
-                          <SelectItem value="Tier 5">Tier 5 (+10% Margin)</SelectItem>
-                          <SelectItem value="HPP">HPP (+0% Margin)</SelectItem>
-                          <SelectItem value="Custom">Harga Kustom (Manual)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
+                                  >
+                                    <td className="px-3 py-2.5">
+                                      <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        onChange={(e) => setPricelistDraft(prev => ({
+                                          ...prev,
+                                          [cp.productId]: e.target.checked ? (prev[cp.productId] || 1) : 0
+                                        }))}
+                                        className="w-4 h-4 accent-emerald-600 cursor-pointer"
+                                      />
+                                    </td>
+                                    <td className="py-2.5">
+                                      <div className="flex flex-col gap-0.5">
+                                        <span className={cn("font-semibold", checked && "text-emerald-800 dark:text-emerald-300")}>{product.name}</span>
+                                        <span className="text-[10px] text-slate-400 font-medium">{product.skuCode} • {product.uom}</span>
+                                      </div>
+                                    </td>
+                                    <td className="text-right pr-3 font-bold text-slate-700 dark:text-slate-200 whitespace-nowrap">
+                                      {formatRupiah(price)}
+                                      {cp.tier !== 'Standard' && (
+                                        <span className="ml-1 text-[9px] font-black text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200 uppercase">{cp.tier}</span>
+                                      )}
+                                    </td>
+                                    <td className="py-2 px-2 text-center">
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        step={1}
+                                        value={qty || ""}
+                                        placeholder="0"
+                                        onChange={(e) => {
+                                          const v = parseFloat(e.target.value) || 0
+                                          setPricelistDraft(prev => ({ ...prev, [cp.productId]: v }))
+                                        }}
+                                        onFocus={(e) => e.target.select()}
+                                        className="w-20 h-8 text-center text-sm font-bold border rounded-md bg-white dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                                      />
+                                    </td>
+                                  </tr>
+                                )
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
 
-                  {/* Row 2: Price Input and dynamic HPP/Margin calculator */}
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
-                    <div className="md:col-span-4 space-y-1">
-                      <div className="flex justify-between items-center">
-                        <Label className="text-xs font-semibold">Harga Satuan (Rp)</Label>
-                        {clientId && newLineProductId && clientPrices.find(cp => cp.clientId === clientId && cp.productId === newLineProductId) ? (
-                           <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-1 rounded border border-emerald-200 uppercase">
-                             PRICE LIST KHUSUS
-                           </span>
-                        ) : clientId && newLineProductId && getHistoricalClientPrice(clientId, newLineProductId) ? (
-                          <span className="text-[9px] font-black text-blue-600 bg-blue-50 px-1 rounded border border-blue-200 uppercase">
-                            Harga History
-                          </span>
-                        ) : null}
+                        {/* Manual add toggle */}
+                        <button
+                          type="button"
+                          onClick={() => setShowManualAdd(v => !v)}
+                          className="text-[11px] font-bold text-slate-400 hover:text-emerald-600 flex items-center gap-1 transition-colors"
+                        >
+                          <Plus className="w-3 h-3" />
+                          {showManualAdd ? "Tutup tambah manual" : "Tambah SKU Manual (di luar price list)"}
+                        </button>
+
+                        {/* Manual add panel */}
+                        {showManualAdd && (
+                          <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-dashed animate-in fade-in duration-200">
+                            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                              <div className="md:col-span-6 space-y-1">
+                                <Label className="text-xs font-semibold px-1">Pilih Produk</Label>
+                                <Popover open={isProductSearchOpen} onOpenChange={setIsProductSearchOpen}>
+                                  <PopoverTrigger render={
+                                    <Button variant="outline" role="combobox" aria-expanded={isProductSearchOpen} className="w-full justify-between font-normal bg-white dark:bg-slate-950 h-10">
+                                      <span className="truncate">{newLineProductId ? products.find((p) => p.id === newLineProductId)?.name : "Pilih barang..."}</span>
+                                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                    </Button>
+                                  } />
+                                  <PopoverContent className="w-[350px] p-0" align="start">
+                                    <div className="flex items-center border-b px-3 h-10">
+                                      <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                                      <input placeholder="Cari nama atau SKU..." className="flex h-full w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground" value={productSearch} onChange={(e) => setProductSearch(e.target.value)} />
+                                    </div>
+                                    <div className="max-h-[300px] overflow-y-auto p-1">
+                                      {products.filter(p => !productSearch || p.name.toLowerCase().includes(productSearch.toLowerCase()) || p.skuCode.toLowerCase().includes(productSearch.toLowerCase())).slice(0, 50).map((p) => (
+                                        <button key={p.id} className={cn("relative flex w-full cursor-default select-none flex-col items-start rounded-sm py-2 pl-8 pr-2 text-sm outline-none hover:bg-slate-100 dark:hover:bg-slate-800", newLineProductId === p.id && "bg-slate-100 dark:bg-slate-800")} onClick={() => { handleProductSelect(p.id); setIsProductSearchOpen(false); setProductSearch("") }}>
+                                          <span className="absolute left-2 top-2.5 flex h-3.5 w-3.5 items-center justify-center">{newLineProductId === p.id && <Check className="h-4 w-4" />}</span>
+                                          <span className="font-semibold">{p.name}</span>
+                                          <span className="text-[10px] text-muted-foreground">{p.skuCode} • {formatRupiah(p.sellingPrice)}</span>
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </PopoverContent>
+                                </Popover>
+                              </div>
+                              <div className="md:col-span-2 space-y-1">
+                                <Label className="text-xs font-semibold">Qty{newLineProductId ? <span className="ml-1 text-[10px] font-normal text-slate-400">({products.find(p => p.id === newLineProductId)?.uom || '-'})</span> : null}</Label>
+                                <EditNumber decimal inputMode="decimal" placeholder="0" className="bg-white dark:bg-slate-950 h-10" value={newLineQty} onCommit={setNewLineQty} />
+                              </div>
+                              <div className="md:col-span-3 space-y-1">
+                                <Label className="text-xs font-semibold">Margin / Tier</Label>
+                                <Select value={newLineTier} onValueChange={handleTierChange} disabled={!newLineProductId}>
+                                  <SelectTrigger className="w-full bg-white dark:bg-slate-950 h-10"><SelectValue placeholder="Pilih Margin/Tier" /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="Standard">Standard</SelectItem>
+                                    <SelectItem value="Tier 1">Tier 1 (+50%)</SelectItem>
+                                    <SelectItem value="Tier 2">Tier 2 (+30%)</SelectItem>
+                                    <SelectItem value="Tier 3">Tier 3 (+20%)</SelectItem>
+                                    <SelectItem value="Tier 4">Tier 4 (+15%)</SelectItem>
+                                    <SelectItem value="Tier 5">Tier 5 (+10%)</SelectItem>
+                                    <SelectItem value="HPP">HPP</SelectItem>
+                                    <SelectItem value="Custom">Custom</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="md:col-span-1 flex items-end justify-end h-full">
+                                <Button type="button" variant="default" onClick={addLineItem} disabled={!newLineProductId} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-10">
+                                  <Plus className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </div>
+                            {newLineProductId && (() => {
+                              const hpp = newLineHpp || 0
+                              const marginAmount = newLinePrice - hpp
+                              const marginPercent = hpp > 0 ? (marginAmount / hpp) * 100 : 0
+                              const isLoss = marginAmount < 0
+                              return (
+                                <div className={cn("flex justify-between items-center p-2 rounded-lg border text-xs font-semibold mt-3 transition-all", isLoss ? "bg-rose-50 text-rose-700 border-rose-100" : "bg-emerald-50 text-emerald-700 border-emerald-100")}>
+                                  <span>Harga: {formatRupiah(newLinePrice)}</span>
+                                  <span className="font-bold">{isLoss ? "" : "+"}{formatRupiah(marginAmount)} ({marginPercent.toFixed(1)}%)</span>
+                                </div>
+                              )
+                            })()}
+                          </div>
+                        )}
                       </div>
-                      <Input 
-                        type="text"
-                        inputMode="numeric"
-                        className="bg-white dark:bg-slate-950 font-bold h-10"
-                        value={formatNumber(newLinePrice)}
-                        onChange={(e) => {
-                          const val = parseNumber(e.target.value)
-                          setNewLinePrice(val)
-                          setNewLineTier("Custom")
-                          setNewLineIsCustomPrice(true)
-                          setNewLinePriceSource("Custom")
-                        }}
-                        disabled={!newLineProductId}
-                      />
-                    </div>
+                    )
+                  }
 
-                    <div className="md:col-span-7">
-                      {newLineProductId && (() => {
-                        const selectedProduct = products.find(p => p.id === newLineProductId)
-                        if (!selectedProduct) return null
-                        
-                        const hpp = newLineHpp || 0
-                        const marginAmount = newLinePrice - hpp
-                        const marginPercent = hpp > 0 ? (marginAmount / hpp) * 100 : 0
-                        const isLoss = marginAmount < 0
-                        
-                        return (
-                          <div className={cn(
-                            "flex flex-col gap-1.5 p-2 rounded-lg border text-xs font-semibold mt-4 transition-all duration-300",
-                            isLoss 
-                              ? "bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400 border-rose-100 dark:border-rose-900/30" 
-                              : marginAmount === 0 
-                                ? "bg-slate-50 dark:bg-slate-900/50 text-slate-700 dark:text-slate-400 border-slate-200" 
-                                : "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30"
-                          )}>
-                            <div className="flex justify-between items-center gap-2">
-                              <span className="whitespace-nowrap">Estimasi HPP (Beli):</span>
-                              <Input
-                                type="text"
-                                inputMode="numeric"
-                                className="h-7 w-40 text-right font-bold text-slate-900 dark:text-slate-100 bg-white/80 dark:bg-slate-950/80 border-slate-300"
-                                value={formatNumber(newLineHpp)}
-                                onChange={(e) => {
-                                  const val = parseNumber(e.target.value)
-                                  setNewLineHpp(val)
-                                  // Re-calculate selling price based on current tier with the new HPP
-                                  if (newLineTier && newLineTier !== 'Custom' && newLineTier !== 'Standard') {
-                                    const product = products.find(p => p.id === newLineProductId)
-                                    if (product) {
-                                      const price = getPriceForTier(product, newLineTier, val || undefined)
-                                      setNewLinePrice(price)
-                                    }
-                                  }
-                                }}
-                                placeholder="Isi HPP..."
-                              />
-                            </div>
-                            {newLineHpp > 0 && newLineHpp !== (selectedProduct.basePrice || 0) && (
-                              <p className="text-[9px] text-amber-600 dark:text-amber-400 italic">
-                                ⚡ HPP akan tersimpan otomatis sebagai baseline saat item ditambahkan.
-                              </p>
-                            )}
-                            <div className="flex justify-between items-center border-t border-dashed border-current/10 pt-1 mt-0.5">
-                              <span>Estimasi Margin:</span>
-                              <span className={cn("font-bold text-base", isLoss ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400")}>
-                                {isLoss ? "" : "+"}{formatRupiah(marginAmount)} ({marginPercent.toFixed(1)}%)
-                              </span>
-                            </div>
+                  // Fallback: no pricelist configured — show original single-select panel
+                  return (
+                    <div className="space-y-4 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-dashed animate-in fade-in duration-300">
+                      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                        <div className="md:col-span-6 space-y-1">
+                          <div className="flex justify-between items-center px-1">
+                            <Label className="text-xs font-semibold">Pilih Produk</Label>
+                            <button type="button" onClick={() => setIsProductQuickAddOpen(true)} className="text-[10px] text-emerald-600 font-bold hover:underline">+ SKU Baru</button>
                           </div>
-                        )
-                      })()}
+                          <Popover open={isProductSearchOpen} onOpenChange={setIsProductSearchOpen}>
+                            <PopoverTrigger render={
+                              <Button variant="outline" role="combobox" aria-expanded={isProductSearchOpen} className="w-full justify-between font-normal bg-white dark:bg-slate-950 h-10">
+                                <span className="truncate">{newLineProductId ? products.find((p) => p.id === newLineProductId)?.name : "Pilih barang..."}</span>
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
+                            } />
+                            <PopoverContent className="w-[350px] p-0" align="start">
+                              <div className="flex items-center border-b px-3 h-10">
+                                <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                                <input placeholder="Cari nama atau SKU..." className="flex h-full w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground" value={productSearch} onChange={(e) => setProductSearch(e.target.value)} />
+                              </div>
+                              <div className="max-h-[300px] overflow-y-auto p-1">
+                                {filteredProducts.length === 0 ? (
+                                  <div className="py-6 text-center text-sm text-slate-500">Barang tidak ditemukan.</div>
+                                ) : filteredProducts.map((p) => (
+                                  <button key={p.id} className={cn("relative flex w-full cursor-default select-none flex-col items-start rounded-sm py-2 pl-8 pr-2 text-sm outline-none hover:bg-slate-100 dark:hover:bg-slate-800", newLineProductId === p.id && "bg-slate-100 dark:bg-slate-800")} onClick={() => { handleProductSelect(p.id); setIsProductSearchOpen(false); setProductSearch("") }}>
+                                    <span className="absolute left-2 top-2.5 flex h-3.5 w-3.5 items-center justify-center">{newLineProductId === p.id && <Check className="h-4 w-4" />}</span>
+                                    <span className="font-semibold">{p.name}</span>
+                                    <div className="flex gap-2 items-center mt-1">
+                                      <span className="text-[10px] text-muted-foreground">{p.skuCode} • {formatRupiah(p.sellingPrice)}</span>
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <div className="md:col-span-2 space-y-1">
+                          <Label className="text-xs font-semibold">Qty{newLineProductId ? <span className="ml-1 text-[10px] font-normal text-slate-400">({products.find(p => p.id === newLineProductId)?.uom || '-'})</span> : null}</Label>
+                          <EditNumber decimal inputMode="decimal" placeholder="0" className="bg-white dark:bg-slate-950 h-10" value={newLineQty} onCommit={setNewLineQty} />
+                        </div>
+                        <div className="md:col-span-4 space-y-1">
+                          <Label className="text-xs font-semibold">Pilih Margin / Tier</Label>
+                          <Select value={newLineTier} onValueChange={handleTierChange} disabled={!newLineProductId}>
+                            <SelectTrigger className="w-full bg-white dark:bg-slate-950 h-10"><SelectValue placeholder="Pilih Margin/Tier" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Standard">Harga Jual Standard</SelectItem>
+                              <SelectItem value="Tier 1">Tier 1 (+50% Margin)</SelectItem>
+                              <SelectItem value="Tier 2">Tier 2 (+30% Margin)</SelectItem>
+                              <SelectItem value="Tier 3">Tier 3 (+20% Margin)</SelectItem>
+                              <SelectItem value="Tier 4">Tier 4 (+15% Margin)</SelectItem>
+                              <SelectItem value="Tier 5">Tier 5 (+10% Margin)</SelectItem>
+                              <SelectItem value="HPP">HPP (+0% Margin)</SelectItem>
+                              <SelectItem value="Custom">Harga Kustom (Manual)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+                        <div className="md:col-span-4 space-y-1">
+                          <div className="flex justify-between items-center">
+                            <Label className="text-xs font-semibold">Harga Satuan (Rp)</Label>
+                          </div>
+                          <Input type="text" inputMode="numeric" className="bg-white dark:bg-slate-950 font-bold h-10" value={formatNumber(newLinePrice)} onChange={(e) => { const val = parseNumber(e.target.value); setNewLinePrice(val); setNewLineTier("Custom"); setNewLineIsCustomPrice(true); setNewLinePriceSource("Custom") }} disabled={!newLineProductId} />
+                        </div>
+                        <div className="md:col-span-7">
+                          {newLineProductId && (() => {
+                            const selectedProduct = products.find(p => p.id === newLineProductId)
+                            if (!selectedProduct) return null
+                            const hpp = newLineHpp || 0
+                            const marginAmount = newLinePrice - hpp
+                            const marginPercent = hpp > 0 ? (marginAmount / hpp) * 100 : 0
+                            const isLoss = marginAmount < 0
+                            return (
+                              <div className={cn("flex flex-col gap-1.5 p-2 rounded-lg border text-xs font-semibold mt-4 transition-all duration-300", isLoss ? "bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400 border-rose-100 dark:border-rose-900/30" : marginAmount === 0 ? "bg-slate-50 dark:bg-slate-900/50 text-slate-700 dark:text-slate-400 border-slate-200" : "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30")}>
+                                <div className="flex justify-between items-center gap-2">
+                                  <span className="whitespace-nowrap">Estimasi HPP (Beli):</span>
+                                  <Input type="text" inputMode="numeric" className="h-7 w-40 text-right font-bold text-slate-900 dark:text-slate-100 bg-white/80 dark:bg-slate-950/80 border-slate-300" value={formatNumber(newLineHpp)} onChange={(e) => { const val = parseNumber(e.target.value); setNewLineHpp(val); if (newLineTier && newLineTier !== 'Custom' && newLineTier !== 'Standard') { const product = products.find(p => p.id === newLineProductId); if (product) setNewLinePrice(getPriceForTier(product, newLineTier, val || undefined)) } }} placeholder="Isi HPP..." />
+                                </div>
+                                <div className="flex justify-between items-center border-t border-dashed border-current/10 pt-1 mt-0.5">
+                                  <span>Estimasi Margin:</span>
+                                  <span className={cn("font-bold text-base", isLoss ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400")}>{isLoss ? "" : "+"}{formatRupiah(marginAmount)} ({marginPercent.toFixed(1)}%)</span>
+                                </div>
+                              </div>
+                            )
+                          })()}
+                        </div>
+                        <div className="md:col-span-1 flex items-end justify-end h-full">
+                          <Button type="button" variant="default" onClick={addLineItem} disabled={!newLineProductId} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-10 mt-4">
+                            <Plus className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-slate-500 italic px-1">Pilih barang, sesuaikan Margin/Tier jika diperlukan, lalu klik tombol hijau (+) untuk menambah ke daftar order.</p>
                     </div>
-
-                    <div className="md:col-span-1 flex items-end justify-end h-full">
-                      <Button 
-                        type="button" 
-                        variant="default" 
-                        onClick={addLineItem} 
-                        disabled={!newLineProductId}
-                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-10 mt-4"
-                      >
-                        <Plus className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                  <p className="text-[10px] text-slate-500 italic px-1">
-                    Pilih barang, sesuaikan Margin/Tier jika diperlukan, lalu klik tombol hijau (+) untuk menambah ke daftar order.
-                  </p>
-                </div>
+                  )
+                })()}
 
                 {lineItems.length > 0 && (
                   <div className="space-y-2 mt-4">

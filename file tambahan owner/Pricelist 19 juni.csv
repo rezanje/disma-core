@@ -1,0 +1,2059 @@
+SAYURAN;;;
+NO;NAMA BARANG;SATUAN;HARGA
+;;;BELI
+1;Akar Alang Alang;Kg; 	23.000 
+2;Akar Lotus;Kg; 	69.900 
+3;Alfalfa Sprout @125GR;Kg; 	33.500 
+4;Asam Gelugur/Asam Keping;Kg; 	60.000 
+5;Asem Kandis;Kg; 	91.000 
+6;Asem Muda;Kg; 	74.000 
+7;Asparagus;Kg; 	120.000 
+8;Baby Buncis Perancis (Kenya);Kg; 	28.000 
+9;Baby Buncis Tw;Kg; 	24.000 
+10;Baby Kailan;Kg; 	35.000 
+11;Baby Kyuri;Kg; 	13.000 
+12;Baby Pakcoy;Kg; 	9.000 
+13;Baby Romain Lettuce;Kg; 	30.000 
+14;Basil;Kg; 	70.000 
+15;Bawang Bombay;Kg; 	16.842 
+16;Bawang Bombay @20Kg;Bal; 	320.000 
+17;Bawang Bombay Kupas;Kg; 	27.000 
+18;Bawang Bombay Merah;Kg; 	40.000 
+19;Bawang Bombay New Zealand;Kg; 	40.000 
+20;Bawang Merah Besar;Kg; 	50.000 
+21;Bawang Merah Iris;Kg; 	52.000 
+22;Bawang Merah Kupas;Kg; 	53.000 
+23;Bawang Merah Peking;Kg; 	38.000 
+24;Bawang Putih Banci;Kg; 	36.842 
+25;Bawang Putih Iris;Kg; 	35.000 
+26;Bawang Putih Kating;Kg; 	28.000 
+27;Bawang Putih Kupas;Kg; 	40.000 
+28;Bayam Hijau;Kg; 	15.000 
+29;Bayam Hijau @250GR (Hidroponik);Pack; 	10.000 
+30;Bayam Merah;Kg; 	20.000 
+31;Beetroot (Buah Bit);Kg; 	20.000 
+32;Belimbing Sayur (Wuluh);Kg; 	18.000 
+33;Bengkoang;Kg; 	10.000 
+34;Brokoli;Kg; 	35.000 
+35;Brokoli Import;Kg; 	40.000 
+36;Buncis Besar;Kg; 	15.000 
+37;Bunga Pepaya;Kg; 	35.000 
+38;Cabe Gendot;Kg; 	80.000 
+39;Cabe Hijau Besar;Kg; 	30.000 
+40;Cabe Hijau Besar Petik;Kg; 	35.000 
+41;Cabe Hijau Keriting;Kg; 	45.000 
+42;Cabe Hijau Keriting Petik;Kg; 	50.000 
+43;Cabe Merah Besar;Kg; 	70.000 
+44;Cabe Merah Besar Petik;Kg; 	75.000 
+45;Cabe Merah Keriting;Kg; 	53.000 
+46;Cabe Merah Keriting Petik;Kg; 	55.000 
+47;Cabe Rawit Hijau;Kg; 	50.000 
+48;Cabe Rawit Hijau Petik;Kg; 	70.000 
+49;Cabe Rawit Merah;Kg; 	68.000 
+50;Cabe Rawit Merah Petik;Kg; 	75.000 
+51;Cabe Shishito @250GR;Pack; 	50.387 
+52;Celery Stick (Import);Kg; 	45.000 
+53;Celery Stick (Lokal);Kg; 	60.000 
+54;Cuciwis (Cameo);Kg; 	16.000 
+55;Daun Arugula;Kg; 	200.000 
+56;Daun Bawang;Kg; 	25.000 
+57;Daun Bawang Cung (Wakegi);Kg; 	55.000 
+58;Daun Dill;Kg; 	40.000 
+59;Daun Ginseng;Kg; 	30.000 
+60;Daun Jeruk (Daun Kaffir);Kg; 	60.000 
+61;Daun Kale;Kg; 	20.000 
+62;Daun Kari;Kg; 	70.000 
+63;Daun Katuk;Kg; 	32.000 
+64;Daun Kemangi;Kg; 	30.000 
+65;Daun Kenikir;Kg; 	20.000 
+66;Daun Ketumbar;Kg; 	60.000 
+67;Daun Kunyit;Kg; 	25.000 
+68;Daun Melinjo;Kg; 	18.000 
+69;Daun Mint;Kg; 	50.000 
+70;Daun Oregano;Kg; 	150.000 
+71;Daun Pandan;Kg; 	10.000 
+72;Daun Pepaya Lokal;Kg; 	20.000 
+73;Daun Pisang;Kg; 	8.000 
+74;Daun Pucuk Labu;Kg;
+75;Daun Sage;Kg; 	300.000 
+76;Daun Sage @100GR;Pack; 	25.000 
+77;Daun Salam;Kg; 	10.000 
+78;Daun Salam Kering;Kg; 	20.000 
+79;Daun Seledri;Kg; 	30.000 
+80;Daun Singkong;Kg; 	15.000 
+81;Daun Singkong Petik;Kg; 	16.000 
+82;Daun Sirih;Kg; 	45.000 
+83;Daun Suji;Kg; 	20.000 
+84;Daun Tarragon;Kg; 	300.000 
+85;Daun Tarragon @50GR;Pack; 	15.000 
+86;Daun Ubi;Kg; 	12.000 
+87;Daun Ubi petik;Kg; 	17.000 
+88;Edamame;Kg; 	40.000 
+89;Endive Lettuce;Kg; 	35.000 
+90;Fumak;Kg; 	14.000 
+91;Genjer;Kg; 	20.000 
+92;Head Lettuce;Kg; 	36.000 
+93;Horenzo;Kg; 	40.000 
+94;Jagung Manis (Kulit);Kg; 	15.000 
+95;Jagung Manis (Kupas);Kg; 	10.000 
+96;Jagung Muda (Baby Corn);Kg; 	25.000 
+97;Jahe Merah;Kg; 	39.000 
+98;Jahe Putih;Kg; 	20.000 
+99;Jahe Putih Kupas;Kg; 	25.000 
+100;Jalapeno;Kg; 	155.499 
+101;Jamur Champignon;Kg; 	40.000 
+102;Jamur Enoki @100GR;Pack; 	5.000 
+103;Jamur King Oyster @200Gr;Pack; 	15.000 
+104;Jamur Kuping;Kg; 	20.000 
+105;Jamur Kuping Kering;Kg; 	80.000 
+106;Jamur Merang;Kg; 	40.000 
+107;Jamur Portobello;Kg; 	115.000 
+108;Jamur Shimeji Cokelat @150Gr;Pack; 	10.000 
+109;Jamur Shimeji Putih @150Gr;Pack; 	10.000 
+110;Jamur Shitake;Kg; 	120.000 
+111;Jamur Shitake @200GR;Pack; 	10.000 
+112;Jamur Shitake Kering;Kg; 	250.000 
+113;Jamur Tiram;Kg; 	20.000 
+114;Jamur Tiram @200GR;Pack; 	4.800 
+115;Jantung Pisang;Pcs; 	10.000 
+116;Jengkol;Kg; 	60.000 
+117;Kacang Panjang;Kg; 	10.000 
+118;Kailan (Hidroponik) @250GR;Pack; 	15.000 
+119;Kailan Import;Kg; 	60.000 
+120;Kailan Lokal;Kg; 	35.000 
+121;Kangkung;Kg; 	10.000 
+122;Kangkung (Hidroponik) @250GR;Pack;
+123;Kangkung Potong Akar;Kg; 	15.000 
+124;Kapri;Kg; 	45.000 
+125;Kecambah;Kg; 	40.000 
+126;Keciwis;Kg; 	40.001 
+127;Kecombrang;Kg; 	40.000 
+128;Kecombrang Medan;Kg; 	20.000 
+129;Kembang Bawang;Kg; 	20.000 
+130;Kembang Kol;Kg; 	25.000 
+131;Kentang Dieng AB (5-7Pcs/KG);Kg; 	17.000 
+132;Kentang Dieng AL (1-4Pcs/KG);Kg; 	18.000 
+133;Kentang Rendang (Baby Potato);Kg; 	20.000 
+134;Kimcam/Sedap Malam Kering;Kg; 	130.000 
+135;Kol Putih;Kg; 	10.000 
+136;Kol Ungu;Kg; 	35.000 
+137;Kucai;Kg; 	26.667 
+138;Kunyit;Kg; 	15.000 
+139;Kyuri;Kg; 	20.000 
+140;Labu Kabocha Hijau;Kg; 	25.000 
+141;Labu Kabocha Merah;Kg; 	25.000 
+142;Labu Kabocha Orange;Kg; 	23.000 
+143;Labu Siam;Kg; 	10.000 
+144;Labu Siam Acar;Kg; 	3.500 
+145;Labu Tung;Kg; 	25.000 
+146;Lengkio;Kg; 	26.000 
+147;Lengkoas/Laos;Kg; 	10.000 
+148;Leunca;Kg; 	12.000 
+149;Lobak (Daikon);Kg; 	10.000 
+150;Lobak Merah (Red Radish);Kg; 	30.000 
+151;Lolorosa (Selada Keriting Merah);Kg; 	40.000 
+152;Melinjo;Kg; 	24.000 
+153;Mix Salad Mesclun @100Gr;Pack; 	31.500 
+154;Nangka Mentah Sayur Kupas;Kg; 	10.000 
+155;Nangka Mentah Sayur Potong;Kg; 	10.000 
+156;Oregano Fresh;Kg; 	200.000 
+157;Oyong/Okra;Kg; 	25.000 
+158;Pakcoy;Kg; 	20.000 
+159;Paprika Hijau;Kg; 	70.000 
+160;Paprika Kuning;Kg; 	100.000 
+161;Paprika Merah;Kg; 	80.000 
+162;Pare;Kg; 	10.000 
+163;Parsley;Kg; 	40.000 
+164;Pete;Pcs; 	6.000 
+165;Pete Kupas;Kg; 	150.000 
+166;Popohan;Kg; 	15.000 
+167;Romain Lettuce;Kg; 	15.000 
+168;Romain Merah (Hidroponik) @250gr;Pack;
+169;Rosemary Fresh;Kg; 	300.000 
+170;Sawi Asin @500Gr;Pack; 	37.000 
+171;Sawi Hijau (Caisim);Kg; 	12.000 
+172;Sawi Hijau (Hidroponik) @250GR;Pack;
+173;Sawi Putih;Kg; 	8.000 
+174;Selada Air;Kg; 	25.000 
+175;Selada Keriting;Kg; 	50.000 
+176;Selada Keriting (Hidroponik) @250GR;Pack;
+177;Sereh;Kg; 	13.000 
+178;Singkong;Kg; 	6.000 
+179;Siomak;Kg; 	32.000 
+180;Siomak (Hidroponik) @250GR;Pack; 	32.000 
+181;Talas Pontianak ;Kg; 	10.714 
+182;Tape Singkong;Kg; 	10.000 
+183;Temukunci;Kg; 	20.000 
+184;Temulawak;Kg; 	20.000 
+185;Terong Hijau Bulat;Kg; 	12.000 
+186;Terong Hijau Panjang;Kg; 	15.000 
+187;Terong Ungu;Kg; 	10.000 
+188;Terong Ungu Nasubi;Kg; 	30.000 
+189;Thyme Fresh;Kg; 	240.000 
+190;Timun;Kg; 	10.000 
+191;Timun Baby;Kg; 	11.000 
+192;Toge Bangkok;Kg; 	10.000 
+193;Toge Lokal;Kg; 	10.000 
+194;Tomat Cherry Kuning;Kg; 	30.000 
+195;Tomat Cherry Merah;Kg; 	20.000 
+196;Tomat Hijau;Kg; 	12.000 
+197;Tomat Merah;Kg; 	18.000 
+198;Tomato Beef;Kg; 	35.000 
+199;Tomeo;Kg; 	200.000 
+200;Ubi Jalar;Kg; 	10.000 
+201;Ubi Kuning;Kg; 	10.714 
+202;Ubi Madu Cilembu;Kg; 	15.000 
+203;Ubi Merah;Kg; 	10.000 
+204;Ubi Ungu;Kg; 	7.000 
+205;Wortel Baby;Kg; 	18.000 
+206;Wortel Berastagi;Kg; 	25.000 
+207;Wortel Lokal;Kg; 	13.000 
+208;Zuchini;Kg; 	15.000 
+;;;
+BUAH;;;
+NO;NAMA BARANG;SATUAN;HARGA
+;;;BELI
+1;Alpukat Mentega;Kg; 	40.000 
+2;Anggur Hijau;Kg; 	110.000 
+3;Anggur Hitam Black Beauty;Kg; 	100.000 
+4;Anggur Merah ;Kg; 	75.000 
+5;Anggur Moon Drop;Kg; 	30.000 
+6;Apel Fuji;Kg; 	35.000 
+7;Apel Hijau;Kg; 	67.500 
+8;Apel Malang;Kg; 	30.000 
+9;Apel Red Washington;Kg; 	45.000 
+10;Apel Royal Gala;Kg; 	35.000 
+11;Belimbing Buah;Kg; 	17.925 
+12;Blewah;Kg; 	20.000 
+13;Blueberry ;Kg; 	444.000 
+14;Blueberry Spain Onuba @125GR;Pack; 	70.000 
+15;Buah Blackberry @120Gr;Pack; 	74.151 
+16;Buah Delima;Kg; 	40.000 
+17;Buah Kupas Fresh @250GR by Request;Pack;
+18;Buah Naga;Kg; 	25.000 
+19;Buah Persimon Import;Kg; 	45.600 
+20;Jambu Air Merah;Kg; 	20.000 
+21;Jambu Biji;Kg; 	35.000 
+22;Jambu Biji Merah;Kg; 	20.000 
+23;Jeruk Bali (KG);Kg; 	30.000 
+24;Jeruk Bali (PCS);Pcs; 	29.000 
+25;Jeruk Kasturi;Kg; 	15.000 
+26;Jeruk Kinnow;Kg;
+27;Jeruk Limo;Kg; 	40.000 
+28;Jeruk Mandarin Wogan;Kg; 	50.000 
+29;Jeruk Medan;Kg; 	25.000 
+30;Jeruk Nipis;Kg; 	20.000 
+31;Jeruk Peras;Kg; 	15.000 
+32;Jeruk Pontianak;Kg; 	28.000 
+33;Jeruk Shantang Birma;Kg; 	45.000 
+34;Jeruk Sonkit;Kg; 	18.000 
+35;Jeruk Sunkist;Kg; 	35.000 
+36;Jeruk Sunkist Navel;Kg; 	35.000 
+37;Kedondong;Kg; 	15.000 
+38;Kelapa Muda Kupas Batok;Pcs; 	18.000 
+39;Kelapa Parut;Pcs; 	12.000 
+40;Kelapa Tua Kupas Batok;Pcs; 	6.000 
+41;Kelengkeng;Kg; 	66.667 
+42;Kiwi Hijau;Kg; 	85.000 
+43;Kurma;Kg; 	90.000 
+44;Kurma @10Kg;Ctn; 	270.000 
+45;Kurma Golden Palm @500GR;Pack; 	44.000 
+46;Kurma Medjool Palestine @320GR;Pack;
+47;Kurma PalmFrutt @500GR;Pack; 	52.000 
+48;Labu Madu;Kg; 	16.667 
+49;Labu Parang;Kg; 	8.000 
+50;Lemon Import;Kg; 	50.000 
+51;Lemon Lokal;Kg; 	15.000 
+52;Lemon Lokal California;Kg; 	35.000 
+53;Mangga Alpukat;Kg;
+54;Mangga Gedong Gincu;Kg; 	25.000 
+55;Mangga Harum Manis;Kg; 	45.000 
+56;Mangga Indramayu;Kg; 	15.000 
+57;Mangga Muda;Kg; 	11.000 
+58;Manggis;Kg; 	15.000 
+59;Markisa;Kg; 	40.000 
+60;Melon Hijau;Kg; 	15.000 
+61;Melon Orange;Kg; 	12.000 
+62;Nanas;Pcs; 	5.000 
+63;Nanas Kupas;Pcs; 	15.000 
+64;Nanas Madu;Pcs; 	15.000 
+65;Nanas Madu Kupas;Pcs; 	15.000 
+66;Nanas Parut;Kg; 	18.000 
+67;Nanas Sunpride Honi;Pcs; 	32.000 
+68;Nangka;Kg; 	40.000 
+69;Nangka Kupas;Kg; 	50.000 
+70;Nangka Kupas @200Gr;Pack; 	10.000 
+71;Nangka Kupas Madu;Kg; 	30.000 
+72;Pear Century;Kg; 	19.773 
+73;Pear Golden Crown;Kg;
+74;Pear Hijau;Kg; 	40.000 
+75;Pepaya California;Kg; 	14.286 
+76;Pepaya Muda;Kg; 	8.000 
+77;Pisang Ambon;Sisir; 	40.000 
+78;Pisang Barangan;Sisir; 	15.000 
+79;Pisang Cavendish/Sunpride (KG);Kg; 	26.923 
+80;Pisang Cavendish/Sunpride (PCS);Pcs; 	6.000 
+81;Pisang Cavendish/Sunpride (SISIR);Sisir; 	30.000 
+82;Pisang Kepok;Sisir; 	15.000 
+83;Pisang Mas;Sisir; 	35.000 
+84;Pisang Raja;Sisir; 	25.000 
+85;Pisang Tanduk;Pcs; 	4.000 
+86;Pisang Uli;Sisir; 	15.000 
+87;Rambutan;Kg; 	10.000 
+88;Rasberry @170GR;Pack; 	77.500 
+89;Salak;Kg; 	10.000 
+90;Semangka Kuning Non Biji;Kg; 	15.411 
+91;Semangka Merah;Kg; 	10.784 
+92;Strawberry @250GR;Pack; 	12.000 
+93;Strawberry Korea @300GR;Pack;
+94;Timun Suri;Kg; 	15.000 
+;;;
+DRY GOODS;;;
+NO;NAMA BARANG;SATUAN;HARGA
+;;;BELI
+1;A&W Soda Sarsapila@250Ml Isi 24Can;Ctn; 	125.164 
+2;ABC Kecap Asin @620Ml;Btl; 	18.000 
+3;ABC Kecap Asin @6KG;Jrg; 	95.000 
+4;ABC Kecap Manis;Jrg; 	155.000 
+5;ABC Kecap Manis Refil @685Gr;Pack; 	22.000 
+6;ABC Sambal @5.7Kg;Jrg; 	145.000 
+7;ABC Sambal Extra Pedas @950Gr;Pack; 	34.800 
+8;ABC Sambal Refill @1Kg;Pack; 	34.000 
+9;ABC Sauce Sambal Sachet;Pack; 	7.500 
+10;ABC Sauce Tomat @1Kg;Pack; 	28.000 
+11;ABC Tomat @5.7Kg;Jrg; 	115.000 
+12;Adam Manis;Kg; 	21.500 
+13;Adas Putih;Kg; 	70.000 
+14;Agar2 Cokelat Swallow @12Pcs;Dus; 	40.200 
+15;Agar-Agar Matang;Pcs; 	8.000 
+16;Agar2 Plain Swallow @12Pcs;Dus; 	50.000 
+17;Air Kelapa;Ltr; 	7.917 
+18;Ajinomoto @1000GR;Pack; 	44.583 
+19;Ajinomoto @100GR;Pack; 	5.000 
+20;Ajinomoto @250GR;Pack; 	24.000 
+21;Ajinomoto Plus @1000GR;Pack; 	64.667 
+22;Ajinomoto Plus @500GR;Pack; 	46.000 
+23;Alba (Klabet);Kg;
+24;Almond Mentah Sliced;Kg; 	184.000 
+25;Almond Powder @500GR;Pack; 	96.500 
+26;Almond Whole;Kg; 	149.400 
+27;Amanda Margarine @15Kg;Dus;
+28;Amanda Margarine @200Gr;Pack; 	7.850 
+29;Ampo Tanah Liat @500GR;Pack; 	35.000 
+30;Anchor Cooking Cream @1Ltr;Ltr; 	121.500 
+31;Anchor Cream Cheese @1Kg;Pack; 	162.000 
+32;Anchor Mozarella @250Gr;Pack; 	42.000 
+33;Anchor Whipping Cream @1Ltr;Ltr; 	123.000 
+34;Ang Ciu @600ML;Btl; 	42.000 
+35;Angkak Bubuk;Kg; 	256.250 
+36;Antis Botol Spray Jasmine Tea @55Ml;Pcs; 	17.000 
+37;Antis Botol Spray Jeruk Nipis @55Ml;Pcs; 	17.000 
+38;Apple Cider Vinegar @473Ml ;Btl; 	75.000 
+39;Apron Pesto Sauce@250Ml;Btl; 	78.860 
+40;Aqua @220ML;Pcs;
+41;Aqua @330ML;Pcs; 	30.000 
+42;Aqua @330ML @24Btl;Ctn; 	62.160 
+43;Aqua @600ML;Pcs;
+44;Arabic 7 Spices @100Gr;Pack; 	46.650 
+45;Arang Batok Kelapa;Pack; 	7.000 
+46;Arang Batok Kelapa @10Kg;Bal; 	160.000 
+47;Arang Kayu;Pack; 	7.000 
+48;Arm & Hammer Baking Soda @454GR ;Pack; 	50.000 
+49;Aromanis Caster Sugar@250Gr;Pack; 	23.630 
+50;Asam Jawa;Kg; 	40.000 
+51;Asam Jawa Kupas @500GR;Pack; 	20.000 
+52;Asem SP @250GR;Pack; 	13.000 
+53;Asem SP @500GR;Pack; 	10.000 
+54;Astor;Kaleng; 	35.667 
+55;Astor DBL Chocolate @150GR;Pack; 	14.690 
+56;Babas Curry Powder @250GR;Pack; 	43.800 
+57;Baking Powder @1000GR Koepoe2 ;Pcs; 	72.500 
+58;Baking Powder @45GR Koepoe2 ;Pcs; 	6.667 
+59;Baking Powder Hercules @450GR;Can; 	53.000 
+60;Balsamic Vinegar Bertoli @500Ml;Btl; 	72.500 
+61;Balsamic Vinegar Bertoli @500Ml (Isi 12 Btl);Dus; 	92.000 
+62;Bangle;Kg; 	45.000 
+63;Basil @13GR Koepoe2;Pcs;
+64;Basreng Maicih Level 3 @100GR;Pcs; 	15.447 
+65;Bawang Bombay Bubuk @1Kg;Pack; 	85.000 
+66;Bawang Bombay Bubuk Jays @90GR;Btl; 	27.083 
+67;Bawang Hitam Tunggal Lanang ;Kg; 	120.000 
+68;Bawang Hitam Tunggal Lanang @250GR;Pack; 	96.000 
+69;Bawang Merah Goreng;Kg; 	65.000 
+70;Bawang Putih Bubuk @130GR Koepoe2;Pcs; 	20.000 
+71;Bawang Putih Bubuk @1kg ;Pack; 	70.000 
+72;Bawang Putih Bubuk @1kg Jays;Pack; 	96.000 
+73;Bawang Putih Bubuk @64GR Koepoe2;Pcs; 	12.000 
+74;Bawang Putih Bubuk Desaku @10Gr ;Pcs; 	2.000 
+75;Bawang Putih Goreng;Kg; 	100.000 
+76;Bawang Putih Tunggal;Pack; 	100.000 
+77;Bear Brand STM @189Ml;Pcs;
+78;Bear Brand White Tea @140Ml;Pcs;
+79;Beng Beng Drink Isi 8 Renceng;Ctn; 	159.500 
+80;Beng Beng Maxx @32GR;Ctn; 	4.590 
+81;Beng Beng Maxx @32GR Isi 10Pcs;Box; 	48.000 
+82;Beras Basmati India @5Kg;Pack; 	158.500 
+83;Beras Hanaro @5KG;Pack; 	207.500 
+84;Beras IR 64;Kg; 	13.500 
+85;Beras Ketan Hitam;Kg; 	28.000 
+86;Beras Ketan Hitam @475GR;Pack; 	26.900 
+87;Beras Ketan Paris @5KG;Pack; 	95.000 
+88;Beras Ketan Putih;Kg; 	22.000 
+89;Beras Lokal Rojo Lele @5Kg;Pack; 	95.000 
+90;Beras Merah @5kg;Pack; 	95.000 
+91;Beras Pandan Wangi @5Kg;Pack; 	105.000 
+92;Beras Pera BMW @5KG;Pack; 	99.500 
+93;Beras Petruk @20Kg;Krg; 	306.976 
+94;Beras Pulen BMW @5KG;Pack; 	100.000 
+95;Beras Sentra Ramos @5KG;Pack; 	87.000 
+96;Beras Sumo Merah @5Kg;Pack; 	92.000 
+97;Beras Thai Farmer Hom Mali@5Kg;Krg; 	306.976 
+98;Bernardi Corned Beef @290GR;Can; 	64.880 
+99;Bertolli White Vinager @500ML;Btl; 	72.500 
+100;Bihun Cap Jempol@1Kg;Pack; 	88.500 
+101;Bihun Jagung  Cap Tanam@320Gr;Pack; 	8.000 
+102;Bihun Jagung AAA @450Gr;Pack; 	26.000 
+103;Bihun Naga @500Gr;Pack; 	18.000 
+104;Biji Andaliman Utuh;Kg; 	379.000 
+105;Biji Jali @1KG;Pack; 	87.000 
+106;Biji Mutiara Merah ;Kg; 	14.000 
+107;Biji Pala (Nutmeg);Kg; 	170.000 
+108;Biji Pala Bubuk;Kg; 	210.000 
+109;Biji Pala Bubuk Koepoe2 @37Gr;Btl; 	15.000 
+110;Biji Selasih ;Kg; 	80.000 
+111;Biji Selasih Koepoe2 @55GR;Pcs; 	12.000 
+112;Biji Wijen Hitam;Kg; 	80.000 
+113;Biji Wijen Putih;Kg; 	52.000 
+114;Bintang Crystal @320Ml Isi 24Can;Krat; 	525.600 
+115;Black Charcoal Powder @5GR;Pack; 	17.000 
+116;Black Olive Figaro Pitted @450GR;Btl; 	73.000 
+117;Blackpepper Crush @1Kg Jays;Pack; 	250.000 
+118;Blackpepper Crush Superindo @50GR;Btl;
+119;Blue Band @2Kg;Can; 	125.000 
+120;Blue Band Cookie @200GR;Pack; 	11.000 
+121;Blue Band Original Serbaguna @4.5Kg;Box; 	195.000 
+122;Blue Band Serbaguna @1KG;Can; 	90.890 
+123;Blue Band Serbaguna @200GR;Pack; 	9.000 
+124;Boiron Fruit Puree Coconut @1KG ;Pack; 	287.000 
+125;Boiron Fruit Puree Passion Fruit @1KG ;Pack; 	309.850 
+126;Bon Cabe Ebi Refil;Pcs; 	4.467 
+127;Borges Olive Oil @5Ltr;Galon; 	792.000 
+128;Borges Olive Oil Extra Virgin @1Ltr;Btl; 	272.150 
+129;Borges Sunflower Oil @2Ltr;Btl; 	110.534 
+130;Brown Sugar Stick Ansell @8GR isi 60PCS;Pack; 	40.000 
+131;Buavita Apple @245GR;Pack; 	9.500 
+132;Bucatini Agnesi @500Gr;Pack; 	51.000 
+133;Bumbu Ayam Goreng;Kg; 	20.000 
+134;Bumbu Giling Gulai;Kg; 	35.000 
+135;Bumbu Giling Kuning;Kg; 	10.000 
+136;Bumbu Giling Merah;Kg; 	10.000 
+137;Bumbu Giling Putih;Kg; 	13.333 
+138;Bumbu Giling Rendang;Kg; 	35.000 
+139;Bumbu Giling Semur;Kg; 	20.000 
+140;Bumbu Giling Tongseng;Kg; 	20.000 
+141;Bumbu Kacang Karang Sari @200 Gr;Pack; 	15.000 
+142;Bumbu Kambing Sari Minang @250Gr;Pack; 	23.250 
+143;Bumbu Kari Bubuk;Kg; 	150.000 
+144;Bumbu Kari Bubuk @1KG Koepoe2;Pack; 	165.000 
+145;Bumbu Kari Bubuk @25GR Koepoe2;Btl; 	9.000 
+146;Bumbu Kari Giling;Kg; 	30.000 
+147;Bumbu Kentang Cheese Indofood @25GR;Pack; 	7.900 
+148;Bumbu Mala Hot Pot Koki Jempol@1Kg;Pack; 	124.085 
+149;Bumbu Ngo Hiang Koepoe2 @23Gr;Pcs; 	15.583 
+150;Bumbu Pecel Sinti @100GR;Pack; 	5.000 
+151;Bumbu Racik Ayam Goreng Indofood@33Gr;Pcs; 	1.700 
+152;Bumbu Racik Sayur Asem Indofood@33Gr;Pack; 	1.500 
+153;Bumbu Racik Sayur Lodeh Indofood@45Gr;Pcs; 	2.000 
+154;Bumbu Racik Soto Indofood @45GR;Pack; 	6.000 
+155;Bumbu Rawon Machmudah;Pack; 	3.350 
+156;Bumbu Rawon Munik @1Kg;Pack; 	160.500 
+157;Bumbu Rendang;Kg; 	10.000 
+158;Bumbu Soto Betawi Munik @1Kg;Pack; 	291.700 
+159;Bumbu Steak Mccormick @96GR;Btl; 	139.185 
+160;Bun Burger;Pcs; 	2.625 
+161;Bun Burger Bernardi Isi 6Pcs;Pack; 	24.150 
+162;Bun Burger Bernardi Wijen @6Pcs ;Pack; 	15.500 
+163;Bundaberg Pink Grapefruit @375Ml;Btl; 	26.525 
+164;Bunga Lawang (Star Anise);Kg; 	110.000 
+165;Bunga Pala;Kg;
+166;Bunga Sedap Malam Basah;Kg; 	127.000 
+167;Butter Unsalted Elle & Vire @200Gr;Pack; 	95.000 
+168;Cabai Bubuk @500GR;Pack; 	65.500 
+169;Cabai Merah Besar Giling Basah;Kg; 	96.500 
+170;Cabe Bubuk (Paprika Powder) AIDA @250GR;Pack; 	20.000 
+171;Cabe Bubuk (Paprika Powder) Koepoe2 @23GR;Pcs;
+172;Cabe Jawa Kering;Kg;
+173;Cabe Merah Giling;Kg; 	28.333 
+174;Cabe Merah Kering Besar;Kg; 	90.000 
+175;Cabe Merah Kering Kecil;Kg; 	80.000 
+176;Cabe Merah Kering Keriting;Kg; 	70.000 
+177;Cabe Merah Keriting Giling Basah;Kg; 	24.000 
+178;Cadbury Dairy Milk @30GR;Pack; 	9.690 
+179;Caesar Dressing Kwiepie @200ML;Btl;
+180;Cajun Powder @1KG;Pack; 	144.628 
+181;Cakwe Matang;Pcs; 	2.000 
+182;Candy Cane Natal @8CM;Pcs; 	9.371 
+183;Cap Badak Sarsaparila @24Btl;Krat; 	185.000 
+184;Capers Capotes Figaro @450Gr;Jar; 	105.000 
+185;Captain Oats Instant @200GR;Pack;
+186;Cendol Hijau;Kg; 	24.167 
+187;Cendol Hijau@200Gr;Pack; 	5.000 
+188;Cendol Hitam;Pack; 	5.000 
+189;Cengkeh;Kg; 	160.000 
+190;Ceres Meses Coklat Curah;Kg; 	60.000 
+191;Chatramue Thai Tea @400GR;Pack; 	62.400 
+192;Cheese Cheddar Kraft @160Gr;Pcs; 	13.833 
+193;Cheese Cheddar Kraft @2Kg;Pcs; 	220.000 
+194;Cheese Cheddar Prochiz @2Kg;Pack; 	144.500 
+195;Cheese Cheddar Prochiz Gold @2Kg;Pack; 	136.400 
+196;Cheese Cheddar Slice Anchor 28Lembar ;Pack; 	53.000 
+197;Cheese Cheddar Slice Anchor 84Lembar @1KG;Pack; 	152.000 
+198;Cheese Cheddar Slice Dairymont 28Lembar @0,25KG;Pack; 	87.000 
+199;Cheese Cheddar Slice Dairymont 84Lembar @1KG;Pack; 	180.500 
+200;Cheese Emental ;Kg; 	283.000 
+201;Cheese Gorgonzola;Kg; 	722.400 
+202;Cheese Mozarella Arla @2.3KG;Kg; 	213.999 
+203;Cheese Parmesan Blok Anchor @800GR;Pack; 	275.800 
+204;Cheese Parmesan Bubuk @250GR;Pack; 	88.000 
+205;Cheese Parmesan Bubuk Anchor @500GR;Pack; 	182.000 
+206;Cheese Parmesan Green Valley @1KG;Pack; 	290.000 
+207;Cheese Parmesan Green Valley @200GR;Btl; 	88.600 
+208;Cheese Parmesan Green Valley @80GR;Btl; 	50.790 
+209;Cheese Parmesan Powder Anchor @1KG;Kg; 	270.667 
+210;Cheese Prochiz Speady @2Kg;Pcs; 	136.900 
+211;Cheese Sauce Dairy Master @1KG;Pack; 	91.500 
+212;Cheese Stick Premium @250GR;Pack;
+213;Cheese Wincheez @250Gr;Pack; 	15.000 
+214;Cheesy Favorite Cheddar @500gr;Pack; 	80.750 
+215;Cherryman Cherries With Steam @283GR;Can; 	71.050 
+216;Chesee Emental Paysen Breton @250GR;Pack; 	186.000 
+217;Chic Choc Delfi Cokelat Biscuit @40GR;Pack; 	5.820 
+218;Chiki Balls Cheese ;Pcs; 	6.790 
+219;Chiki French Fries @138GR;Pcs; 	15.500 
+220;Chiki Paprika ;Renceng; 	18.000 
+221;Chili Flakes;Kg; 	70.000 
+222;Chili Flakes @1kg Jays;Pack; 	125.000 
+223;Chili Flakes Jays @45GR;Btl; 	18.000 
+224;Chili Pepper Ichimi Togarashi @300GR;Pack; 	95.200 
+225;Chili Powder Koepoe2 @23 Gr;Btl; 	11.500 
+226;Chitato Lite Original @10Pcs;Renceng; 	17.500 
+227;Chitato Sapi Panggang @15Gr @10Pcs;Renceng; 	18.000 
+228;Choco Chip Ceres Dark Chocolate @250GR;Pack; 	38.393 
+229;Choco Chip Ceres Milk Chocolate @250GR;Pack; 	41.000 
+230;Chocolatos Chocolate Drink Isi 8Renceng;Ctn; 	150.000 
+231;Chocolatos Matcha Drink Isi @26 GR;Pcs; 	2.000 
+232;Chocolatos Matcha Drink Isi @26 GR Isi 10 pcs;Renceng; 	17.000 
+233;Chocolatos Matcha Drink Isi 8Renceng;Ctn; 	150.000 
+234;Cincau Hijau;Pack; 	15.000 
+235;Cincau Hitam;Pack; 	5.000 
+236;Cincau Hitam Ohayo @400GR;Pack; 	18.500 
+237;Clovis Dijon Mustard @200GR;Jar; 	65.300 
+238;Clovis Mustard Whole Grain @200GR;Jar; 	74.667 
+239;Clovis Reims Champagne Vinegar @500Ml;Btl; 	67.352 
+240;Coarse Salt @300GR;Pack; 	37.900 
+241;Coca Cola @250Ml Isi 12 Btl;Ctn; 	144.000 
+242;Coca Cola Original Kaleng @330ML @24Can;Ctn; 	177.300 
+243;Coca Cola Zero Kaleng @250ML;Pcs; 	7.000 
+244;Coca Cola Zero Kaleng @250ML @24Can;Ctn; 	117.900 
+245;Cocoa Nibs @1Kg;Pack; 	231.000 
+246;Cocoa Powder;Kg; 	240.000 
+247;Coki Coki @20Pcs;Pack; 	18.000 
+248;Colatta Dark Chocolate Compound @1KG;Pack; 	64.500 
+249;Colatta Dark Chocolate Compound @250GR;Pack; 	25.000 
+250;Colatta White Chocolate Compound @250GR;Pack; 	32.900 
+251;Condy Lemon  Concentrate @200ML;Pack; 	22.375 
+252;Condy Lemon  Concentrate @500ML;Pack; 	42.500 
+253;Condy Lime @1Ltr;Btl; 	120.151 
+254;Corn Karnel Golden Farm @500Gr;Pack; 	26.940 
+255;Corn Tortilla @500GR;Pack; 	39.725 
+256;Country Corn Syrup @24OZ;Btl; 	64.269 
+257;Crispy Seaweed Big Sheet @12 PCS;Pack; 	62.280 
+258;Cuka Dixie @150Ml;Btl; 	7.000 
+259;Cuka Dixie @650Ml;Btl; 	17.000 
+260;Daging Kelapa Muda Dan Air Kelapa;Pcs; 	12.500 
+261;Dark Chocolate 70% Minang Kakao @70GR;Pack; 	73.100 
+262;Daun Jeruk Giling Basah ;Kg; 	50.000 
+263;Dececco Fettucine 103 @250Gr;Pack; 	104.196 
+264;Decotato Shiny Gold @18GR;Jar; 	239.933 
+265;Delfi Orion Custas @138GR;Pack; 	22.200 
+266;Delifru Syrup Green Apple @1Ltr;Btl; 	124.800 
+267;Delmonte BBQ @1KG;Pack; 	33.000 
+268;Delmonte BBQ @250GR;Pack;
+269;Delmonte Chili @340ML;Btl;
+270;Delmonte Chilli Extra Hot @1Kg;Pack; 	24.000 
+271;Delmonte Chilli Extra Hot @5.5Kg;Jrg; 	125.000 
+272;Delmonte Chilli Extra Hot Sachet @8Gr isi 24Pcs;Pack; 	7.250 
+273;Delmonte Extra Hot Chili @340ML;Btl; 	15.000 
+274;Delmonte Krim Jagung Manis @420Gr;Can; 	19.792 
+275;Delmonte Peach Halves @825GR;Can; 	65.000 
+276;Delmonte Sauce Tomat @5,5KG;Jrg; 	95.000 
+277;Delmonte Spaghetti @250GR;Pack;
+278;Delmonte Tomat @1kg;Pack; 	17.000 
+279;Delmonte Tomat @340ML;Btl; 	14.000 
+280;Delmonte Tomat Sachet @8Gr isi 24Pcs;Pack; 	7.000 
+281;Delmonte Tomato Paste @170GR ;Can; 	15.000 
+282;Diabetasol Sweetener @50PCS;Pack; 	38.100 
+283;Diamond Fresh Milk Plain;Ltr; 	23.240 
+284;Diamond Fresh Milk Plain @12Ltr;Ctn; 	273.560 
+285;Diamond Mayonnaise @4Kg;Pail; 	169.000 
+286;Diamond UHT Full Cream;Ltr; 	22.000 
+287;Diamond UHT Full Cream@200Ml Isi 24 Pcs;Ctn; 	116.000 
+288;Diana Maraschino Cerries Large @4,25kg;Pcs; 	456.000 
+289;Drak Cocoa Powder Timurasa @125Gr;Pack; 	61.300 
+290;Dried Apricot;Kg; 	604.000 
+291;Dried Kombu Seaweed @100Gr;Pack; 	29.255 
+292;Dried Orange@100GR;Pack; 	89.850 
+293;Dripp Hazelnut Syrup @760ML;Btl; 	128.000 
+294;Dripp Osmanthus @760ML;Btl; 	119.500 
+295;Dripp Pandan Syrup @760ML;Btl; 	111.225 
+296;Dripp Pistacio Syrup @760ML;Btl; 	100.280 
+297;Dripp Sakura Syrup @760ML;Btl; 	117.700 
+298;Dripp Yuzu Syrup @760ML;Btl; 	90.000 
+299;Ebi Kering Daging Tanpa Kulit;Kg; 	160.000 
+300;Ebi Kering Kulit;Kg; 	105.000 
+301;Edible Flower Mix;Pack; 	109.900 
+302;Edible Leaf Sheet Gold @50PCS ;Pack; 	11.750 
+303;Edmon Fallot Dijon Mustard 210GR;Pack; 	53.900 
+304;Ellenka Fiber Creamer;Pack; 	35.890 
+305;Emping Manis @500GR;Pack;
+306;Emping Mentah;Kg; 	80.000 
+307;Emping Mentah Besar;Kg; 	90.000 
+308;Energen Cokelat @35GR @10Pcs;Renceng; 	19.600 
+309;Energen Vanilla @10 Pcs;Renceng; 	20.000 
+310;Fanta Merah @250ML Isi 24Can;Ctn; 	144.000 
+311;Fanta Merah Soda @250Ml Isi 12Btl;Krat; 	38.755 
+312;Fanta Soda Water @250Ml Isi 12Btl;Krat; 	38.755 
+313;Feminax @4Tablet;Strip; 	6.000 
+314;Fermipan Yeast @4x11GR;Pack; 	21.000 
+315;Fermipan Yeast @500GR ;Pack; 	55.000 
+316;Filipo Berio Balsamic Vinegar @250ML;Btl; 	56.900 
+317;Fish Sauce Royal Gold @725Ml;Btl;
+318;Fitbar Choco Delight @20 GR;Pcs; 	5.990 
+319;French Honey Mustard @340Gr;Btl; 	122.900 
+320;French Yellow Mustard 105 OZ/2.98Kg;Btl; 	203.000 
+321;French Yellow Mustard 14Oz @396GR;Btl; 	81.700 
+322;French Yellow Mustard 8Oz @226GR;Btl; 	45.000 
+323;French Yellow Mustard 9Oz;Btl; 	56.000 
+324;Garam Bata Isi 10Pcs;Pack; 	32.000 
+325;Garam Dolpin @1Kg;Pack; 	15.000 
+326;Garam Dolpin @250Gr;Pack; 	5.000 
+327;Garam Dolpin @500Gr;Pack; 	10.250 
+328;Garam GMR @500GR;Pack; 	3.900 
+329;Garam Himalaya @160Gr;Btl; 	31.710 
+330;Garam Himalaya @500Gr;Pack; 	20.400 
+331;Garam Kasar Isi 10 Pack;Ball; 	55.000 
+332;Garam Refina @500Gr;Pack; 	6.500 
+333;Garam Segitiga Emas @500Gr;Pack; 	4.500 
+334;Garda Ungu;Kg;
+335;Gelatin Gelita Sheet Halal @15Pcs;Pack; 	67.900 
+336;Gelatin Gelita Sheet Halal @5Pcs;Pack; 	25.500 
+337;Gelatin Powder @100GR ;Btl; 	32.500 
+338;Gelatin Powder @70GR ;Btl; 	26.497 
+339;Gelatin Powder Halal @1Kg;Pack; 	188.102 
+340;Ghirardelli Caramel Sauce @454GR;Btl; 	263.700 
+341;Gim Bori Mamasuka @30Gr;Pcs; 	18.317 
+342;Glukosa Syrup Liquid @500Gr;Pack; 	49.050 
+343;Goalpara Black Tea @250 GR ;Pack; 	13.313 
+344;Golden Bridge Canola Oil @1Ltr;Btl; 	88.100 
+345;Golden Peach Halves @820Gr;Can; 	63.000 
+346;Goldenfill Cococrunchy@1Kg;Pack; 	54.000 
+347;Goldenfill Strawberry@1Kg;Pack; 	50.000 
+348;Good Day Cappucino Isi 12Renceng;Ctn; 	260.000 
+349;Good Time Double Choco @70GR;Pcs; 	9.390 
+350;Grapeseed Oil Borges @1LTR ;Btl; 	147.005 
+351;Grapeseed Oil Sunny Perfect @1LTR ;Btl; 	141.525 
+352;Greek Yogurt Biokul 473GR;Tin; 	69.990 
+353;Green Olive Figaro Stuffed @450GR;Btl; 	85.391 
+354;Greenfields Fresh Milk @1,8Ltr;Pack; 	57.390 
+355;Greenfields Fresh Milk @1Ltr;Pack; 	35.349 
+356;Greenfields Fresh Milk LowFat @1Ltr;Pack;
+357;Greenfields Fresh Milk Strawberry @1Ltr;Pack;
+358;Greenfields Mozarella @200GR;Pack;
+359;Greenfields UHT Full Cream @1Ltr;Pcs; 	26.750 
+360;Greenfields UHT Full Cream @1Ltr Isi 12Pcs;Dus;
+361;Greenfields Whipping Cream @1Ltr;Ltr; 	90.000 
+362;Greenfields Whipping Cream @1Ltr Isi 12Pcs;Dus; 	895.800 
+363;Greenfields Yogurt Blueberry @80GR;Pack;
+364;Greenfields Yogurt Original @80GR;Pack;
+365;Greenfields Yogurt Strawberry @80GR;Pack;
+366;Gula Aren;Kg; 	27.000 
+367;Gula Aren Kemas Daun;Kg; 	28.000 
+368;Gula Batu Putih @500GR;Pack; 	18.000 
+369;Gula Cair Frucosta @30Kg;Jrg; 	362.900 
+370;Gula Cair Fruktosa Rose Brand @5Kg;Jrg; 	86.000 
+371;Gula Caster @1KG;Pack; 	25.000 
+372;Gula GMP @50KG;Bal; 	865.000 
+373;Gula GMP Gunung Madu @1Kg ;Pack; 	18.500 
+374;Gula Merah;Kg; 	15.500 
+375;Gula Merah Bubuk @250Gr;Pack; 	18.000 
+376;Gula Merah Bubuk Stick;Pack; 	25.225 
+377;Gula Merah Stick Sachet Isi 30Pcs;Pack; 	16.900 
+378;Gula Pasir Kristal Putih Sachet @6GR Isi250Pcs;Pack; 	65.500 
+379;Gula Pasir SUS @500GR;Pack; 	51.920 
+380;Gula Putih Halus @250Gr;Pack; 	7.000 
+381;Gula Putih Halus Rose Brand @500Gr;Pack; 	16.000 
+382;Gula Putih Halus SIS @500Gr;Pack; 	43.650 
+383;Gula Rose Brand @1KG;Pack; 	19.000 
+384;Gula Rose Brand @50KG;Bal; 	825.000 
+385;Gula Vit @1Kg;Pack; 	17.250 
+386;Gula Vit @50Kg;Bal; 	880.000 
+387;Gulaku @1KG;Pack; 	19.583 
+388;Guribee Rumput Laut @65GR;Pack; 	8.490 
+389;Haan Whippy Cream Powder @200GR;Pack; 	34.000 
+390;Haan Whippy Cream Powder @400GR;Pack; 	89.900 
+391;Happy Soya Oil @1LT;Pack; 	70.000 
+392;Heinz Cuka Putih @16OZ;Btl; 	37.000 
+393;Helios Gherkins Pickle @345GR;Jar; 	62.400 
+394;Himalayan Salt @1KG;Pack; 	33.000 
+395;Himalayan Salt @500GR;Pack; 	21.300 
+396;Hollman Butter@1Kg;Pack; 	73.000 
+397;Honey Lemon Cold Pressed Juice @200Ml (Frut Haus);Btl;
+398;Honey Lemon Cold Pressed Juice @250Ml (Frut Haus);Btl; 	217.000 
+399;Honey Star Cereal @150GR;Pcs;
+400;Hosue Java Curry Sauce Mix @1Kg;Pack; 	189.500 
+401;House Kari Ala Jepang @300GR;Pack; 	55.000 
+402;House Neri Wasabi Pasta@43Gr;Pack; 	54.400 
+403;HP Sauce @225ML;Btl; 	60.000 
+404;Hydro Coco @1Ltr;Pack; 	25.600 
+405;Hydro Coco @500Ml;Pack; 	16.750 
+406;Ikan Bilis Kering;Kg; 	170.000 
+407;Inaco Konyaku Jelly;Pack; 	8.890 
+408;Indomie Goreng Jumbo Merah;Pcs;
+409;Indomie Goreng Jumbo Merah @24Pcs;Dus; 	88.000 
+410;Indomie Goreng Merah @40Pcs;Dus; 	115.000 
+411;Indomie Goreng Rendang @40Pcs;Dus; 	138.303 
+412;Indomie Rebus Ayam Bawang @40Pcs;Dus; 	112.000 
+413;Indomie Rebus Kari Ayam @40Pcs;Dus; 	110.000 
+414;Indomie Rebus Soto Mie @40Pcs;Dus; 	110.000 
+415;Ishii Lokal Dry Shirataki @250GR;Pack;
+416;Ishii Lokal Shirataki @200GR;Pack;
+417;Isi Soda Charger Co2 @10Pcs;Box; 	84.360 
+418;Jagung Ayam Brand@425Gr;Can; 	22.470 
+419;Jahe Giling;Kg; 	10.000 
+420;Jalapeno Mezzetta Sliced Tamed @473Ml;Can; 	102.160 
+421;Jalapeno Pickled La Costena Nacho @440GR;Btl; 	64.000 
+422;Jalapeno Pickled Peppers La Costena @2.6KG;Can; 	151.000 
+423;Jamur Kaleng TTS Straw @425GR;Can; 	21.000 
+424;Jamur Kancing Kaleng @425GR;Can; 	21.000 
+425;Jamur Kuping Kering Su Brand @1KG;Pack; 	93.000 
+426;Jansen Vanilla @100ML;Btl; 	61.900 
+427;Jansen Vanilla @1KG;Btl; 	332.000 
+428;Java Cocoa Powder Classic @1KG;Btl; 	231.240 
+429;Javaland Pure Matcha Powder @50Gr;Pack; 	33.500 
+430;Jays Bay Leaves @10GR;Btl; 	36.400 
+431;Jays Biji Pala Bubuk @65Gr;Btl; 	160.000 
+432;Jays Blackpepper Crushed @60Gr;Btl; 	125.000 
+433;Jay's Chinese Five Spice @50 GR;Pack; 	19.600 
+434;Jays Italian Herb Seasoning @25GR;Btl; 	34.190 
+435;Jays Oregano @25GR;Btl; 	20.600 
+436;Jays Rosemary @40GR;Btl; 	24.700 
+437;JetZ Cokelat @40GR;Pcs; 	4.000 
+438;Jinten Bubuk;Kg; 	200.000 
+439;Jinten Hitam;Kg; 	90.000 
+440;Jinten Putih;Kg; 	90.000 
+441;John Farmer Selai Kacang@1Kg;Pack; 	69.500 
+442;Jungle Juice Apple @2Liter;Pcs;
+443;Jungle Juice Lemon @1Liter;Pcs; 	36.000 
+444;Jungle Juice Mangga @2Liter;Pcs; 	36.000 
+445;Jungle Juice Orange @1Liter;Pcs; 	38.000 
+446;Jungle Juice Orange @2Liter;Pcs;
+447;Jungle Juice Pienapple @1Liter;Pcs; 	38.800 
+448;Kacang Giling;Kg; 	35.000 
+449;Kacang Hijau;Kg; 	30.000 
+450;Kacang Kedelai;Kg; 	18.000 
+451;Kacang Kedelai Bubuk;Pack;
+452;Kacang Kulit Dua Kelinci @14GR Isi 10Pcs;Renceng; 	9.000 
+453;Kacang Mayasi ;Pack; 	11.490 
+454;Kacang Mede (Chasew);Kg; 	160.000 
+455;Kacang Merah;Kg; 	40.000 
+456;Kacang Pistachio;Kg; 	217.766 
+457;Kacang Polong;Kg;
+458;Kacang Polong Ayam Brand@425Gr;Can; 	26.004 
+459;Kacang Tanah Kulit Ari;Kg; 	36.000 
+460;Kacang Tanah Kupas;Kg; 	36.000 
+461;Kacang Tanah Kupas Besar Bali;Kg; 	36.000 
+462;Kacang Tolo;Kg; 	30.000 
+463;Kaldu Jamur Totole @1Kg;Pack; 	110.000 
+464;Kaldu Jamur Totole @400Gr;Pack; 	55.000 
+465;Kaldu Jamur Totole @80Gr;Pack; 	11.900 
+466;Kapulaga Hijau;Kg; 	160.000 
+467;Kara Santan Kelapa Siap Pakai @1Ltr;Pack; 	76.667 
+468;Karagenan (Kappa) @100GR;Pack; 	24.000 
+469;Kayu Manis;Kg; 	100.000 
+470;Kayu Manis Bubuk;Kg; 	90.000 
+471;Kayu Manis Bubuk @1K5Gr Koepoe2;Pack; 	15.000 
+472;Kayu Manis Bubuk @1Kg Jays;Pack;
+473;Kecap Asin Hati Angsa @600Ml;Btl; 	22.000 
+474;Kecap Asin Hati Angsa Refil @600Ml;Pack; 	25.000 
+475;Kecap Ikan Merah (Djoe Hoa) @620Ml;Btl; 	40.000 
+476;Kecap Ikan Royal Gold @725ML ;Btl; 	45.000 
+477;Kecap Inggris Harum Sedap @620Ml;Btl; 	70.000 
+478;Kecap Inggris Lea&Pernis W @290ML;Btl; 	75.000 
+479;Kecap Manis;Jrg;
+480;Kecap Manis Bango @1.5Ltr;Pack; 	45.000 
+481;Kecap Manis Bango @1Ltr;Pack; 	34.200 
+482;Kecap Manis Bango @520ML;Pack; 	22.917 
+483;Kecap Manis Bango @5Ltr;Jrg; 	180.000 
+484;Kecap Manis Bango @620Ml;Pack; 	45.700 
+485;Kecap Manis Benteng SH Refill@620Ml;Pack; 	36.690 
+486;Kecap Manis Cap Anggur @6Kg;Jrg; 	180.524 
+487;Kecap Manis Guna @520Ml;Pack; 	13.000 
+488;Kecap Manis Nasional @520Ml;Pack; 	16.000 
+489;Kecap Manis SH @620Ml;Btl; 	57.500 
+490;Kembang Tahu Kering;Kg; 	17.200 
+491;Kemiri;Kg; 	45.000 
+492;Kemiri Giling Basah;Kg; 	10.000 
+493;Kemiri Halus;Kg; 	50.000 
+494;Kencur;Kg; 	80.000 
+495;Keripik Singkong Maicih Pedas @100GR;Pcs; 	13.814 
+496;Kerupuk Bawang;Kg; 	20.000 
+497;Kerupuk Bawang Mentah Warna Warni;Kg; 	19.000 
+498;Kerupuk Finna @380Gr;Pack; 	32.000 
+499;Kerupuk Kulit Matang;Kg; 	110.000 
+500;Kerupuk Kembang;Kg; 	32.000 
+501;Kerupuk Mie Kuning;Kg; 	34.000 
+502;Kerupuk Merah  Padang;Kg; 	41.000 
+503;Kerupuk Kulit Sedang;Kg;
+504;Kerupuk Merah Kecil;Kg; 	25.000 
+505;Kerupuk Orange Muda;Kg; 	20.000 
+506;Kerupuk Palembang;Kg; 	25.000 
+507;Kerupuk Udang Bulan Sabit;Kg; 	35.000 
+508;Kerupuk Udang Orange Kecil;Kg; 	38.000 
+509;Kerupuk Udang Putih Besar;Kg; 	35.000 
+510;Kerupuk Udang Putih Kecil;Kg; 	38.000 
+511;Kerupuk Udang Putih Sedang;Kg; 	38.000 
+512;Kerupukku Senna @500Gr;Pack; 	20.900 
+513;Ketumbar Biji;Kg; 	30.000 
+514;Ketumbar Bubuk @1kg Jays;Pack;
+515;Ketumbar Bubuk @25GR Koepoe2;Pcs;
+516;Ketumbar Halus ;Kg; 	30.000 
+517;Kewpie Cheese Mayo @1KG;Pcs; 	72.300 
+518;Kewpie Mayo Base Type @3KG;Pack; 	134.700 
+519;Kewpie Mayonaise Original @1Kg;Pack; 	73.500 
+520;Kewpie Wijen Sangrai @1Liter;Btl; 	90.030 
+521;Kewpie Wijen Sangrai @25ML;Pack;
+522;Kikkoman BBQ;Btl;
+523;Kikkoman Blackpaper Teriyaki;Btl; 	22.090 
+524;Kikkoman Bulgogi;Btl;
+525;Kikkoman Dark Sauce;Btl;
+526;Kikkoman Garlic Teriyaki;Btl; 	29.333 
+527;Kikkoman Gochujang;Btl; 	113.000 
+528;Kikkoman Hoisin;Btl;
+529;Kikkoman Katsu;Btl;
+530;Kikkoman Kecap Asin Khas Jepang @150ml;Btl; 	23.100 
+531;Kikkoman Mirin Halal;Btl; 	25.000 
+532;Kikkoman Oriental Light Sauce;Btl;
+533;Kikkoman Oyster Sauce;Btl;
+534;Kikkoman Ponzu;Btl;
+535;Kikkoman Soba Shoyu;Btl;
+536;Kikkoman Soba Shoyu @2L;Jrg;
+537;Kikkoman Soy Sauce @1.6Ltr;Jrg; 	125.000 
+538;Kikkoman Sweet Sauce;Btl;
+539;Kikkoman Yakiniku;Btl;
+540;Kiranti @150ML;Pcs; 	8.000 
+541;Kismis;Kg; 	80.000 
+542;Kluwek Kupas;Kg; 	45.000 
+543;Knorr Adolph Meat Tenderizer @454GR;Pack; 	107.000 
+544;Knorr Beef @1KG;Pack; 	100.000 
+545;Knorr Cheese Sauce Mix @1Kg;Pack; 	254.252 
+546;Knorr Chicken @1KG;Pack; 	113.333 
+547;Knorr Demi Glass @1KG;Pack; 	165.000 
+548;Knorr Lime Powder @400Gr;Pack; 	66.500 
+549;Knorr Mashed Potato @4Kg;Pack;
+550;Knorr Mushroom&Vegetable @400Gr;Pack; 	67.700 
+551;Knorr Paste Tomyum @1.5Kg;Pack; 	302.309 
+552;Knorr Salted Egg Powder@270Gr;Pack; 	124.833 
+553;Koeleman Gherkins Pickle @720GR;Btl; 	60.000 
+554;Koepoe2 Oregano @14GR;Btl; 	10.000 
+555;Koepoe2 Rosemary @14GR;Btl; 	18.990 
+556;Kogen Wafer Stick @600Gr;Pack; 	57.000 
+557;Koko Krunch Cereal @150GR;Pack; 	19.575 
+558;Kolang Kaling;Kg; 	20.000 
+559;Kopi Biji Aratula Arabika @200Gr;Pack; 	70.900 
+560;Kopi Biji Aratula Robusta @200Gr;Pack; 	70.900 
+561;Kopi Kapal Api Special Mix+Gula @120Pcs;Ctn; 	148.000 
+562;Kopi Kapsul Excelso Espresso;Pack; 	82.900 
+563;Kopi Kapsul Excelso Torabika;Pack; 	82.900 
+564;Kopi Kapsul Excelso Toraja;Pack; 	82.900 
+565;Kopi Kapsul Nespresso (Caramello);Pack; 	162.155 
+566;Kopi Kapsul Nespresso (Cioccolatino);Pack; 	162.155 
+567;Kopi Kapsul Nespresso (Nocciola);Pack; 	161.900 
+568;Kopi Kenangan Mantan;Pcs; 	9.690 
+569;Kopi Tubruk Gadjah 6,5Gr Isi 20 Sachet;Pack; 	17.000 
+570;Kraft BBQ Sauce Original @510GR;Btl; 	48.590 
+571;Kulit Gyoza Uk 10Cm @50Pcs;Pack; 	30.900 
+572;Kulit Gyoza Uk 9Cm @50Pcs;Pack; 	46.500 
+573;Kulit Kayu Mesoyi @100Gr;Pack; 	20.900 
+574;Kulit Lumpia Biasa;Pack; 	5.000 
+575;Kulit Lumpia Finna 21x21 @40PCS;Pack; 	26.100 
+576;Kulit Pangsit @500GR;Pack; 	8.000 
+577;Kulit Pangsit Abadi AM Goreng & Rebus;Pack; 	10.000 
+578;Kulit Pangsit Rebus AA;Pack; 	8.000 
+579;Kulit Tahu;Pack; 	13.213 
+580;Kundur Manis SU Brand @250GR;Pack; 	21.947 
+581;Kunhe Barrel Sauerkraut@850Ml;Jar; 	63.125 
+582;Kunhe Gherkins Pickle;Btl; 	55.117 
+583;Kunhe Horseradish/Sauce Lobak @140Gr;Jar; 	35.900 
+584;Kunyit Bubuk ;Kg; 	32.000 
+585;Kunyit Bubuk @1Kg;Kg; 	32.000 
+586;Kunyit Bubuk @500GR;Pack; 	45.000 
+587;Kunyit Bubuk Desaku @10Gr;Pack; 	1.000 
+588;Kunyit Bubuk Koepoe2 @25Gr;Btl; 	10.314 
+589;Kunyit Giling;Kg; 	10.000 
+590;Kwetiauw Basah Djakarta;Pack; 	5.000 
+591;Kwetiauw Beras @500GR;Pack; 	5.000 
+592;Kwetiauw Kering Su Brand @220GR;Pack; 	16.000 
+593;La Costena Schipotles Pepper @340GR;Can; 	146.000 
+594;La Fonte Fettucine @450Gr;Pack; 	19.000 
+595;La Fonte Fettucine @750Gr;Pack;
+596;La Fonte Fettucine No 31 @750Gr (Isi 16 Pack);Dus; 	33.000 
+597;La fonte Macaroni Chifferi Riganti @500Gr;Pack;
+598;La Fonte Penne @450gr;Pack; 	20.000 
+599;La Fonte Penne No 91 @500Gr (Isi 20 Pack);Dus;
+600;La Fonte Saos Bolognaise @315Gr;Pack; 	20.000 
+601;La fonte Spaghetti @1Kg;Pack; 	33.000 
+602;La fonte Spaghetti @450Gr;Pack; 	16.300 
+603;La Fonte Spaghetti No 11 @1KG (Isi 10Pack);Ctn; 	297.000 
+604;La Fonte Spaghetti Size 10;Pack; 	9.667 
+605;Lada Hitam Bubuk @83GR Koepoe2;Pcs;
+606;Lada Hitam Halus;Kg; 	100.000 
+607;Lada Hitam Halus @250Gr;Pack; 	25.000 
+608;Lada Hitam Kasar;Pack; 	140.000 
+609;Lada Hitam Utuh;Kg; 	140.000 
+610;Lada Putih Bubuk @1Kg Jays;Pack;
+611;Lada Putih Bubuk @1KG Koepoe2;Pack; 	243.000 
+612;Lada Putih Bubuk @38GR Koepoe2;Pcs;
+613;Lada Putih Halus;Kg; 	100.000 
+614;Lada Putih Halus @250GR;Pack; 	25.000 
+615;Lada Putih Halus Brams @1KG;Pack; 	90.000 
+616;Lada Putih Utuh;Kg; 	170.000 
+617;Lada Sichuan @1Kg;Pack; 	335.000 
+618;Ladaku Sachet @40Gr;Pcs; 	917 
+619;Lady Finger Vicenzovo @200GR;Pack; 	48.000 
+620;Le Minerale @330ML isi 24Btl;Ctn; 	47.925 
+621;Le Minerale @600ML isi 24Btl;Ctn; 	93.600 
+622;Lee Kum Kee Dark Sauce @500ML ;Btl; 	40.000 
+623;Lee Kum Kee Hoisin Sauce @2,27Kg;Can; 	175.000 
+624;Lee Kum Kee Light Sauce @500ML ;Btl; 	45.000 
+625;Lee Kum Kee Oyster Sauce Cap Panda @510Gr;Btl; 	45.000 
+626;Lee Kum Kee Oyster Sauce Cap Panda @770Gr;Btl; 	55.000 
+627;Lee Kum Kee Saos Tiram 2.2Kg;Can; 	110.000 
+628;Lee Kum Kee Soy Sauce Premium @250ML;Btl; 	26.000 
+629;Lee Kum Kee Soy Sauce Premium @500ML;Btl; 	38.000 
+630;Lemon Sunquick @300Ml;Pack; 	40.000 
+631;Lengkoas Giling;Kg; 	8.000 
+632;Lily Salad Oil @3Ltr;Can; 	185.000 
+633;Lipton Chamomile Infusion @25Pcs;Pack; 	61.800 
+634;Lipton Yellow Label Tea @100Pcs;Pack; 	111.000 
+635;Lobak Radis Chinois@340Gr;Pack; 	27.500 
+636;Lontong;Pcs; 	3.000 
+637;Lotte Choco Pie;Pack; 	18.890 
+638;Lotus Biscoff Classic Biskuit @250Gr;Pack; 	40.000 
+639;Lotus Biscoff Spread Jam @200Gr;Pcs; 	87.000 
+640;Lotus Xanthan Gum Powder @100GR;Pack; 	85.900 
+641;Lucky Stick Chocolate @45GR;Box; 	14.833 
+642;Macaroni Keju Premium @125GR;Pack;
+643;Macaroni Keju Premium @250GR;Pack;
+644;Macaroni Pipa Sedani @1KG;Pack; 	20.000 
+645;Maderaas Madras Cury Powder @225GR;Pack; 	32.900 
+646;Madu (Nusantara) 250ML;Btl; 	78.108 
+647;Madu (Nusantara) 650ML;Btl; 	119.167 
+648;Madu Flora Tropis @2Ltr;Btl; 	231.100 
+649;Madu TJ Kurma @250GR;Btl; 	22.700 
+650;Madu TJ Original @500ML;Btl; 	45.333 
+651;Madu Uray @8750ML;Btl; 	167.500 
+652;Maestro Blue Cheese @237ml;Btl;
+653;Maestro Mayonaise @180GR;Pack; 	10.000 
+654;Maestro Mayonaise @1KG;Pack; 	32.000 
+655;Maestro Mayonaise @3KG;Pack; 	115.400 
+656;Maestro Mustard @1KG;Btl; 	67.940 
+657;Maestro Sandwich Spread @225ML;Btl;
+658;Maestro Thousand Island @237ml;Btl;
+659;Maggi Seasoning 800ML;Btl; 	75.000 
+660;Maizenaku @100GR;Pack; 	5.000 
+661;Maizenaku @1Kg;Kg; 	22.000 
+662;Maizenaku @300Gr;Pack; 	8.000 
+663;Mamasuka Chicken Soup @54GR;Pcs; 	9.990 
+664;Mamasuka Mayonaise @1Kg;Pack; 	55.150 
+665;Mamasuka Mushroom Soup @54GR;Pcs; 	9.990 
+666;Mamasuka Tepung Ala Kentucky @210GR;Pack;
+667;Mamasuka Tepung Bakwan Original @225GR;Pack;
+668;Mamasuka Tepung Roti Mix @10Kg;Bal;
+669;Mamasuka Tepung Roti Orange @10Kg;Bal; 	200.000 
+670;Mamasuka Tepung Roti Putih @1KG;Pack; 	55.000 
+671;Mamasuka Tepung Roti Putih @8Kg;Bal;
+672;Mamayo Mayonaise @1Kg;Pack; 	23.000 
+673;Manjun Sushi Nori Seaweed @50Pcs;Pack; 	112.250 
+674;Manjun Yaki Sushi Nori 125Gr @50Lembar;Pack; 	73.851 
+675;Maple Joe @250Gr;Btl; 	123.000 
+676;Maraschinos Cherries Tangkai @3Kg;Jar; 	516.760 
+677;Maraschinos Frutaneira Cherries Tangkai @4,5Kg;Jar; 	449.500 
+678;Marie Regal @1KG;Pcs; 	115.167 
+679;Mariza Chocolate @1Kg;Pack; 	91.000 
+680;Masako Ayam @1kg;Pack; 	38.000 
+681;Masako Sapi @1kg;Pack; 	38.000 
+682;Mauripan Ragi Instan@500Gr;Pack; 	55.000 
+683;Master Gourmet Cooking Cream @1Ltr;Pack; 	81.900 
+684;Matcha Powder @30GR;Pack; 	25.000 
+685;Max Creamer@500Gr;Pack; 	48.408 
+686;Max Tea Tarik Jahe @25GR 10Pcs;Renceng; 	26.300 
+687;Max Tea Tarik Original @25GR 10Pcs;Pack; 	23.000 
+688;Mayonaise ;Kg;
+689;Mayonnaise Hellmann's@3Ltr;Pack; 	187.482 
+690;Mc Lewis Mayonaise Original @1Kg;Pack; 	29.000 
+691;Meg Cheese Sliced Melt @20Pcs;Pack; 	42.000 
+692;Mentega Curah;Kg; 	60.000 
+693;Meses Warna Warni Curah @500GR;Pack; 	24.500 
+694;Mezatta Capote Capers @437ML;Btl; 	161.400 
+695;Mie Atom Bulan;Pack; 	8.000 
+696;Mie Burung Dara ;Pack; 	10.000 
+697;Mie Burung Dara @24PCS;Dus;
+698;Mie Daraku @15PCS;Pack; 	95.000 
+699;Mie Gelas Ayam Bawang @6Pcs;Pack; 	8.170 
+700;Mie Gelas Kari Ayam @6Pcs;Pack; 	19.200 
+701;Mie Kuning Basah;Kg; 	12.000 
+702;Mie Sedap Cup Ayam Jerit @79GR;Pcs; 	4.050 
+703;Mie Sedap Goreng Cup @79GR;Pcs; 	4.500 
+704;Mie Sedap Goreng Cup Pedas Gledek @79GR;Pcs; 	5.690 
+705;Mie Telur Bebek Halus @1KG;Pack; 	41.750 
+706;Mie Telur Cap 3 Ayam;Pack; 	4.600 
+707;Mie Telur Lebar Cap Kemudi @500GR;Pack; 	27.228 
+708;Mie Telur Lebar Yi Jian @200GR;Pack; 	16.250 
+709;Mie Telur Special 10001 @6Pcs;Pack; 	9.250 
+710;Mie Wonton @1Kg Isi 10Pcs;Pack; 	60.000 
+711;Milac Gold Cooking Cream @1Ltr;Pack; 	81.670 
+712;Milac Gold Cooking Cream @370GR;Pack;
+713;Milac Roselle Cooking Cream @1Ltr;Pack; 	68.125 
+714;Mili Leci @565GR;Kaleng; 	44.000 
+715;Mili Longan;Can; 	40.417 
+716;Milk Life Fresh Milk Pure @Ltr;Ltr; 	30.000 
+717;Milo Bubuk@990Gr;Pack; 	101.800 
+718;Milo Cereal @170GR;Pcs; 	30.000 
+719;Milo UHT Cokelat @110ML;Pcs;
+720;Minyak Barco @18Ltr;Jrg; 	619.000 
+721;Minyak Barco @1Ltr;Pack; 	60.954 
+722;Minyak Barco @2Ltr;Pack; 	120.000 
+723;Minyak Beku/Padat @18Ltr;Ctn; 	345.000 
+724;Minyak Bimoli @18Ltr;Jrg; 	425.000 
+725;Minyak Bimoli @5Ltr;Jrg; 	120.000 
+726;Minyak Bimoli BIB @18Ltr;Jrg; 	370.000 
+727;Minyak Filma @18Ltr;Jrg; 	355.000 
+728;Minyak Filma BIB @18Ltr;Ctn; 	440.000 
+729;Minyak Filma @2LTR;Pack; 	36.000 
+730;Minyak Kelapa Kara @1LT;Pack; 	57.200 
+731;Minyak Ikan Tiparos @700ML;Btl; 	29.650 
+732;Minyak Kita @1Ltr;Pack; 	17.500 
+733;Minyak Kunci Mas BIB@18Ltr;Ctn; 	398.200 
+734;Minyak Polos @1Ltr;Pack; 	16.000 
+735;Minyak Resto @1Ltr;Pack; 	15.333 
+736;Minyak Sovia Bib @18Ltr;Ctn; 	415.000 
+737;Minyak Samin @200GR;Pack; 	13.000 
+738;Minyak Samin @2Kg;Pack; 	102.000 
+739;Minyak Samin Cap Unta @2KG;Can; 	165.000 
+740;Minyak Sania @2Ltr;Pack; 	42.415 
+741;Minyak Sania BIB @18Ltr;Ctn; 	415.000 
+742;Minyak Sunco @2Ltr;Pack; 	42.000 
+743;Minyak Tropical @2Ltr;Btl; 	42.000 
+744;Minyak Vipco@1Ltr;Pack; 	23.466 
+745;Minyak Wijen Lee Kum Kee @207ML;Btl; 	69.800 
+746;Minyak Wijen Oh Guan Hing @600ML;Btl; 	43.000 
+747;Minyak Wijen Yo Guan Heng @650ML;Btl; 	38.000 
+748;Minyak Wijen Yuen Yick @110ML;Btl; 	42.000 
+749;Mirin Hinode @640ML;Pack; 	63.500 
+750;Miso Enachan Soup @300GR;Pack; 	24.420 
+751;Miwon @1000Gr;Pack; 	46.000 
+752;Mizkan Kokumotsu Vinegar @500ML;Pack; 	38.030 
+753;Mizkan Suehiro Vinegar @20LTR;Jrg; 	453.000 
+754;Monin Strawberry Fruit Mix @1Ltr;Btl; 	307.000 
+755;Monin Syrup Bubble Gum @720Ml;Btl; 	170.000 
+756;Monin Syrup Butterscotch @720Ml;Btl; 	170.000 
+757;Monin Syrup Caramel @720Ml;Btl; 	135.700 
+758;Monin Syrup Cheese Cake@700Ml;Btl; 	143.700 
+759;Monin Syrup Coconut @720Ml;Btl; 	166.500 
+760;Monin Syrup Elder Flower @720Ml;Btl; 	135.700 
+761;Monin Syrup Grenadine @700Ml;Btl; 	178.500 
+762;Monin Syrup Hazelnut @720Ml;Btl; 	151.660 
+763;Monin Syrup Lychee @720Ml;Btl; 	161.000 
+764;Monin Syrup Mint @720Ml;Btl; 	180.000 
+765;Monin Syrup Pandan @720Ml;Btl; 	143.700 
+766;Monin Syrup Peach @720Ml;Btl; 	170.000 
+767;Monin Syrup Rose @720Ml;Btl; 	148.000 
+768;Monin Syrup Stawberry @720Ml;Btl; 	170.000 
+769;Monin Syrup Vanilla @720Ml;Btl; 	145.300 
+770;Monin Syrup Watermelon @720Ml;Btl; 	170.000 
+771;Morin Apricot Jam @330GR;Btl; 	40.900 
+772;Morin Kacang Sangrai @250Gr;Pack; 	17.500 
+773;Morin Strawberry Jam @330Gr;Btl; 	48.500 
+774;Mosa Cream Charger @10 PCS;Pack; 	68.000 
+775;Mr Potato Ghost Pepper 40GR ;Pack; 	14.300 
+776;Multibev Creamer Powder@1Kg;Pack; 	144.490 
+777;Mushroom Soy Sauce @600Ml;Btl; 	35.000 
+778;Mustard Powder;Kg; 	325.000 
+779;Nanas Kaleng Ayam Brand @565GR;Can; 	35.002 
+780;Naraya Lychee In Syrup @565Gr;Can; 	52.000 
+781;Naraya Oat Original @400Gr;Pcs; 	38.900 
+782;Narcissus Cuka Beras @600ML;Btl; 	35.000 
+783;Nata Decoco (KARA) @1KG;Pack; 	15.000 
+784;Nataku Nata Decoco @1KG;Pack; 	15.000 
+785;Naturalco Lavender Tea @30Pcs;Pack; 	36.900 
+786;Negresco Vanila @35Gr Isi 2 Batang;Pack; 	25.150 
+787;Nescafe Classic @100GR;Pack; 	63.000 
+788;Nescafe Classic @200GR;Pack; 	106.930 
+789;Nico Yaki Sushi Nori @50pcs;Pack; 	130.000 
+790;Nissin Crackers;Pack; 	12.590 
+791;Nissin Cup Noodless Kaldu Ayam @67GR;Pack;
+792;Nissin Cup Noodless Kaldu Sapi @66GR;Pack;
+793;Nissin Gekikara Ramen Ayam Pedas @80GR;Pack;
+794;Nissin Gekikara Ramen Carbonara @81GR;Pack;
+795;Nissin Gekikara Ramen Jamur Pedas @74GR;Pack;
+796;Nissin UFO Kari Pedas @88GR;Pack;
+797;Nissin UFO Saus Jepang @88GR;Pack;
+798;Nissin Walens Choco Soes @100GR;Pack; 	9.890 
+799;Noodle King @500Gr (Mie Hongkong);Pack; 	32.000 
+800;Noodle King @500Gr (Mie Pocai);Pack; 	34.999 
+801;Nori @50Sheet;Pack;
+802;Nutrijell Fla Coklat @60Gr;Pack;
+803;Nutrijell Fla Vanila @60Gr;Pack;
+804;Nutrijell Plain @12Pcs;Box; 	55.000 
+805;Nutrijell Puding Coklat;Pack;
+806;Nutrijell Puding Mango;Pack;
+807;Nutrijell Puding Vanila;Pack;
+808;Nutrisari Blewah Isi 10Pcs;Renceng; 	16.000 
+809;Nutrisari Sweet Orange Isi 10Pcs;Renceng; 	16.000 
+810;Oasis @600ML isi 24 BTL;Ctn; 	35.000 
+811;Oatly Oat Milk @1Ltr (Isi 6Ltr);Dus; 	313.200 
+812;Oatside Oat Milk @1Ltr;Ltr; 	35.000 
+813;Oatside Oat Milk @200Ml ;Pcs; 	7.990 
+814;Oatside Oat Milk @200Ml Isi 24PCS;Ctn; 	213.600 
+815;Obat Alergi Cetierizine @10Tablet;Strip; 	10.000 
+816;Olivia Maraschino Cerries @4.25Kg;Pcs; 	400.000 
+817;Oncom;Pcs; 	5.000 
+818;Oonica Eco Strawberry Sauce @1KG;Pack; 	85.000 
+819;Oregano Leaves Dry Masterfood @5GR;Btl; 	45.500 
+820;Oregano Leaves MC Cormick @10GR;Btl; 	33.990 
+821;Oregano Powder @1KG;Btl; 	220.000 
+822;Oreo Cookie Crumb @1Kg;Pack; 	81.999 
+823;Oreo Original Isi 3 @36Pcs;Pack; 	23.000 
+824;Oreo Vanila @133GR;Pcs; 	9.900 
+825;Ovaltine Choco Malt @946Ml;Pcs;
+826;Pacar Cina Warna Warni;Kg; 	70.000 
+827;Pad Thai Bamboo Tree Rice @400GR;Pack; 	26.410 
+828;Paket Sayur Asem;Pack; 	5.000 
+829;Paket Sayur Lodeh;Pack; 	5.000 
+830;Paket Sayur Sop;Pack; 	4.000 
+831;Palm Sugar Liquid @1KG;Pack; 	27.442 
+832;Palm Sugar Palm Suiker Superindo @250GR;Pack; 	13.900 
+833;Palm Sugar Ricoman @2KG;Pack; 	100.000 
+834;Palmia Royal Margarin @1Kg;Pack;
+835;Palmia Royal Margarin @200Gr;Pack; 	8.000 
+836;Papadam @100gr;Pack; 	15.350 
+837;Paprika Powder @1Kg ;Pack; 	70.000 
+838;Paprika Powder @1Kg Jays;Pack;
+839;Parsley @9GR Koepoe2;Pcs; 	15.000 
+840;Parsley Dry;Kg; 	220.000 
+841;Parsley Dry @1kg Jays;Pack;
+842;Parsley Dry @20GR Jays;Btl; 	23.000 
+843;Parsley Jays@20Gr;Btl; 	25.750 
+844;Pasta Pandan Koepoe2 @30ml;Btl; 	9.000 
+845;Pasta Wasabi @43Gr;Pcs; 	37.750 
+846;Pasteurisasi Power Egg @1Ltr;Jrg; 	103.950 
+847;Paya Bubuk (Meat Tenderizer) @70GR;Pack; 	12.000 
+848;Pearl River Bridge Mushroom Soy Sauce @600ML;Btl; 	38.000 
+849;Pearl River Bridge Supperior Soy Sauce @640ML;Btl; 	35.000 
+850;Pejoy Cokelat;Pcs;
+851;Pek Ciu Ikan Paus Arak Putih @620ML;Kg; 	84.135 
+852;Peka;Kg;
+853;Permen Fox's @50Pcs;Pack; 	9.000 
+854;Permen Kaki @25PCS;Pack; 	7.000 
+855;Permen Kiss Anggur;Pack; 	6.500 
+856;Permen Kopiko Original @50PCS;Pack; 	9.790 
+857;Permen Mintz;Pack; 	8.390 
+858;Permen Relaxa Cherry @125GR ;Pack; 	4.000 
+859;Permen Relaxa Grape @125GR ;Pack; 	8.000 
+860;Permen Relaxa Lemon @125GR ;Pack; 	8.000 
+861;Permen Yupi Mangga @120GR;Pack; 	12.800 
+862;Permen Yupi Strawberry ;Pack; 	11.400 
+863;Perrier @330Ml Isi 24Btl;Ctn; 	580.000 
+864;Pewarna Makanan Biru Koepoe2;Pcs; 	6.000 
+865;Pewarna Makanan Hijau Muda Koepoe2;Pcs; 	6.000 
+866;Pewarna Makanan Hijau Tua Koepoe2;Pcs; 	6.000 
+867;Pewarna Makanan Kuning Tua Koepoe2;Pcs; 	6.000 
+868;Pewarna Makanan Merah Rose Koepoe2;Pcs; 	6.000 
+869;Pewarna Makanan Merah Tua Koepoe2;Pcs; 	6.000 
+870;Pewarna Makanan Ungu Koepoe2;Pcs; 	10.000 
+871;Peyek Kacang Hijau ;Pack;
+872;Peyek Kacang Tanah ;Pack;
+873;Peyek Rebon;Pack;
+874;Peyek Teri Medan;Pack;
+875;Pickled Gerkins Kunhe @330Gr;Jar; 	61.000 
+876;Pocky @45Gr;Pcs; 	8.890 
+877;Poka Green Tea @300Ml @24Can;Dus; 	177.307 
+878;Polaris Soda Water 330ML 1 Dus @24Can;Ctn; 	122.500 
+879;Pop Ice Taro Sachet Isi 10;Renceng; 	15.000 
+880;Pop Mie Goreng Ayam Jerit;Pcs; 	5.290 
+881;Pop Mie Goreng Pedes Gledek;Pcs; 	5.050 
+882;Pop Mie Kuah Ayam Bawang;Pcs; 	7.000 
+883;Popping Boba Lychee @500GR;Pack; 	45.000 
+884;Popping Boba Strawberry @500GR;Pack; 	45.000 
+885;Pristine @400Ml Isi 24Btl;Ctn; 	68.012 
+886;Pronas Kornet Sapi @120Gr;Pcs; 	23.000 
+887;Pronas Kornet Sapi @340Gr;Pcs; 	32.000 
+888;Pudding + Fla Vanilla;Pcs; 	32.000 
+889;Raisin Hitam;Kg; 	101.000 
+890;Ras El Hanout Cairo Food @100Gr;Pack; 	58.000 
+891;Realmar Anchovies Sunflower @368GR;Pack; 	176.900 
+892;Realmar Anchovies Sunflower @720GR;Can; 	296.480 
+893;Rebo Kuaci @140Gr;Kg; 	14.790 
+894;Rebung TTS Maling Bamboo Shoot @552GR;Can; 	32.500 
+895;Red Bull Energy Drink @250Ml Isi 24Can;Krat; 	510.000 
+896;Red Kidney Beans Cirio @400GR;Can; 	51.500 
+897;Rich Gold Whipping Cream@1Liter;Pack; 	63.644 
+898;Richs Double Cream @1Ltr;Ltr; 	94.000 
+899;Rose Water Thurgas @300Ml;Pcs; 	21.958 
+900;Rosemary @24GR Koepoe2;Pcs;
+901;Rosemary Dry @1kg Jays;Pack; 	270.000 
+902;Roti Baguette Besar;Pcs; 	29.500 
+903;Roti Mikako Isi 60 Pcs;Ctn; 	125.000 
+904;Roti Tawar My Roti;Pack; 	15.000 
+905;Roti Tawar Sari Roti;Pack; 	10.000 
+906;Roti Tawar Utuh Panjang;Pcs; 	15.000 
+907;Royco Ayam@230Gr;Pcs; 	14.000 
+908;Royco Ayam @1Kg;Pcs; 	45.000 
+909;Royco Ayam @8Gr Isi 12Pcs;Renceng; 	5.000 
+910;Royco Sapi @1Kg;Pcs; 	45.000 
+911;Royco Sapi @8Gr Isi 12Pcs;Renceng; 	5.000 
+912;Rumput Laut;Kg; 	40.000 
+913;S&W Cream Style Corn @425GR;Can; 	75.150 
+914;S&W Peeled Tomatos @411GR;Can; 	49.900 
+915;S&W Whole Karnel Corn @410GR;Can; 	23.000 
+916;SAF Ragi Instant Dry Yeast Gold @500GR;Pack; 	84.000 
+917;Saffron Ara Herb @1GR;Btl; 	61.200 
+918;Sajo Gochujang Saus Korea Halal @500GR;Pack; 	52.000 
+919;Sakao Nori @50lbr;Pack; 	110.000 
+920;Sakao Nori @90Pcs;Pack;
+921;Salted Butter Anchor @250GR;Pack; 	49.117 
+922;Salted Egg Powder Emaku @16GR;Pack; 	17.000 
+923;Salted egg Yolk Golden Isi 20 Butir;Pack; 	153.117 
+924;Sambal Bajak HOT KOKITA @250GR;Btl; 	35.850 
+925;Sambal Bebek Kobe;Renceng; 	31.000 
+926;Sanremo Elbows @250GR;Pack; 	16.500 
+927;Sanremo Elbows @500GR;Pack; 	28.000 
+928;Sanremo Fettuccine @500Gr;Pack; 	24.000 
+929;Sanremo Fusilli @500GR;Pack; 	30.390 
+930;Sanremo Lasagna Sheet @250GR ;Pack; 	33.500 
+931;Sanremo Macaroni Pasta @500GR;Pack; 	29.000 
+932;Sanremo Pasta Linguini @500Gr;Pack; 	26.900 
+933;Sanremo Penne @250GR;Pcs; 	16.190 
+934;Sanremo Penne @500GR;Pcs; 	32.360 
+935;Sanremo Saos Bolognaise @500GR;Btl; 	53.800 
+936;Sanremo Spaghetti @500GR;Pack; 	25.000 
+937;Sanremo Tomato & Basil @500Gr;Pcs; 	59.650 
+938;Santan Kara @200ML;Pack; 	16.000 
+939;Santan Kara SUN @1ltr;Ltr; 	65.000 
+940;Santan Kara SUN @200ML;Pack; 	14.583 
+941;Santan Kara SUN @65ML;Pack; 	7.000 
+942;Santan Kelapa;Kg; 	13.000 
+943;Santan Sasa @200ML;Pack; 	15.000 
+944;Saori Sauce Teriyaki @1Ltr;Ltr; 	60.150 
+945;Saori Sauce Tiram @1Ltr;Ltr; 	56.000 
+946;Saos Cabe Belibis @22Kg;Jrg;
+947;Saos Cabe Belibis @340ML;Btl; 	23.500 
+948;Saos Cabe Belibis @5Kg;Jrg; 	160.000 
+949;Saos Cabe Belibis Refil @1Kg;Pack; 	37.025 
+950;Saos Cabe Belibis Sachet @9Gr Isi 24Pcs;Pack; 	9.625 
+951;Saos Inggris Sedap Wangi @600Ml;Btl; 	45.000 
+952;Saos Raja Sasa @600ML;Btl; 	38.000 
+953;Saos Sambal Sedap Wangi @600ML;Btl; 	35.000 
+954;Saos Tomat Belibis Refil @1Kg;Pack; 	22.800 
+955;Saporito Whole Tomato Peeled @2,5KG;Can; 	142.133 
+956;Sari Roti Tawar Holland Bakery;Pack; 	19.100 
+957;Sari Roti Tawar Kupas @200Gr;Pack; 	17.500 
+958;Sasa MSG @1Kg;Pack; 	47.000 
+959;Sasa MSG @250Gr;Pack; 	13.000 
+960;Sasa MSG @500Gr;Pack; 	26.000 
+961;Sasa Tepung Ayam Goreng @1Kg;Pack; 	12.000 
+962;Sasa Tepung Bakwan @235GR;Pack; 	7.000 
+963;Sasa Tepung Kentucky @850GR;Pack; 	23.000 
+964;Sasa Tepung Pisang Goreng @220GR;Pack; 	10.000 
+965;Sasa Tepung Serbaguna @210GR;Pack; 	7.000 
+966;Sasa Tepung Serbaguna @70 GR;Pack; 	2.400 
+967;Sauce Bangkok Indofood @335ML;Btl; 	18.890 
+968;Sauce Lobak American Garden @454Gr;Btl; 	120.320 
+969;Sauce Lewis Sachet @20Gr Isi 10Pcs;Pack; 	10.450 
+970;Saxbys Cherry Cheer @330Ml;Btl; 	30.900 
+971;Schweppes Tonic Water @250Gr Isi 24Kaleng;Krat; 	117.900 
+972;Sedani Spaghetti @1Kg;Pack; 	23.000 
+973;Selai Coklat Curah @250Gr;Btl; 	12.500 
+974;Selai Strawberry Curah @250Gr;Btl; 	5.500 
+975;Sereh Giling ;Kg; 	13.333 
+976;Serena Black Cookies Crumb @1Kg;Pack; 	142.000 
+977;Sesame Dressing Kwiepie @500ML;Btl; 	142.000 
+978;Sesame Oil @640Ml;Btl; 	37.000 
+979;Silverqueen Chunky Bar @85GR;Pcs; 	24.000 
+980;Simas Margarine @15Kg;Dus;
+981;Simichi Togarashi @300 Gr;Pack; 	91.250 
+982;Sirup ABC Lychee @460ML ;Btl; 	12.500 
+983;Sirup ABC Orange @460ML;Btl; 	13.000 
+984;Sirup ABC Orange @460ML (Isi 12Btl);Dus; 	140.000 
+985;Sirup Cap Bangau Merah @620ML;Btl; 	28.000 
+986;Sirup MARJAN Cocopandan @460ML;Btl; 	24.000 
+987;Sirup MARJAN Leci @460ML;Btl; 	24.000 
+988;Sirup MARJAN Lemon @460ML;Btl; 	24.000 
+989;Sirup MARJAN Melon @460Ml;Btl; 	24.000 
+990;Sirup MARJAN Mocca @460Ml;Btl; 	24.000 
+991;Sirup MARJAN Strawberry @460ML;Btl; 	24.000 
+992;Sirup MARJAN Vanillla @460ML;Btl;
+993;Sirup POHON PINANG Markis @450ML;Dus; 	35.000 
+994;Sirup Sirsak GKC Heritage @640ML;Btl; 	46.100 
+995;Skippy Chungky Peanut Butter @500GR;Jar; 	71.500 
+996;Skippy Creamy Peanut Butter @500GR;Jar; 	59.000 
+997;Smoke Paprika;Kg; 	175.000 
+998;Soda Kue @1KG Koepoe2;Pack; 	45.000 
+999;Soda Kue @81GR Koepoe2;Pack; 	6.000 
+1000;Soun Cap 2 Burung Hong @500Gr;Pack; 	16.590 
+1001;Soun Naga @1Kg;Pack; 	30.000 
+1002;Soun Naga @500GR;Pack; 	16.000 
+1003;SP Koepoe2 @70GR;Pcs; 	14.000 
+1004;Sprite @250Ml Isi 12 Pcs;Krat; 	144.000 
+1005;Sprite @250Ml Isi 24 Kaleng;Krat; 	144.000 
+1006;Sriracha Chilli Sauce @200GR;Btl; 	30.900 
+1007;Sriracha Chilli Sauce @520GR;Btl; 	60.000 
+1008;Sushi Ginger Pink @200Gr;Btl; 	31.068 
+1009;Sushi Nori @10Lembar;Pack; 	30.000 
+1010;Susu Almond Cokelat Spencer @130ML;Pcs;
+1011;Susu Almond Original Spencer @130ML;Pcs;
+1012;Susu Almond Vanila Spencer @130ML;Pcs; 	82.500 
+1013;Susu Dancow Full Cream Bubuk @800GR;Pack; 	100.000 
+1014;Susu Dancow Full Cream Bubuk Repack@1Kg;Pack; 	62.830 
+1015;Susu Evaporasi F&N 380ML;Can; 	18.021 
+1016;Susu Evaporasi Carnation 380ML;Can; 	22.633 
+1017;Susu Kental Manis Carnation @370GR;Pcs; 	11.563 
+1018;Susu Kental Manis Cokelat Cap Enak @370GR;Pcs; 	14.646 
+1019;Susu Kental Manis Frisian Flag Coklat;Can; 	13.000 
+1020;Susu Kental Manis Frisian Flag Gold @370GR;Can; 	22.331 
+1021;Susu Kental Manis Frisian Flag Putih;Can; 	12.000 
+1022;Susu Kental Manis Frisian Flag Putih @40GR @6Pcs;Pack; 	7.900 
+1023;Susu Kental Manis Omela 370Gr Isi 48 Can;Ctn; 	515.110 
+1024;Susu Sunbay Evaporated Milk @380ML;Can; 	16.174 
+1025;Tabasco @60ML;Btl; 	60.000 
+1026;Tahu Bandung/Kuning;Pcs; 	1.000 
+1027;Tahu Cina;Pcs; 	5.000 
+1028;Tahu Kulit;Pcs; 	600 
+1029;Tahu Kulit Segitiga;Pcs; 	500 
+1030;Tahu Pong;Pcs; 	1.500 
+1031;Tahu Pong Sumedang Putih Kecil;Pcs; 	625 
+1032;Tahu Putih Besar;Pcs; 	6.000 
+1033;Tahu Putih Kecil;Pcs; 	1.000 
+1034;Tahu Sumedang;Pcs; 	1.000 
+1035;Tahu Sutera (Sakura);Pack; 	8.000 
+1036;Tahu Walik Isi 10Pcs;Pack; 	16.633 
+1037;Taiko Sugar Cube @450Gr;Pack; 	34.667 
+1038;Tango Cokelat @300GR;Can; 	35.000 
+1039;Tango Vanilla @300GR;Can; 	23.200 
+1040;Tape Ketan Hitam;Pack; 	5.000 
+1041;Tatua Mascarpone Cheese @1000GR;Pack; 	150.000 
+1042;Tatua Mascarpone Cheese @500GR;Pack; 	130.900 
+1043;Teh Bandulan Hijau @24Pcs;Ctn; 	31.000 
+1044;Teh Bendera @50GR Isi 10Pack;Pack; 	35.000 
+1045;Teh Cap Botol Bubuk Biru @40GR;Pack; 	4.000 
+1046;Teh Cap Botol Bubuk Hijau @40GR;Pack; 	4.000 
+1047;Teh Celup Sariwangi @50Pcs;Pack; 	12.000 
+1048;Teh Celup Sosro @50Pcs;Pack; 	12.500 
+1049;Teh Hijau Jaw Bancha @1Kg;Pack; 	119.740 
+1050;Teh Max @12Pcs;Pack; 	23.000 
+1051;Teh Rosella Merah Kering @100Gr;Pack; 	42.500 
+1052;Telur Asin Bebek;Pcs; 	4.167 
+1053;Telur Ayam Kampung;Pcs; 	3.000 
+1054;Telur Ayam Negeri;Kg; 	23.667 
+1055;Telur Ayam Negeri (Omega);Kg; 	26.500 
+1056;Telur Puyuh (KG);Kg; 	40.000 
+1057;Telur Puyuh (PCS);Pcs; 	600 
+1058;Tempe;Pcs; 	5.000 
+1059;Tempe Mendoan;Pcs; 	2.400 
+1060;Tempe Panjang Lebar;Pcs; 	10.000 
+1061;Tempe Azaki@400Gr;Pcs; 	28.000 
+1062;Tepung Beras @1KG;Pack; 	14.000 
+1063;Tepung Beras Rosebrand @500Gr;Pack; 	9.000 
+1064;Tepung Cakra Kembar @1Kg;Kg; 	14.000 
+1065;Tepung Cakra Kembar @25Kg;Bal; 	245.000 
+1066;Tepung Gandum Golden Eagle @1KG;Pack; 	36.400 
+1067;Tepung Gandum Whole Wheat @1KG;Pack; 	20.000 
+1068;Tepung Jawara Bungasari @1KG;Pack; 	12.000 
+1069;Tepung Ketan Hitam Ketanku @250Gr;Pack; 	13.200 
+1070;Tepung Ketan Rosebrand @500GR;Pack; 	9.750 
+1071;Tepung Kobe Super Crispy Kentucky @1KG;Pack; 	25.000 
+1072;Tepung Putih Telur @1KG;Pack; 	495.000 
+1073;Tepung Putih Telur @500GR;Pack; 	245.750 
+1074;Tepung Roti Orange @1KG;Pack; 	18.000 
+1075;Tepung Roti Orange Mix @10 KG;Bal; 	165.000 
+1076;Tepung Roti Putih @1KG;Pack; 	25.000 
+1077;Tepung Sagu Tani Sago Flour@1Kg;Pack; 	30.500 
+1078;Tepung Sajiku Serbaguna@220Gr;Pack; 	6.990 
+1079;Tepung Sajiku Serbaguna@900Gr;Pack; 	28.450 
+1080;Tepung Samolina @1Kg;Pack; 	25.203 
+1081;Tepung Segitiga Biru @1KG;Pack; 	11.667 
+1082;Tepung Segitiga Biru @25KG;Bal; 	235.000 
+1083;Tepung Segitiga Biru Bogasari @1KG;Pack; 	15.000 
+1084;Tepung Serbaguna Mamasuka @910Gr;Pack; 	23.250 
+1085;Tepung Tapioka Liauw Liong Pit @1Kg;Pack; 	33.980 
+1086;Tepung Tapioka Pak Sagu Tani Gunung @500GR;Pack; 	11.000 
+1087;Tepung Tempura Mamasuka@1Kg;Pack; 	25.000 
+1088;Tepung Tempura Sriboga Easy Mix @1KG;Pack; 	31.075 
+1089;Tepung Tempura Sriboga Easy Mix @220GR;Pack; 	6.200 
+1090;Tepung Terigu Dragon Fly @1Kg;Pack; 	8.900 
+1091;Tepung Ubi Kuning Naya @500Gr;Pack; 	30.000 
+1092;Terasi ABC @4.2Gr Isi 20Pcs;Pack; 	8.000 
+1093;Terasi Bonang;Pack; 	6.760 
+1094;Terasi Juex @100GR;Pack; 	6.000 
+1095;Terasi Samhok;Pack;
+1096;Thai Sauce Maepranom Brand @980ml;Btl; 	87.500 
+1097;Thai Sauce Maesupen @370GR;Btl;
+1098;Thai Sauce Maesupen @980ml;Btl; 	87.500 
+1099;Thyme @18GR Koepoe2;Pcs;
+1100;Thyme Dry;Kg; 	140.000 
+1101;Thyme Dry @1kg Jays;Pack;
+1102;Thyme Dry Jays @25GR;Btl; 	23.000 
+1103;Tofu Udang;Pack; 	9.000 
+1104;Tolak Angin;Box; 	50.000 
+1105;Tomatoes Peeled Cirio @2,5Kg;Can; 	117.500 
+1106;Tong Tji Jasmine @10GR 50 Pcs Bubuk;Pack; 	35.157 
+1107;Tong Tji Jasmine Tea @25 Sachet Celup;Pack; 	14.000 
+1108;Tong Tji Tematik Matcha Latte @10Pcs;Pack; 	41.750 
+1109;Tongcai;Pack; 	9.000 
+1110;Tortilla Chips @1Kg;Pack; 	85.000 
+1111;Tortilla Kebab Uk 20Cm @20Pcs;Pack; 	38.750 
+1112;Total Holycow PET @600Ml isi 24btl;Ctn; 	34.955 
+1113;Total Regular @600Ml isi 24btl;Ctn; 	32.000 
+1114;Toza Juice Cranberry @5Ltr;Jrg; 	145.000 
+1115;Toza Juice Lemon @5Ltr;Jrg; 	50.000 
+1116;Toza Juice Orange @5Ltr;Jrg; 	50.000 
+1117;Tropicana Slim Gula Aren @50Pcs;Pack; 	54.590 
+1118;Tropicana Slim Sweetener Classic @100 Pcs ;Pack; 	95.000 
+1119;Tropicana Slim Sweetener Classic @25 Pcs ;Pack; 	32.000 
+1120;Truffle Dark Paste Ristoris @500GR;Jar; 	393.400 
+1121;Truffle Sauce Lite Ristoris @500GR;Jar; 	255.300 
+1122;Tulip Dark Chocolate Compound @225GR;Pack; 	19.500 
+1123;Tulip White Chocolate Compound @1KG;Pack; 	80.000 
+1124;Tuna Ayam Brand@425Gr;Can; 	40.151 
+1125;Tuna Chunk In Vegetable Oil Sunbell @185GR;Can; 	20.500 
+1126;Twister Minis Black Vanilla @70GR;Pack; 	8.200 
+1127;TYJ Spring Roll Kulit Lumpia @20Sheet;Pack; 	30.000 
+1128;Udang Rebon;Kg; 	60.000 
+1129;Ultra Milk Cokelat @250Ml;Pack; 	6.490 
+1130;Ultra Milk Fresh Milk @250ML Isi 24Pcs;Ctn; 	137.880 
+1131;Ultra Milk Putih LowFat @250ML;Pcs; 	7.000 
+1132;Ultra Milk Strawberry @250Ml;Pcs; 	6.490 
+1133;Ultra Milk UHT Cokelat @125Ml;Pcs;
+1134;Unsalted Butter Anchor @1Kg;Pack; 	184.000 
+1135;Unsalted Butter Anchor @277GR;Pack; 	48.000 
+1136;Unsalted Butter Australian @10Kg;Ctn; 	1.044.820 
+1137;Urbani Truffle & Porcini Sauce @180Gr;Can; 	185.620 
+1138;Van Houten Cocoa Powder @165GR;Pack; 	36.000 
+1139;Van Houten Cocoa Powder @80GR;Pack; 	28.490 
+1140;Vanilla Bean Stick @50GR;Pack; 	153.750 
+1141;Vanilla Tofieco@100Ml;Btl; 	48.500 
+1142;Vanilla Essence Toffieco @25GR;Btl; 	25.000 
+1143;Varisa Vanilla @20Gr Koepoe2;Kg; 	10.000 
+1144;Vetsin Hongkong @2.2KG;Can; 	314.000 
+1145;Vit @220ML;Pcs; 	314.000 
+1146;Vit @330ML;Pcs;
+1147;Vit @600ML;Pcs;
+1148;Vit Mineral @600ML isi 24Btl;Ctn; 	33.000 
+1149;Vitamin Cipi @50Tablet;Btl; 	15.000 
+1150;Vitamin Redokson;Btl; 	50.000 
+1151;Volcano Choco Edo @300Gr;Pack; 	85.000 
+1152;Walnut Whole;Kg; 	130.000 
+1153;West Gold Butter Unsalted @250GR;Pack; 	46.000 
+1154;Whipping Cream Elle Vire @1Ltr;Ltr; 	115.610 
+1155;White Sugar Stick Ansell @8GR Isi 60PCS;Pack; 	40.000 
+1156;White Truffle Oil Geofoods @250Ml;Btl; 	237.000 
+1157;White Truffle Olive Oil Ristoris @250Ml;Btl; 	209.550 
+1158;Whitepepper Ground @1kg Jays;Pack;
+1159;Whole Corn Delmonte;Pack; 	83.500 
+1160;Wilmond Leci @565GR;Can; 	30.500 
+1161;Wilmond Peach @825GR;Can; 	31.792 
+1162;Wilmond Tomato Paste @170GR;Can; 	16.000 
+1163;Windmolen Cocoa Powder @165Gr;Pack; 	36.020 
+1164;Windmolen Cocoa Powder @80Gr;Pack; 	20.390 
+1165;Wrights Liquid BBQ Smoke @103Ml;Can; 	70.000 
+1166;Xanthan Gum Curah @500GR;Pack; 	99.500 
+1167;Yakult @65ML Isi 5PS;Pack; 	11.250 
+1168;Yogurt Blueberry Cimory @70ML;Pcs;
+1169;Yuen Yick Rice Vinager @600 Ml;Btl; 	34.000 
+1170;Yummy Cream Cheese @250Gr;Pack; 	79.500 
+1171;Yummy Mascarpone @250GR;Pack; 	82.900 
+1172;Yuumy Feta Cheese @250GR;Pack; 	90.000 
+1173;Zoda Air Groovy @250ML Isi 24BTL;Ctn; 	124.155 
+1174;Zoda Air Groovy @330ML Isi 24Can;Ctn; 	133.273 
+1175;Zoda Air Soda @250ML Isi 24BTL;Ctn; 	111.500 
+;;;
+FROZEN FOOD;;;
+NO;NAMA BARANG;SATUAN;HARGA
+;;;BELI
+1;Ati Ampela Ayam;Pcs; 	3.000 
+2;Ayam Giling Paha;Kg; 	44.000 
+3;Ayam Karkas Pejantan;Kg; 	68.841 
+4;Ayam Utuh Karkas;Kg; 	45.000 
+5;Ayam Utuh Potong - Potong;Kg; 	42.821 
+6;Babat & Iso Sapi;Kg; 	60.000 
+7;Babat Putih Sapi;Kg; 	60.000 
+8;Bakso Daging Sapi Warisan @50Pcs;Pack; 	32.000 
+9;Bakso Ikan @50Pcs;Pack; 	45.000 
+10;Bakso Ikan Sunfish @500Gr;Pack; 	37.750 
+11;Bakso Kebon Jeruk @50Pcs;Pack; 	68.690 
+12;Bakso Sapi Super Polos @50Pcs;Pack; 	46.000 
+13;Bakso Sapi Super Polos Sumber Selera@50Pcs;Pack; 	42.000 
+14;Bakso Urat Isi 50 Pcs;Pack; 	89.600 
+15;Bebek Putih Utuh Karkas ;Kg; 	60.000 
+16;Beef Bacon;Kg; 	337.500 
+17;Beef Patties Yona @500GR;Pack;
+18;Beef Pepperoni @250GR;Pack; 	28.386 
+19;Beef Pepperoni Yona @500GR;Pack; 	62.200 
+20;Bega Smokey BBQ Slices @200GR (isi 12);Pack; 	51.275 
+21;Bernardi Smoked Beef Block @500Gr;Pack; 	87.000 
+22;Blackberry Frozen @500Gr;Pack; 	58.000 
+23;Blackcurrant Frozen @500GR;Pack; 	61.667 
+24;Blueberry Frozen @500 Gr;Pack; 	75.280 
+25;Boneless Dada Ayam No Skin ;Kg; 	45.000 
+26;Boneless Dada Ayam On Skin;Kg; 	48.000 
+27;Boneless Paha Ayam No Skin ;Kg; 	45.000 
+28;Boneless Paha Ayam On Skin;Kg; 	47.000 
+29;Boneless Rib @500GR;Pack;
+30;Brokoli Frozen @1KG;Pack;
+31;Brulee Bomb Mozarella;Pack;
+32;Buntut Regular Lokal @500GR;Pack;
+33;Buntut Super Import ;Kg; 	150.000 
+34;Buntut Super Lokal @500GR;Pack;
+35;Cedea Fish Cake @500Gr;Pack; 	31.000 
+36;Ceker Ayam @1KG;Pack; 	28.000 
+37;Cireng Brecxelle;Pack; 	15.000 
+38;Cranberry Frozen @500Gr;Pack; 	93.000 
+39;Cuka Wakame @1Kg;Pack; 	109.500 
+40;Cumi Asin;Kg; 	120.000 
+41;Cumi Bangka @500GR;Pack; 	49.600 
+42;Cumi Flower @1KG;Pack; 	56.000 
+43;Cumi Ring Frozen (3-7CM) @1KG;Pack; 	64.000 
+44;Cumi Sotong;Kg; 	83.333 
+45;Cumi Tube Frozen @1Kg;Pack; 	73.000 
+46;Dada Ayam Julia (Tanpa Sayap);Kg; 	40.000 
+47;Daging Giling Reguler @1000GR;Pack; 	90.250 
+48;Daging Giling Super @500GR;Pack;
+49;Daging Kambing;Kg; 	160.000 
+50;Daging Sapi Sandung Lamur;Kg; 	150.000 
+51;Daging Sengkel Sapi;Kg; 	150.000 
+52;Daging Sop US @500GR;Pack;
+53;Dimsum MaySiomay @20Pcs;Pack;
+54;Dori BL Frozen (isi 3/4) @1KG;Pack; 	28.000 
+55;Dry Ice;Kg; 	22.000 
+56;Edamame Gurih Frozen @500GR;Pack; 	26.000 
+57;Fiesta Karage @500GR;Pack;
+58;Fiesta Nugget @250GR;Pack;
+59;Fiesta Shoestring @500GR;Pack;
+60;Fiesta SSG Frankfurter @300GR;Pack;
+61;Fiesta Stikie @250GR;Pack;
+62;Fiesta Straight Cut @500GR;Pack;
+63;Glico Haku Blueberry Cheesecake Cup @110ML;Pack; 	9.000 
+64;Golden Fiesta Spicy Wing @500GR;Pack;
+65;Gurita Cutting @500GR ;Pack;
+66;Hakau @8Pcs (Ozomu Dimsum);Pack;
+67;Hati Sapi;Kg; 	57.000 
+68;Hati Ayam @1Kg;Pack; 	30.000 
+69;Ice Cream Coklat AICE @8Ltr;Pail; 	184.000 
+70;Ice Cream Diamond Chocomint @700Ml;Pcs; 	27.500 
+71;Ice Cream Diamond Cokelat @8Ltr;Pail; 	230.127 
+72;Ice Cream Diamond Strawberry @8Ltr;Pail; 	230.127 
+73;Ice Cream Diamond Vanilla @8Ltr;Pail; 	226.008 
+74;Ice Cream Haku Strawberry Crispy Choco Fish;Pcs; 	5.700 
+75;Ice Cream Haku Vanilla Monaka Sandwich;Pcs; 	5.700 
+76;Ice Cream Strawberry AICE @8Ltr;Pail; 	184.000 
+77;Ice Cream Vanilla AICE @8Ltr;Pail; 	204.310 
+78;Iga Kalbi Aus @500GR;Pack;
+79;Iga Konro Super @500GR;Pack;
+80;Iga Short Rib ;Kg; 	145.000 
+81;Iga Sop @500GR;Pack;
+82;Iso Sapi;Kg; 	60.000 
+83;Ikan Asin Layang;Kg; 	62.000 
+84;Ikan Asin Peda Putih;Kg; 	86.000 
+85;Ikan Asin Selar;Kg; 	37.000 
+86;Ikan Bandeng ;Kg; 	75.000 
+87;Ikan Bandeng Presto;Ekor; 	35.000 
+88;Ikan Bawal Tawar;Kg; 	50.000 
+89;Ikan Cuek;Kg; 	99.000 
+90;Ikan Patin;Kg; 	40.000 
+91;Ikan Selam Mackerel;Kg; 	50.000 
+92;Ikan Asin Bulu Ayam;Kg; 	80.000 
+93;Ikan Asin Gabus;Kg; 	166.667 
+94;Ikan Asin Jambal;Kg; 	140.000 
+95;Ikan Asin Kapas;Kg; 	100.000 
+96;Ikan Asin Sepat;Kg; 	69.000 
+97;Ikan Asin Tawar;Kg; 	110.000 
+98;Ikan Cucut Fillet@1Kg;Pack; 	42.500 
+99;Ikan Gurame;Kg; 	40.000 
+100;Ikan Jambal Roti Super @200-250GR;Pack;
+101;Ikan Kakap Putih Fillet @1Kg;Pack; 	45.000 
+102;Ikan Kembung;Kg; 	55.000 
+103;Ikan Kuwe;Kg; 	50.000 
+104;Ikan Lele;Kg; 	25.000 
+105;Ikan Lele;Pcs; 	4.000 
+106;Ikan Mas;Pcs; 	45.000 
+107;Ikan Mujaer;Kg; 	45.000 
+108;Ikan Nila;Kg; 	35.000 
+109;Ikan Sepat;Kg; 	138.500 
+110;Ikan Tenggiri Fillet @500GR;Pack; 	-   
+111;Ikan Teri Jengki;Kg; 	89.000 
+112;Ikan Teri Jengki Belah;Kg; 	77.000 
+113;Ikan Teri Jengki Kecil (Bountiou);Kg; 	102.000 
+114;Ikan Teri Kakal Tawar Tanpa Kepala;Kg; 	110.000 
+115;Ikan Teri Medan;Kg; 	126.667 
+116;Ikan Teri Medan Super @250GR;Pack;
+117;Ikan Tongkol Basah Potong;Kg; 	30.000 
+118;Ikan Tongkol Mika;Pack; 	10.000 
+119;Ikan Tongkol Pindang;Kg; 	85.000 
+120;IQF Wild Blueberries @1Kg;Pack; 	194.755 
+121;Jagung Pipil Frozen @1000Gr;Pack; 	25.000 
+122;Jagung Pipil Frozen @500Gr;Pack;
+123;Kacang Polong Frozen@500Gr;Pack; 	44.000 
+124;Kentang Aviko Crinkle Cut @2.5KG;Pack; 	71.250 
+125;Kentang Aviko Shoestring @1Kg;Pack;
+126;Kentang Aviko Shoestring @2.5KG;Pack; 	76.500 
+127;Kentang Aviko Straight Cut @2.5Kg;Pack; 	63.590 
+128;Kentang Aviko Wedges @2.5KG;Pack; 	114.700 
+129;Kentang Golden Farm Shoestring @1KG;Pack; 	43.390 
+130;Kerang HIjau;Kg; 	40.000 
+131;Kerongkongan Ayam ;Kg; 	15.000 
+132;Kikil (Sapi);Kg; 	20.000 
+133;Kimchi/Acar Sawi @1Kg;Pack; 	72.167 
+134;Kulit Ayam;Kg; 	30.000 
+135;Kulit Tahu Goreng @8Pcs (Ozomu Dimsum);Pack;
+136;Kulit Tahu Kukus @8Pcs (Ozomu Dimsum);Pack;
+137;Lele Bumbu Kuning @3-4Pcs;Pack;
+138;Lidah (Sapi);Kg; 	150.000 
+139;Lumpia Ayam @8Pcs (Ozomu Dimsum);Pack;
+140;Macaroni Cheese Extra Mozarella /Pack;Pack;
+141;Mayasi Bento Chicken Roll @500GR;Pack;
+142;Mayasi Bento Chicken Spicy @500GR;Pack;
+143;Mayasi Bento Chicken Teba @500GR;Pack;
+144;MC Chain French Fries Batter Coated @1Kg;Pack; 	58.000 
+145;MC Chain Spiral Twister Curly Fries @1,8Kg;Pack; 	169.400 
+146;Mix Vegetable 4Way @1KG;Pack; 	21.000 
+147;Mix Vegetable Golden Farm @500GR;Pack; 	34.250 
+148;Mixed Berry Frozen @500GR;Pack; 	111.500 
+149;Otak-Otak Curah;Kg; 	19.000 
+150;Paha Atas On Skin @1Kg;Pack; 	45.000 
+151;Paha Ayam Pentung @1Kg;Pack; 	50.000 
+152;Paha Ayam Pistol @1Kg;Pack; 	44.000 
+153;Paket Burger Bernardi;Pack;
+154;Paket Shabu-Shabu;Pack;
+155;Paru (Sapi) @500GR;Pack; 	80.000 
+156;Raspberry Frozen @500Gr;Pack; 	178.220 
+157;Rendang Premium @500GR;Pack;
+158;Rendang Regular @500GR;Pack;
+159;Ribeye Aus @500GR;Pack;
+160;Ribeye Meltique ;Kg; 	176.500 
+161;Ribeye NZ ;Kg; 	290.250 
+162;Risol Ragout @6Pcs;Pack;
+163;Risol Smoke Beef @6Pcs;Pack;
+164;Riverland Chicken Nugget @500GR;Pack; 	16.750 
+165;Saikoro @500GR;Pack;
+166;Salmon Atlantic Whole;Kg; 	235.000 
+167;Salmon Atlantic Whole 4-5KG;Ekor;
+168;Salmon Chili Whole;Kg; 	175.000 
+169;Salmon Fillet;Kg; 	240.000 
+170;Salmon Portion @200-250GR;Pack;
+171;Salmon Throut Whole;Kg; 	207.100 
+172;Sayap Ayam ;Kg; 	40.000 
+173;Sengkel Rawon @500GR;Pack;
+174;Shortplate (Lowfat) @500GR;Pack;
+175;Shortplate AUS (Yoshinoya) SWIFT;Kg; 	141.000 
+176;Shortplate Swift Whole;Kg;
+177;Shortplate US (Yoshinoya) IBP;Kg; 	175.000 
+178;Shortplate US (Yoshinoya) SWIFT;Kg; 	175.000 
+179;Sio Ayam @10pcs (Ozomu Dimsum);Pack;
+180;Sio Kepiting @10pcs (Ozomu Dimsum);Pack;
+181;Sio Mozarella @8pcs (Ozomu Dimsum);Pack;
+182;Sio Nori @10pcs (Ozomu Dimsum);Pack;
+183;Sirloin Meltique Hide;Kg; 	200.000 
+184;Sirloin Meltique Yuu @500GR;Pack;
+185;Sirloin Prime Aus @500GR;Pack;
+186;Sirloin Prime NZ ;Kg;
+187;Sirloin Reguler Aus ;Kg; 	220.000 
+188;Slice Wagyu MB6 @500GR;Pack;
+189;Smoke Beef Aroma @1Kg;Pack; 	159.880 
+190;Smoke Beef Brisket Aroma @1Kg;Pack; 	138.800 
+191;So Nice Naget Ayam @250GR;Pack;
+192;Sosis Ayam Champ@1KG;Pack; 	50.000 
+193;Sosis Kimbo Isi 25 Pcs;Pack; 	33.000 
+194;Sosis Sapi Yona @15PCS;Pack; 	33.200 
+195;Tenderloin Lokal;Kg; 	150.000 
+196;Tenderloin Meltique @500GR;Pack;
+197;Tenderloin NZ;Kg;
+198;Tetelan;Pack; 	92.000 
+199;Tulang Sop @500GR;Pack;
+200;Tulang Sum-Sum @500GR;Pack;
+201;Tunjang Sapi;Kg; 	59.000 
+202;Tuna Steak Frozen @500GR;Pack; 	42.000 
+203;Udang Kecil;Kg; 	74.000 
+204;Udang Peci;Kg; 	86.000 
+205;Udang Tiger/Pancet @1Kg (Size 15-20) ;Pack; 	201.220 
+206;Udang Tiger/Pancet @1Kg (Size 35-40) ;Pack; 	150.500 
+207;Udang Vaname Kupas (isi 21/30) @1kg;Pack; 	199.520 
+208;Udang Vaname Kupas (isi 31/40) @1kg;Pack; 	120.000 
+209;Udang Vaname Kupas (isi 51/60) @500GR Non Cooked;Pack; 	42.000 
+210;Udang Vaname Kupas (Isi 71/80) @500GR Cooked;Pack; 	39.000 
+211;Udang Vaname Kupas (Isi 71/80) @500GR Non Cooked;Pack; 	39.000 
+212;Udang Vaname Kupas (Isi 91/120) @500GR Non Cooked;Pack; 	34.500 
+213;Udang Vaname Non Kupas (Isi 31/40) @1kg;Pack;
+214;Usus Ayam;Kg; 	30.000 
+215;Wagyu MB6 @500GR;Pack;
+216;Wonton @10pcs (Ozomu Dimsum);Pack;
+;;;
+ALAT TULIS KANTOR (ATK);;;
+NO;NAMA BARANG;SATUAN;HARGA
+;;;BELI
+1;Alkohol 96% Food Grade;Btl; 	96.252 
+2;Alumunium Foil 30CMx7,6M;Pack; 	22.000 
+3;Alumunium Foil 45CMx150M;Pack; 	302.260 
+4;Alumunium Foil 45CMx7,6M;Pack; 	38.000 
+5;Amplop Coklat F4;Pack; 	32.000 
+6;Amplop Coklat Kabinet UK 11x24;Pack; 	20.000 
+7;Asbak;Pcs; 	38.528 
+8;Baking Paper 30x30 ;Pack; 	28.000 
+9;Baking Paper Best Fresh 10MX30CM;Pack; 	28.000 
+10;Baking Parchment Paper Coklat 30CmX10M;Roll; 	15.463 
+11;Ballpoint @1Lusin;Box; 	18.000 
+12;Ballpoint Parker Exclusive Gold;Pcs; 	170.000 
+13;Bantex File F4 8843;Set; 	100.000 
+14;Bantex Folder 4011;Pcs; 	47.500 
+15;Bantex Folder Warna Kuning 4012;Pcs; 	46.300 
+16;Bantex Ordner Warna Kuning 1450 A4;Pcs; 	44.000 
+17;Baterai AA Alkaline @2Pcs;Pack; 	22.600 
+18;Baterai AAA Panasonic;Lusin; 	23.000 
+19;Baterai Alkaline AA @6PCS;Pack; 	43.900 
+20;Baterai Alkaline AAA @6CS;Pack; 	43.900 
+21;Baterai Energizer Recharged AA2 @2PCS;Pack; 	152.900 
+22;Baterai Energizer Recharged AAA2 @2PCS;Pack; 	59.870 
+23;Bay Fresh Reed Diffuser Sakura Bloom Refil @30ML;Pcs; 	37.540 
+24;Bayclin @1000Ml;Btl; 	20.000 
+25;Baygon @450ML;Btl; 	35.000 
+26;Baygon Natural Orange @600ML;Btl; 	38.000 
+27;Baygon Spry Lavender @760ML;Btl; 	59.200 
+28;Bebek Kloset Extra Kuat @450Ml;Btl; 	33.000 
+29;Binder Bening;Pack; 	26.000 
+30;Binder Biru;Pack; 	43.000 
+31;Binder Clips @200;Box; 	12.000 
+32;Binder Clips @260;Box; 	15.000 
+33;Binder Clips Joyko KK @260;Pack; 	16.000 
+34;Black T Bar Aluminium Handle @256MM (600MM);Pcs; 	145.600 
+35;Blue Clean @160GR;Pcs; 	22.000 
+36;Bluetooth Receiver+Audio Digital To Analog T01;Pcs; 	205.500 
+37;Bor Listrik Impact Drill Krisbow;Pcs; 	478.920 
+38;Bor Listrik Impact Drill Satu Baterai;Pcs; 	365.754 
+39;Brasso Metal Polish @100Ml;Btl; 	27.500 
+40;Bright Gas @12Kg;Pcs; 	410.000 
+41;Brown Kraft Paper Box Food Grade 45OZ;Pcs; 	3.500 
+42;Buku Hard Cover Kiky A6 @300Lembar;Pcs; 	21.000 
+43;Buku Kwitansi Uk Sedang;Pcs; 	7.330 
+44;Buku Tulis Sidu @10Pcs;Pack; 	48.000 
+45;Calsium Alginate @100Gr;Pack; 	71.500 
+46;Calsium Lactate @100Gr;Pack; 	22.467 
+47;Cermin Lipat Niceso;Pcs; 	8.000 
+48;Charger Baterai AA 1200 MAH Double Pow;Pcs; 	83.500 
+49;Charger Tipe C;Pcs; 	60.000 
+50;Citric Acid 2oz @8,5Gr;Btl; 	18.374 
+51;Citric Acid Citrun Cap Gajah @50GR ;Pcs; 	5.000 
+52;Clear Holder @40Pocket;Pcs; 	18.500 
+53;Clear Holder @60Pocket;Pcs; 	25.000 
+54;Cling Spray Pembersih Kaca @440Ml;Btl; 	23.000 
+55;Container Shinpo @70Ltr;Pcs; 	139.400 
+56;Cover Mic 50 Set Isi 100 Pcs;Pack; 	60.800 
+57;Cup & Tutup Sauce Polos 100Ml @50Pcs;Pack; 	40.000 
+58;Cup Pet Bening 16oz @50PCS;Pack; 	51.267 
+59;Cup Sealer Polos (Roll 1200);Pack; 	53.000 
+60;Detergen Boom @280Gr;Pack; 	10.000 
+61;Detergen Rinso @1.4KG;Pack; 	42.000 
+62;Detergen Rinso @1.8KG;Pack; 	54.000 
+63;Detergen Rinso @770GR;Pack; 	30.000 
+64;Dispenser Juice Prasmanan @8Ltr;Pcs; 	315.399 
+65;Double Tape @1inch;Roll; 	7.000 
+66;Dragon Pack Dimsum Paper 4.5Inch;Pack; 	66.299 
+67;Dragon Pack Dimsum Paper 5.5Inch;Pack; 	77.852 
+68;Engsel Pintu 5/5;Pcs; 	40.000 
+69;Entrostop @10Tablet;Strip; 	10.000 
+70;Epson Printer 7755;Pack;
+71;Epson Refill Hitam 003;Pack; 	79.000 
+72;Eraser White Board;Pcs; 	6.000 
+73;Expanding Kenko;Pcs; 	35.000 
+74;Fasidol Paracetamol @500GR @10Tablet;Strip; 	3.500 
+75;Garpu Makan Plastik Bening @isi 25Pcs;Pack; 	7.000 
+76;Garpu Makan Plastik Bening @isi 50Pcs;Pack; 	6.000 
+77;Gas Hi Cook @220GR;Pcs; 	26.000 
+78;Gelas Bening Cup @50Pcs;Pack; 	18.000 
+79;Gelas Paper Cup @50Pcs;Pack; 	23.000 
+80;Glade Aerosol Gantung @70Gr;Pcs; 	15.000 
+81;Glade Aerosol Spray @350ML;Pcs; 	41.490 
+82;Glade Automatic Spray @225Ml;Can; 	30.900 
+83;Gunting Besar;Pcs; 	13.080 
+84;Hand Bag Kraft 28x20CM Isi 10PCS;Pack; 	13.500 
+85;Hand Sanitizer Dettol @200Ml;Btl; 	15.000 
+86;Hand Soap Yuri @410ML;Pack; 	34.333 
+87;Hand Soap Yuri Refill @375ML;Pack; 	22.110 
+88;Hansaplast Transparan @10Pcs;Pack; 	9.500 
+89;Hansaplast Transparan @30Pack;Dus; 	288.000 
+90;HIT Spray Anti Nyamuk @600Ml;Pcs; 	37.690 
+91;Huki Cotton Buds @100Pcs;Pack; 	10.300 
+92;HVS Paper One 80Gram @80Gr;Riem; 	49.000 
+93;HVS Paper One A4 @75Gr;Riem; 	37.500 
+94;Imboost @5Strip;Pack; 	74.000 
+95;Iner Sekat Tray @800Ml Isi 50Pcs;Pack; 	28.000 
+96;Iner Tray Bowl @800Ml Isi 25Pcs;Pack; 	12.898 
+97;Insto @7.5ML;Pcs; 	15.500 
+98;Isi Stapler Kecil No 10 KK;Pcs; 	2.000 
+99;Isi Steples Joyko No 10;Pack; 	1.840 
+100;Isi Tinta Cap Marker INK;Pcs; 	6.500 
+101;Kabel HDMI Flat 15M;Roll; 	172.500 
+102;Kabel Ties @150MM;Pack; 	7.250 
+103;Kabel Ties @200MM;Pack; 	17.000 
+104;Kabel Ties @250MM;Pack; 	23.000 
+105;Kain Lap Micro Fiber 40x40Cm @340Gr;Pcs; 	11.125 
+106;Kain Pel Gagang Panjang Bride;Pcs; 	141.990 
+107;Kamper Swallow Ball Isi 5 Pcs;Pack; 	35.000 
+108;Kanebo;Pcs; 	14.500 
+109;Kanebo Super;Pcs; 	21.900 
+110;Kantong Plastik Pex 30X57;Pack; 	19.900 
+111;Karet Gelang;Pcs; 	25.000 
+112;Kemoceng;Pcs; 	22.390 
+113;Kertas Binder A5 @50Pcs;Pack; 	4.500 
+114;Kertas Concorde Putih A4 150Gr isi 10;Pack; 	37.574 
+115;Kertas Continous Form 4Ply;Dus;
+116;Kertas Galgo A4-900GRM2 20 SHEETS;Pack; 	35.157 
+117;Kertas Galgo Kuning;Set; 	90.000 
+118;Kertas Nasi Cokelat @250Pcs;Pack; 	30.000 
+119;Krisbow Gagang Pel Aluminium;Pcs; 	64.000 
+120;Kuas Foodgrade;Pcs; 	25.000 
+121;Kunci Inggris 10Inch Krisbow;Pcs; 	119.900 
+122;Kunci Inggris 12Inch ;Pcs; 	157.900 
+123;Lakban Bening 2Inch;Roll; 	15.000 
+124;Lakban Bening Kecil;Roll; 	5.000 
+125;Lakban Coklat;Roll; 	8.000 
+126;Lakban Hitam 2Inch;Roll; 	10.390 
+127;Leaflet A5 @50Lembar;Btl; 	4.500 
+128;Lid Cup Pet 92,5MM @50PCS;Pack; 	24.000 
+129;Lid Paper Bowl Brown @800Ml isi 25Pcs;Pack; 	23.000 
+130;Lid Paper Bowl White @800Ml isi 26Pcs;Pack; 	25.000 
+131;Lilin Ulang Tahun Spiral @6Pcs;Pack; 	7.000 
+132;Listerine @500Ml;Btl; 	46.000 
+133;Malic Acid 2oz @8,5GR;Btl; 	23.247 
+134;Mama Lemon @680Ml;Pack; 	12.500 
+135;Map Plastik Bening Daichi @12Pcs;Pack; 	33.567 
+136;Masker Duckbill Oncare Peach Isi 50 Pcs;Pack; 	31.623 
+137;Materai 10000 @50Pcs;Lembar; 	500.000 
+138;Meteran 3.5M x 16Mm Krisbow;Pcs; 	39.900 
+139;Mika Plastik Dus 20x20 Sekat 5;Pack; 	17.000 
+140;Minyak Kayu Putih @210ML;Btl; 	69.900 
+141;Minyak Lilin;Pcs; 	50.000 
+142;Mr Muscle AxI Marmer Pouch @400 ML;Pcs; 	8.290 
+143;Mr Muscle AxI Marmer Pouch @720 ML;Pcs; 	27.000 
+144;Netline USB 3.0 To HDMI&VGA Converter Cable;Pcs; 	212.800 
+145;Nobla Liquid Plus @5Ltr;Jrg; 	290.000 
+146;Oshibori Towel 25x25CM;Pcs; 	6.729 
+147;P3K;Set; 	50.000 
+148;Paket Obeng;Set; 	100.000 
+149;Panadol Flu & Batuk Hijau @10Pcs;Box; 	168.000 
+150;Papan Ujian;Pcs; 	14.000 
+151;Paper Filter V60 Coffee Hario Isi 40PCS;Pack; 	50.000 
+152;Paperplate Detpack@50Pcs;Pack; 	44.053 
+153;Paper Klip No 3;Pcs; 	1.700 
+154;Papper Bowl 800 ML Set Tutup & Inner;Pcs; 	1.400 
+155;Papper Filter V60 Lancip @100PCS;Box; 	32.500 
+156;Papper Lunch Box Size M;Pcs; 	1.000 
+157;Papper Roll 2 Ply 75x60MM Isi 10Pcs;Pack; 	58.235 
+158;Papper Roll 3 Ply 75x60MM Isi 10Pcs;Pack; 	57.010 
+159;Pappper Bag Coklat Size L;Pcs; 	2.123 
+160;Pappper Bag Coklat Size M;Pcs; 	1.773 
+161;Paramex Biru Isi 4Pcs;Pack; 	5.000 
+162;Payung Hitam Besar Hugo;Pcs; 	93.167 
+163;Pegangan Laci Plastik;Pcs; 	6.900 
+164;Pelampung Lilin;Pack; 	40.000 
+165;Pemantik Kompor Bbq;Pcs; 	16.750 
+166;Penggaris Plastik @30Cm;Pcs; 	2.500 
+167;Penghapus Joyko;Pcs; 	1.250 
+168;Pensil 2B Isi 12PCS;Pack; 	12.500 
+169;Pensil Warna Montana Isi 10PCS;Pack; 	9.000 
+170;Photo Paper Glossy;Pack; 	17.500 
+171;Photo Paper Glossy A4 Isi 20Pcs Printech;Pack; 	35.000 
+172;Picter Stainless Steel @1.5 Liter;Pcs; 	139.000 
+173;Piring Kertas Detpak 23CM;Pack; 	39.668 
+174;Piring Plastik Putih @50Pcs;Pack; 	35.000 
+175;Pisau Bone Saw @1300MM;Pcs; 	90.999 
+176;Pisau Plastik Putih @50Pcs;Pcs; 	25.000 
+177;Pita Printer Kasir Fullmark ERC38;Pcs; 	18.700 
+178;Plastik Alas 20x20;Pack; 	9.000 
+179;Plastik Anti Panas UK 1/2Kg;Pack; 	10.000 
+180;Plastik Anti Panas UK 1Kg;Pack; 	10.000 
+181;Plastik Anti Panas UK 2Kg;Pack; 	10.000 
+182;Plastik Anti Panas UK 3Kg;Pack; 	10.000 
+183;Plastik Belanja Warna UK 35x50;Pack; 	35.250 
+184;Plastik Kantong Hitam Ukuran 35 @500GR;Pack; 	23.000 
+185;Plastik Kantong Putih Ukuran 17 @500GR;Pack; 	22.000 
+186;Plastik Kantong Putih Ukuran 24 @500GR;Pack; 	18.000 
+187;Plastik Kantong Putih Ukuran 28 @500GR;Pack; 	18.000 
+188;Plastik Kantong Putih Ukuran 35 @500GR;Pack; 	22.000 
+189;Plastik Kantong Putih Ukuran 40 @500GR;Pack; 	21.644 
+190;Plastik Kantong Putih Ukuran 50 @500GR;Pack; 	48.000 
+191;Plastik Kantong T Cup Gelas;Pack; 	17.500 
+192;Plastik Klip 10x12 Isi 100PCS;Pack; 	15.000 
+193;Plastik Klip 13x8.7 Isi 100PCS;Pack; 	15.000 
+194;Plastik Klip 15x10 Isi 100PCS;Pack; 	10.000 
+195;Plastik Klip 20x12 Isi 100PCS;Pack; 	12.500 
+196;Plastik Klip 30x20 Isi 100PCS;Pack; 	50.000 
+197;Plastik Klip 35x25 Isi 100PCS;Pack; 	85.000 
+198;Plastik Klip 7x10;Pack;
+199;Plastik Klip 8x5;Pack; 	6.000 
+200;Plastik Packing 35x50 ;Pack; 	37.000 
+201;Plastik Packing Ultah;Pack; 	13.000 
+202;Plastik PE Jeruk 15x30 ;Pack; 	7.150 
+203;Plastik Pex Bawang 20/25;Pack; 	22.300 
+204;Plastik Pex Bawang 35;Pack; 	24.000 
+205;Plastik Roll 30X45;Pack; 	70.000 
+206;Plastik Sampah Hitam HD 100X120;Pack; 	15.000 
+207;Plastik Sampah Hitam HD 60X100;Pack; 	11.000 
+208;Plastik Sampah Hitam HD 90X120 @6PCS;Pack; 	11.000 
+209;Plastik Segitiga (Piping Bag) ;Pack; 	10.000 
+210;Plastik Tomat 10x20 (1/4Kg);Pack; 	10.000 
+211;Plastik Tomat 12x25 (1/2Kg);Pack; 	15.000 
+212;Plastik Tomat 15x30 (1Kg);Pack; 	12.000 
+213;Plastik Tomat 20x35 (2Kg);Pack; 	10.000 
+214;Plastik Tomat 8x20;Pack; 	10.000 
+215;Plastik Tomat PE 4x23;Pack;
+216;Plastik Vakum 15x20Cm;Pcs; 	530 
+217;Plastik Vakum 23X34Cm;Pcs; 	1.190 
+218;Plastik Wrapping Makanan 20x500CM;Roll; 	82.950 
+219;Plastik Wrapping Makanan 30CM x 30CM;Roll; 	18.000 
+220;Plastik Wrapping Makanan 40x500CM;Roll; 	185.000 
+221;Plastik Wrapping Makanan 45x500CM;Roll; 	180.000 
+222;Plastik Wrapping Makanan Bagus 45x300CM;Roll; 	299.000 
+223;Plastik Wrapping Makanan Best Fresh 35x500CM;Roll; 	123.801 
+224;Plastik Wrapping Makanan Cling Wrap 30CMx12Inch;Roll; 	18.000 
+225;Pledge Liquid Refil @410Ml;Pack; 	25.000 
+226;Porstex Yuri 1000ML;Btl; 	19.900 
+227;Pos It Joyko;Set; 	6.000 
+228;Post It 3Inch x 3Inch;Pcs; 	6.500 
+229;Pourer Botol Plastik;Pcs; 	6.108 
+230;Pourer Botol Stainless;Pcs; 	6.333 
+231;Prokleen Multipurpose @5LTR;Jrg; 	64.667 
+232;Promag Tablet Isi 3Strip;Box; 	30.900 
+233;Pulpen Joyko Pen Stand ;Pcs; 	8.000 
+234;Pulpen Standard R8;Box; 	38.000 
+235;Pulpen Zebra Piccolo Fine 0.7 @12Pcs;Box; 	19.830 
+236;Pureco Liquid Hand Soap @500ML;Btl; 	130.000 
+237;Purederm Tissue Remover;Pack; 	30.000 
+238;Rautan Putar Joyko;Pcs; 	22.500 
+239;Sabun Pembersih Kaca@5Ltr;Jrg; 	47.379 
+240;Salonpas Koyo Hot Isi 10Pcs;Box; 	74.500 
+241;Salonpas Koyo Isi 10Pcs;Box; 	74.500 
+242;Sandisk Ixpand OTG Lightning USB For Apple 128GB;Ctn; 	545.900 
+243;Sapu Ijuk;Pcs; 	30.000 
+244;Sapu Lidi;Pcs; 	20.000 
+245;Sarung Tangan Hitam Isi @10PCS;Pack; 	42.000 
+246;Sarung Tangan Hitam Shamrock @50PCS;Pack; 	59.300 
+247;Sarung Tangan Orange KenMaster Size L @2 Pcs;Pack; 	19.400 
+248;Sarung Tangan Plastik Isi 100PCS;Pack; 	12.000 
+249;Sauce Cup @25ML Isi 50PCS;Pack; 	15.000 
+250;Sedotan Hitam 5x240Mm + Cover Kertas Isi 500Pcs;Pack; 	29.240 
+251;Sedotan Kertas;Pack; 	24.452 
+252;Sedotan Kertas Bubble @100Pcs;Pack; 	43.750 
+253;Sedotan Plastik Boba @100Pcs;Pack; 	15.000 
+254;Sedotan Plastik Hitam;Pack; 	15.000 
+255;Sedotan Putih 5x240Mm + Cover Kertas Isi 500Pcs;Pack; 	14.000 
+256;Sendok Garpu Plastik Set;Pack; 	10.000 
+257;Sendok Kayu 16Cm Isi 50Pcs;Pack; 	22.750 
+258;Sendok Plastik Bening @25Pcs;Pack; 	7.000 
+259;Sendok Plastik Bening @50Pcs;Pack; 	12.800 
+260;Senter Kecil Electric;Pcs; 	56.000 
+261;Shaker Jobbler Japanase Style;Pcs; 	338.300 
+262;Shinpo Donatsu 306 L;Pcs; 	33.000 
+263;Shinpo Donatsu 306 M;Pcs; 	23.010 
+264;Sikat Botol;Pcs; 	20.000 
+265;Sikat Lantai Panjang Kleen Up;Pcs; 	84.390 
+266;Skewer Stainless;Pcs; 	4.057 
+267;Smoking Gun Portable Food Infuser;Pcs; 	657.802 
+268;So Klin Lantai @800Ml;Pack; 	14.000 
+269;So Klin Lantai Hijau Muda @1600ML;Pack; 	36.000 
+270;SOS Karbol Anti Bacterial Classic @4LTR;Jrg; 	42.764 
+271;Spidol Hitam Snowman Kecil;Box; 	14.000 
+272;Spidol Hitam Snowman Sedang;Pcs; 	7.210 
+273;Sprok Spoon Gase Kayu Isi 100 Pcs;Pack; 	38.517 
+274;Stabilo Boss;Pcs; 	5.000 
+275;Stapler Kecil Joyko KK;Pcs; 	8.500 
+276;Steel Wool;Pcs; 	8.100 
+277;Stella Automatic Refill @225Ml;Can; 	37.990 
+278;Stella Spray Parfum @400Ml;Pcs; 	39.200 
+279;Stop Kontak Tunggal Broco Switch On/Off;Pcs; 	30.000 
+280;Struk Thermal 58X48;Roll; 	4.205 
+281;Struk Thermal 80X80;Roll; 	14.088 
+282;Struk Thermal PMM 80x80MM;Roll; 	14.088 
+283;Sumbu Lilin;Pack; 	50.000 
+284;Sumpit Bambu @50Pcs;Pack; 	6.939 
+285;Sunlight @1.5L;Pack; 	27.578 
+286;Sunlight @1L;Pack; 	16.000 
+287;Sunlight @5L;Jrg; 	91.921 
+288;Sunlight @650ML;Pack; 	12.900 
+289;Sunlight @750ML;Pack; 	39.000 
+290;Super Pell @770ML;Pack; 	40.000 
+291;Swallow Kamper Gantung;Pcs; 	31.000 
+292;Tabung Gas LPG @50Kg;Pcs; 	18.000 
+293;TAF Yuri Cleanser Fresh Blue @500Ml;Btl; 	25.000 
+294;Tapas Sponge;Pcs; 	8.700 
+295;Tapas Sponge Politex;Pcs; 	14.500 
+296;Tas Botol Spunbond Polos 36X12 Cm;Pcs; 	4.588 
+297;Tealight Candle @10PCS;Pack; 	13.000 
+298;Tempat Pensil Meja;Pcs; 	50.000 
+299;Tempat Spons;Pail; 	15.000 
+300;Tempat Tissue;Pcs; 	39.000 
+301;Terminal Extender Switch On/Off;Pcs; 	222.500 
+302;Thinwall Food Container @1000ML;Pcs; 	1.200 
+303;Thinwall Food Container @500ML;Pack; 	26.000 
+304;Thinwall Food Container @750ML;Pack; 	33.000 
+305;Thinwall Sauce Cup @25ML;Pack; 	11.000 
+306;Thinwall Sauce Cup @35ML;Pack; 	14.000 
+307;Thinwall Sauce Cup @50ML;Pack; 	15.000 
+308;Tinta Laserjet Biru Original 312A;Pcs; 	722.000 
+309;Tinta Laserjet Hitam Original 312A;Pcs; 	722.000 
+310;Tinta Laserjet Kuning Original 312A;Pcs; 	722.000 
+311;Tinta Laserjet Pink Original 312A;Pcs; 	722.000 
+312;Tipex Cair Joyko;Pcs; 	6.000 
+313;Tissue Basah Anti Septik Nuvo;Pcs; 	20.100 
+314;Tissue Cetak Logo Abuba UK L @50Pcs;Pack; 	15.000 
+315;Tisuue Livi Evo Premium;Pack; 	10.885 
+316;Tissue Livi Kotak @160Lembar;Pack; 	3.462 
+317;Tissue Livi Smart Multifold;Pack; 	11.000 
+318;Tissue Paseo @900Gr;Pcs; 	24.000 
+319;Tissue Plenty Cocktail Napkin;Pack; 	7.000 
+320;Tissue Plenty Kitchen Towel @2Rol;Pack; 	13.633 
+321;Tissue See U Bathroom @100 Coreless;Ctn; 	119.500 
+322;Tissue See U Bathroom @100 Roll;Ctn; 	178.021 
+323;Tissue See U Hand Towel Brown @20Pack;Ctn; 	136.000 
+324;Tissue See U Kitchen Towel ;Pack; 	13.000 
+325;Tissue See U Multipurpose 150Sheets @48Pack;Ctn; 	116.000 
+326;Tom & Jerry Label No.121;Dus; 	545.900 
+327;Tom & Jerry Label No.121 (Pack);Pack; 	7.015 
+328;Trolly Krisbow;Pcs; 	771.400 
+329;Tusuk Bambu Teposuki @10CM;Pack; 	28.953 
+330;Tusuk Bambu Teposuki @12CM;Pack; 	36.715 
+331;Tusuk Gigi Packing Kertas @100 Pcs ;Pack; 	15.000 
+332;Tusuk Sate Bambu ;Pack; 	9.950 
+333;Tusuk Sate Gepeng;Pack; 	5.000 
+334;Tusuk Sate Yakitori @10Cm Isi 100Pcs;Pack; 	15.500 
+335;Tusuk Sate Yakitori @12Cm Isi 100Pcs;Pack; 	27.000 
+336;Tusuk Sate Yakitori @15Cm Isi 100Pcs;Pack; 	23.215 
+337;Tutup Cup 12 Oz Dome @50Pcs;Pack; 	5.000 
+338;Tutup Cup 12 Oz Flat ;Pcs; 	760 
+339;Urinal Screen Mat @2 PCS;Pack; 	29.600 
+340;Varlo Dac Audio Bluetooth 5.1 Receiver;Pack; 	122.040 
+341;Wipol Pembersih Lantai @750 Ml;Pouch; 	20.900 
+342;Wipper Lantai Lion Star;Pcs; 	50.000 
+343;Woden Clip 2,5Cm @5Pcs;Pack; 	2.600 
+;;;
+;;;
+;;;
+; ;;

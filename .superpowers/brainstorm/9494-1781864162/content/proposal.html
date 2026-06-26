@@ -1,0 +1,114 @@
+<h2>Design Proposal: Shopping List UI/UX Refinements</h2>
+<p class="subtitle">Mockup perbaikan logika gudang, tombol undo, dan pemisahan metode belanja.</p>
+
+<div class="section">
+  <h3>1. Pemisahan Tombol Metode Belanja & Logika Vendor Gudang</h3>
+  <p>Pemisahan "Belanja Pasar" dan "Belanja Online" menjadi tombol tersendiri (total 4 metode). Jika memilih <strong>Dari Gudang</strong>, pemilih Vendor otomatis dinonaktifkan/dihapus dan diganti teks <strong>Gudang</strong>.</p>
+  
+  <div class="mockup">
+    <div class="mockup-header">Preview Baris Tabel List Belanja</div>
+    <div class="mockup-body" style="padding:15px; font-family:sans-serif;">
+      <table style="width:100%; border-collapse:collapse; font-size:12px;">
+        <thead>
+          <tr style="border-bottom:1px solid #e2e8f0; text-align:left; color:#64748b;">
+            <th style="padding:8px;">Product</th>
+            <th style="padding:8px; width:150px;">Vendor Selection</th>
+            <th style="padding:8px; text-align:center; width:180px;">Metode (Split Buttons)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Row 1: Normal Item (Pasar) -->
+          <tr style="border-bottom:1px solid #f1f5f9;">
+            <td style="padding:12px 8px;">
+              <strong>Jamur Champignon</strong><br/>
+              <span style="color:#f59e0b; font-size:10px; font-weight:bold;">Patokan: Rp40.000,00</span>
+            </td>
+            <td style="padding:12px 8px;">
+              <select style="font-size:11px; padding:3px; border:1px solid #cbd5e1; border-radius:4px; width:120px;">
+                <option>-- Pilih Vendor --</option>
+                <option selected>Mitra Kirim</option>
+                <option>AA Dadi</option>
+              </select>
+            </td>
+            <td style="padding:12px 8px; text-align:center;">
+              <div style="display:inline-flex; gap:4px;">
+                <!-- Active Pasar -->
+                <div style="padding:6px; background:#ecfdf5; border:1px solid #a7f3d0; color:#059669; border-radius:8px; cursor:pointer;" title="Belanja di Pasar">🏪</div>
+                <!-- Inactive Online -->
+                <div style="padding:6px; background:#f8fafc; border:1px solid #e2e8f0; color:#94a3b8; border-radius:8px; cursor:pointer;" title="Belanja Online">💻</div>
+                <!-- Inactive Transfer -->
+                <div style="padding:6px; background:#f8fafc; border:1px solid #e2e8f0; color:#94a3b8; border-radius:8px; cursor:pointer;" title="Transfer (Finance)">🔄</div>
+                <!-- Inactive Warehouse -->
+                <div style="padding:6px; background:#f8fafc; border:1px solid #e2e8f0; color:#94a3b8; border-radius:8px; cursor:pointer;" title="Ambil Stok Gudang">🏢</div>
+                <!-- Delete -->
+                <div style="padding:6px; background:#fef2f2; border:1px solid #fecaca; color:#dc2626; border-radius:8px; cursor:pointer;">🗑️</div>
+              </div>
+            </td>
+          </tr>
+          
+          <!-- Row 2: Warehouse Item (Dari Gudang) -->
+          <tr style="border-bottom:1px solid #f1f5f9; background-color:#fffbeb;">
+            <td style="padding:12px 8px;">
+              <strong>Baby Buncis Tw</strong><br/>
+              <span style="color:#d97706; font-size:10px; font-weight:bold; background:#fef3c7; padding:2px 4px; border-radius:4px;">🏢 Dari Gudang</span>
+            </td>
+            <td style="padding:12px 8px;">
+              <span style="color:#94a3b8; font-weight:bold; font-size:11px; background:#f1f5f9; padding:4px 8px; border-radius:4px; display:inline-flex; align-items:center; gap:4px;">
+                🏢 Gudang (No Vendor)
+              </span>
+            </td>
+            <td style="padding:12px 8px; text-align:center;">
+              <div style="display:inline-flex; gap:4px;">
+                <!-- Inactive Pasar -->
+                <div style="padding:6px; background:#f8fafc; border:1px solid #e2e8f0; color:#94a3b8; border-radius:8px; cursor:pointer;">🏪</div>
+                <!-- Inactive Online -->
+                <div style="padding:6px; background:#f8fafc; border:1px solid #e2e8f0; color:#94a3b8; border-radius:8px; cursor:pointer;">💻</div>
+                <!-- Inactive Transfer -->
+                <div style="padding:6px; background:#f8fafc; border:1px solid #e2e8f0; color:#94a3b8; border-radius:8px; cursor:pointer;">🔄</div>
+                <!-- Active Warehouse -->
+                <div style="padding:6px; background:#fffbeb; border:2px solid #f59e0b; color:#d97706; border-radius:8px; cursor:pointer; box-shadow:0 0 0 2px #fef3c7;">🏢</div>
+                <!-- Delete -->
+                <div style="padding:6px; background:#fef2f2; border:1px solid #fecaca; color:#dc2626; border-radius:8px; cursor:pointer;">🗑️</div>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>2. Penempatan Tombol Undo Global</h3>
+  <p>Tombol Undo akan muncul di samping judul card "Auto-Consolidator" secara dinamis ketika ada aksi yang terekam di riwayat (history). Dilengkapi animasi loading saat mengeksekusi undo untuk mencegah double-click.</p>
+  
+  <div class="mockup">
+    <div class="mockup-header">Auto-Consolidator Header Mockup</div>
+    <div class="mockup-body" style="padding:15px; font-family:sans-serif; display:flex; justify-content:space-between; align-items:center;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:18px; font-weight:bold; color:#1e293b;">🔄 Auto-Consolidator</span>
+        
+        <!-- Undo Button (Active State) -->
+        <button style="display:inline-flex; align-items:center; gap:4px; padding:4px 10px; font-size:11px; font-weight:bold; color:#b45309; background:#fef3c7; border:1px solid #fde68a; border-radius:6px; cursor:pointer;">
+          <span>↩️</span> Undo Action
+        </button>
+        
+        <!-- Undo Button (Loading State) -->
+        <button disabled style="display:inline-flex; align-items:center; gap:4px; padding:4px 10px; font-size:11px; font-weight:bold; color:#94a3b8; background:#f1f5f9; border:1px solid #e2e8f0; border-radius:6px; cursor:not-allowed;">
+          <span style="display:inline-block; animation:spin 1s linear infinite;">⏳</span> Undoing...
+        </button>
+      </div>
+      
+      <button style="padding:6px 12px; font-size:11px; font-weight:bold; border:1px solid #e2e8f0; border-radius:6px; cursor:pointer;">
+        + Tambah Belanja Stok
+      </button>
+    </div>
+  </div>
+</div>
+
+<style>
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+</style>
