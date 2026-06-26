@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from "react"
 import { useAppStore } from "@/lib/store"
 import { cn, formatRupiah, formatNumber, parseNumber } from "@/lib/utils"
-import { Plus, Trash2, ShoppingCart, Search, ChevronsUpDown, Check, Eye, FileText, Download, Loader2, X } from "lucide-react"
+import { Plus, Trash2, ShoppingCart, Search, ChevronsUpDown, Check, Eye, FileText, Download, Loader2, X, Pencil } from "lucide-react"
 import { v4 as uuidv4 } from "uuid"
 
 const toDateInputValue = (date?: string) => {
@@ -235,13 +235,45 @@ export default function SalesOrdersPage() {
   const [isProductSearchOpen, setIsProductSearchOpen] = useState(false)
   const [poNumberDraft, setPoNumberDraft] = useState("")
   const [isSavingOrder, setIsSavingOrder] = useState(false)
+  const [editingSO, setEditingSO] = useState<SalesOrder | null>(null)
+
+  const closeSOModal = () => {
+    setIsOpen(false)
+    setEditingSO(null)
+    setClientId("")
+    setLineItems([])
+    setPoNumberDraft("")
+  }
+
+  const handleEditSO = (so: SalesOrder) => {
+    setEditingSO(so)
+    setClientId(so.clientId)
+    setTargetDate(toDateInputValue(so.targetDeliveryDate))
+    setPoNumberDraft(so.poNumber)
+    
+    // load line items
+    const relatedItems = salesOrderItems.filter(item => item.salesOrderId === so.id)
+    const formattedItems = relatedItems.map(item => {
+      const product = products.find(p => p.id === item.productId)
+      return {
+        id: item.id,
+        productId: item.productId,
+        productName: product ? product.name : "Unknown",
+        qty: item.qty,
+        unitPrice: item.unitPrice,
+        estimatedHpp: item.estimatedHpp || 0
+      }
+    })
+    setLineItems(formattedItems)
+    setIsOpen(true)
+  }
 
   // Generate initial PO number when opening dialog
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !editingSO) {
       setPoNumberDraft(generateDocumentNumber('PO'))
     }
-  }, [isOpen])
+  }, [isOpen, editingSO])
 
   const filteredClients = clients.filter(c => 
     c.companyName.toLowerCase().includes(clientSearch.toLowerCase())
@@ -559,35 +591,91 @@ export default function SalesOrdersPage() {
 
     setIsSavingOrder(true)
     try {
-      const soId = uuidv4()
+      if (editingSO) {
+        // --- EDIT MODE ---
+        // 1. Update the Sales Order record
+        await updateSalesOrder(editingSO.id, {
+          poNumber: poNumberDraft || editingSO.poNumber,
+          clientId,
+          targetDeliveryDate: new Date(targetDate).toISOString()
+        })
 
-      // Create SO FIRST (Sequential)
-      await addSalesOrder({
-        id: soId,
-        poNumber: poNumberDraft || generateDocumentNumber('PO'),
-        clientId,
-        orderDate: new Date().toISOString(),
-        targetDeliveryDate: new Date(targetDate).toISOString(),
-        status: 'Draft' // Start as Draft for manual approval
-      })
+        // 2. Diff line items:
+        const existingItems = salesOrderItems.filter(item => item.salesOrderId === editingSO.id)
+        
+        // Items to delete (exist in DB but not in lineItems)
+        const itemsToDelete = existingItems.filter(ext => !lineItems.some(item => item.id === ext.id))
+        // Items to add (new items, don't exist in existingItems)
+        const itemsToAdd = lineItems.filter(item => !existingItems.some(ext => ext.id === item.id))
+        // Items to update (exist in both, but qty or unitPrice changed)
+        const itemsToUpdate = lineItems.filter(item => {
+          const ext = existingItems.find(e => e.id === item.id)
+          return ext && (ext.qty !== item.qty || ext.unitPrice !== item.unitPrice)
+        })
 
-      // Create Line Items in Batch (Sequential after SO)
-      const itemsToAdd: SalesOrderItem[] = lineItems.map(item => ({
-        id: uuidv4(),
-        salesOrderId: soId,
-        productId: item.productId,
-        qty: item.qty,
-        unitPrice: item.unitPrice,
-        subtotal: item.qty * item.unitPrice,
-        estimatedHpp: item.estimatedHpp
-      }))
+        // Execute deletions
+        for (const item of itemsToDelete) {
+          await deleteSalesOrderItem(item.id)
+        }
 
-      await addSalesOrderItems(itemsToAdd)
+        // Execute updates
+        for (const item of itemsToUpdate) {
+          await updateSalesOrderItem(item.id, {
+            qty: item.qty,
+            unitPrice: item.unitPrice,
+            subtotal: item.qty * item.unitPrice
+          })
+        }
 
-      toast.success("Sales Order created successfully")
-      setIsOpen(false)
-      setClientId("")
-      setLineItems([])
+        // Execute additions
+        if (itemsToAdd.length > 0) {
+          const newItems: SalesOrderItem[] = itemsToAdd.map(item => ({
+            id: uuidv4(),
+            salesOrderId: editingSO.id,
+            productId: item.productId,
+            qty: item.qty,
+            unitPrice: item.unitPrice,
+            subtotal: item.qty * item.unitPrice,
+            estimatedHpp: item.estimatedHpp
+          }))
+          await addSalesOrderItems(newItems)
+        }
+
+        toast.success("Sales Order updated successfully")
+      } else {
+        // --- CREATE MODE ---
+        const soId = uuidv4()
+
+        // Create SO FIRST (Sequential)
+        await addSalesOrder({
+          id: soId,
+          poNumber: poNumberDraft || generateDocumentNumber('PO'),
+          clientId,
+          orderDate: new Date().toISOString(),
+          targetDeliveryDate: new Date(targetDate).toISOString(),
+          status: 'Draft' // Start as Draft for manual approval
+        })
+
+        // Create Line Items in Batch (Sequential after SO)
+        const itemsToAdd: SalesOrderItem[] = lineItems.map(item => ({
+          id: uuidv4(),
+          salesOrderId: soId,
+          productId: item.productId,
+          qty: item.qty,
+          unitPrice: item.unitPrice,
+          subtotal: item.qty * item.unitPrice,
+          estimatedHpp: item.estimatedHpp
+        }))
+
+        await addSalesOrderItems(itemsToAdd)
+
+        toast.success("Sales Order created successfully")
+      }
+
+      closeSOModal()
+    } catch (e: any) {
+      console.error(e)
+      toast.error("Failed to save Sales Order: " + e.message)
     } finally {
       setIsSavingOrder(false)
     }
@@ -700,7 +788,13 @@ export default function SalesOrdersPage() {
         
         <div className="flex items-center gap-2">
           <GlobalUndoButton inline />
-          <Dialog open={isOpen} onOpenChange={setIsOpen}>
+          <Dialog open={isOpen} onOpenChange={(open) => {
+            if (!open) {
+              closeSOModal()
+            } else {
+              setIsOpen(true)
+            }
+          }}>
             <DialogTrigger render={
               <Button>
                 <Plus className="mr-2 h-4 w-4" /> New Sales Order
@@ -708,7 +802,7 @@ export default function SalesOrdersPage() {
             } />
           <DialogContent className="sm:max-w-[95vw] w-[95vw] max-h-[95vh] overflow-y-auto rounded-[2rem]">
             <DialogHeader>
-              <DialogTitle>Create New Sales Order</DialogTitle>
+              <DialogTitle>{editingSO ? `Edit Sales Order: ${editingSO.poNumber}` : "Create New Sales Order"}</DialogTitle>
             </DialogHeader>
             <div className="grid gap-6 py-4">
               
@@ -1095,9 +1189,9 @@ export default function SalesOrdersPage() {
 
             </div>
             <div className="flex justify-end gap-3 mt-4 border-t pt-4">
-              <Button variant="outline" onClick={() => setIsOpen(false)} disabled={isSavingOrder}>Cancel</Button>
+              <Button variant="outline" onClick={closeSOModal} disabled={isSavingOrder}>Cancel</Button>
               <Button onClick={handleSaveSO} disabled={isSavingOrder}>
-                {isSavingOrder ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Menyimpan...</> : "Create Sales Order"}
+                {isSavingOrder ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Menyimpan...</> : (editingSO ? "Save Changes" : "Create Sales Order")}
               </Button>
             </div>
           </DialogContent>
@@ -1285,6 +1379,15 @@ export default function SalesOrdersPage() {
                           <Button 
                             size="sm" 
                             variant="ghost" 
+                            className="h-8 w-8 p-0 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                            title="Edit PO"
+                            onClick={() => handleEditSO(so)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
                             className="h-8 w-8 p-0 text-rose-600 hover:text-rose-700 hover:bg-rose-50"
                             title="Hapus PO"
                             onClick={() => handleDeleteSO(so.id)}
@@ -1440,6 +1543,15 @@ export default function SalesOrdersPage() {
                             }}
                           >
                             <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            className="h-8 w-8 p-0 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                            title="Edit PO"
+                            onClick={() => handleEditSO(so)}
+                          >
+                            <Pencil className="h-4 w-4" />
                           </Button>
                           <Button 
                             size="sm" 
