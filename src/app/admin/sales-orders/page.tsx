@@ -236,6 +236,8 @@ export default function SalesOrdersPage() {
   const [poNumberDraft, setPoNumberDraft] = useState("")
   const [isSavingOrder, setIsSavingOrder] = useState(false)
   const [editingSO, setEditingSO] = useState<SalesOrder | null>(null)
+  // ponytail: toggle state to filter products by client's custom pricelist
+  const [showPricelistOnly, setShowPricelistOnly] = useState(true)
 
   const closeSOModal = () => {
     setIsOpen(false)
@@ -243,6 +245,7 @@ export default function SalesOrdersPage() {
     setClientId("")
     setLineItems([])
     setPoNumberDraft("")
+    setShowPricelistOnly(true)
   }
 
   const handleEditSO = (so: SalesOrder) => {
@@ -250,6 +253,7 @@ export default function SalesOrdersPage() {
     setClientId(so.clientId)
     setTargetDate(toDateInputValue(so.targetDeliveryDate))
     setPoNumberDraft(so.poNumber)
+    setShowPricelistOnly(true)
     
     // load line items
     const relatedItems = salesOrderItems.filter(item => item.salesOrderId === so.id)
@@ -279,10 +283,19 @@ export default function SalesOrdersPage() {
     c.companyName.toLowerCase().includes(clientSearch.toLowerCase())
   ).slice(0, 50)
 
-  const filteredProducts = products.filter(p => 
-    p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-    p.skuCode.toLowerCase().includes(productSearch.toLowerCase())
-  ).slice(0, 50)
+  const filteredProducts = products.filter(p => {
+    const matchesSearch = 
+      p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+      p.skuCode.toLowerCase().includes(productSearch.toLowerCase())
+    if (!matchesSearch) return false
+
+    if (clientId && showPricelistOnly) {
+      const hasOverride = clientPrices.some(cp => cp.clientId === clientId && cp.productId === p.id)
+      return hasOverride
+    }
+
+    return true
+  }).slice(0, 50)
 
   // Auto-switch to pending tab if new requests arrive
   useEffect(() => {
@@ -412,6 +425,7 @@ export default function SalesOrdersPage() {
     })
     setClientId(id)
     setShareClientId(id)
+    setShowPricelistOnly(true)
     setIsClientQuickAddOpen(false)
     setNewClientData({ companyName: "", picName: "", email: "", phone: "", address: "", parentId: "" })
     toast.success("Client added and selected")
@@ -489,7 +503,8 @@ export default function SalesOrdersPage() {
       setNewLinePrice(price)
       setNewLineIsCustomPrice(isCustom)
       setNewLinePriceSource(source)
-      setNewLineTier(source || "Standard")
+      const cleanTier = source ? source.replace(' (Default)', '') : "Standard"
+      setNewLineTier(cleanTier)
     }
   }
 
@@ -532,7 +547,8 @@ export default function SalesOrdersPage() {
     setNewLinePrice(price)
     setNewLineIsCustomPrice(isCustom)
     setNewLinePriceSource(source)
-    setNewLineTier(source || "Standard")
+    const cleanTier = source ? source.replace(' (Default)', '') : "Standard"
+    setNewLineTier(cleanTier)
     
     if (isCustom) {
       toast.info(`Harga diisi otomatis dari ${source === 'Custom' ? 'Price List Kustom' : 'Price List ' + source} Klien ini.`, {
@@ -871,6 +887,7 @@ export default function SalesOrdersPage() {
                                 setIsClientSearchOpen(false)
                                 setClientSearch("")
                                 recalculatePricesForClient(c.id)
+                                setShowPricelistOnly(true)
                               }}
                             >
                               <span className="absolute left-3 top-3.5 flex h-4 w-4 items-center justify-center">
@@ -911,7 +928,20 @@ export default function SalesOrdersPage() {
                   <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
                     <div className="md:col-span-6 space-y-1">
                       <div className="flex justify-between items-center px-1">
-                        <Label className="text-xs font-semibold">Pilih Produk</Label>
+                        <div className="flex items-center gap-2">
+                          <Label className="text-xs font-semibold">Pilih Produk</Label>
+                          {clientId && (
+                            <label className="flex items-center gap-1.5 text-[10px] font-black text-emerald-600 cursor-pointer bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 select-none">
+                              <input 
+                                type="checkbox" 
+                                checked={showPricelistOnly} 
+                                onChange={(e) => setShowPricelistOnly(e.target.checked)}
+                                className="w-3.5 h-3.5 accent-emerald-600 cursor-pointer"
+                              />
+                              Hanya Price List Client
+                            </label>
+                          )}
+                        </div>
                         <button 
                           type="button" 
                           onClick={() => setIsProductQuickAddOpen(true)}
@@ -948,7 +978,12 @@ export default function SalesOrdersPage() {
                           </div>
                           <div className="max-h-[300px] overflow-y-auto p-1">
                             {filteredProducts.length === 0 ? (
-                              <div className="py-6 text-center text-sm">Barang tidak ditemukan.</div>
+                              <div className="py-6 text-center text-sm">
+                                <p className="text-slate-500 font-semibold">Barang tidak ditemukan.</p>
+                                {clientId && showPricelistOnly && (
+                                  <p className="text-[10px] text-slate-400 mt-1 max-w-[300px] mx-auto px-2">Daftar harga khusus untuk client ini kosong. Matikan filter "Hanya Price List Client" di atas untuk memilih dari semua barang.</p>
+                                )}
+                              </div>
                             ) : (
                               filteredProducts.map((p) => (
                                 <button

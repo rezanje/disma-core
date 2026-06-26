@@ -785,7 +785,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         
         // === PHASE 1: INSTANT CACHE HYDRATION (< 1ms) ===
         // Load from localStorage immediately so UI is never blank
-        if (typeof window !== 'undefined') {
+        if (typeof window !== 'undefined' && !get().isHydrated) {
           const cachedClients = loadLocalClientsCache();
           const cachedProducts = loadLocalProductsCache();
           const cachedSalesOrders = loadLocalSalesOrdersCache();
@@ -2862,6 +2862,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       clientPrices: [],
       addClientPrice: async (cp) => {
         set((state) => ({ clientPrices: [...state.clientPrices, cp] }));
+        if (typeof window !== 'undefined') window.localStorage.setItem(LOCAL_CLIENT_PRICES_CACHE_KEY, JSON.stringify(get().clientPrices));
         await get().syncTable('client_prices', cp);
       },
       updateClientPrice: async (id, data) => {
@@ -2869,6 +2870,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         set((state) => ({
           clientPrices: state.clientPrices.map(c => c.id === id ? { ...c, ...data } : c)
         }));
+        if (typeof window !== 'undefined') window.localStorage.setItem(LOCAL_CLIENT_PRICES_CACHE_KEY, JSON.stringify(get().clientPrices));
         const updated = get().clientPrices.find(c => c.id === id);
         if (updated) {
           await get().syncTable('client_prices', updated);
