@@ -166,9 +166,9 @@ export default function SourcingDashboard() {
     (!p.purchaserId || p.purchaserId === currentUser?.id || p.purchaserId === 'pending' || p.purchaserId === '22222222-2222-2222-2222-222222222222')
   )
   
-  const currentItems = purchaseItems.filter(pi => 
+  const currentItems = purchaseItems.filter(pi =>
     activePurchases.some(p => p.id === pi.purchaseId) &&
-    pi.purchaseMethod === 'Pasar'
+    (pi.purchaseMethod === 'Pasar' || pi.purchaseMethod === 'Transfer')
   )
 
   const itemsByVendor = useMemo(() => {
@@ -209,8 +209,9 @@ export default function SourcingDashboard() {
   const handleSubmitLaporan = async () => {
     if (activePurchases.length === 0) return
 
-    // Submit validation: all checked items in currentItems must have a vendorId
+    // Submit validation: all checked Pasar items must have a vendorId (Transfer items already handled by finance)
     const itemsWithoutVendor = currentItems.filter(item => {
+      if (item.purchaseMethod === 'Transfer') return false;
       const vendorId = activeItem?.id === item.id ? editVendorId : item.vendorId;
       return item.isChecked && !vendorId;
     });
@@ -523,6 +524,9 @@ export default function SourcingDashboard() {
                             {item.purchaseMethod === 'Online' && (
                                <Badge variant="outline" className="mt-1.5 bg-blue-50 text-blue-600 border-blue-200 text-[9px] font-black uppercase">🛒 Online Queue</Badge>
                             )}
+                            {item.purchaseMethod === 'Transfer' && (
+                               <Badge variant="outline" className="mt-1.5 bg-violet-50 text-violet-700 border-violet-200 text-[9px] font-black uppercase">💸 Sudah Dibayar Finance — Tinggal Ambil</Badge>
+                            )}
                           </div>
                         </div>
                         {!item.isChecked && (
@@ -534,146 +538,192 @@ export default function SourcingDashboard() {
                       {isExpanded && (
                         <div className="px-4 pb-4 pt-0 border-t border-slate-100 dark:border-slate-800 mt-2">
                           <div className="pt-4 grid gap-4">
-                            <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg flex justify-between items-center">
-                              <span className="text-xs text-slate-500">Estimasi Harga Pusat:</span>
-                              <span className="text-sm font-bold">{formatRupiah(item.estimatedUnitPrice)} / {product.uom}</span>
-                            </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                                  Harga Satuan (Pasar)
-                                </Label>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-slate-400 font-bold text-xs">Rp</span>
-                                  <Input 
-                                    type="text"
-                                    inputMode="numeric"
-                                    className="h-12 text-lg font-bold bg-white/50 border-2 transition-all focus:border-emerald-500"
-                                    placeholder="0"
-                                    value={formatNumber(editPrice)}
-                                    onChange={(e) => setEditPrice(parseNumber(e.target.value))}
-                                  />
+                            {item.purchaseMethod === 'Transfer' ? (
+                              // Transfer item: sudah dibayar finance, tinggal ambil
+                              <>
+                                <div className="bg-violet-50 border border-violet-200 p-3 rounded-lg text-xs font-bold text-violet-700">
+                                  💸 Barang ini sudah dibayar Finance via transfer. Tinggal ambil dari vendor — tidak perlu keluar uang kas.
                                 </div>
-                              </div>
-
-                              <div className="space-y-2">
-                                <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                                  Qty Dibeli ({product.uom})
-                                </Label>
-                                <Input 
+                                <div className="space-y-2">
+                                  <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                    Qty Diambil ({product.uom})
+                                  </Label>
+                                  <Input
                                     type="number"
                                     min="0"
                                     step="any"
-                                    className="h-12 text-lg font-bold bg-white/50 border-2 transition-all focus:border-emerald-500"
+                                    className="h-12 text-lg font-bold bg-white/50 border-2 transition-all focus:border-violet-500"
                                     placeholder={`${item.qtyTarget}`}
                                     value={editQty || ''}
                                     onChange={(e) => setEditQty(parseFloat(e.target.value) || 0)}
-                                />
-                              </div>
-                            </div>
-
-                            <div className="space-y-2">
-                              <div className="flex justify-between items-center">
-                                <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                                  Vendor
-                                </Label>
-                                <button
-                                  type="button"
-                                  onClick={() => setIsNewVendorOpen(true)}
-                                  className="text-xs font-bold text-emerald-600 hover:text-emerald-700"
-                                >
-                                  + Vendor Baru
-                                </button>
-                              </div>
-                              <Select value={editVendorId} onValueChange={val => setEditVendorId(val || '')}>
-                                <SelectTrigger className="h-12 bg-white/50 border-2 transition-all focus:border-emerald-500 rounded-xl">
-                                  <SelectValue placeholder="— Pilih Vendor —" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {vendors.map(v => (
-                                    <SelectItem key={v.id} value={v.id}>
-                                      {v.companyName} {v.isTempo ? `(tempo ${v.paymentTermDays || 14}d)` : '(cash)'}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Metode Bayar</Label>
-                              <Select value={editPaymentMethod} onValueChange={(val) => setEditPaymentMethod((val as 'Cash' | 'Tempo') ?? 'Cash')}>
-                                <SelectTrigger className="h-12 bg-white/50 border-2 transition-all focus:border-emerald-500 rounded-xl"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="Cash">Cash (potong kas sourcing)</SelectItem>
-                                  <SelectItem value="Tempo">Tempo (hutang ke vendor)</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                                Keterangan / Alasan (Opsional)
-                              </Label>
-                              <Input 
-                                type="text"
-                                className="h-12 bg-white/50 border-2 transition-all focus:border-emerald-500"
-                                placeholder="Misal: Stok habis, atau barang sisa sedikit"
-                                value={editNote}
-                                onChange={(e) => setEditNote(e.target.value)}
-                              />
-                            </div>
-
-                            <div className="pt-2">
-                               <ReceiptUpload 
-                                 label="Foto Nota (Opsional)"
-                                 onFileSelect={(url) => updatePurchaseItem(item.id, { receiptUrl: url })}
-                                 currentFile={item.receiptUrl}
-                               />
-                            </div>
-
-                             <div className="flex flex-col gap-2 pt-2">
-                                <Button 
-                                  className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-base font-bold"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Catatan (Opsional)</Label>
+                                  <Input
+                                    type="text"
+                                    className="h-12 bg-white/50 border-2 transition-all focus:border-violet-500"
+                                    placeholder="Misal: ambil sebagian, sisanya besok"
+                                    value={editNote}
+                                    onChange={(e) => setEditNote(e.target.value)}
+                                  />
+                                </div>
+                                <Button
+                                  className="w-full h-12 bg-violet-600 hover:bg-violet-700 text-base font-bold"
                                   onClick={() => {
-                                    if (!editVendorId) {
-                                      toast.error("Wajib memilih Vendor.");
-                                      return;
-                                    }
-                                    // 1. Tutup modal/drawer secara instan
                                     handleExpandItem(null);
-                                    
-                                    // 2. Jalankan update state & database di background (lepas dari main thread event click)
                                     setTimeout(() => {
                                       updatePurchaseItem(item.id, {
-                                        actualUnitPrice: editPrice,
                                         qtyPurchased: editQty || item.qtyTarget,
                                         notes: editNote,
-                                        vendorId: editVendorId,
-                                        paymentMethod: editPaymentMethod,
                                         isChecked: true
                                       })
                                     }, 10);
                                   }}
-                                  disabled={!editPrice || editPrice <= 0 || !editVendorId}
                                 >
-                                  Tandai Selesai (Beli di Pasar)
+                                  <PackageCheck className="w-4 h-4 mr-2" /> Tandai Sudah Diambil
                                 </Button>
-
-                                <div className="flex items-center gap-2">
-                                  <div className="h-px flex-1 bg-slate-200" />
-                                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Atau Alihkan</span>
-                                  <div className="h-px flex-1 bg-slate-200" />
+                              </>
+                            ) : (
+                              // Pasar item: normal buy flow
+                              <>
+                                <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg flex justify-between items-center">
+                                  <span className="text-xs text-slate-500">Estimasi Harga Pusat:</span>
+                                  <span className="text-sm font-bold">{formatRupiah(item.estimatedUnitPrice)} / {product.uom}</span>
                                 </div>
 
-                                <Button 
-                                  variant="outline"
-                                  className="w-full h-12 border-blue-200 text-blue-600 hover:bg-blue-50 font-bold"
-                                  onClick={() => handleTransferToOnline(item)}
-                                >
-                                  <Globe className="w-4 h-4 mr-2" /> Tidak ada di pasar, Beli Online
-                                </Button>
-                             </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div className="space-y-2">
+                                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                      Harga Satuan (Pasar)
+                                    </Label>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-slate-400 font-bold text-xs">Rp</span>
+                                      <Input
+                                        type="text"
+                                        inputMode="numeric"
+                                        className="h-12 text-lg font-bold bg-white/50 border-2 transition-all focus:border-emerald-500"
+                                        placeholder="0"
+                                        value={formatNumber(editPrice)}
+                                        onChange={(e) => setEditPrice(parseNumber(e.target.value))}
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                      Qty Dibeli ({product.uom})
+                                    </Label>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      step="any"
+                                      className="h-12 text-lg font-bold bg-white/50 border-2 transition-all focus:border-emerald-500"
+                                      placeholder={`${item.qtyTarget}`}
+                                      value={editQty || ''}
+                                      onChange={(e) => setEditQty(parseFloat(e.target.value) || 0)}
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                  <div className="flex justify-between items-center">
+                                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Vendor</Label>
+                                    <button
+                                      type="button"
+                                      onClick={() => setIsNewVendorOpen(true)}
+                                      className="text-xs font-bold text-emerald-600 hover:text-emerald-700"
+                                    >
+                                      + Vendor Baru
+                                    </button>
+                                  </div>
+                                  <Select value={editVendorId} onValueChange={val => setEditVendorId(val || '')}>
+                                    <SelectTrigger className="h-12 bg-white/50 border-2 transition-all focus:border-emerald-500 rounded-xl">
+                                      <SelectValue placeholder="— Pilih Vendor —" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {vendors.map(v => (
+                                        <SelectItem key={v.id} value={v.id}>
+                                          {v.companyName} {v.isTempo ? `(tempo ${v.paymentTermDays || 14}d)` : '(cash)'}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                <div className="space-y-2">
+                                  <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Metode Bayar</Label>
+                                  <Select value={editPaymentMethod} onValueChange={(val) => setEditPaymentMethod((val as 'Cash' | 'Tempo') ?? 'Cash')}>
+                                    <SelectTrigger className="h-12 bg-white/50 border-2 transition-all focus:border-emerald-500 rounded-xl"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="Cash">Cash (potong kas sourcing)</SelectItem>
+                                      <SelectItem value="Tempo">Tempo (hutang ke vendor)</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                <div className="space-y-2">
+                                  <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                    Keterangan / Alasan (Opsional)
+                                  </Label>
+                                  <Input
+                                    type="text"
+                                    className="h-12 bg-white/50 border-2 transition-all focus:border-emerald-500"
+                                    placeholder="Misal: Stok habis, atau barang sisa sedikit"
+                                    value={editNote}
+                                    onChange={(e) => setEditNote(e.target.value)}
+                                  />
+                                </div>
+
+                                <div className="pt-2">
+                                  <ReceiptUpload
+                                    label="Foto Nota (Opsional)"
+                                    onFileSelect={(url) => updatePurchaseItem(item.id, { receiptUrl: url })}
+                                    currentFile={item.receiptUrl}
+                                  />
+                                </div>
+
+                                <div className="flex flex-col gap-2 pt-2">
+                                  <Button
+                                    className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-base font-bold"
+                                    onClick={() => {
+                                      if (!editVendorId) {
+                                        toast.error("Wajib memilih Vendor.");
+                                        return;
+                                      }
+                                      handleExpandItem(null);
+                                      setTimeout(() => {
+                                        updatePurchaseItem(item.id, {
+                                          actualUnitPrice: editPrice,
+                                          qtyPurchased: editQty || item.qtyTarget,
+                                          notes: editNote,
+                                          vendorId: editVendorId,
+                                          paymentMethod: editPaymentMethod,
+                                          isChecked: true
+                                        })
+                                      }, 10);
+                                    }}
+                                    disabled={!editPrice || editPrice <= 0 || !editVendorId}
+                                  >
+                                    Tandai Selesai (Beli di Pasar)
+                                  </Button>
+
+                                  <div className="flex items-center gap-2">
+                                    <div className="h-px flex-1 bg-slate-200" />
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Atau Alihkan</span>
+                                    <div className="h-px flex-1 bg-slate-200" />
+                                  </div>
+
+                                  <Button
+                                    variant="outline"
+                                    className="w-full h-12 border-blue-200 text-blue-600 hover:bg-blue-50 font-bold"
+                                    onClick={() => handleTransferToOnline(item)}
+                                  >
+                                    <Globe className="w-4 h-4 mr-2" /> Tidak ada di pasar, Beli Online
+                                  </Button>
+                                </div>
+                              </>
+                            )}
                           </div>
                         </div>
                       )}
