@@ -749,99 +749,10 @@ export default function SourcingDashboard() {
         const hasBudget = totalBudgetGiven > 0
 
         return (
-          <div className="mt-8 space-y-4 pb-8 animate-in slide-in-from-bottom-5">
-            {/* Reconciliation Panel */}
-            {hasBudget && (
-              <Card className="overflow-hidden border-2 border-primary/10 bg-primary/5 rounded-[2rem]">
-                <CardContent className="p-4 space-y-4">
-                  <h3 className="text-xs font-black text-primary uppercase flex items-center gap-2">
-                    <span className="text-base text-primary">🧾</span> Rekonsiliasi Budget
-                  </h3>
-
-                  <div className="grid grid-cols-2 gap-3 mb-2">
-                    <div className="bg-white/40 p-2 rounded-xl border border-blue-100 flex justify-between items-center text-[9px]">
-                      <span className="text-blue-600 font-bold uppercase">Budget</span>
-                      <span className="font-black">{formatRupiah(shoppingBudget)}</span>
-                    </div>
-                    <div className="bg-white/40 p-2 rounded-xl border border-amber-100 flex justify-between items-center text-[9px]">
-                      <span className="text-amber-600 font-bold uppercase">Spare</span>
-                      <span className="font-black">{formatRupiah(spareBudget)}</span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="bg-white rounded-2xl p-2 text-center border border-slate-100 shadow-sm">
-                      <p className="text-[8px] font-black text-slate-400 uppercase">Dana Diterima</p>
-                      <p className="text-xs font-black text-slate-800 mt-1">{formatRupiah(totalBudgetGiven)}</p>
-                    </div>
-                    <div className="bg-white rounded-2xl p-2 text-center border border-slate-100 shadow-sm">
-                      <p className="text-[8px] font-black text-slate-400 uppercase">Pengeluaran</p>
-                      <p className="text-xs font-black text-slate-800 mt-1">{formatRupiah(itemsCost)}</p>
-                    </div>
-                   <div className={cn("rounded-2xl p-2 text-center border shadow-sm", diff >= 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-200')}>
-                      <p className={cn("text-[8px] font-black uppercase", diff >= 0 ? "text-emerald-600" : "text-rose-600")}>
-                        {diff >= 0 ? 'Kembalian' : 'Kurang'}
-                      </p>
-                      <p className={cn("text-xs font-black mt-1", diff >= 0 ? "text-emerald-600" : "text-rose-600")}>
-                        {formatRupiah(Math.abs(diff))}
-                      </p>
-                    </div>
-                  </div>
-
-         {diff !== 0 && (
-           <div className="space-y-4">
-             <div className="space-y-2">
-               <Label className="text-[10px] font-black text-slate-500 uppercase">
-                 Keterangan {diff > 0 ? 'Kembalian' : 'Kurang'} (wajib)
-               </Label>
-               <Input 
-                 className="h-10 border-2 font-bold"
-                 placeholder="Tulis alasan..."
-                 value={reconciliationNote}
-                 onChange={(e) => setReconciliationNote(e.target.value)}
-               />
-             </div>
-             
-             {diff > 0 && (
-                <div className="space-y-2">
-                   <Label className="text-[10px] font-black text-slate-500 uppercase">
-                      Upload Foto Bukti Pengembalian / Transfer Kembalian
-                   </Label>
-                   <div className="flex items-center gap-3">
-                      <div 
-                         className="flex-1 h-12 border-2 border-dashed border-slate-200 rounded-xl flex items-center justify-center bg-white cursor-pointer hover:border-emerald-400 transition-all group overflow-hidden"
-                         onClick={() => {
-                            // Mocking upload
-                            const mockUrl = "https://images.unsplash.com/photo-1580519327383-64c8a3424e8e?auto=format&fit=crop&q=80&w=400"
-                            setProofImage(mockUrl)
-                            toast.success("Foto bukti ditambahkan!")
-                         }}
-                      >
-                         {proofImage ? (
-                           <img src={proofImage} className="w-full h-full object-cover" />
-                         ) : (
-                           <div className="flex items-center gap-2 text-slate-400 group-hover:text-emerald-600">
-                             <ImageIcon className="w-4 h-4" />
-                             <span className="text-[9px] font-black uppercase">Pilih Foto Bukti</span>
-                           </div>
-                         )}
-                      </div>
-                      {proofImage && (
-                        <Button variant="outline" size="icon" className="h-12 w-12 rounded-xl text-rose-500" onClick={() => setProofImage(null)}><XCircle className="w-4 h-4" /></Button>
-                      )}
-                   </div>
-                </div>
-             )}
-           </div>
-         )}
-                </CardContent>
-              </Card>
-            )}
-            
-            <Button 
+          <div className="mt-8 pb-8 animate-in slide-in-from-bottom-5">
+            <Button
               className="w-full h-14 text-lg font-bold shadow-lg shadow-emerald-500/25 bg-emerald-600 hover:bg-emerald-700"
               onClick={handleSubmitLaporan}
-              disabled={hasBudget && diff !== 0 && !reconciliationNote.trim()}
             >
               <PackageCheck className="w-6 h-6 mr-2" />
               Submit Laporan Belanja
