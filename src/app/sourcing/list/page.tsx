@@ -154,7 +154,7 @@ export default function SourcingDashboard() {
     if (!recipient) return toast.error("Pilih kurir penerima dulu.")
     if (courierTransferAmount <= 0) return toast.error("Nominal distribusi harus lebih dari nol.")
     if (courierTransferAmount > safeTransferLimit) return toast.error("Saldo aman kas sourcing tidak cukup.")
-    if (!sourceWallet || sourceWallet.balance < courierTransferAmount) return toast.error("Saldo buku kas sourcing belum cukup.")
+    if (!sourceWallet) return toast.error("Akun kas sourcing tidak ditemukan.")
 
 
     const recipientWallet = getAdvanceWalletByUserId(recipient.id)
