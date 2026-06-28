@@ -16,7 +16,7 @@ export type AccessKey =
   // Finance
   | 'finance_dashboard' | 'finance_approvals' | 'finance_reports' | 'finance_assets'
   | 'finance_budget' | 'finance_cash_bank' | 'finance_expenses' | 'finance_ledger' | 'finance_invoices' | 'finance_collections'
-  | 'finance_tukar_faktur'
+  | 'finance_tukar_faktur' | 'finance_disbursements'
   | 'finance_ar_aging' | 'finance_ap_aging'
   | 'finance_reconciliation' | 'finance_reimbursements' | 'finance_online_purchase' | 'finance_audit' | 'finance_documents'
   // Warehouse
@@ -698,3 +698,20 @@ export interface BudgetAdjustment {
   createdBy?: string;
 }
 
+export type DisbursementStatus = 'Draft' | 'Pending_CFO' | 'Approved' | 'Transferred' | 'Rejected';
+
+export interface DisbursementRequest {
+  id: string;
+  fromBankAccountId: string;
+  toBankAccountId: string;
+  amount: number;
+  description: string;
+  requestedAt: string;
+  requestedBy: string; // userId
+  status: DisbursementStatus;
+  cfoNote?: string;
+  approvedAt?: string;
+  approvedBy?: string; // userId
+  transferredAt?: string;
+  transferredBy?: string; // userId
+}

@@ -7,7 +7,7 @@ import {
   BankAccount, CashTransaction, Reimbursement, FixedAsset,
   Employee, SmartKpi, OkrObjective, OkrKeyResult, RolePermissionMap, AccessKey, PendingReturn, RejectedItem, StockMovement, ClientPrice, ClientPriceTier,
   VendorBill, VendorBillPayment, TukarFaktur, PurchaseRequest, VendorPrice,
-  BudgetPlan, BudgetCategory, BudgetSubCategory, BudgetAdjustment
+  BudgetPlan, BudgetCategory, BudgetSubCategory, BudgetAdjustment, DisbursementRequest
 } from '@/types';
 import { COA_SEED, CLIENTS_SEED, VENDORS_SEED, MOCK_USERS, KPI_SEED } from './constants';
 import { PRODUCTS_SEED } from './products_seed';
@@ -34,6 +34,26 @@ const LOCAL_BUDGET_PLANS_CACHE_KEY = 'disma_local_budget_plans_cache';
 const LOCAL_BUDGET_CATEGORIES_CACHE_KEY = 'disma_local_budget_categories_cache';
 const LOCAL_BUDGET_SUB_CATEGORIES_CACHE_KEY = 'disma_local_budget_sub_categories_cache';
 const LOCAL_BUDGET_ADJUSTMENTS_CACHE_KEY = 'disma_local_budget_adjustments_cache';
+const LOCAL_DISBURSEMENT_REQUESTS_CACHE_KEY = 'disma_local_disbursement_requests_cache';
+
+const loadLocalDisbursementRequestsCache = (): DisbursementRequest[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(LOCAL_DISBURSEMENT_REQUESTS_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveLocalDisbursementRequestsCache = (requests: DisbursementRequest[]) => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(LOCAL_DISBURSEMENT_REQUESTS_CACHE_KEY, JSON.stringify(requests));
+  } catch {}
+};
 
 const loadLocalPurchaseRequestsCache = (): PurchaseRequest[] => {
   if (typeof window === 'undefined') return [];
@@ -406,6 +426,11 @@ interface AppState {
   updatePurchaseRequest: (id: string, updates: Partial<PurchaseRequest>) => Promise<void>;
   deletePurchaseRequest: (id: string) => Promise<void>;
 
+  disbursementRequests: DisbursementRequest[];
+  addDisbursementRequest: (dr: DisbursementRequest) => Promise<void>;
+  updateDisbursementRequest: (id: string, updates: Partial<DisbursementRequest>) => Promise<void>;
+  deleteDisbursementRequest: (id: string) => Promise<void>;
+
   deliveries: Delivery[];
   addDelivery: (d: Delivery) => void;
   updateDelivery: (id: string, data: Partial<Delivery>) => void;
@@ -610,7 +635,7 @@ const initialRolePermissions: RolePermissionMap = {
     'admin_documents', 'admin_okr', 'admin_users', 'admin_settings', 'admin_tasks', 'admin_maintenance', 'admin_price_lists', 'admin_activity_log',
     'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets', 
     'finance_budget', 'finance_cash_bank', 'finance_expenses', 'finance_ledger', 'finance_invoices', 'finance_ar_aging', 'finance_ap_aging',
-    'finance_reconciliation', 'finance_reimbursements', 'finance_online_purchase', 'finance_audit', 'finance_documents',
+    'finance_reconciliation', 'finance_reimbursements', 'finance_online_purchase', 'finance_audit', 'finance_documents', 'finance_disbursements',
     'warehouse_dashboard', 'warehouse_catalog', 'warehouse_inbound', 'warehouse_outbound', 'warehouse_qc', 'warehouse_reject_monitor',
     'sourcing_dashboard', 'sourcing_list', 'sourcing_expenses',
     'courier_dashboard', 'courier_list', 'courier_handover', 'courier_history', 'courier_expenses',
@@ -622,7 +647,7 @@ const initialRolePermissions: RolePermissionMap = {
     'admin_documents', 'admin_okr', 'admin_users', 'admin_settings', 'admin_tasks', 'admin_price_lists', 'admin_activity_log',
     'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets',
     'finance_budget', 'finance_cash_bank', 'finance_expenses', 'finance_ledger', 'finance_invoices', 'finance_ar_aging', 'finance_ap_aging', 'finance_collections',
-    'finance_audit', 'finance_documents',
+    'finance_audit', 'finance_documents', 'finance_disbursements',
     'warehouse_dashboard', 'warehouse_catalog', 'tasks_global', 'settings_global', 'admin_loss_analytics'
   ],
   coo: [
@@ -638,7 +663,7 @@ const initialRolePermissions: RolePermissionMap = {
     'tasks_global', 'settings_global'
   ],
   cmo: [], // Archived for Phase 1
-  finance: ['finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets', 'finance_budget', 'finance_cash_bank', 'finance_expenses', 'finance_ledger', 'finance_invoices', 'finance_ar_aging', 'finance_ap_aging', 'finance_reconciliation', 'finance_reimbursements', 'finance_online_purchase', 'finance_audit', 'finance_documents', 'tasks_global', 'admin_price_lists'],
+  finance: ['finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets', 'finance_budget', 'finance_cash_bank', 'finance_expenses', 'finance_ledger', 'finance_invoices', 'finance_ar_aging', 'finance_ap_aging', 'finance_reconciliation', 'finance_reimbursements', 'finance_online_purchase', 'finance_audit', 'finance_documents', 'tasks_global', 'admin_price_lists', 'finance_disbursements'],
   gudang: ['warehouse_dashboard', 'warehouse_catalog', 'warehouse_inbound', 'warehouse_outbound', 'warehouse_qc', 'warehouse_reject_monitor', 'tasks_global'],
   sourcing: ['sourcing_dashboard', 'sourcing_list', 'sourcing_expenses', 'tasks_global'],
   kurir: ['courier_dashboard', 'courier_list', 'courier_handover', 'courier_history', 'courier_expenses', 'tasks_global'],
@@ -804,13 +829,14 @@ export const useAppStore = create<AppState>((set, get) => ({
           const cachedBudgetCategories = loadLocalCache<BudgetCategory>(LOCAL_BUDGET_CATEGORIES_CACHE_KEY);
           const cachedBudgetSubCategories = loadLocalCache<BudgetSubCategory>(LOCAL_BUDGET_SUB_CATEGORIES_CACHE_KEY);
           const cachedBudgetAdjustments = loadLocalCache<BudgetAdjustment>(LOCAL_BUDGET_ADJUSTMENTS_CACHE_KEY);
+          const cachedDisbursementRequests = loadLocalDisbursementRequestsCache();
           let cachedClientPrices: any[] = [];
           try {
             const cpRaw = window.localStorage.getItem(LOCAL_CLIENT_PRICES_CACHE_KEY);
             if (cpRaw) cachedClientPrices = JSON.parse(cpRaw) || [];
           } catch {}
 
-          const hasCache = cachedClients.length > 0 || cachedProducts.length > 0 || cachedSalesOrders.length > 0 || cachedLeads.length > 0 || cachedPurchaseRequests.length > 0 || cachedBudgetPlans.length > 0;
+          const hasCache = cachedClients.length > 0 || cachedProducts.length > 0 || cachedSalesOrders.length > 0 || cachedLeads.length > 0 || cachedPurchaseRequests.length > 0 || cachedBudgetPlans.length > 0 || cachedDisbursementRequests.length > 0;
           if (hasCache) {
             console.log('[INIT] Phase 1: Hydrating from localStorage cache...');
             set({
@@ -833,6 +859,7 @@ export const useAppStore = create<AppState>((set, get) => ({
               budgetCategories: cachedBudgetCategories.length > 0 ? cachedBudgetCategories : get().budgetCategories,
               budgetSubCategories: cachedBudgetSubCategories.length > 0 ? cachedBudgetSubCategories : get().budgetSubCategories,
               budgetAdjustments: cachedBudgetAdjustments.length > 0 ? cachedBudgetAdjustments : get().budgetAdjustments,
+              disbursementRequests: cachedDisbursementRequests.length > 0 ? cachedDisbursementRequests : get().disbursementRequests,
             });
           }
           // Mark as hydrated — UI can render with cached data now
@@ -1065,6 +1092,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             setIfDefined('purchases', data.purchases);
             setIfDefined('purchaseItems', data.purchaseItems);
             setIfDefined('purchaseRequests', data.purchaseRequests);
+            setIfDefined('disbursementRequests', data.disbursementRequests);
             setIfDefined('cashTransactions', data.cashTransactions);
             setIfDefined('journalEntries', data.journalEntries);
             setIfDefined('journalLines', data.journalLines);
@@ -1850,6 +1878,42 @@ export const useAppStore = create<AppState>((set, get) => ({
           console.error("Failed to delete purchase request from server:", e);
         }
       },
+
+      disbursementRequests: [],
+      addDisbursementRequest: async (dr) => {
+        const updated = [...get().disbursementRequests, dr];
+        set({ disbursementRequests: updated });
+        saveLocalDisbursementRequestsCache(updated);
+        await get().syncTable('disbursement_requests', dr);
+      },
+      updateDisbursementRequest: async (id, data) => {
+        const before = get().disbursementRequests.find(dr => dr.id === id);
+        const updated = get().disbursementRequests.map(dr => dr.id === id ? { ...dr, ...data } : dr);
+        set({ disbursementRequests: updated });
+        saveLocalDisbursementRequestsCache(updated);
+        const item = get().disbursementRequests.find(dr => dr.id === id);
+        if (item) {
+          await get().syncTable('disbursement_requests', item);
+          if (before) await get().logHistory({ table: 'disbursement_requests', recordId: id, action: 'update', oldData: before, newData: item });
+        }
+      },
+      deleteDisbursementRequest: async (id) => {
+        const before = get().disbursementRequests.find(dr => dr.id === id);
+        const remaining = get().disbursementRequests.filter(dr => dr.id !== id);
+        set({ disbursementRequests: remaining });
+        saveLocalDisbursementRequestsCache(remaining);
+        try {
+          await fetch('/api/db', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ table: 'disbursement_requests', id })
+          });
+          if (before) await get().logHistory({ table: 'disbursement_requests', recordId: id, action: 'delete', oldData: before, newData: null });
+        } catch (e) {
+          console.error("Failed to delete disbursement request from server:", e);
+        }
+      },
+
 
       deliveries: [],
       addDelivery: async (d) => {
@@ -2996,6 +3060,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           purchases: state.purchases,
           purchaseItems: state.purchaseItems,
           purchaseRequests: state.purchaseRequests,
+          disbursementRequests: state.disbursementRequests,
           deliveries: state.deliveries,
           expenses: state.expenses,
           invoices: state.invoices,
@@ -3035,6 +3100,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             purchases: 'purchases',
             purchaseItems: 'purchase_items',
             purchaseRequests: 'purchase_requests',
+            disbursementRequests: 'disbursement_requests',
             deliveries: 'deliveries',
             expenses: 'expenses',
             invoices: 'invoices',

@@ -314,9 +314,7 @@ export default function PurchaseRequestsPage() {
       return
     }
 
-    const isSourcing = activePR.category === 'Sourcing'
-    // Sourcing: goes to Pending_CFO for CFO approval, other categories: approved directly by Finance (skip CFO)
-    const nextStatus = action === 'reject' ? 'Rejected' : (isSourcing ? 'Pending_CFO' : 'Approved')
+    const nextStatus = action === 'reject' ? 'Rejected' : 'Approved'
 
     toast.loading("Memproses verifikasi Finance...", { id: "finance-verify" })
     try {
@@ -325,17 +323,14 @@ export default function PurchaseRequestsPage() {
         approvedByFinance: currentUser?.name || currentUser?.id || "Finance Admin",
         financeNote: financeNote
       }
-      // Jika non-sourcing (bukan weekly belanja) dan disetujui, langsung Approved (skip CFO)
-      if (!isSourcing && action === 'approve') {
+      if (action === 'approve') {
         updatePayload.approvedByCfo = `Auto (Finance) - ${currentUser?.name || currentUser?.id || "Finance Admin"}`
-        updatePayload.cfoNote = "Disetujui langsung oleh Finance (Bukan Kategori Sourcing)"
+        updatePayload.cfoNote = "Disetujui langsung oleh Finance"
       }
       await updatePurchaseRequest(activePR.id, updatePayload)
       const successMsg = action === 'reject'
         ? "PR berhasil ditolak oleh Finance."
-        : isSourcing
-          ? "PR Sourcing terverifikasi & diteruskan ke CFO!"
-          : "PR disetujui langsung oleh Finance! Dana siap dicairkan."
+        : "PR disetujui langsung oleh Finance! Dana siap dicairkan."
       toast.success(successMsg, { id: "finance-verify" })
       setFinanceNote("")
       setSelectedPRId(null)
@@ -979,14 +974,12 @@ export default function PurchaseRequestsPage() {
                   {activePR.status === 'Pending_Finance' && isFinanceRole && (
                     <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
                       <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Tindakan Audit Finance</Label>
-                      {activePR.category === 'Sourcing' && (
-                        <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-emerald-50 border border-emerald-100">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                          <span className="text-[10px] font-black text-emerald-700 uppercase tracking-wider">Sourcing PR — Finance bisa approve langsung tanpa CFO</span>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-emerald-50 border border-emerald-100">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span className="text-[10px] font-black text-emerald-700 uppercase tracking-wider">Persetujuan Langsung oleh Finance</span>
+                      </div>
                       <Textarea 
-                        placeholder={activePR.category === 'Sourcing' ? "Tambahkan catatan persetujuan (kelayakan anggaran)..." : "Tambahkan catatan kelayakan anggaran untuk CFO..."}
+                        placeholder="Tambahkan catatan persetujuan kelayakan anggaran..."
                         value={financeNote}
                         onChange={(e) => setFinanceNote(e.target.value)}
                         className="min-h-[80px] rounded-xl text-xs"
@@ -996,7 +989,7 @@ export default function PurchaseRequestsPage() {
                           onClick={() => handleFinanceVerify('approve')}
                           className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[10px] uppercase tracking-wider h-11 rounded-xl"
                         >
-                          {activePR.category === 'Sourcing' ? 'Approve Langsung' : 'Verify & Diteruskan'}
+                          Setujui (Approve)
                         </Button>
                         <Button 
                           onClick={() => handleFinanceVerify('reject')}
