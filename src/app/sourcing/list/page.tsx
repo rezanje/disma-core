@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { useAppStore } from "@/lib/store"
-import { recordOperationalAdvanceTransfer, getAdvanceWalletByUserId } from "@/lib/accounting"
+import { getAdvanceWalletByUserId } from "@/lib/accounting"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -26,8 +26,6 @@ export default function SourcingDashboard() {
   const purchaseItems = useAppStore(state => state.purchaseItems)
   const products = useAppStore(state => state.products)
   const expenses = useAppStore(state => state.expenses)
-  const users = useAppStore(state => state.users)
-  const cashTransactions = useAppStore(state => state.cashTransactions)
   const updatePurchase = useAppStore(state => state.updatePurchase)
   const updatePurchaseItem = useAppStore(state => state.updatePurchaseItem)
   const addExpense = useAppStore(state => state.addExpense)
@@ -56,8 +54,6 @@ export default function SourcingDashboard() {
   const [reconciliationNote, setReconciliationNote] = useState('')
   const [proofImage, setProofImage] = useState<string | null>(null)
   const [returnTargetBank, setReturnTargetBank] = useState('')
-  const [courierRecipientId, setCourierRecipientId] = useState('')
-  const [courierTransferAmount, setCourierTransferAmount] = useState(0)
 
   const handleExpandItem = (item: PurchaseItem | null) => {
     setActiveItem(item)
@@ -109,14 +105,6 @@ export default function SourcingDashboard() {
     }
   }, [bankAccounts, returnTargetBank])
 
-  const courierUsers = users.filter(user =>
-     ['kurir', 'gudang', 'sourcing'].includes(user.role) && 
-     user.id !== currentUser?.id
-  )
-  const courierTransferHistory = cashTransactions
-    .filter(tx => tx.bankAccountId === 'bank-advance-sourcing' && tx.type === 'Out' && tx.category === 'Distribusi Kas Operasional')
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-
   // === DERIVED SOURCING WALLET (internal money tracker, terpisah dari buku kas perusahaan) ===
   // Modal = total budget yang sudah ditransfer finance untuk user ini (semua purchase yang sudah punya budgetTransferDate)
   const myPurchases = purchases.filter(p =>
@@ -143,43 +131,6 @@ export default function SourcingDashboard() {
 
   // Saldo = modal diterima - belanja - ops (semua derived, tidak pakai CashTransaction)
   const totalHolding = totalAdvanceReceived - totalShopSpent - totalExpenses
-
-  const handleTransferToCourier = async () => {
-    const recipient = courierUsers.find(user => user.id === courierRecipientId)
-    const sourceWallet = bankAccounts.find(bank => bank.id === 'bank-advance-sourcing')
-    const myWallet = getAdvanceWalletByUserId(currentUser?.id)
-    const sourceBankAccountId = myWallet?.bankAccountId || 'bank-advance-sourcing'
-    const safeTransferLimit = Math.max(0, totalHolding)
-
-    if (!recipient) return toast.error("Pilih kurir penerima dulu.")
-    if (courierTransferAmount <= 0) return toast.error("Nominal distribusi harus lebih dari nol.")
-    if (courierTransferAmount > safeTransferLimit) return toast.error("Saldo aman kas sourcing tidak cukup.")
-    if (!sourceWallet) return toast.error("Akun kas sourcing tidak ditemukan.")
-
-
-    const recipientWallet = getAdvanceWalletByUserId(recipient.id)
-    const targetWalletId = recipientWallet?.bankAccountId || 'bank-advance-courier'
-
-    const loadingToast = toast.loading(`Mengirim dana operasional ke ${recipient.name}...`)
-    const transferReferenceId = uuidv4()
-    const success = await recordOperationalAdvanceTransfer(
-      courierTransferAmount,
-      sourceBankAccountId,
-      targetWalletId,
-      `Distribusi dana operasional ke ${recipient.name}`,
-      transferReferenceId,
-      currentUser?.name || 'Hilman (Sourcing)',
-      recipient.name
-    )
-
-    if (!success) {
-      toast.error("Distribusi dana ke kurir gagal dicatat.", { id: loadingToast })
-      return
-    }
-
-    setCourierTransferAmount(0)
-    toast.success(`Dana ${formatRupiah(courierTransferAmount)} berhasil dikirim ke ${recipient.name}.`, { id: loadingToast })
-  }
 
   const handleReportReturn = async () => {
     if (totalHolding <= 0) return toast.error("Saldo kas sudah nol, tidak ada yang perlu disetor.");
@@ -878,29 +829,6 @@ export default function SourcingDashboard() {
                </Card>
              ))}
 
-             {courierTransferHistory.map(tx => (
-               <Card key={tx.id} className="rounded-2xl border-none shadow-sm bg-indigo-50/40 border-l-4 border-l-indigo-400">
-                 <CardContent className="p-4 flex items-center justify-between">
-                   <div className="flex items-center gap-3">
-                     <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shadow-sm">
-                       <Send className="w-5 h-5" />
-                     </div>
-                     <div>
-                       <p className="text-[10px] font-black uppercase tracking-widest leading-none mb-1">{tx.description}</p>
-                       <p className="text-[9px] font-bold text-indigo-500 uppercase italic">
-                         {new Date(tx.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} · Dana operasional kurir
-                       </p>
-                     </div>
-                   </div>
-                   <div className="text-right">
-                     <p className="font-black tracking-tighter text-indigo-600">-{formatRupiah(tx.amount)}</p>
-                     <Badge variant="outline" className="text-[8px] font-black uppercase border-indigo-200 text-indigo-500">
-                       Ke Kurir
-                     </Badge>
-                   </div>
-                 </CardContent>
-               </Card>
-             ))}
 
              {/* Expenses (Operating) */}
              {myExpenses.filter(e => e.status !== 'Rejected').map(e => (
@@ -1026,45 +954,6 @@ export default function SourcingDashboard() {
           </form>
         </div>
       </section>
-      {/* Distribusi Dana Operasional */}
-      <section className="space-y-3">
-        <h2 className="text-sm font-black uppercase tracking-widest text-slate-500 px-1">Distribusi Dana Operasional</h2>
-        <div className="bg-slate-50 dark:bg-slate-800/60 rounded-[2rem] p-5 space-y-4">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
-            Kirim sebagian kas untuk mendukung operasional personil lain di lapangan.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-[1.1fr_0.8fr_auto] gap-3">
-            <Select value={courierRecipientId} onValueChange={(v) => v && setCourierRecipientId(v)}>
-              <SelectTrigger className="h-11 rounded-2xl">
-                <SelectValue placeholder="Pilih penerima dana..." />
-              </SelectTrigger>
-              <SelectContent>
-                {courierUsers.map(user => (
-                  <SelectItem key={user.id} value={user.id} className="text-xs font-bold">
-                    {user.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Input
-              type="text"
-              inputMode="numeric"
-              className="h-11 rounded-2xl"
-              placeholder="Nominal distribusi"
-              value={formatNumber(courierTransferAmount)}
-              onChange={(e) => setCourierTransferAmount(parseNumber(e.target.value))}
-            />
-            <Button
-              className="h-11 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black uppercase text-[10px]"
-              onClick={handleTransferToCourier}
-            >
-              <Send className="w-4 h-4 mr-2" />
-              Kirim
-            </Button>
-          </div>
-        </div>
-      </section>
-
       {/* Setor Sisa Kas */}
       {totalHolding > 0 && (
         <section className="space-y-3">
