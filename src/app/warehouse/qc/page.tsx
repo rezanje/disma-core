@@ -1,7 +1,7 @@
 "use client"
 
 import type { SVGProps } from "react"
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import { useAppStore } from "@/lib/store"
 import { recordShrinkage, recordStockMovement, recordInboundQC } from "@/lib/accounting"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,10 +9,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ShieldAlert, ShieldCheck, Tag, RefreshCcw, PackageSearch, AlertTriangle } from "lucide-react"
+import { ShieldAlert, ShieldCheck, Tag, RefreshCcw, PackageSearch, AlertTriangle, Warehouse } from "lucide-react"
 import { toast } from "sonner"
 import { v4 as uuidv4 } from "uuid"
 import { cn } from "@/lib/utils"
+
+type PoAllocation = { soId: string; qty: number }
 
 export default function QCPage() {
   const products = useAppStore(state => state.products)
@@ -20,7 +22,9 @@ export default function QCPage() {
   const purchaseItems = useAppStore(state => state.purchaseItems)
   const pendingReturns = useAppStore(state => state.pendingReturns)
   const salesOrders = useAppStore(state => state.salesOrders)
-  
+  const salesOrderItems = useAppStore(state => state.salesOrderItems)
+  const clients = useAppStore(state => state.clients)
+
   const updatePurchaseItem = useAppStore(state => state.updatePurchaseItem)
   const removePendingReturn = useAppStore(state => state.removePendingReturn)
   const updateSalesOrder = useAppStore(state => state.updateSalesOrder)
@@ -45,7 +49,7 @@ export default function QCPage() {
   
   const [selectedPurchaseItemId, setSelectedPurchaseItemId] = useState("")
   const [qtyPassToInventory, setQtyPassToInventory] = useState(0)
-  const [qtyPassToClient, setQtyPassToClient] = useState(0)
+  const [poAllocations, setPoAllocations] = useState<PoAllocation[]>([])
   const [qtyReject, setQtyReject] = useState(0)
   const [rejectReason, setRejectReason] = useState("")
   const [unbalanceReason, setUnbalanceReason] = useState("")
@@ -54,14 +58,33 @@ export default function QCPage() {
   const [batchNumber, setBatchNumber] = useState("")
   const [rejectAction, setRejectAction] = useState<'Return' | 'Disposal' | 'B2C'>('Disposal')
 
+  // FIFO suggestion: find open SOs that need this product, oldest first
+  const buildFifoAllocations = useCallback((productId: string, totalPassed: number): { allocations: PoAllocation[], inventoryRemainder: number } => {
+    const eligibleSos = salesOrders
+      .filter(so => !['Batal', 'Selesai', 'Terkirim', 'Packing', 'Siap Kirim', 'Dikirim', 'Awaiting Audit'].includes(so.status))
+      .filter(so => salesOrderItems.some(i => i.salesOrderId === so.id && i.productId === productId && (i.qtyFinal == null)))
+      .sort((a, b) => a.orderDate.localeCompare(b.orderDate))
+
+    let remaining = totalPassed
+    const allocations: PoAllocation[] = eligibleSos.map(so => {
+      const soItem = salesOrderItems.find(i => i.salesOrderId === so.id && i.productId === productId)
+      const needed = soItem ? Math.max(0, soItem.qty - (soItem.qtyFinal ?? 0)) : 0
+      const alloc = Math.min(needed, remaining)
+      remaining -= alloc
+      return { soId: so.id, qty: alloc }
+    })
+
+    return { allocations, inventoryRemainder: remaining }
+  }, [salesOrders, salesOrderItems])
+
   const activePurchaseItem = pendingQCItems.find(i => i.id === selectedPurchaseItemId)
   const activeProduct = products.find(p => p.id === activePurchaseItem?.productId)
 
   const handleProcessQC = async () => {
     if (!activeProduct || !activePurchaseItem) return
-    const isOnline = activePurchaseItem.purchaseMethod === 'Online'
     const totalIncoming = activePurchaseItem.qtyPurchased
-    const totalProcessed = qtyPassToInventory + qtyPassToClient + qtyReject
+    const totalAllocatedToPos = poAllocations.reduce((s, a) => s + a.qty, 0)
+    const totalProcessed = qtyPassToInventory + totalAllocatedToPos + qtyReject
 
     if (totalProcessed !== totalIncoming && !unbalanceReason) {
       toast.error(`Jumlah tidak balance! Harap masukkan alasan ketidakteraturan.`)
@@ -77,7 +100,7 @@ export default function QCPage() {
     const inboundSuccess = await recordInboundQC(
       activePurchaseItem.id,
       activeProduct.id,
-      qtyPassToInventory + qtyPassToClient,
+      qtyPassToInventory + totalAllocatedToPos,
       qtyReject,
       qtyReject > 0 ? rejectAction : undefined,
       unitCost,
@@ -134,35 +157,40 @@ export default function QCPage() {
       })
     }
 
-    // 4. Process Passed items to Client (Update SO)
-    if (qtyPassToClient > 0 && activePurchaseItem.salesOrderId) {
-      const soItems = useAppStore.getState().salesOrderItems.filter(i => i.salesOrderId === activePurchaseItem.salesOrderId)
-      const matchingSOItem = soItems.find(i => i.productId === activePurchaseItem.productId)
+    // 4. Process allocations to each PO (cumulative qtyFinal for multi-session support)
+    for (const alloc of poAllocations) {
+      if (alloc.qty <= 0) continue
+      const storeState = useAppStore.getState()
+      const matchingSOItem = storeState.salesOrderItems.find(
+        i => i.salesOrderId === alloc.soId && i.productId === activePurchaseItem.productId
+      )
       if (matchingSOItem) {
-        await useAppStore.getState().updateSalesOrderItem(matchingSOItem.id, { 
-          qtyFinal: qtyPassToClient, 
-          subtotalFinal: qtyPassToClient * (matchingSOItem.unitPrice || 0)
-        })
-        await recordStockMovement({
-          productId: activeProduct.id,
-          quantity: qtyPassToClient,
-          stockDelta: 0,
-          direction: 'Transfer',
-          kind: 'QC_CLIENT_ALLOCATION',
-          source: 'QC',
-          destination: 'Client Allocation',
-          referenceType: 'QC',
-          referenceId: activePurchaseItem.id,
-          purchaseItemId: activePurchaseItem.id,
-          salesOrderId: activePurchaseItem.salesOrderId,
-          note: `Lolos QC dan dialokasikan ke client`,
-          createdByUserId: currentUser?.id || 'system',
-          warehouseId: 'main',
-          batchNumber: batchNumber || undefined,
-          expiryDate: expiryDate || undefined,
-          unitCost: unitCost
+        const prevQtyFinal = matchingSOItem.qtyFinal ?? 0
+        const newQtyFinal = prevQtyFinal + alloc.qty
+        await storeState.updateSalesOrderItem(matchingSOItem.id, {
+          qtyFinal: newQtyFinal,
+          subtotalFinal: newQtyFinal * (matchingSOItem.unitPrice || 0)
         })
       }
+      await recordStockMovement({
+        productId: activeProduct.id,
+        quantity: alloc.qty,
+        stockDelta: 0,
+        direction: 'Transfer',
+        kind: 'QC_CLIENT_ALLOCATION',
+        source: 'QC',
+        destination: 'Transit (Reserved for Delivery)',
+        referenceType: 'QC',
+        referenceId: activePurchaseItem.id,
+        purchaseItemId: activePurchaseItem.id,
+        salesOrderId: alloc.soId,
+        note: `Lolos QC → reserved untuk PO ${salesOrders.find(s => s.id === alloc.soId)?.poNumber ?? alloc.soId}`,
+        createdByUserId: currentUser?.id || 'system',
+        warehouseId: 'main',
+        batchNumber: batchNumber || undefined,
+        expiryDate: expiryDate || undefined,
+        unitCost: unitCost
+      })
     }
 
     // 5. Process Reject routing
@@ -237,35 +265,32 @@ export default function QCPage() {
       }
     }
 
-    await updatePurchaseItem(activePurchaseItem.id, { 
+    await updatePurchaseItem(activePurchaseItem.id, {
       isQCed: true,
       inboundStatus: qtyReject === totalIncoming ? 'rejected' : (totalProcessed === totalIncoming ? 'verified' : 'partial'),
-      inboundQtyReceived: qtyPassToInventory + qtyPassToClient,
+      inboundQtyReceived: qtyPassToInventory + totalAllocatedToPos,
       inboundVerifiedAt: new Date().toISOString(),
       inboundVerifiedBy: currentUser?.name || currentUser?.id || 'system',
       inboundNote: [unbalanceReason, rejectReason].filter(Boolean).join(' | '),
       expiryDate: expiryDate || undefined
     })
-    
-    // Antarkan SO ke status Packing jika semua itemnya sudah di-QC
-    if (activePurchaseItem.salesOrderId) {
-      const soId = activePurchaseItem.salesOrderId
-      const allPIs = useAppStore.getState().purchaseItems
-      const soPIs = allPIs.filter(pi => pi.salesOrderId === soId)
-      
-      const allQCed = soPIs.every(pi => pi.isQCed || pi.purchaseMethod === 'Online')
-      
-      if (allQCed) {
+
+    // Push SOs to Packing if all their items now have qtyFinal set
+    const affectedSoIds = poAllocations.filter(a => a.qty > 0).map(a => a.soId)
+    for (const soId of affectedSoIds) {
+      const storeState = useAppStore.getState()
+      const soItems = storeState.salesOrderItems.filter(i => i.salesOrderId === soId)
+      if (soItems.length > 0 && soItems.every(i => i.qtyFinal != null)) {
         await updateSalesOrder(soId, { status: 'Packing' })
       }
     }
-    
+
     toast.success("QC berhasil diproses dan stok telah terupdate!", { id: "qc-process" })
 
     // Cleanup
     setSelectedPurchaseItemId("")
     setQtyPassToInventory(0)
-    setQtyPassToClient(0)
+    setPoAllocations([])
     setQtyReject(0)
     setRejectReason("")
     setUnbalanceReason("")
@@ -402,13 +427,14 @@ export default function QCPage() {
                        </h4>
                        <div className="grid gap-3">
                          {items.map(item => (
-                           <button 
-                             key={item.id} 
+                           <button
+                             key={item.id}
                              onClick={() => {
                                setSelectedPurchaseItemId(item.id)
-                               setQtyPassToClient(item.salesOrderId ? item.qtyPurchased : 0)
-                               setQtyPassToInventory(item.salesOrderId ? 0 : item.qtyPurchased)
                                setQtyReject(0)
+                               const { allocations, inventoryRemainder } = buildFifoAllocations(item.productId, item.qtyPurchased)
+                               setPoAllocations(allocations)
+                               setQtyPassToInventory(inventoryRemainder)
                              }}
                              className={cn(
                                "p-5 rounded-[2rem] border text-left flex justify-between items-center transition-all",
@@ -442,54 +468,81 @@ export default function QCPage() {
                        </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {activePurchaseItem.salesOrderId && (
-                        <div className="bg-indigo-50/50 p-6 rounded-[2.5rem] border border-indigo-100/50 space-y-4">
-                          <Label className="text-indigo-700 font-black uppercase text-[10px] tracking-widest flex items-center gap-2">
-                            <Tag className="w-4 h-4" /> Passed to Client
-                          </Label>
-                          <div className="flex items-center gap-3">
-                             <Input 
-                               type="number" 
-                               min="0"
-                               step="any"
-                               className="text-2xl font-black h-14 rounded-xl border-none shadow-sm"
-                               value={qtyPassToClient || ''}
-                               onChange={(e) => setQtyPassToClient(parseFloat(e.target.value) || 0)}
-                             />
-                          </div>
-                          <p className="text-[8px] font-bold text-indigo-400 uppercase">Langsung untuk PO Customer</p>
+                    {/* PO Allocation Table */}
+                    <div className="space-y-3">
+                      <Label className="text-slate-500 font-black uppercase text-[10px] tracking-widest flex items-center gap-2">
+                        <Tag className="w-4 h-4" /> Distribusi ke PO Klien (FIFO)
+                      </Label>
+
+                      {poAllocations.length === 0 ? (
+                        <div className="p-5 rounded-[2rem] border border-dashed border-slate-200 bg-slate-50/50 text-center">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tidak ada PO pending untuk produk ini</p>
+                        </div>
+                      ) : (
+                        <div className="rounded-[2rem] border border-indigo-100 overflow-hidden">
+                          {poAllocations.map((alloc, idx) => {
+                            const so = salesOrders.find(s => s.id === alloc.soId)
+                            const client = clients.find(c => c.id === so?.clientId)
+                            const soItem = salesOrderItems.find(i => i.salesOrderId === alloc.soId && i.productId === activePurchaseItem.productId)
+                            const needed = soItem ? Math.max(0, soItem.qty - (soItem.qtyFinal ?? 0)) : 0
+                            return (
+                              <div key={alloc.soId} className={cn(
+                                "flex items-center gap-4 px-5 py-4 bg-indigo-50/40",
+                                idx > 0 && "border-t border-indigo-100"
+                              )}>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-black text-slate-800 text-sm truncate">{so?.poNumber ?? alloc.soId}</p>
+                                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{client?.companyName ?? '—'} · Butuh: {needed} {activeProduct?.uom}</p>
+                                </div>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="any"
+                                  className="w-28 text-lg font-black h-12 rounded-xl border-indigo-200 bg-white text-center"
+                                  value={alloc.qty || ''}
+                                  onChange={(e) => {
+                                    const val = parseFloat(e.target.value) || 0
+                                    setPoAllocations(prev => prev.map((a, i) => i === idx ? { ...a, qty: val } : a))
+                                  }}
+                                />
+                                <span className="text-xs font-bold text-slate-400 uppercase w-8">{activeProduct?.uom}</span>
+                              </div>
+                            )
+                          })}
                         </div>
                       )}
-                      
+                    </div>
+
+                    {/* Inventory + Reject */}
+                    <div className="grid grid-cols-2 gap-4">
                       <div className="bg-emerald-50/50 p-6 rounded-[2.5rem] border border-emerald-100/50 space-y-4">
                         <Label className="text-emerald-700 font-black uppercase text-[10px] tracking-widest flex items-center gap-2">
-                          <ShieldCheck className="w-4 h-4" /> Passed to Inventory
+                          <Warehouse className="w-4 h-4" /> Stok Gudang
                         </Label>
-                        <Input 
-                           type="number" 
-                           min="0"
-                           step="any"
-                           className="text-2xl font-black h-14 rounded-xl border-none shadow-sm"
-                           value={qtyPassToInventory || ''}
-                           onChange={(e) => setQtyPassToInventory(parseFloat(e.target.value) || 0)}
-                         />
-                         <p className="text-[8px] font-bold text-emerald-400 uppercase">Masuk Stok Gudang (Ready)</p>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="any"
+                          className="text-2xl font-black h-14 rounded-xl border-none shadow-sm"
+                          value={qtyPassToInventory || ''}
+                          onChange={(e) => setQtyPassToInventory(parseFloat(e.target.value) || 0)}
+                        />
+                        <p className="text-[8px] font-bold text-emerald-400 uppercase">Masuk Stok Gudang (Available)</p>
                       </div>
 
                       <div className="bg-rose-50/50 p-6 rounded-[2.5rem] border border-rose-100/50 space-y-4">
                         <Label className="text-rose-700 font-black uppercase text-[10px] tracking-widest flex items-center gap-2">
                           <ShieldAlert className="w-4 h-4" /> Reject / Rusak
                         </Label>
-                        <Input 
-                           type="number" 
-                           min="0"
-                           step="any"
-                           className="text-2xl font-black h-14 rounded-xl border-none shadow-sm"
-                           value={qtyReject || ''}
-                           onChange={(e) => setQtyReject(parseFloat(e.target.value) || 0)}
-                         />
-                         <p className="text-[8px] font-bold text-rose-400 uppercase">Buang / Shrinkage</p>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="any"
+                          className="text-2xl font-black h-14 rounded-xl border-none shadow-sm"
+                          value={qtyReject || ''}
+                          onChange={(e) => setQtyReject(parseFloat(e.target.value) || 0)}
+                        />
+                        <p className="text-[8px] font-bold text-rose-400 uppercase">Buang / Shrinkage</p>
                       </div>
                     </div>
 
@@ -516,16 +569,23 @@ export default function QCPage() {
  
                      <div className="space-y-4">
                         <div className="flex justify-between items-center px-4">
-                           <span className={cn(
-                             "text-xs font-black uppercase tracking-widest",
-                             qtyPassToInventory + qtyPassToClient + qtyReject === activePurchaseItem.qtyPurchased ? "text-emerald-600" : "text-rose-600 animate-pulse"
-                           )}>
-                             Status: {qtyPassToInventory + qtyPassToClient + qtyReject === activePurchaseItem.qtyPurchased ? "Balance ✓" : "Tidak Balance !"}
-                           </span>
-                           <span className="text-[10px] font-bold text-slate-400">Processed: {qtyPassToInventory + qtyPassToClient + qtyReject} / {activePurchaseItem.qtyPurchased}</span>
+                           {(() => {
+                             const totalAllocPos = poAllocations.reduce((s, a) => s + a.qty, 0)
+                             const totalDone = qtyPassToInventory + totalAllocPos + qtyReject
+                             const balanced = totalDone === activePurchaseItem.qtyPurchased
+                             return <>
+                               <span className={cn("text-xs font-black uppercase tracking-widest", balanced ? "text-emerald-600" : "text-rose-600 animate-pulse")}>
+                                 Status: {balanced ? "Balance ✓" : "Tidak Balance !"}
+                               </span>
+                               <span className="text-[10px] font-bold text-slate-400">Processed: {totalDone} / {activePurchaseItem.qtyPurchased}</span>
+                             </>
+                           })()}
                         </div>
- 
-                        {(qtyPassToInventory + qtyPassToClient + qtyReject !== activePurchaseItem.qtyPurchased) && (
+
+                        {(() => {
+                          const totalAllocPos = poAllocations.reduce((s, a) => s + a.qty, 0)
+                          return (qtyPassToInventory + totalAllocPos + qtyReject !== activePurchaseItem.qtyPurchased)
+                        })() && (
                            <div className="space-y-3 p-6 bg-rose-50 rounded-[2rem] border border-rose-100 animate-in zoom-in-95">
                               <Label className="text-rose-700 font-black uppercase text-[10px] tracking-widest">Alasan Selisih / Tidak Balance (Wajib)</Label>
                               <Input 
