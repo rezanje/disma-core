@@ -1417,7 +1417,7 @@ export default function ShoppingListPage() {
                   )}
                 </div>
 
-                <div className="rounded-md border bg-slate-50 dark:bg-slate-900 max-h-[300px] overflow-auto shadow-inner">
+                <div className="rounded-md border bg-slate-50 dark:bg-slate-900 shadow-inner">
 
                   {/* Vendor Grouping Logic */}
                   {(() => {
