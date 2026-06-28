@@ -7,15 +7,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
-import { 
-  ArrowRightLeft, 
-  Upload, 
-  CheckCircle2, 
-  XCircle, 
+import {
+  ArrowRightLeft,
+  Upload,
+  CheckCircle2,
+  XCircle,
   AlertCircle,
   FileText,
   Search,
-  Link as LinkIcon
+  Link as LinkIcon,
+  ShoppingBag,
+  Banknote
 } from "lucide-react"
 import { formatRupiah } from "@/lib/utils"
 import { toast } from "sonner"
@@ -39,10 +41,26 @@ export default function ReconciliationPage() {
   const journalLines = useAppStore(state => state.journalLines)
   const journalEntries = useAppStore(state => state.journalEntries)
   const coas = useAppStore(state => state.coas)
+  const purchases = useAppStore(state => state.purchases)
+  const expenses = useAppStore(state => state.expenses)
+  const users = useAppStore(state => state.users)
+  const updatePurchase = useAppStore(state => state.updatePurchase)
+  const updateExpense = useAppStore(state => state.updateExpense)
 
   // Reconciliation State
   const [bankEntries, setBankEntries] = useState<BankEntry[]>([])
   const [isUploading, setIsUploading] = useState(false)
+
+  // Sourcing recon data
+  const sourcingUserIds = users.filter(u => u.role === 'sourcing').map(u => u.id)
+  const pendingBelanjaan = purchases.filter(p =>
+    p.reconciliationStatus === 'Laporan Masuk' &&
+    (sourcingUserIds.includes(p.purchaserId || '') || p.purchaserId === '22222222-2222-2222-2222-222222222222')
+  )
+  const pendingOperasional = expenses.filter(e =>
+    e.status === 'Pending Audit' &&
+    (sourcingUserIds.includes(e.reporterId || '') || e.reporterId === '22222222-2222-2222-2222-222222222222')
+  )
 
   // 1. Margin Analysis Logic (Existing)
   const reconOrders = useMemo(() => {
@@ -127,6 +145,7 @@ export default function ReconciliationPage() {
         <TabsList className="bg-white/50 dark:bg-slate-900/50 p-1 rounded-xl glass-card">
           <TabsTrigger value="margin" className="rounded-lg px-6">Analisa Margin PO</TabsTrigger>
           <TabsTrigger value="bank" className="rounded-lg px-6">Rekonsiliasi Bank</TabsTrigger>
+          <TabsTrigger value="sourcing" className="rounded-lg px-6">Rekon Belanja Sourcing</TabsTrigger>
         </TabsList>
 
         <TabsContent value="margin">
@@ -320,6 +339,150 @@ export default function ReconciliationPage() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+        <TabsContent value="sourcing" className="space-y-6">
+          {/* Section A: Belanjaan → HPP */}
+          <Card className="border-none shadow-sm overflow-hidden">
+            <CardHeader className="bg-slate-50 dark:bg-slate-800/50 border-b">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <ShoppingBag className="w-5 h-5 text-emerald-500" /> Belanjaan Pasar
+              </CardTitle>
+              <CardDescription>Laporan belanja sourcing menunggu verifikasi. Post ke HPP setelah dicek.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-slate-100/30 dark:bg-slate-950">
+                    <TableHead>Ref</TableHead>
+                    <TableHead className="text-right">Total Belanja</TableHead>
+                    <TableHead className="text-right">Budget</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-center">Aksi</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pendingBelanjaan.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-24 text-center text-muted-foreground italic">
+                        Tidak ada laporan belanja yang menunggu verifikasi.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    pendingBelanjaan.map(p => {
+                      const reporter = users.find(u => u.id === p.purchaserId)
+                      return (
+                        <TableRow key={p.id}>
+                          <TableCell>
+                            <div className="font-bold text-sm text-slate-700 dark:text-slate-300">{p.id.slice(0, 8)}</div>
+                            <div className="text-[10px] text-slate-400">{reporter?.name || 'Sourcing'}</div>
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-rose-600">{formatRupiah(p.actualSpent || 0)}</TableCell>
+                          <TableCell className="text-right font-medium text-slate-500">{formatRupiah((p.budgetAmount || 0) + (p.operationalSpareAmount || 0))}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] font-black uppercase">
+                              Laporan Masuk
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Button
+                              size="sm"
+                              className="h-8 text-[10px] bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black uppercase"
+                              onClick={async () => {
+                                await updatePurchase(p.id, { reconciliationStatus: 'Terverifikasi' })
+                                toast.success(`Laporan belanja ${p.id.slice(0, 8)} diverifikasi.`)
+                              }}
+                            >
+                              <CheckCircle2 className="w-3 h-3 mr-1" /> Verifikasi
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+
+          {/* Section B: Operasional → Biaya Ops */}
+          <Card className="border-none shadow-sm overflow-hidden">
+            <CardHeader className="bg-slate-50 dark:bg-slate-800/50 border-b">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Banknote className="w-5 h-5 text-rose-500" /> Pengeluaran Operasional
+              </CardTitle>
+              <CardDescription>Biaya ops sourcing (parkir, bensin, dll). Post ke Biaya Operasional setelah dicek.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-slate-100/30 dark:bg-slate-950">
+                    <TableHead>Keterangan</TableHead>
+                    <TableHead>Kategori</TableHead>
+                    <TableHead className="text-right">Jumlah</TableHead>
+                    <TableHead>Bukti</TableHead>
+                    <TableHead className="text-center">Aksi</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pendingOperasional.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-24 text-center text-muted-foreground italic">
+                        Tidak ada pengeluaran operasional yang menunggu verifikasi.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    pendingOperasional.map(e => {
+                      const reporter = users.find(u => u.id === e.reporterId)
+                      return (
+                        <TableRow key={e.id}>
+                          <TableCell>
+                            <div className="font-bold text-sm text-slate-700 dark:text-slate-300">{e.description}</div>
+                            <div className="text-[10px] text-slate-400">{reporter?.name || 'Sourcing'}</div>
+                          </TableCell>
+                          <TableCell className="text-xs text-slate-500">{e.category}</TableCell>
+                          <TableCell className="text-right font-bold text-rose-600">{formatRupiah(e.amount)}</TableCell>
+                          <TableCell>
+                            {e.receiptUrl ? (
+                              <a href={e.receiptUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-500 underline font-bold">
+                                Lihat bukti
+                              </a>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 italic">Tidak ada</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <div className="flex gap-2 justify-center">
+                              <Button
+                                size="sm"
+                                className="h-8 text-[10px] bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black uppercase"
+                                onClick={async () => {
+                                  await updateExpense(e.id, { status: 'Approved' })
+                                  toast.success(`Pengeluaran "${e.description}" diverifikasi.`)
+                                }}
+                              >
+                                <CheckCircle2 className="w-3 h-3 mr-1" /> Setuju
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 text-[10px] border-rose-200 text-rose-600 hover:bg-rose-50 font-black uppercase"
+                                onClick={async () => {
+                                  await updateExpense(e.id, { status: 'Rejected' })
+                                  toast.error(`Pengeluaran "${e.description}" ditolak.`)
+                                }}
+                              >
+                                <XCircle className="w-3 h-3 mr-1" /> Tolak
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

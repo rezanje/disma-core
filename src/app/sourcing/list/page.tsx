@@ -427,111 +427,45 @@ export default function SourcingDashboard() {
 
   return (
     <div className="space-y-6 animate-in fade-in-50 duration-500 pb-20">
-      {/* Wallet Summary */}
-      <div className="bg-slate-900 rounded-[2.5rem] p-7 text-white shadow-2xl relative overflow-hidden -mx-2">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl -mr-16 -mt-16" />
-        <div className="relative z-10 space-y-5">
-          <div className="flex justify-between items-center">
-             <div className="flex items-center gap-2">
-               <div className="p-2.5 bg-white/10 rounded-2xl">
-                 <Wallet className="w-5 h-5 text-emerald-400" />
-               </div>
-               <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Pegang Kas (Advance)</span>
-             </div>
-             {totalHolding > 0 && (
-               <div className="flex items-center gap-2">
-                 <Select value={returnTargetBank} onValueChange={(v) => v && setReturnTargetBank(v)}>
-                   <SelectTrigger className="h-9 w-36 rounded-xl bg-white/5 border-white/10 text-white text-[9px] font-black uppercase">
-                     <SelectValue />
-                   </SelectTrigger>
-                   <SelectContent>
-                     {bankAccounts.filter(b => b.id !== 'bank-advance-sourcing').map(b => (
-                       <SelectItem key={b.id} value={b.id} className="text-xs font-bold">{b.name}</SelectItem>
-                     ))}
-                   </SelectContent>
-                 </Select>
-                 <Button
-                   variant="outline"
-                   className="h-9 px-4 rounded-xl bg-white/5 border-white/10 hover:bg-emerald-500 hover:text-white text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap"
-                   onClick={handleReportReturn}
-                 >
-                   Setor Sisa Kas
-                 </Button>
-               </div>
-             )}
-          </div>
-          
-          <div className="grid grid-cols-2 gap-6 items-end">
-             <div className="space-y-1">
-               <p className="text-[8px] font-black uppercase text-slate-500 tracking-widest leading-none">Modal Di Tangan</p>
-               <p className="text-3xl font-black tracking-tighter">{formatRupiah(totalHolding)}</p>
-             </div>
-             <div className="space-y-1 text-right">
-               <p className="text-[8px] font-black uppercase text-slate-500 tracking-widest leading-none">Estimasi Sisa</p>
-               <p className={cn("text-xl font-black tracking-tighter", remainingCash < 0 ? "text-rose-400" : "text-emerald-400")}>
-                 {formatRupiah(remainingCash)}
-               </p>
-               {totalTempoActual > 0 && (
-                 <p className="text-[8px] font-black uppercase text-amber-400 tracking-widest leading-none mt-1">+ Tempo (hutang): {formatRupiah(totalTempoActual)}</p>
-               )}
-             </div>
-          </div>
-          
-          <div className="pt-2">
-            <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
-               <div 
-                 className="h-full bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)] transition-all duration-700"
-                 style={{ width: `${totalAdvanceReceived > 0 ? (Math.min(totalAdvanceReceived, totalAdvanceReceived - totalHolding + totalShopSpentActual) / totalAdvanceReceived) * 100 : 0}%` }}
-               />
-            </div>
-            <p className="text-[9px] font-bold text-slate-500 uppercase mt-2 tracking-widest">Pemakaian: {formatRupiah(totalAdvanceReceived - totalHolding + totalShopSpentActual)}</p>
-          </div>
-
-          <div className="grid gap-3 pt-3 border-t border-white/10">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-[8px] font-black uppercase text-slate-500 tracking-widest">Distribusi Dana Operasional</p>
-                <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">
-                  Operkan sebagian kas untuk mendukung operasional personil lain di lapangan.
-                </p>
+      {/* Bank Overview — 2 box layout */}
+      <div className="grid grid-cols-2 gap-3">
+        {/* Box 1: Advance received */}
+        <div className="bg-slate-900 rounded-[2rem] p-5 text-white relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-500/10 rounded-full blur-2xl -mr-6 -mt-6" />
+          <div className="relative z-10 flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-white/10 rounded-xl">
+                <Wallet className="w-4 h-4 text-emerald-400" />
               </div>
-              <Badge variant="outline" className="border-white/10 bg-white/5 text-[8px] font-black uppercase text-slate-300">
-                Operasional
-              </Badge>
+              <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Advance</span>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-[1.1fr_0.8fr_auto] gap-3">
-              <Select value={courierRecipientId} onValueChange={(v) => v && setCourierRecipientId(v)}>
-                <SelectTrigger className="h-11 rounded-2xl bg-white/5 border-white/10 text-white text-[10px] font-black uppercase">
-                  <SelectValue placeholder="Pilih penerima dana..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {courierUsers.map(user => (
-                    <SelectItem key={user.id} value={user.id} className="text-xs font-bold">
-                      {user.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Input
-                type="text"
-                inputMode="numeric"
-                className="h-11 rounded-2xl bg-white/5 border-white/10 text-white placeholder:text-slate-500 font-black"
-                placeholder="Nominal distribusi"
-                value={formatNumber(courierTransferAmount)}
-                onChange={(e) => setCourierTransferAmount(parseNumber(e.target.value))}
-              />
-
-              <Button
-                className="h-11 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black uppercase text-[10px]"
-                onClick={handleTransferToCourier}
-              >
-                <Send className="w-4 h-4 mr-2" />
-                Kirim
-              </Button>
+            <div>
+              <p className="text-[8px] font-black uppercase text-slate-500 tracking-widest leading-none mb-1">Modal Diterima</p>
+              <p className="text-2xl font-black tracking-tighter leading-none">{formatRupiah(totalAdvanceReceived)}</p>
             </div>
           </div>
+        </div>
+
+        {/* Box 2: Balance sheet mini */}
+        <div className="bg-slate-50 dark:bg-slate-800/60 rounded-[2rem] p-5 flex flex-col gap-3">
+          <p className="text-[8px] font-black uppercase text-slate-500 tracking-widest leading-none">Estimasi Sisa</p>
+          <p className={cn("text-2xl font-black tracking-tighter leading-none", remainingCash < 0 ? "text-rose-500" : "text-emerald-600")}>
+            {formatRupiah(remainingCash)}
+          </p>
+          <div>
+            <div className="h-1.5 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden mb-1.5">
+              <div
+                className="h-full bg-emerald-500 transition-all duration-700 rounded-full"
+                style={{ width: `${totalAdvanceReceived > 0 ? Math.min(100, ((totalAdvanceReceived - totalHolding + totalShopSpentActual) / totalAdvanceReceived) * 100) : 0}%` }}
+              />
+            </div>
+            <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest">
+              Pemakaian: {formatRupiah(totalAdvanceReceived - totalHolding + totalShopSpentActual)}
+            </p>
+          </div>
+          {totalTempoActual > 0 && (
+            <p className="text-[8px] font-black uppercase text-amber-500 tracking-widest">+ Tempo: {formatRupiah(totalTempoActual)}</p>
+          )}
         </div>
       </div>
 
@@ -1061,35 +995,35 @@ export default function SourcingDashboard() {
              {myExpenses.filter(e => e.status !== 'Rejected').map(e => (
                  <Card key={e.id} className={cn(
                    "rounded-2xl border-none shadow-sm border-l-4",
-                   e.status === 'Approved' ? "bg-emerald-50/30 border-l-emerald-400" : "bg-slate-50/50 border-l-amber-400"
+                   e.status === 'Approved' ? "bg-emerald-50/30 border-l-emerald-400" : "bg-rose-50/30 border-l-rose-400"
                  )}>
                     <CardContent className="p-4 flex items-center justify-between">
                        <div className="flex items-center gap-3">
                           <div className={cn(
                             "w-10 h-10 rounded-xl flex items-center justify-center shadow-sm",
-                            e.status === 'Approved' ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
+                            e.status === 'Approved' ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-500"
                           )}>
                              {e.status === 'Approved' ? <CheckCircle2 className="w-5 h-5" /> : <Banknote className="w-5 h-5" />}
                           </div>
                           <div>
                              <p className="text-[10px] font-black uppercase tracking-widest leading-none mb-1">{e.description}</p>
                              <p className={cn("text-[9px] font-bold uppercase italic",
-                               e.status === 'Approved' ? "text-emerald-500" : "text-amber-500"
+                               e.status === 'Approved' ? "text-emerald-500" : "text-rose-400"
                              )}>
-                               {e.status === 'Approved' ? 'Verified by Finance' : 'Sedang Diaudit Office'}
+                               {e.status === 'Approved' ? 'Verified by Finance' : 'Real-time'}
                              </p>
                           </div>
                        </div>
                        <div className="text-right">
                           <p className={cn("font-black tracking-tighter",
-                            e.status === 'Approved' ? "text-emerald-600" : "text-slate-400"
+                            e.status === 'Approved' ? "text-emerald-600" : "text-rose-500"
                           )}>
                              -{formatRupiah(e.amount)}
                           </p>
                           <Badge variant="outline" className={cn("text-[8px] font-black uppercase",
-                            e.status === 'Approved' ? "border-emerald-200 text-emerald-500" : "border-amber-200 text-amber-500"
+                            e.status === 'Approved' ? "border-emerald-200 text-emerald-500" : "border-rose-200 text-rose-400"
                           )}>
-                            {e.status === 'Approved' ? 'Approved' : 'Unverified'}
+                            {e.status === 'Approved' ? 'Approved' : 'Real-time'}
                           </Badge>
                        </div>
                     </CardContent>
@@ -1181,6 +1115,104 @@ export default function SourcingDashboard() {
           </form>
         </div>
       </section>
+      {/* Distribusi Dana Operasional */}
+      <section className="space-y-3">
+        <h2 className="text-sm font-black uppercase tracking-widest text-slate-500 px-1">Distribusi Dana Operasional</h2>
+        <div className="bg-slate-50 dark:bg-slate-800/60 rounded-[2rem] p-5 space-y-4">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
+            Kirim sebagian kas untuk mendukung operasional personil lain di lapangan.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-[1.1fr_0.8fr_auto] gap-3">
+            <Select value={courierRecipientId} onValueChange={(v) => v && setCourierRecipientId(v)}>
+              <SelectTrigger className="h-11 rounded-2xl">
+                <SelectValue placeholder="Pilih penerima dana..." />
+              </SelectTrigger>
+              <SelectContent>
+                {courierUsers.map(user => (
+                  <SelectItem key={user.id} value={user.id} className="text-xs font-bold">
+                    {user.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              type="text"
+              inputMode="numeric"
+              className="h-11 rounded-2xl"
+              placeholder="Nominal distribusi"
+              value={formatNumber(courierTransferAmount)}
+              onChange={(e) => setCourierTransferAmount(parseNumber(e.target.value))}
+            />
+            <Button
+              className="h-11 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black uppercase text-[10px]"
+              onClick={handleTransferToCourier}
+            >
+              <Send className="w-4 h-4 mr-2" />
+              Kirim
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      {/* Setor Sisa Kas */}
+      {totalHolding > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-black uppercase tracking-widest text-slate-500 px-1">Setor Sisa Kas</h2>
+          <div className="bg-slate-50 dark:bg-slate-800/60 rounded-[2rem] p-5 space-y-4">
+            <div className="flex items-end justify-between">
+              <div>
+                <p className="text-[8px] font-black uppercase text-slate-500 tracking-widest mb-1">Sisa untuk disetor</p>
+                <p className="text-2xl font-black tracking-tighter text-emerald-600">{formatRupiah(totalHolding)}</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <Select value={returnTargetBank} onValueChange={(v) => v && setReturnTargetBank(v)}>
+                <SelectTrigger className="h-11 flex-1 rounded-2xl">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {bankAccounts.filter(b => b.id !== 'bank-advance-sourcing').map(b => (
+                    <SelectItem key={b.id} value={b.id} className="text-xs font-bold">{b.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                className="h-11 px-6 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black uppercase text-[10px] whitespace-nowrap"
+                onClick={handleReportReturn}
+              >
+                Setor Kas
+              </Button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Rekon Catatan — internal read-only summary */}
+      <section className="space-y-3 pb-8">
+        <h2 className="text-sm font-black uppercase tracking-widest text-slate-500 px-1">Rekon Catatan</h2>
+        <div className="rounded-[2rem] border border-slate-200 dark:border-slate-700 p-5 space-y-0.5">
+          <div className="flex justify-between items-center py-3 border-b border-slate-100 dark:border-slate-800">
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Advance Diterima</span>
+            <span className="font-black text-sm text-slate-700 dark:text-slate-300">+{formatRupiah(totalAdvanceReceived)}</span>
+          </div>
+          <div className="flex justify-between items-center py-3 border-b border-slate-100 dark:border-slate-800">
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Belanja</span>
+            <span className="font-black text-sm text-rose-500">-{formatRupiah(totalShopSpent)}</span>
+          </div>
+          <div className="flex justify-between items-center py-3 border-b border-slate-100 dark:border-slate-800">
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Operasional</span>
+            <span className="font-black text-sm text-rose-500">-{formatRupiah(totalExpenses)}</span>
+          </div>
+          <div className="flex justify-between items-center py-3">
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Estimasi Sisa</span>
+            <span className={cn("font-black text-sm", totalHolding < 0 ? "text-rose-500" : "text-emerald-600")}>
+              {formatRupiah(totalHolding)}
+            </span>
+          </div>
+          <p className="text-[8px] font-bold uppercase text-slate-400 tracking-widest pt-2">Rekonsiliasi akhir dilakukan Finance Hub</p>
+        </div>
+      </section>
+
       {/* QUICK ADD VENDOR DIALOG */}
       <Dialog open={isNewVendorOpen} onOpenChange={setIsNewVendorOpen}>
         <DialogContent className="sm:max-w-md">
