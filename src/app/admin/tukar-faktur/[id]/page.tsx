@@ -42,7 +42,7 @@ export default function TukarFakturDetailPage({ params }: { params: Promise<{ id
   )
 
   if (!tf) {
-    return <div className="p-10 text-slate-500">TF tidak ditemukan. <Link href="/finance/tukar-faktur" className="underline">Kembali</Link></div>
+    return <div className="p-10 text-slate-500">TF tidak ditemukan. <Link href="/admin/tukar-faktur" className="underline">Kembali</Link></div>
   }
 
   const client = clients.find(c => c.id === tf.clientId)
@@ -82,7 +82,7 @@ export default function TukarFakturDetailPage({ params }: { params: Promise<{ id
     try {
       await deleteTukarFaktur(id)
       toast.success("TF dihapus.")
-      router.push("/finance/tukar-faktur")
+      router.push("/admin/tukar-faktur")
     } catch (e) {
       toast.error(`Delete gagal: ${e instanceof Error ? e.message : String(e)}`)
     } finally { setBusy(false) }
@@ -114,7 +114,7 @@ export default function TukarFakturDetailPage({ params }: { params: Promise<{ id
 
   return (
     <div className="p-6 md:p-10 space-y-6">
-      <Link href="/finance/tukar-faktur" className="text-sm text-slate-500 hover:underline inline-flex items-center gap-1">
+      <Link href="/admin/tukar-faktur" className="text-sm text-slate-500 hover:underline inline-flex items-center gap-1">
         <ArrowLeft className="w-4 h-4" /> Kembali
       </Link>
 
@@ -132,44 +132,93 @@ export default function TukarFakturDetailPage({ params }: { params: Promise<{ id
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge className="bg-slate-100 text-slate-700 border-none font-bold">{tf.status}</Badge>
-            <Link href={`/finance/tukar-faktur/${id}/print`}>
+            <Link href={`/admin/tukar-faktur/${id}/print`}>
               <Button variant="outline"><Printer className="w-4 h-4 mr-2" /> Print</Button>
             </Link>
+            {tf.status === "Draft" && (
+              <Button onClick={handleIssue} disabled={busy || linkedInvoices.length === 0} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                <Send className="w-4 h-4 mr-2" /> Issue
+              </Button>
+            )}
+            {!isLocked && (
+              <Button variant="outline" onClick={handleDelete} disabled={busy} className="border-rose-200 text-rose-600 hover:bg-rose-50">
+                <Trash2 className="w-4 h-4 mr-2" /> Hapus
+              </Button>
+            )}
           </div>
         </div>
       </Card>
 
-      <Card className="p-6 rounded-2xl border-slate-100">
-        <h2 className="text-sm font-black uppercase tracking-widest text-slate-500 mb-4">Invoice ({linkedInvoices.length})</h2>
+      {/* PIC Penerimaan Section */}
+      {tf.status === "Issued" && (
+        <Card className="p-6 rounded-2xl border-slate-100 bg-slate-50 space-y-4">
+          <div>
+            <h3 className="font-bold text-sm">Konfirmasi Penerimaan Klien</h3>
+            <p className="text-xs text-slate-500 mt-0.5">Tandai bahwa dokumen TF fisik sudah diterima oleh klien.</p>
+          </div>
+          <div className="flex gap-2 max-w-md">
+            <Input placeholder="Nama PIC Klien Penerima…" value={receivedBy} onChange={e => setReceivedBy(e.target.value)} />
+            <Button onClick={handleMarkReceived} disabled={busy || !receivedBy.trim()} className="bg-blue-600 hover:bg-blue-700 text-white">
+              <CheckCircle2 className="w-4 h-4 mr-2" /> Diterima
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {/* Detail Invoices */}
+      <Card className="rounded-2xl overflow-hidden border-slate-100">
         <table className="w-full text-sm">
-          <thead className="text-[11px] uppercase tracking-wider text-slate-400">
-            <tr><th className="text-left py-2">Invoice ID</th><th className="text-right py-2">Nominal</th><th className="text-right py-2">Status</th><th className="text-right py-2">Jatuh Tempo</th></tr>
+          <thead className="bg-slate-50 text-slate-500 text-[11px] uppercase tracking-wider">
+            <tr>
+              <th className="text-left px-4 py-3">Invoice ID</th>
+              <th className="text-left px-4 py-3">Issue Date</th>
+              <th className="text-left px-4 py-3">Due Date (Jatuh Tempo)</th>
+              <th className="text-right px-4 py-3">Total Amount</th>
+              <th className="text-center px-4 py-3">Status</th>
+            </tr>
           </thead>
           <tbody>
             {linkedInvoices.map(inv => (
               <tr key={inv.id} className="border-t border-slate-100">
-                <td className="py-2 font-medium">{inv.id.slice(0, 8)}</td>
-                <td className="py-2 text-right">{formatRupiah(inv.totalAmount)}</td>
-                <td className="py-2 text-right">{inv.status}</td>
-                <td className="py-2 text-right">
-                  {formatDate(inv.dueDate)}
+                <td className="px-4 py-3 font-bold">{inv.id.slice(0, 8)}</td>
+                <td className="px-4 py-3">{formatDate(inv.issueDate)}</td>
+                <td className="px-4 py-3">
+                  {tf.status === "Draft" ? (
+                    <Input type="date" value={inv.dueDate} onChange={e => handleEditDueDate(inv.id, e.target.value)} className="h-8 w-40 text-xs rounded-lg" />
+                  ) : (
+                    formatDate(inv.dueDate)
+                  )}
+                </td>
+                <td className="px-4 py-3 text-right font-bold">{formatRupiah(inv.totalAmount)}</td>
+                <td className="px-4 py-3 text-center">
+                  <Badge className={inv.status === "Paid" ? "bg-emerald-100 text-emerald-700 border-none font-bold" : "bg-rose-100 text-rose-700 border-none font-bold"}>
+                    {inv.status}
+                  </Badge>
                 </td>
               </tr>
             ))}
-          </tbody>
-          <tfoot>
-            <tr className="border-t-2 border-slate-200">
-              <td className="py-3 font-black">Total</td>
-              <td className="py-3 text-right font-black">{formatRupiah(tf.totalAmount)}</td>
-              <td colSpan={2} />
+            <tr className="border-t border-slate-200 bg-slate-50 font-bold">
+              <td colSpan={3} className="px-4 py-3 text-right">TOTAL TF:</td>
+              <td className="px-4 py-3 text-right text-emerald-700">{formatRupiah(tf.totalAmount)}</td>
+              <td className="px-4 py-3 text-center">{linkedInvoices.length} inv</td>
             </tr>
-          </tfoot>
+          </tbody>
         </table>
       </Card>
 
-      {(tf.status === "Received" || tf.status === "Paid") && (
-        <Card className="p-6 rounded-2xl border-slate-100 bg-blue-50">
-          <p className="text-sm">Diterima oleh <span className="font-bold">{tf.receivedBy}</span> pada {formatDate(tf.receivedAt)}.</p>
+      {/* Bulk Override Due Date */}
+      {tf.status === "Issued" && (
+        <Card className="p-6 rounded-2xl border-slate-100 space-y-4">
+          <div>
+            <h3 className="font-bold text-sm">Undur / Geser Jatuh Tempo (Bulk)</h3>
+            <p className="text-xs text-slate-500 mt-0.5">Geser tanggal jatuh tempo semua invoice dalam TF ini sekaligus.</p>
+          </div>
+          <div className="flex items-center gap-2 max-w-sm">
+            <Input type="number" placeholder="Jumlah hari (misal: 7 atau -7)…" value={bulkDays || ""} onChange={e => setBulkDays(Number(e.target.value))} />
+            <Button onClick={handleBulkOverride} disabled={busy} className="bg-slate-800 hover:bg-slate-900 text-white whitespace-nowrap">
+              Geser Tanggal
+            </Button>
+          </div>
         </Card>
       )}
     </div>

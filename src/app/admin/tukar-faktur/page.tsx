@@ -67,9 +67,12 @@ export default function TukarFakturListPage() {
     <div className="p-6 md:p-10 space-y-8">
       <header className="flex flex-col md:flex-row justify-between gap-4 md:items-end">
         <div>
-          <h1 className="text-3xl font-black uppercase tracking-tight">Tukar Faktur (Finance - View Only)</h1>
-          <p className="text-sm text-slate-500 mt-1">Batch invoice mingguan per klien — Dibuat & di-manage oleh Admin PO.</p>
+          <h1 className="text-3xl font-black uppercase tracking-tight">Tukar Faktur (Admin PO)</h1>
+          <p className="text-sm text-slate-500 mt-1">Batch invoice mingguan per klien — auto-period cross-bulan.</p>
         </div>
+        <Button onClick={() => setOpenGenerate(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl px-6 h-12">
+          <Plus className="w-4 h-4 mr-2" /> Generate TF
+        </Button>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -138,7 +141,7 @@ export default function TukarFakturListPage() {
                     <Badge className={`${STATUS_TONE[t.status]} border-none font-bold`}>{t.status}</Badge>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <Link href={`/finance/tukar-faktur/${t.id}`}>
+                    <Link href={`/admin/tukar-faktur/${t.id}`}>
                       <Button size="sm" variant="ghost" className="rounded-xl"><Eye className="w-4 h-4" /></Button>
                     </Link>
                   </td>

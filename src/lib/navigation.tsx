@@ -46,7 +46,7 @@ export const APP_PAGES: NavItemConfig[] = [
   },
   { key: 'finance_cash_bank', title: 'Cash & Bank', href: '/finance/cash-bank', icon: <Bank className="h-4 w-4" />, category: 'Finance' },
   { key: 'finance_budget', title: 'Perencanaan Budget', href: '/finance/budget', icon: <Target className="h-4 w-4 text-rose-500" />, category: 'Finance' },
-  { key: 'finance_tukar_faktur', title: 'Tukar Faktur', href: '/finance/tukar-faktur', icon: <FileSpreadsheet className="h-4 w-4" />, category: 'Finance' },
+  { key: 'finance_tukar_faktur', title: 'Tukar Faktur (Lihat Saja)', href: '/finance/tukar-faktur', icon: <FileSpreadsheet className="h-4 w-4" />, category: 'Finance' },
   { key: 'finance_expenses', title: 'Pengeluaran Umum', href: '/finance/expenses', icon: <TrendingDown className="h-4 w-4" />, category: 'Finance' },
   { key: 'finance_reports', title: 'Financial Reports', href: '/finance/reports', icon: <FileSpreadsheet className="h-4 w-4" />, category: 'Finance' },
   { key: 'finance_invoices', title: 'Invoices (AR/AP)', href: '/finance/invoices', icon: <ScrollText className="h-4 w-4" />, category: 'Finance' },
@@ -57,10 +57,11 @@ export const APP_PAGES: NavItemConfig[] = [
   { key: 'finance_online_purchase', title: 'Online Purchase', href: '/finance/online-purchase', icon: <ShoppingBag className="h-4 w-4" />, category: 'Finance' },
   { key: 'finance_assets', title: 'Asset Audit', href: '/finance/assets', icon: <Briefcase className="h-4 w-4" />, category: 'Finance' },
   { key: 'finance_documents', title: 'Dokumen & Arsip', href: '/finance/documents', icon: <Archive className="h-4 w-4 text-emerald-500" />, category: 'Finance' },
-
+ 
   // Admin & CEO Section
   { key: 'admin_dashboard', title: 'Dashboard Admin', href: '/admin', icon: <LayoutDashboard className="h-4 w-4" />, category: 'Admin' },
   { key: 'admin_sales_orders', title: 'Sales orders (PO)', href: '/admin/sales-orders', icon: <ShoppingCart className="h-4 w-4" />, category: 'Admin' },
+  { key: 'admin_tukar_faktur', title: 'Tukar Faktur', href: '/admin/tukar-faktur', icon: <FileSpreadsheet className="h-4 w-4" />, category: 'Admin' },
   { key: 'admin_purchase_requests', title: 'Purchase Requests', href: '/admin/purchase-requests', icon: <ClipboardList className="h-4 w-4 text-emerald-500" />, category: 'Admin' },
   { key: 'admin_clients', title: 'Client Management', href: '/admin/clients', icon: <Users className="h-4 w-4" />, category: 'Admin' },
   { key: 'admin_price_lists', title: 'Price Lists', href: '/admin/client-prices', icon: <Banknote className="h-4 w-4" />, category: 'Admin' },

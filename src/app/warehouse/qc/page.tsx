@@ -220,6 +220,21 @@ export default function QCPage() {
         reportedBy: currentUser?.id || 'system',
         imageUrl: qcPhoto || undefined
       })
+
+      // Kirim notifikasi ke Admin PO
+      const adminUsers = useAppStore.getState().users.filter(u => u.role === 'admin_po')
+      for (const adminUser of adminUsers) {
+        await useAppStore.getState().addNotification({
+          id: uuidv4(),
+          userId: adminUser.id,
+          title: `QC Reject: ${activeProduct.name}`,
+          message: `${qtyReject} ${activeProduct.uom} ditolak QC (${rejectAction}). Alasan: ${rejectReason || 'Tanpa alasan'}.`,
+          type: 'system',
+          link: '/admin/shopping-list',
+          read: false,
+          createdAt: new Date().toISOString()
+        })
+      }
     }
 
     await updatePurchaseItem(activePurchaseItem.id, { 

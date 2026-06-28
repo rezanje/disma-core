@@ -1261,6 +1261,100 @@ export default function ShoppingListPage() {
               )
             ) : (
               <div className="space-y-6">
+                {/* Banner Susulan Pendek / Pending Rejects */}
+                {pendingRejects.length > 0 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 bg-amber-100 text-amber-800 rounded-xl flex items-center justify-center font-bold text-lg">
+                        {pendingRejects.length}
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-black uppercase tracking-wider text-slate-800">
+                          Susulan Retur & Reject QC Pending
+                        </h4>
+                        <p className="text-[10px] text-slate-500">
+                          Ada {pendingRejects.length} barang retur/reject yang belum dimasukkan ke list belanja.
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      className="bg-amber-600 hover:bg-amber-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl"
+                      onClick={() => {
+                        saveToHistory()
+                        const newManualItems = [...manualItems]
+                        const nextCompiled = new Set(compiledRejectIds)
+                        
+                        pendingRejects.forEach(item => {
+                          const product = products.find(p => p.id === item.productId)
+                          newManualItems.push({
+                            id: uuidv4(),
+                            productId: item.productId,
+                            qty: item.qty,
+                            price: product?.basePrice || 0
+                          })
+                          nextCompiled.add(item.id)
+                        })
+
+                        setManualItems(newManualItems)
+                        setCompiledRejectIds(nextCompiled)
+                        localStorage.setItem('shopping_compiledRejectIds', JSON.stringify(Array.from(nextCompiled)))
+                        toast.success(`Berhasil mem-prefill ${pendingRejects.length} barang susulan ke antrean.`)
+                      }}
+                    >
+                      Pre-fill Semua Susulan ({pendingRejects.length} item)
+                    </Button>
+                  </div>
+                )}
+
+                {/* Banner Alokasi Gudang */}
+                {(() => {
+                  const suggestions = consolidatedList.filter(item => {
+                    if (item.fromStock) return false
+                    const prod = products.find(p => p.id === item.productId)
+                    const avail = (prod?.currentStock ?? 0) - (bookedQtyByProduct[item.productId] || 0)
+                    return avail > 0
+                  })
+                  if (suggestions.length === 0) return null
+                  return (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 bg-emerald-100 text-emerald-800 rounded-xl flex items-center justify-center">
+                          <Warehouse className="w-5 h-5 text-emerald-600" />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-black uppercase tracking-wider text-slate-800">
+                            Saran Alokasi dari Gudang
+                          </h4>
+                          <p className="text-[10px] text-slate-500">
+                            Terdapat {suggestions.length} produk yang memiliki stok tersedia di gudang. Mau dialokasikan dari gudang?
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl"
+                        onClick={() => {
+                          saveToHistory()
+                          setStockBookedProductIds(prev => {
+                            const next = new Set(prev)
+                            suggestions.forEach(item => next.add(item.productId))
+                            return next
+                          })
+                          setVendorAssignments(v => {
+                            const n = { ...v }
+                            suggestions.forEach(item => delete n[item.productId])
+                            return n
+                          })
+                          toast.success(`Berhasil mengalokasikan ${suggestions.length} produk dari gudang.`)
+                        }}
+                      >
+                        Alokasikan Semua ({suggestions.length} produk)
+                      </Button>
+                    </div>
+                  )
+                })()}
+
                 {/* Bulk vendor assignment — select items then apply */}
                 <div className="flex flex-wrap items-center gap-2 p-3 rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/40">
                   <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-emerald-700 cursor-pointer select-none">

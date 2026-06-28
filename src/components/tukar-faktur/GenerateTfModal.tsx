@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import { useAppStore } from "@/lib/store"
 import type { Invoice, TukarFaktur } from "@/types"
 import { tfPeriodFor, generateTfNumber, periodKey, type TfPeriod } from "@/lib/tukar-faktur"
@@ -26,6 +26,7 @@ interface Props { open: boolean; onOpenChange: (v: boolean) => void }
 
 export function GenerateTfModal({ open, onOpenChange }: Props) {
   const router = useRouter()
+  const pathname = usePathname()
   const clients = useAppStore(s => s.clients)
   const invoices = useAppStore(s => s.invoices)
   const tukarFakturs = useAppStore(s => s.tukarFakturs)
@@ -150,7 +151,8 @@ export function GenerateTfModal({ open, onOpenChange }: Props) {
           : `${groups.length} TF disimpan sebagai Draft. Buka detail untuk Issue kapan saja.`,
       )
       if (createdTfIds.length === 1) {
-        router.push(`/finance/tukar-faktur/${createdTfIds[0]}`)
+        const prefix = pathname.startsWith('/admin') ? '/admin' : '/finance';
+        router.push(`${prefix}/tukar-faktur/${createdTfIds[0]}`)
       }
     } catch (e) {
       console.error("[GenerateTfModal] runGenerate failed", e)

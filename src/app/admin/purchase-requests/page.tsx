@@ -315,8 +315,8 @@ export default function PurchaseRequestsPage() {
     }
 
     const isSourcing = activePR.category === 'Sourcing'
-    // Sourcing: approve langsung, non-sourcing: teruskan ke CFO
-    const nextStatus = action === 'reject' ? 'Rejected' : (isSourcing ? 'Approved' : 'Pending_CFO')
+    // Sourcing: goes to Pending_CFO for CFO approval, other categories: approved directly by Finance (skip CFO)
+    const nextStatus = action === 'reject' ? 'Rejected' : (isSourcing ? 'Pending_CFO' : 'Approved')
 
     toast.loading("Memproses verifikasi Finance...", { id: "finance-verify" })
     try {
@@ -325,17 +325,17 @@ export default function PurchaseRequestsPage() {
         approvedByFinance: currentUser?.name || currentUser?.id || "Finance Admin",
         financeNote: financeNote
       }
-      // Jika sourcing dan langsung approved, catat juga sebagai "approvedByCfo" dengan sistem
-      if (isSourcing && action === 'approve') {
+      // Jika non-sourcing (bukan weekly belanja) dan disetujui, langsung Approved (skip CFO)
+      if (!isSourcing && action === 'approve') {
         updatePayload.approvedByCfo = `Auto (Finance) - ${currentUser?.name || currentUser?.id || "Finance Admin"}`
-        updatePayload.cfoNote = "Disetujui langsung oleh Finance (kategori Sourcing)"
+        updatePayload.cfoNote = "Disetujui langsung oleh Finance (Bukan Kategori Sourcing)"
       }
       await updatePurchaseRequest(activePR.id, updatePayload)
       const successMsg = action === 'reject'
         ? "PR berhasil ditolak oleh Finance."
         : isSourcing
-          ? "PR Sourcing disetujui langsung oleh Finance! Dana siap dicairkan."
-          : "PR Terverifikasi & diteruskan ke CFO!"
+          ? "PR Sourcing terverifikasi & diteruskan ke CFO!"
+          : "PR disetujui langsung oleh Finance! Dana siap dicairkan."
       toast.success(successMsg, { id: "finance-verify" })
       setFinanceNote("")
       setSelectedPRId(null)
