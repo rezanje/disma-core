@@ -35,6 +35,8 @@ export default function QCPage() {
        if (pi.inboundStatus === 'verified' || pi.inboundStatus === 'rejected') return false;
        if (pi.inboundStatus === 'pra_inbound') return true;
 
+       if (pi.purchaseMethod === 'Transfer' && pi.isChecked) return true;
+
        const parentP = purchases.find(p => p.id === pi.purchaseId);
        if (!parentP) return false;
        if ((pi.purchaseMethod === 'Pasar' || !pi.purchaseMethod) && parentP.status === 'Selesai') return true;
