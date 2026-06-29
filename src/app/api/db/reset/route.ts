@@ -27,7 +27,7 @@ export async function POST(request: Request) {
       'vendor_prices', 'sales_order_items', 'purchase_items', 'journal_lines', 'okr_key_results',
       'deliveries', 'invoices', 'tukar_faktur', 'sales_orders', 'vendor_bills', 'purchases', 'purchase_requests', 'journal_entries', 'stock_movements', 'rejected_items', 'okr_objectives',
       'reimbursements', 'expenses', 'cash_transactions', 'pending_returns', 'fixed_assets', 
-      'notifications', 'disma_tasks', 'leads', 'employees', 'kpis'
+      'notifications', 'disma_tasks', 'employees', 'kpis'
     ];
 
     // Master definition tables.
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
       
       if (actionVal === 'custom') {
         // Enforce deletion order by using predefined lists
-        const sortedTables = [...operationalTables, ...masterTables];
+        const sortedTables = [...operationalTables, 'leads', ...masterTables];
         tablesToClear = sortedTables.filter(t => customTables.includes(t));
       } else if (actionVal === 'products_only') {
         tablesToClear = ['products'];

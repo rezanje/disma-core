@@ -3279,7 +3279,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           salesOrders: [], salesOrderItems: [], purchases: [], purchaseItems: [],
           purchaseRequests: [],
           deliveries: [], expenses: [], invoices: [], tukarFakturs: [], vendorBills: [], journalEntries: [],
-          journalLines: [], stockMovements: [], leads: [], tasks: [], notifications: [],
+          journalLines: [], stockMovements: [], tasks: [], notifications: [],
           pendingReturns: [], rejectedItems: [], reimbursements: [], cashTransactions: [],
           bankAccounts: INITIAL_BANK_ACCOUNTS, fixedAssets: [], clientPrices: [], vendorPrices: []
         });
@@ -3337,7 +3337,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           salesOrders: [], salesOrderItems: [], purchases: [], purchaseItems: [],
           purchaseRequests: [],
           deliveries: [], expenses: [], invoices: [], tukarFakturs: [], vendorBills: [], journalEntries: [],
-          journalLines: [], stockMovements: [], coas: COA_SEED, users: MOCK_USERS, leads: [],
+          journalLines: [], stockMovements: [], coas: COA_SEED, users: MOCK_USERS,
           tasks: [], notifications: [], bankAccounts: INITIAL_BANK_ACCOUNTS,
           rejectedItems: [],
           cashTransactions: [], reimbursements: [], fixedAssets: [], clientPrices: []
