@@ -183,6 +183,8 @@ export interface SalesOrderItem {
   qtyAdjustmentReason?: string; // Why the qty changed (e.g. "QC Reject: busuk")
   isPacked?: boolean; // Done by Warehouse (Packing/QC)
   isHandoverChecked?: boolean; // Done by Courier (Checklist before delivery)
+  qtyDispatched?: number; // Qty confirmed at QC → Logistik serah terima
+  dispatchNote?: string;  // Catatan QC per item at dispatch
 }
 
 export type PurchaseStatus = 'Pending' | 'Belanja' | 'Selesai';
@@ -210,6 +212,7 @@ export interface Purchase {
   reconciliationNote?: string;  // Sourcer's explanation for discrepancy
   reconciliationStatus?: ReconciliationStatus;
   reconciliationProofUrl?: string; // Optional: Image/Photo proof of return
+  withdrawalAmount?: number; // Amount sourcing withdrew from shared Bank Jago to personal account
 }
 
 export interface PurchaseItem {

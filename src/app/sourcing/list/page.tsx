@@ -455,6 +455,61 @@ export default function SourcingDashboard() {
             </div>
           </div>
 
+      {/* Withdrawal from Bank Jago */}
+      {activePurchases.length > 0 && (() => {
+        const mainPurchase = activePurchases[0]
+        const saved = mainPurchase.withdrawalAmount || 0
+        return (
+          <div className="bg-violet-50 border border-violet-200 rounded-[2rem] p-5 space-y-3">
+            <div className="flex items-center gap-2">
+              <Banknote className="w-4 h-4 text-violet-600" />
+              <p className="text-[10px] font-black uppercase tracking-widest text-violet-700">Uang Diambil dari Bank Jago</p>
+            </div>
+            {saved > 0 ? (
+              <div className="flex items-center justify-between">
+                <p className="text-xl font-black text-violet-800">{formatRupiah(saved)}</p>
+                <button
+                  className="text-[9px] font-black uppercase text-violet-500 underline"
+                  onClick={() => updatePurchase(mainPurchase.id, { withdrawalAmount: 0 })}
+                >
+                  Ubah
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <div className="flex items-center gap-1 flex-1 bg-white border-2 border-violet-200 rounded-xl px-3 focus-within:border-violet-500 transition-all">
+                  <span className="text-xs font-bold text-slate-400">Rp</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    className="flex-1 h-12 bg-transparent text-lg font-bold outline-none"
+                    placeholder="0"
+                    id="withdrawal-input"
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        const val = parseNumber((document.getElementById('withdrawal-input') as HTMLInputElement).value)
+                        if (val > 0) updatePurchase(mainPurchase.id, { withdrawalAmount: val })
+                      }
+                    }}
+                  />
+                </div>
+                <Button
+                  className="h-12 px-5 bg-violet-600 hover:bg-violet-700 font-bold rounded-xl"
+                  onClick={() => {
+                    const val = parseNumber((document.getElementById('withdrawal-input') as HTMLInputElement).value)
+                    if (val > 0) updatePurchase(mainPurchase.id, { withdrawalAmount: val })
+                    else toast.error("Masukkan jumlah yang diambil.")
+                  }}
+                >
+                  Simpan
+                </Button>
+              </div>
+            )}
+            <p className="text-[9px] text-violet-400 font-bold uppercase">Catat berapa yang kamu ambil dari rekening bersama ke rekening pribadi sebelum belanja</p>
+          </div>
+        )
+      })()}
+
       <div className="space-y-6">
         {Object.entries(itemsByVendor).map(([vendorId, items]) => {
           const vendor = vendors.find(v => v.id === vendorId)

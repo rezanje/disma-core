@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ShieldAlert, ShieldCheck, Tag, RefreshCcw, PackageSearch, AlertTriangle, Warehouse } from "lucide-react"
+import { ShieldAlert, ShieldCheck, Tag, RefreshCcw, PackageSearch, AlertTriangle, Warehouse, Truck, ClipboardCheck, ChevronDown } from "lucide-react"
 import { toast } from "sonner"
 import { v4 as uuidv4 } from "uuid"
 import { cn } from "@/lib/utils"
@@ -373,6 +373,45 @@ export default function QCPage() {
     setRetReason("")
   }
 
+  // --- TAB 3: PERSIAPAN PENGIRIMAN ---
+  const [selectedDispatchSoIds, setSelectedDispatchSoIds] = useState<Set<string>>(new Set())
+  const [dispatchQty, setDispatchQty] = useState<Record<string, number>>({}) // soItemId → qty
+  const [dispatchNote, setDispatchNote] = useState<Record<string, string>>({}) // soItemId → note
+
+  const packingSos = salesOrders
+    .filter(so => so.status === 'Packing')
+    .sort((a, b) => a.targetDeliveryDate.localeCompare(b.targetDeliveryDate))
+
+  const selectedSoItems = salesOrderItems.filter(i =>
+    selectedDispatchSoIds.has(i.salesOrderId)
+  )
+
+  const handleConfirmDispatch = async () => {
+    if (selectedDispatchSoIds.size === 0) return
+    const currentUser = useAppStore.getState().currentUser
+
+    toast.loading("Memproses serah terima...", { id: "dispatch" })
+
+    for (const soItemId of Object.keys(dispatchQty)) {
+      const qty = dispatchQty[soItemId]
+      const note = dispatchNote[soItemId] || ''
+      await useAppStore.getState().updateSalesOrderItem(soItemId, {
+        isPacked: true,
+        qtyDispatched: qty || undefined,
+        dispatchNote: note || undefined,
+      })
+    }
+
+    for (const soId of selectedDispatchSoIds) {
+      await updateSalesOrder(soId, { status: 'Siap Kirim' })
+    }
+
+    toast.success(`${selectedDispatchSoIds.size} PO siap kirim. Serah terima ke logistik selesai.`, { id: "dispatch" })
+    setSelectedDispatchSoIds(new Set())
+    setDispatchQty({})
+    setDispatchNote({})
+  }
+
   const groupedQCItems = pendingQCItems.reduce((acc, item) => {
     const so = salesOrders.find(s => s.id === item.salesOrderId);
     const groupKey = so ? `PO: ${so.poNumber}` : "Restock Gudang (Tanpa PO)";
@@ -402,6 +441,15 @@ export default function QCPage() {
             {pendingReturns.length > 0 && (
               <span className="bg-rose-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-[8px] animate-pulse">
                 {pendingReturns.length}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="dispatch" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest flex items-center gap-2">
+            <Truck className="w-3 h-3" />
+            Persiapan Pengiriman
+            {packingSos.length > 0 && (
+              <span className="bg-violet-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-[8px] animate-pulse">
+                {packingSos.length}
               </span>
             )}
           </TabsTrigger>
@@ -767,6 +815,130 @@ export default function QCPage() {
                     </Button>
                  </div>
                )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="dispatch">
+          <Card className="liquid-card border-none shadow-xl shadow-slate-200/50">
+            <CardHeader className="bg-white rounded-t-[3rem] border-b border-slate-50 px-8 py-6">
+              <CardTitle className="text-lg font-black text-slate-800 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-violet-100 flex items-center justify-center">
+                  <Truck className="w-5 h-5 text-violet-600" />
+                </div>
+                Persiapan Pengiriman
+              </CardTitle>
+              <p className="text-slate-500 text-sm">Pilih PO yang akan dikirim hari ini, input qty & catatan per item, lalu serah terima ke logistik.</p>
+            </CardHeader>
+            <CardContent className="p-8 space-y-6">
+              {packingSos.length === 0 ? (
+                <div className="text-center py-16 text-slate-400">
+                  <ClipboardCheck className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                  <p className="font-semibold">Tidak ada PO dalam status Packing</p>
+                </div>
+              ) : (
+                <>
+                  {/* PO Selection */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-bold text-slate-700 uppercase tracking-widest">Pilih PO</p>
+                      <button
+                        onClick={() => {
+                          if (selectedDispatchSoIds.size === packingSos.length) {
+                            setSelectedDispatchSoIds(new Set())
+                          } else {
+                            setSelectedDispatchSoIds(new Set(packingSos.map(s => s.id)))
+                          }
+                        }}
+                        className="text-xs text-violet-600 hover:underline font-semibold"
+                      >
+                        {selectedDispatchSoIds.size === packingSos.length ? 'Batal Semua' : 'Pilih Semua'}
+                      </button>
+                    </div>
+                    <div className="grid gap-2">
+                      {packingSos.map(so => {
+                        const client = clients.find(c => c.id === so.clientId)
+                        const checked = selectedDispatchSoIds.has(so.id)
+                        return (
+                          <div
+                            key={so.id}
+                            onClick={() => {
+                              const next = new Set(selectedDispatchSoIds)
+                              if (next.has(so.id)) next.delete(so.id)
+                              else next.add(so.id)
+                              setSelectedDispatchSoIds(next)
+                            }}
+                            className={`flex items-center gap-3 p-4 rounded-2xl border-2 cursor-pointer transition-all ${checked ? 'border-violet-400 bg-violet-50' : 'border-slate-100 bg-white hover:border-slate-200'}`}
+                          >
+                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${checked ? 'border-violet-500 bg-violet-500' : 'border-slate-300'}`}>
+                              {checked && <div className="w-2 h-2 bg-white rounded-full" />}
+                            </div>
+                            <div className="flex-1">
+                              <p className="font-bold text-slate-800 text-sm">{so.poNumber}</p>
+                              <p className="text-xs text-slate-500">{client?.companyName} · Target: {so.targetDeliveryDate}</p>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Items per selected SO */}
+                  {selectedDispatchSoIds.size > 0 && (
+                    <div className="space-y-4">
+                      <p className="text-sm font-bold text-slate-700 uppercase tracking-widest">Item yang Disiapkan</p>
+                      {Array.from(selectedDispatchSoIds).map(soId => {
+                        const so = packingSos.find(s => s.id === soId)
+                        if (!so) return null
+                        const client = clients.find(c => c.id === so.clientId)
+                        const items = salesOrderItems.filter(i => i.salesOrderId === soId)
+                        return (
+                          <div key={soId} className="rounded-2xl border border-violet-100 overflow-hidden">
+                            <div className="bg-violet-50 px-5 py-3 border-b border-violet-100">
+                              <p className="font-bold text-violet-800 text-sm">{so.poNumber} — {client?.companyName}</p>
+                            </div>
+                            <div className="divide-y divide-slate-50">
+                              {items.map(item => {
+                                const product = products.find(p => p.id === item.productId)
+                                return (
+                                  <div key={item.id} className="px-5 py-4 bg-white grid grid-cols-[1fr_120px_1fr] gap-4 items-center">
+                                    <div>
+                                      <p className="font-semibold text-slate-800 text-sm">{product?.name}</p>
+                                      <p className="text-xs text-slate-400">QC Passed: {item.qtyFinal ?? '-'} {product?.uom}</p>
+                                    </div>
+                                    <input
+                                      type="number"
+                                      placeholder={String(item.qtyFinal ?? item.qty)}
+                                      value={dispatchQty[item.id] ?? ''}
+                                      onChange={e => setDispatchQty(prev => ({ ...prev, [item.id]: Number(e.target.value) }))}
+                                      className="border border-slate-200 rounded-xl px-3 py-2 text-sm text-center w-full"
+                                    />
+                                    <input
+                                      type="text"
+                                      placeholder="Catatan (opsional)"
+                                      value={dispatchNote[item.id] ?? ''}
+                                      onChange={e => setDispatchNote(prev => ({ ...prev, [item.id]: e.target.value }))}
+                                      className="border border-slate-200 rounded-xl px-3 py-2 text-sm w-full"
+                                    />
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )
+                      })}
+
+                      <button
+                        onClick={handleConfirmDispatch}
+                        className="w-full py-4 bg-violet-600 hover:bg-violet-700 text-white font-black text-sm uppercase tracking-widest rounded-2xl flex items-center justify-center gap-2 transition-colors"
+                      >
+                        <ClipboardCheck className="w-4 h-4" />
+                        Serah Terima ke Logistik ({selectedDispatchSoIds.size} PO)
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
