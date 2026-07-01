@@ -3,6 +3,7 @@ import {
   isoWeekKey,
   buildWeeklyMax,
   acuanForRecord,
+  dayKeyWib,
   PurchaseRecord,
 } from "../../src/lib/sku-pnl";
 
@@ -31,5 +32,28 @@ assert.strictEqual(acuanForRecord(aPrevWeek, wm), null);
 
 // Product isolation: B's acuan does not leak A's numbers
 assert.strictEqual(acuanForRecord(purchases[3], wm), null);
+
+// WIB week bucketing is deterministic (independent of host TZ).
+// Sun 20:00 UTC = Mon 03:00 WIB -> that Monday's week (W03).
+assert.strictEqual(isoWeekKey("2026-01-11T20:00:00.000Z"), "2026-W03");
+// Sun 16:00 UTC = Sun 23:00 WIB -> still Sunday -> W02.
+assert.strictEqual(isoWeekKey("2026-01-11T16:00:00.000Z"), "2026-W02");
+// dayKeyWib returns the WIB calendar day.
+assert.strictEqual(dayKeyWib("2026-01-11T20:00:00.000Z"), "2026-01-12");
+// Year boundary: a WIB record in early Jan resolves its previous week to 2025-W52.
+assert.strictEqual(
+  acuanForRecord(
+    { productId: "X", date: "2026-01-01T05:00:00Z", actualUnitPrice: 1, qtyReceived: 1, finalized: true },
+    new Map([["X", new Map([["2025-W52", 500]])]])
+  ),
+  500
+);
+// buildWeeklyMax ignores non-positive (draft/unpriced) prices.
+assert.strictEqual(
+  buildWeeklyMax([
+    { productId: "Z", date: "2026-01-06T02:00:00Z", actualUnitPrice: 0, qtyReceived: 1, finalized: false },
+  ]).size,
+  0
+);
 
 console.log("Task 1 checks passed");
