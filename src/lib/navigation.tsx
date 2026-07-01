@@ -50,6 +50,7 @@ export const APP_PAGES: NavItemConfig[] = [
   { key: 'finance_tukar_faktur', title: 'Tukar Faktur (Lihat Saja)', href: '/finance/tukar-faktur', icon: <FileSpreadsheet className="h-4 w-4" />, category: 'Finance' },
   { key: 'finance_expenses', title: 'Pengeluaran Umum', href: '/finance/expenses', icon: <TrendingDown className="h-4 w-4" />, category: 'Finance' },
   { key: 'finance_reports', title: 'Financial Reports', href: '/finance/reports', icon: <FileSpreadsheet className="h-4 w-4" />, category: 'Finance' },
+  { key: 'finance_sku_pnl', title: 'Untung Rugi per SKU', href: '/finance/sku-pnl', icon: <BarChart3 className="h-4 w-4 text-emerald-500" />, category: 'Finance' },
   { key: 'finance_invoices', title: 'Invoices (AR/AP)', href: '/finance/invoices', icon: <ScrollText className="h-4 w-4" />, category: 'Finance' },
   { key: 'finance_collections', title: 'AR Collections', href: '/finance/collections', icon: <History className="h-4 w-4" />, category: 'Finance' },
   { key: 'finance_ar_aging', title: 'AR Aging (Piutang)', href: '/finance/ar-aging', icon: <AlertTriangle className="h-4 w-4 text-rose-500" />, category: 'Finance' },
