@@ -280,12 +280,9 @@ git commit -m "feat(sku-pnl): classify stock movements into loss buckets"
 
 - [ ] **Step 1: Add the aggregator to `src/lib/sku-pnl.ts`**
 
-Append to `src/lib/sku-pnl.ts` (add `format` to the `date-fns` import line):
+Append to `src/lib/sku-pnl.ts`. Day bucketing reuses the module's own `dayKeyWib` (WIB, host-TZ independent) — do NOT reintroduce `date-fns`/`format`/`parseISO`, which were removed in the Task 1 fix for being timezone-dependent.
 
 ```ts
-// add `format` to the existing date-fns import:
-//   import { parseISO, subDays, getISOWeek, getISOWeekYear, format } from "date-fns";
-
 export interface LossRecord {
   productId: string;
   date: string;
@@ -310,7 +307,7 @@ export interface DailySkuPnl {
   hasDraft: boolean;
 }
 
-const dayKey = (dateIso: string) => format(parseISO(dateIso), "yyyy-MM-dd");
+const dayKey = dayKeyWib; // WIB calendar day, defined in Task 1 (host-TZ independent)
 const rowKey = (productId: string, day: string) => `${productId}__${day}`;
 
 /** One row per SKU per calendar day: weighted-avg buy price, variance vs acuan, summed losses. */
