@@ -5,6 +5,8 @@ import {
   acuanForRecord,
   dayKeyWib,
   PurchaseRecord,
+  classifyLossMovement,
+  MovementLike,
 } from "../../src/lib/sku-pnl";
 
 // isoWeekKey: 2026-01-05 is Monday of ISO week 2 of 2026
@@ -55,5 +57,41 @@ assert.strictEqual(
   ]).size,
   0
 );
+
+// classifyLossMovement buckets
+const mk = (o: Partial<MovementLike>): MovementLike => ({ kind: "", stockDelta: 0, ...o });
+
+assert.strictEqual(
+  classifyLossMovement(mk({ kind: "ADJUSTMENT", referenceType: "QC", destination: "Reject/Write-off" })),
+  "reject"
+);
+// Vendor replaces it -> not our loss
+assert.strictEqual(
+  classifyLossMovement(mk({ kind: "ADJUSTMENT", referenceType: "QC", destination: "Return to Supplier" })),
+  null
+);
+// Opname spoilage -> waste
+assert.strictEqual(
+  classifyLossMovement(mk({ kind: "ADJUSTMENT", source: "Stock Opname", stockDelta: -3, note: "Stock Opname: barang busuk" })),
+  "waste"
+);
+// Opname generic deficit -> missing
+assert.strictEqual(
+  classifyLossMovement(mk({ kind: "ADJUSTMENT", source: "Stock Opname", stockDelta: -2, note: "Stock Opname: selisih hitung" })),
+  "missing"
+);
+// Opname surplus -> not a loss
+assert.strictEqual(
+  classifyLossMovement(mk({ kind: "ADJUSTMENT", source: "Stock Opname", stockDelta: 4, note: "lebih" })),
+  null
+);
+// Client return reject -> return
+assert.strictEqual(classifyLossMovement(mk({ kind: "RETURN_REJECT", stockDelta: 0 })), "return");
+// Ordinary inbound -> nothing
+assert.strictEqual(classifyLossMovement(mk({ kind: "QC_INVENTORY", stockDelta: 10 })), null);
+
+// ISO week direct checks at the year boundary (forward + explicit current-week).
+assert.strictEqual(isoWeekKey("2025-12-29T20:00:00.000Z"), "2026-W01"); // WIB Dec 30 (Tue) rolls into 2026-W01
+assert.strictEqual(isoWeekKey("2026-01-01T05:00:00.000Z"), "2026-W01"); // WIB Jan 1 is in 2026-W01
 
 console.log("Task 1 checks passed");

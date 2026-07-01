@@ -72,3 +72,41 @@ export function acuanForRecord(
   const prevWeekKey = isoWeekKey(new Date(Date.parse(rec.date) - 7 * DAY_MS).toISOString());
   return weeklyMax.get(rec.productId)?.get(prevWeekKey) ?? null;
 }
+
+// --- Physical loss classification (maps existing StockMovements to buckets) ---
+
+export type LossBucket = "reject" | "missing" | "waste" | "return";
+
+export interface MovementLike {
+  kind: string;
+  referenceType?: string;
+  source?: string;
+  destination?: string;
+  stockDelta: number;
+  note?: string;
+}
+
+const WASTE_RE = /busuk|waste|rusak|expired|kadaluarsa|kadaluwarsa/i;
+
+/**
+ * Which loss bucket (if any) a stock movement belongs to.
+ * - QC reject we eat (Disposal) -> 'reject'. Vendor-replaceable ("Return to Supplier")
+ *   and B2C-diversion (kind QC_INVENTORY) are excluded -> not our loss.
+ * - Stock-opname deficit -> 'waste' if the note reads spoilage, else 'missing'.
+ * - Client return that failed QC -> 'return'.
+ */
+export function classifyLossMovement(m: MovementLike): LossBucket | null {
+  if (m.kind === "RETURN_REJECT") return "return";
+
+  if (m.kind === "ADJUSTMENT") {
+    // QC reject disposal: destination stamped "Reject/Write-off"; "Return to Supplier" excluded.
+    if (m.referenceType === "QC") {
+      return m.destination === "Reject/Write-off" ? "reject" : null;
+    }
+    // Stock opname: only deficits are losses.
+    if (m.source === "Stock Opname" && m.stockDelta < 0) {
+      return WASTE_RE.test(m.note ?? "") ? "waste" : "missing";
+    }
+  }
+  return null;
+}
