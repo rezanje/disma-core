@@ -7,6 +7,8 @@ import {
   PurchaseRecord,
   classifyLossMovement,
   MovementLike,
+  aggregateDaily,
+  LossRecord,
 } from "../../src/lib/sku-pnl";
 
 // isoWeekKey: 2026-01-05 is Monday of ISO week 2 of 2026
@@ -94,4 +96,27 @@ assert.strictEqual(classifyLossMovement(mk({ kind: "QC_INVENTORY", stockDelta: 1
 assert.strictEqual(isoWeekKey("2025-12-29T20:00:00.000Z"), "2026-W01"); // WIB Dec 30 (Tue) rolls into 2026-W01
 assert.strictEqual(isoWeekKey("2026-01-01T05:00:00.000Z"), "2026-W01"); // WIB Jan 1 is in 2026-W01
 
-console.log("Task 1 checks passed");
+// aggregateDaily: weighted avg, variance sign & qty basis, loss merge, netPnl, draft flag
+const aggPurchases: PurchaseRecord[] = [
+  // acuan source: product A previous week (W02) max = 12000
+  { productId: "A", date: "2026-01-06T02:00:00Z", actualUnitPrice: 12000, qtyReceived: 1, finalized: true },
+  // this week (W03), same day, two buys -> weighted avg = (10000*4 + 8000*6)/10 = 8800
+  { productId: "A", date: "2026-01-13T02:00:00Z", actualUnitPrice: 10000, qtyReceived: 4, finalized: true },
+  { productId: "A", date: "2026-01-13T09:00:00Z", actualUnitPrice: 8000, qtyReceived: 6, finalized: false },
+];
+const aggLosses: LossRecord[] = [
+  { productId: "A", date: "2026-01-13T10:00:00Z", qty: 2, unitCost: 9000, bucket: "waste" },
+];
+const agg = aggregateDaily(aggPurchases, aggLosses);
+const a13 = agg.find((r) => r.productId === "A" && r.date === "2026-01-13")!;
+assert.strictEqual(a13.qty, 10);
+assert.strictEqual(a13.avgBuyPrice, 8800);
+assert.strictEqual(a13.acuan, 12000);
+// variance = (12000 - 8800) * 10 = 32000 (untung), qty basis = received
+assert.strictEqual(a13.varianceAmount, 32000);
+assert.strictEqual(a13.lossWaste, 18000); // 2 * 9000
+assert.strictEqual(a13.lossTotal, 18000);
+assert.strictEqual(a13.netPnl, 14000); // 32000 - 18000
+assert.strictEqual(a13.hasDraft, true); // one line not finalized
+
+console.log("All sku-pnl checks passed");

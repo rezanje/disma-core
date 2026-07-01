@@ -110,3 +110,103 @@ export function classifyLossMovement(m: MovementLike): LossBucket | null {
   }
   return null;
 }
+
+// --- Daily aggregation (variance + losses -> per-SKU-per-day rows) ---
+
+export interface LossRecord {
+  productId: string;
+  date: string;
+  qty: number;
+  unitCost: number;
+  bucket: LossBucket;
+}
+
+export interface DailySkuPnl {
+  productId: string;
+  date: string; // yyyy-MM-dd
+  qty: number;
+  avgBuyPrice: number;
+  acuan: number | null;
+  varianceAmount: number;
+  lossReject: number;
+  lossMissing: number;
+  lossWaste: number;
+  lossReturn: number;
+  lossTotal: number;
+  netPnl: number;
+  hasDraft: boolean;
+}
+
+const dayKey = dayKeyWib; // WIB calendar day, defined in Task 1 (host-TZ independent)
+const rowKey = (productId: string, day: string) => `${productId}__${day}`;
+
+/** One row per SKU per calendar day: weighted-avg buy price, variance vs acuan, summed losses. */
+export function aggregateDaily(
+  purchases: PurchaseRecord[],
+  losses: LossRecord[]
+): DailySkuPnl[] {
+  const weeklyMax = buildWeeklyMax(purchases);
+
+  const rows = new Map<string, DailySkuPnl>();
+  const priceQtySum = new Map<string, number>(); // sum(price*qty) for weighted avg
+
+  const ensure = (productId: string, day: string): DailySkuPnl => {
+    const k = rowKey(productId, day);
+    let r = rows.get(k);
+    if (!r) {
+      r = {
+        productId,
+        date: day,
+        qty: 0,
+        avgBuyPrice: 0,
+        acuan: null,
+        varianceAmount: 0,
+        lossReject: 0,
+        lossMissing: 0,
+        lossWaste: 0,
+        lossReturn: 0,
+        lossTotal: 0,
+        netPnl: 0,
+        hasDraft: false,
+      };
+      rows.set(k, r);
+      priceQtySum.set(k, 0);
+    }
+    return r;
+  };
+
+  // Purchases -> qty, weighted avg price, acuan, draft flag
+  for (const p of purchases) {
+    const day = dayKey(p.date);
+    const k = rowKey(p.productId, day);
+    const r = ensure(p.productId, day);
+    r.qty += p.qtyReceived;
+    priceQtySum.set(k, (priceQtySum.get(k) ?? 0) + p.actualUnitPrice * p.qtyReceived);
+    if (!p.finalized) r.hasDraft = true;
+    // acuan is a per-product/per-week constant; last write wins (identical within a day)
+    r.acuan = acuanForRecord(p, weeklyMax);
+  }
+
+  // Losses -> bucket sums
+  for (const l of losses) {
+    const day = dayKey(l.date);
+    const r = ensure(l.productId, day);
+    const amt = l.qty * l.unitCost;
+    if (l.bucket === "reject") r.lossReject += amt;
+    else if (l.bucket === "missing") r.lossMissing += amt;
+    else if (l.bucket === "waste") r.lossWaste += amt;
+    else if (l.bucket === "return") r.lossReturn += amt;
+  }
+
+  // Finalize derived fields
+  for (const [k, r] of rows) {
+    r.avgBuyPrice = r.qty > 0 ? (priceQtySum.get(k) ?? 0) / r.qty : 0;
+    r.varianceAmount = r.acuan == null ? 0 : (r.acuan - r.avgBuyPrice) * r.qty;
+    r.lossTotal = r.lossReject + r.lossMissing + r.lossWaste + r.lossReturn;
+    r.netPnl = r.varianceAmount - r.lossTotal;
+  }
+
+  return Array.from(rows.values()).sort(
+    (a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.productId.localeCompare(b.productId))
+  );
+}
