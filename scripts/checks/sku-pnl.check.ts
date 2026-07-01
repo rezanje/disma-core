@@ -119,4 +119,18 @@ assert.strictEqual(a13.lossTotal, 18000);
 assert.strictEqual(a13.netPnl, 14000); // 32000 - 18000
 assert.strictEqual(a13.hasDraft, true); // one line not finalized
 
+// Loss on a day with NO purchase -> standalone loss row (qty 0, no acuan, still shows the loss).
+const lossOnly = aggregateDaily(
+  [],
+  [{ productId: "C", date: "2026-01-20T04:00:00Z", qty: 3, unitCost: 5000, bucket: "return" }]
+);
+const c20 = lossOnly.find((r) => r.productId === "C" && r.date === "2026-01-20")!;
+assert.strictEqual(c20.qty, 0);
+assert.strictEqual(c20.avgBuyPrice, 0);
+assert.strictEqual(c20.acuan, null);
+assert.strictEqual(c20.varianceAmount, 0);
+assert.strictEqual(c20.lossReturn, 15000);
+assert.strictEqual(c20.lossTotal, 15000);
+assert.strictEqual(c20.netPnl, -15000);
+
 console.log("All sku-pnl checks passed");
