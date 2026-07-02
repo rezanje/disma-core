@@ -299,7 +299,7 @@ export default function CourierExpensesPage() {
                 <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
                   <Select value={returnTargetBank} onValueChange={(value) => value && setReturnTargetBank(value)}>
                     <SelectTrigger className="h-10 min-w-[220px] rounded-2xl bg-white/10 border-white/20 text-white font-black text-[10px] uppercase">
-                      <SelectValue />
+                      <SelectValue>{returnTargetBank ? bankAccounts.find(b => b.id === returnTargetBank)?.name : undefined}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {bankAccounts.filter(bank => bank.id !== 'bank-advance-courier').map(bank => (

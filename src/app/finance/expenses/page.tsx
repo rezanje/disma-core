@@ -238,7 +238,7 @@ export default function PengeluaranUmumPage() {
               </div>
               <Select value={filterBank} onValueChange={v => setFilterBank(!v || v === 'all' ? '' : v)}>
                 <SelectTrigger className="h-10 rounded-xl w-48">
-                  <SelectValue placeholder="Semua Bank" />
+                  <SelectValue placeholder="Semua Bank">{filterBank ? bankAccounts.find(b => b.id === filterBank)?.name : undefined}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Semua Bank</SelectItem>

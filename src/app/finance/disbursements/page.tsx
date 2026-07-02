@@ -373,7 +373,7 @@ export default function DisbursementsPage() {
               <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 pl-0.5">Rekening Asal (From Account)</Label>
               <Select value={fromBankId} onValueChange={setFromBankId}>
                 <SelectTrigger className="h-10 border-slate-200 rounded-xl text-xs bg-white">
-                  <SelectValue placeholder="Pilih rekening asal..." />
+                  <SelectValue placeholder="Pilih rekening asal...">{fromBankId ? derivedBankAccounts.find(b => b.id === fromBankId)?.name : undefined}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {derivedBankAccounts.map(b => (
@@ -389,7 +389,7 @@ export default function DisbursementsPage() {
               <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 pl-0.5">Rekening Tujuan (To Account)</Label>
               <Select value={toBankId} onValueChange={setToBankId}>
                 <SelectTrigger className="h-10 border-slate-200 rounded-xl text-xs bg-white">
-                  <SelectValue placeholder="Pilih rekening tujuan..." />
+                  <SelectValue placeholder="Pilih rekening tujuan...">{toBankId ? derivedBankAccounts.find(b => b.id === toBankId)?.name : undefined}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {derivedBankAccounts.map(b => (

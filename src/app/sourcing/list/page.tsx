@@ -1073,7 +1073,7 @@ export default function SourcingDashboard() {
             <div className="flex gap-3">
               <Select value={returnTargetBank} onValueChange={(v) => v && setReturnTargetBank(v)}>
                 <SelectTrigger className="h-11 flex-1 rounded-2xl">
-                  <SelectValue />
+                  <SelectValue>{returnTargetBank ? bankAccounts.find(b => b.id === returnTargetBank)?.name : undefined}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {bankAccounts.filter(b => b.id !== 'bank-advance-sourcing').map(b => (
