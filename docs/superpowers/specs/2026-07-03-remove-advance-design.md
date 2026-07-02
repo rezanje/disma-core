@@ -60,6 +60,12 @@ Consequences:
 | Settlement | sourcing-settlement, `recordReconciliationSettlement` per-advance | account-based; shortfall via reimbursement |
 | Courier | `bank-advance-courier`, courier wallet | disbursement to real courier account |
 
+## Progress
+
+- **P1 DONE** (commit 705bbc1): removed ADVANCE tab + `backfillMissingAdvances` +
+  `handleTransferBudget` + advance-only state from `approvals`. No new advances
+  created/given. Settlement/audit/delivery tabs untouched.
+
 ## Phased plan (each phase independently shippable + verifiable)
 
 - **P0 — infra check (no code):** confirm real "Bank Jago" (sourcing) + courier
