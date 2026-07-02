@@ -14,7 +14,7 @@ export type AccessKey =
   | 'admin_documents' | 'admin_okr' | 'admin_users' | 'admin_settings' | 'admin_tasks' | 'admin_maintenance' | 'admin_price_lists' | 'admin_activity_log'
   | 'admin_purchase_requests' | 'admin_loss_analytics' | 'admin_tukar_faktur'
   // Finance
-  | 'finance_dashboard' | 'finance_approvals' | 'finance_reports' | 'finance_assets'
+  | 'finance_dashboard' | 'finance_approvals' | 'finance_reports' | 'finance_assets' | 'finance_sku_pnl'
   | 'finance_budget' | 'finance_cash_bank' | 'finance_expenses' | 'finance_ledger' | 'finance_invoices' | 'finance_collections'
   | 'finance_tukar_faktur' | 'finance_disbursements'
   | 'finance_ar_aging' | 'finance_ap_aging'
