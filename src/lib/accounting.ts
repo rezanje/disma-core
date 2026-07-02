@@ -755,30 +755,37 @@ export const recordBudgetTransfer = async (purchaseId: string, amount: number, b
     throw new Error(`Source bank tidak boleh sama dengan rekening tujuan (${bankAccountId}).`);
   }
 
-  const success = await createAccountingEntry(
-    `Pencairan Budget Sourcing: ${recipientName} - Ref: ${purchaseId.slice(0, 8)}`,
-    'Transfer',
-    purchaseId,
-    [{ accountCode: targetAccountCode, amount }],
-    [{ accountCode: sourceBankCode, amount }]
-  );
+  // One undo snapshot for the whole transfer (journal + Out + In + caller's
+  // purchase status update) so a single undo reverses money AND the PO together.
+  store.beginUndoableBatch();
+  try {
+    const success = await createAccountingEntry(
+      `Pencairan Budget Sourcing: ${recipientName} - Ref: ${purchaseId.slice(0, 8)}`,
+      'Transfer',
+      purchaseId,
+      [{ accountCode: targetAccountCode, amount }],
+      [{ accountCode: sourceBankCode, amount }]
+    );
 
-  if (success && amount > 0) {
-    const now = new Date().toISOString();
-    await store.addCashTransaction({
-      id: uuidv4(), date: now, amount, type: 'Out',
-      category: 'Transfer Uang Muka Sourcing',
-      description: `Pencairan Dana ke ${recipientName} - Ref: ${purchaseId.slice(0, 8)}`,
-      bankAccountId, counterpartName: targetName,
-    });
-    await store.addCashTransaction({
-      id: uuidv4(), date: now, amount, type: 'In',
-      category: 'Transfer Uang Muka Sourcing',
-      description: `Penerimaan Dana - Ref: ${purchaseId.slice(0, 8)}`,
-      bankAccountId: targetBankId, counterpartName: bank?.name || 'Kas Pusat',
-    });
+    if (success && amount > 0) {
+      const now = new Date().toISOString();
+      await store.addCashTransaction({
+        id: uuidv4(), date: now, amount, type: 'Out',
+        category: 'Transfer Uang Muka Sourcing',
+        description: `Pencairan Dana ke ${recipientName} - Ref: ${purchaseId.slice(0, 8)}`,
+        bankAccountId, counterpartName: targetName,
+      });
+      await store.addCashTransaction({
+        id: uuidv4(), date: now, amount, type: 'In',
+        category: 'Transfer Uang Muka Sourcing',
+        description: `Penerimaan Dana - Ref: ${purchaseId.slice(0, 8)}`,
+        bankAccountId: targetBankId, counterpartName: bank?.name || 'Kas Pusat',
+      });
+    }
+    return success;
+  } finally {
+    store.endUndoableBatch();
   }
-  return success;
 };
 
 export const recordReconciliationSettlement = async (

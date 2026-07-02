@@ -555,6 +555,9 @@ interface AppState {
   
   // Dev & Simulation Helpers
   devHistoryStack: Partial<AppState>[];
+  _snapshotDepth: number;
+  beginUndoableBatch: () => void;
+  endUndoableBatch: () => void;
   takeDevSnapshot: () => void;
   undoDevSnapshot: () => Promise<void>;
   isUndoing: boolean;
@@ -3047,11 +3050,24 @@ export const useAppStore = create<AppState>((set, get) => ({
       },
 
       devHistoryStack: [],
+      _snapshotDepth: 0,
+      // Wrap a multi-step operation so it produces ONE undo snapshot instead of
+      // one per addCashTransaction. Undo then reverses the whole op atomically.
+      // ponytail: single global depth counter — fine for one-user client; make
+      // it per-operation-id if concurrent batches ever appear.
+      beginUndoableBatch: () => {
+        if (get()._snapshotDepth === 0) get().takeDevSnapshot();
+        set(s => ({ _snapshotDepth: s._snapshotDepth + 1 }));
+      },
+      endUndoableBatch: () => set(s => ({ _snapshotDepth: Math.max(0, s._snapshotDepth - 1) })),
       isUndoing: false,
       shoppingListUndo: null,
       shoppingListHistoryLength: 0,
       setShoppingListUndo: (cb, length) => set({ shoppingListUndo: cb, shoppingListHistoryLength: length }),
       takeDevSnapshot: () => {
+        // Inside a batch, only the boundary snapshot (taken by beginUndoableBatch)
+        // is kept; inner snapshots are suppressed so undo stays atomic.
+        if (get()._snapshotDepth > 0) return;
         const state = get();
         // Simpan hanya data operasional yang relevan (bukan functions/stack itu sendiri)
         const snapshot: Partial<AppState> = {
