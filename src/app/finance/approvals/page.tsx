@@ -19,7 +19,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { v4 as uuidv4 } from "uuid"
-import { recordBudgetTransfer, recordReimbursementPayment, recordOperationalExpense, recordReconciliationSettlement, recordDeliveryAndInvoice, recordAdvanceReturn, updateProductPriceHistory, recordAdvanceExpense, getAdvanceWalletByRole, getAdvanceWalletByUserId, recordOnlinePurchase } from "@/lib/accounting"
+import { recordReimbursementPayment, recordOperationalExpense, recordReconciliationSettlement, recordDeliveryAndInvoice, recordAdvanceReturn, updateProductPriceHistory, recordAdvanceExpense, getAdvanceWalletByRole, getAdvanceWalletByUserId, recordOnlinePurchase } from "@/lib/accounting"
 import AuthGuard from "@/components/auth/auth-guard"
 import { 
   Dialog, 
@@ -60,22 +60,19 @@ export default function FinanceHubPage() {
   const addReimbursement = useAppStore(state => state.addReimbursement)
   const addPurchase = useAppStore(state => state.addPurchase)
   const addPurchaseItems = useAppStore(state => state.addPurchaseItems)
-  const deletePurchase = useAppStore(state => state.deletePurchase)
   const setIsSyncing = (v: boolean) => useAppStore.setState({ isSyncing: v })
 
   const { useSearchParams } = require("next/navigation")
   const searchParams = useSearchParams()
   const tabParam = searchParams.get("tab")
 
-  const [activeTab, setActiveTab] = useState(tabParam || "pencairan")
+  const [activeTab, setActiveTab] = useState(tabParam || "settlement")
   
   // Sync activeTab with URL param if changed
   useEffect(() => {
     if (tabParam) setActiveTab(tabParam)
   }, [tabParam])
 
-  // --- AUTO-CREATE MISSING ADVANCES ---
-  const isBackfilling = useRef(false)
   // Reentrancy guard utk semua money-action handler — cegah double-click bikin double-posting jurnal.
   const inFlightRef = useRef<Set<string>>(new Set())
   const acquireLock = (key: string): boolean => {
@@ -84,72 +81,6 @@ export default function FinanceHubPage() {
   }
   const releaseLock = (key: string) => { inFlightRef.current.delete(key) }
   
-  useEffect(() => {
-    const backfillMissingAdvances = async () => {
-      if (isBackfilling.current) return
-      isBackfilling.current = true
-
-      try {
-        const grouped = salesOrders.reduce<Record<string, typeof salesOrders>>((acc, so) => {
-          if (!so.shoppingListDocumentId || !so.shoppingListCompiledAt) return acc
-          acc[so.shoppingListDocumentId] = acc[so.shoppingListDocumentId] || []
-          acc[so.shoppingListDocumentId].push(so)
-          return acc
-        }, {})
-
-        for (const [documentId, orders] of Object.entries(grouped)) {
-          // Use latest state from store to avoid stale closure duplicates
-          const currentPurchases = useAppStore.getState().purchases
-          const alreadyExists = currentPurchases.some(p => p.id === documentId || p.shoppingListDocumentId === documentId)
-          if (alreadyExists) continue
-
-          const generatedAt = orders[0]?.shoppingListCompiledAt || new Date().toISOString()
-          const items = orders.flatMap(so => {
-            return salesOrderItems
-              .filter(item => item.salesOrderId === so.id)
-              .map(item => {
-                const product = products.find(p => p.id === item.productId)
-                return {
-                  id: uuidv4(),
-                  purchaseId: documentId,
-                  productId: item.productId,
-                  salesOrderId: so.id,
-                  qtyTarget: item.qty,
-                  qtyPurchased: 0,
-                  estimatedUnitPrice: product?.basePrice || item.unitPrice || 0,
-                  actualUnitPrice: 0,
-                  isChecked: false,
-                  purchaseMethod: 'Pasar' as const
-                }
-              })
-          })
-
-          if (items.length === 0) continue
-
-          // Create purchase and items together
-          await addPurchase({
-            id: documentId,
-            date: generatedAt,
-            purchaserId: 'pending',
-            status: 'Pending',
-            advanceCode: `ADV-${generatedAt.slice(0, 10).replaceAll('-', '')}-${documentId.slice(0, 4).toUpperCase()}`,
-            shoppingListDocumentId: documentId,
-            shoppingListCompiledBy: orders[0]?.shoppingListCompiledBy
-          })
-          await addPurchaseItems(items)
-          toast.success(`Advance otomatis dibuat untuk list: ${documentId.slice(0,8)}`, { duration: 2000 })
-        }
-      } catch (err) {
-        console.error("Backfill failed:", err)
-      } finally {
-        isBackfilling.current = false
-      }
-    }
-
-    if (salesOrders.length > 0) {
-      void backfillMissingAdvances()
-    }
-  }, [salesOrders, salesOrderItems, products, addPurchase, addPurchaseItems])
 
   const [selectedBank, setSelectedBank] = useState("")
 
@@ -160,30 +91,8 @@ export default function FinanceHubPage() {
     }
   }, [bankAccounts, selectedBank])
   const [previewImage, setPreviewImage] = useState<string | null>(null)
-  const [selectedPurchasers, setSelectedPurchasers] = useState<Record<string, string>>({})
-  const [spareAmounts, setSpareAmounts] = useState<Record<string, number>>({})
   const [returnBankOverrides, setReturnBankOverrides] = useState<Record<string, string>>({})
-  const [isDeletingAdvance, setIsDeletingAdvance] = useState<string | null>(null)
 
-  const handleDeleteAdvance = async (purchaseId: string) => {
-    if (isDeletingAdvance) return
-    const purchase = purchases.find(p => p.id === purchaseId)
-    if (!purchase) return toast.error("Advance tidak ditemukan.")
-    if (purchase.budgetTransferDate) return toast.error("Dana sudah ditransfer, tidak bisa dihapus.")
-    if (purchase.reconciliationStatus === 'Terverifikasi') return toast.error("Sudah Terverifikasi, tidak bisa dihapus.")
-    if (!window.confirm(`Hapus advance ${purchase.advanceCode || purchase.id.slice(0,8)}? PO terkait akan kembali ke status Draft.`)) return
-
-    setIsDeletingAdvance(purchaseId)
-    try {
-      await deletePurchase(purchaseId)
-      toast.success("Advance request dihapus.")
-    } catch (e) {
-      toast.error("Gagal hapus advance.")
-    } finally {
-      setIsDeletingAdvance(null)
-    }
-  }
-  
   // --- Direct Settlement State ---
   const [isDirectSettleOpen, setIsDirectSettleOpen] = useState(false)
   const [directSettleId, setDirectSettleId] = useState<string | null>(null)
@@ -257,12 +166,6 @@ export default function FinanceHubPage() {
 
   
   // --- DATA FILTERING ---
-  const needsTransfer = purchases.filter(p => {
-    const items = purchaseItems.filter(pi => pi.purchaseId === p.id)
-    const hasMarketItems = items.some(pi => pi.purchaseMethod === 'Pasar' || !pi.purchaseMethod)
-    return p.status === 'Pending' && !p.budgetTransferDate && hasMarketItems
-  })
-  
   const sourcingSettlements = purchases.filter(p => {
     // Show if money has been given (budgetTransferDate exists) 
     // AND it hasn't been finalized yet (reconciliationStatus !== 'Terverifikasi')
@@ -277,53 +180,6 @@ export default function FinanceHubPage() {
   const awaitingDeliveryAudit = deliveries.filter(d => d.status === 'Awaiting Audit')
 
   // --- ACTIONS ---
-  const handleTransferBudget = async (purchaseId: string) => {
-    const lockKey = `transferBudget_${purchaseId}`
-    if (!acquireLock(lockKey)) return
-    try {
-    const purchaserId = selectedPurchasers[purchaseId]
-    const spareAmount = spareAmounts[purchaseId] || 0
-    if (!purchaserId) return toast.error("Pilih penerima dana terlebih dahulu.")
-
-    const items = purchaseItems.filter(pi => pi.purchaseId === purchaseId && pi.purchaseMethod === 'Pasar')
-    const itemsBudget = items.reduce((sum, item) => {
-      const product = products.find(p => p.id === item.productId)
-      const estPrice = item.estimatedUnitPrice || product?.basePrice || 0
-      return sum + (estPrice * item.qtyTarget)
-    }, 0)
-
-    const totalTransferAmount = itemsBudget + spareAmount
-    if (totalTransferAmount <= 0) return toast.error("Total pencairan tidak bisa Rp 0.")
-
-    const bank = bankAccounts.find(b => b.id === selectedBank)
-    if (!bank) return toast.error("Pilih rekening sumber.")
-    if (bank.balance < totalTransferAmount) {
-      toast.warning("Peringatan: Saldo rekening sumber tidak mencukupi. Meneruskan dengan saldo negatif.")
-    }
-
-    const now = new Date().toISOString()
-    const user = users.find(u => u.id === purchaserId)
-    
-    toast.loading("Memproses transfer dana...", { id: "transfer-PO" })
-    const success = await recordBudgetTransfer(purchaseId, totalTransferAmount, selectedBank, user?.name || 'Sourcing')
-
-    if (success) {
-      await updatePurchase(purchaseId, { 
-        status: 'Belanja', 
-        purchaserId, 
-        budgetAmount: itemsBudget, 
-        budgetTransferDate: now, 
-        budgetTransferedBy: currentUser?.id || 'system', 
-        budgetBankAccountId: selectedBank,
-        operationalSpareAmount: spareAmount
-      })
-      toast.success(`Dana ${formatRupiah(totalTransferAmount)} berhasil ditransfer ke Sourcer. Sesi belanja aktif!`, { id: "transfer-PO" })
-    } else {
-      toast.error("Gagal memproses transfer. Cek koneksi & database.", { id: "transfer-PO" })
-    }
-    } finally { releaseLock(lockKey) }
-  }
-
   const handleAuditExpense = async (expenseId: string, status: 'Approved' | 'Rejected') => {
     const lockKey = `auditExpense_${expenseId}`
     if (!acquireLock(lockKey)) return
@@ -861,9 +717,6 @@ export default function FinanceHubPage() {
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="bg-slate-100/80 p-2 h-16 rounded-[2rem] -mx-2 md:mx-0 mb-10 overflow-x-auto overflow-y-hidden justify-start md:justify-center border border-white scrollbar-hide">
-            <TabsTrigger value="pencairan" className="rounded-[1.5rem] font-black uppercase text-[9px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-xl transition-all gap-2">
-              <Wallet className="w-4 h-4 text-emerald-500" /> Advance ({needsTransfer.length})
-            </TabsTrigger>
             <TabsTrigger value="settlement" className="rounded-[1.5rem] font-black uppercase text-[9px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-xl transition-all gap-2">
               <CheckCircle2 className="w-4 h-4 text-orange-500" /> Sourcing Settlement ({sourcingSettlements.length + pendingReturns.length})
             </TabsTrigger>
@@ -877,163 +730,6 @@ export default function FinanceHubPage() {
               <Truck className="w-4 h-4 text-blue-500" /> Delivery ({awaitingDeliveryAudit.length})
             </TabsTrigger>
           </TabsList>
-
-          <TabsContent value="pencairan" className="space-y-6">
-            {needsTransfer.length === 0 ? (
-              <EmptyState title="Antrean Advance Kosong" desc="Semua request advance belanja sudah ditransfer dananya." />
-            ) : (
-              <div className="grid gap-6">
-                {needsTransfer.map(purchase => {
-                  const items = purchaseItems.filter(pi => pi.purchaseId === purchase.id && pi.purchaseMethod === 'Pasar')
-                  const totalBudget = items.reduce((sum, item) => {
-                    const product = products.find(p => p.id === item.productId)
-                    const unitPrice = item.estimatedUnitPrice || product?.basePrice || 0
-                    return sum + (unitPrice * item.qtyTarget)
-                  }, 0)
-                  return (
-                    <Card key={purchase.id} className="border-none shadow-xl rounded-[2.5rem] overflow-hidden bg-white">
-                      <div className="flex flex-col xl:flex-row items-stretch">
-                        <div className="xl:w-1/3 p-8 bg-slate-950 text-white flex flex-col justify-between">
-                           <div className="space-y-6">
-                              <Badge className="bg-emerald-500/20 text-emerald-400 border-none font-black text-[9px] px-3">ADVANCE REQUEST</Badge>
-                               {(() => {
-                                const linkedPR = purchaseRequests.find(pr => pr.id === purchase.purchaseRequestId)
-                                const opsAmount = spareAmounts[purchase.id] || 0
-                                const totalAdvance = totalBudget + opsAmount
-                                // Calculate how much of this PR has been used by OTHER advances already
-                                const prUsedByOthers = linkedPR ? purchases
-                                  .filter(p => p.purchaseRequestId === linkedPR.id && p.id !== purchase.id && p.budgetTransferDate)
-                                  .reduce((sum, p) => sum + (p.budgetAmount || 0) + (p.operationalSpareAmount || 0), 0) : 0
-                                const prRemaining = linkedPR ? linkedPR.amount - prUsedByOthers - totalAdvance : 0
-
-                                return linkedPR ? (
-                                  <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-3 py-3 space-y-2">
-                                    <p className="text-[9px] font-black uppercase tracking-widest text-emerald-400 mb-0.5">PR Dasar Pengeluaran</p>
-                                    <p className="text-xs font-black text-white truncate">{linkedPR.title}</p>
-                                    <div className="pt-2 border-t border-emerald-500/20 space-y-1.5">
-                                      <div className="flex justify-between items-center">
-                                        <span className="text-[9px] font-bold text-slate-400 uppercase">Budget Disetujui CFO</span>
-                                        <span className="text-sm font-black text-emerald-400">{formatRupiah(linkedPR.amount)}</span>
-                                      </div>
-                                      {prUsedByOthers > 0 && (
-                                        <div className="flex justify-between items-center">
-                                          <span className="text-[9px] font-bold text-slate-500 uppercase">Sudah Terpakai (ADV lain)</span>
-                                          <span className="text-[10px] font-black text-amber-400">-{formatRupiah(prUsedByOthers)}</span>
-                                        </div>
-                                      )}
-                                      <div className="flex justify-between items-center">
-                                        <span className="text-[9px] font-bold text-slate-400 uppercase">RAB HPP Belanja</span>
-                                        <span className="text-[10px] font-black text-white">-{formatRupiah(totalBudget)}</span>
-                                      </div>
-                                      {opsAmount > 0 && (
-                                        <div className="flex justify-between items-center">
-                                          <span className="text-[9px] font-bold text-slate-400 uppercase">+ Ops Sourcing</span>
-                                          <span className="text-[10px] font-black text-white">-{formatRupiah(opsAmount)}</span>
-                                        </div>
-                                      )}
-                                      <div className="flex justify-between items-center pt-1.5 border-t border-emerald-500/20">
-                                        <span className="text-[9px] font-black text-white uppercase">Sisa Budget PR</span>
-                                        <span className={`text-sm font-black ${prRemaining >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                          {prRemaining >= 0 ? formatRupiah(prRemaining) : `-${formatRupiah(Math.abs(prRemaining))}`}
-                                        </span>
-                                      </div>
-                                    </div>
-                                    {prRemaining < 0 && (
-                                      <div className="rounded-lg bg-rose-500/20 border border-rose-500/30 px-2 py-1.5 mt-1">
-                                        <p className="text-[9px] font-black text-rose-300 uppercase">⚠ Advance melebihi budget PR sebesar {formatRupiah(Math.abs(prRemaining))}</p>
-                                      </div>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 px-3 py-2">
-                                    <p className="text-[9px] font-black uppercase tracking-widest text-amber-400">⚠ Tidak ada PR terkait</p>
-                                  </div>
-                                )
-                              })()}
-                              <div>
-                                 <h3 className="text-3xl font-black tracking-tighter uppercase mb-2">{purchase.advanceCode || `ADV-${purchase.id.slice(0,8)}`}</h3>
-                                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Ref: {purchase.id.slice(0,8)}</p>
-                                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">RAB + Ops Advance</p>
-                                 <p className="text-4xl font-black text-white mt-1 leading-none tracking-tighter">{formatRupiah(totalBudget + (spareAmounts[purchase.id] || 0))}</p>
-                              </div>
-                           </div>
-                           <div className="mt-12 space-y-4">
-                              <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-4">
-                                 <div>
-                                    <label className="text-[9px] font-black uppercase text-slate-400 mb-2 block">Pilih Penanggung Jawab Sourcing</label>
-                                    <select 
-                                      className="w-full h-12 bg-white/10 rounded-xl px-4 text-sm font-bold focus:bg-white focus:text-slate-900 transition-all outline-none"
-                                      value={selectedPurchasers[purchase.id] || ''}
-                                      onChange={(e) => setSelectedPurchasers({...selectedPurchasers, [purchase.id]: e.target.value})}
-                                    >
-                                       <option value="">-- Pilih Sourcing --</option>
-                                        {users.filter(u => u.role === 'sourcing').map(u => (
-                                           <option key={u.id} value={u.id} className="text-slate-900">{u.name}</option>
-                                        ))}
-                                    </select>
-                                 </div>
-                                 <div>
-                                    <label className="text-[9px] font-black uppercase text-slate-400 mb-2 block">Tambahkan Operasional Sourcing</label>
-                                    <input 
-                                      type="number" 
-                                      className="w-full h-12 bg-white/10 rounded-xl px-4 text-sm font-bold focus:bg-white focus:text-slate-900 transition-all outline-none"
-                                      placeholder="Rp 0"
-                                      onChange={(e) => setSpareAmounts({...spareAmounts, [purchase.id]: parseFloat(e.target.value) || 0})}
-                                    />
-                                 </div>
-                              </div>
-                              <Button
-                                className="w-full h-16 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black uppercase"
-                                onClick={() => handleTransferBudget(purchase.id)}
-                              >
-                                <Send className="w-5 h-5 mr-3" /> Transfer Advance
-                              </Button>
-                              <Button
-                                variant="outline"
-                                className="w-full h-12 rounded-2xl border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 font-black uppercase text-[10px] tracking-widest"
-                                onClick={() => handleDeleteAdvance(purchase.id)}
-                                disabled={isDeletingAdvance === purchase.id}
-                              >
-                                {isDeletingAdvance === purchase.id ? (
-                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                ) : (
-                                  <Trash2 className="w-4 h-4 mr-2" />
-                                )}
-                                {isDeletingAdvance === purchase.id ? 'Menghapus...' : 'Hapus Advance'}
-                              </Button>
-                           </div>
-                        </div>
-                        <div className="xl:w-2/3 p-8 border-l border-slate-50">
-                           <div className="flex flex-col gap-1 mb-6">
-                              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">RAB List Belanja ({items.length} item)</h4>
-                              <p className="text-xs font-bold text-slate-500">Finance bisa cek estimasi item sebelum menentukan advance + operasional.</p>
-                           </div>
-                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              {items.map(item => {
-                                 const product = products.find(p => p.id === item.productId)
-                                 const so = item.salesOrderId ? salesOrders.find(order => order.id === item.salesOrderId) : null
-                                 const subtotal = (item.estimatedUnitPrice || product?.basePrice || 0) * item.qtyTarget
-                                 return (
-                                    <div key={item.id} className="flex items-center gap-4 p-4 rounded-3xl bg-slate-50 border border-slate-100 hover:bg-white transition-all">
-                                       <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center font-black text-slate-300">📦</div>
-                                       <div className="min-w-0 flex-1">
-                                          <p className="text-xs font-black text-slate-800 uppercase leading-none mb-1">{product?.name}</p>
-                                          <p className="text-[10px] font-bold text-slate-400 uppercase">{item.qtyTarget} {product?.uom} @ {formatRupiah(item.estimatedUnitPrice)}</p>
-                                          <p className="text-[10px] font-black text-emerald-600 uppercase mt-1">{formatRupiah(subtotal)}</p>
-                                          {so && <p className="text-[9px] font-bold text-slate-400 uppercase mt-1 truncate">PO: {so.poNumber}</p>}
-                                       </div>
-                                    </div>
-                                 )
-                              })}
-                           </div>
-                        </div>
-                      </div>
-                    </Card>
-                  )
-                })}
-              </div>
-            )}
-          </TabsContent>
 
           <TabsContent value="audit_ops_lain" className="space-y-6">
             {pendingExpensesLain.length === 0 && pendingReimbs.length === 0 ? (
@@ -1199,7 +895,7 @@ export default function FinanceHubPage() {
                                           onValueChange={(v) => v && setReturnBankOverrides(prev => ({ ...prev, [exp.id]: v }))}
                                         >
                                           <SelectTrigger className="h-10 rounded-2xl border-slate-200 font-bold text-xs">
-                                            <SelectValue placeholder="Pilih bank..." />
+                                            <SelectValue placeholder="Pilih bank...">{(returnBankOverrides[exp.id] ?? exp.targetBankAccountId ?? selectedBank) ? bankAccounts.find(b => b.id === (returnBankOverrides[exp.id] ?? exp.targetBankAccountId ?? selectedBank))?.name : undefined}</SelectValue>
                                           </SelectTrigger>
                                           <SelectContent>
                                             {bankAccounts.filter(b => b.id !== sourceWallet?.bankAccountId).map(b => (
