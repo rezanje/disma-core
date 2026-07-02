@@ -122,9 +122,13 @@ export default function ShoppingListPage() {
     })
     setIsAddVendorOpen(false)
   }
-  const [manualItems, setManualItems] = useState<Array<{id: string, productId: string, qty: number, price: number}>>(() => {
+  const [manualItems, setManualItems] = useState<Array<{id: string, productId: string, qty: number, price: number, source: 'manual' | 'susulan'}>>(() => {
     if (typeof window === 'undefined') return []
-    try { return JSON.parse(localStorage.getItem('shopping_manualItems') || '[]') } catch { return [] }
+    try {
+      const raw = JSON.parse(localStorage.getItem('shopping_manualItems') || '[]')
+      // Older entries had no `source`; default them to 'manual'.
+      return raw.map((it: any) => ({ ...it, source: it.source === 'susulan' ? 'susulan' : 'manual' }))
+    } catch { return [] }
   })
   const [customPrices, setCustomPrices] = useState<Record<string, number>>(() => {
     if (typeof window === 'undefined') return {}
@@ -165,10 +169,6 @@ export default function ShoppingListPage() {
     try { return new Set(JSON.parse(localStorage.getItem('shopping_stockBookedProductIds') || '[]')) } catch { return new Set() }
   })
   const [manualPurchaseMethod, setManualPurchaseMethod] = useState<'Pasar' | 'Online'>('Pasar')
-  const [shoppingDate, setShoppingDate] = useState(() => {
-    if (typeof window === 'undefined') return ''
-    return localStorage.getItem('shopping_shoppingDate') || ''
-  })
   const [filterDeliveryDate, setFilterDeliveryDate] = useState(() => {
     if (typeof window === 'undefined') return ''
     return localStorage.getItem('shopping_filterDeliveryDate') || ''
@@ -196,13 +196,12 @@ export default function ShoppingListPage() {
   useEffect(() => { localStorage.setItem('shopping_onlineProductIds', JSON.stringify(Array.from(onlineProductIds))) }, [onlineProductIds])
   useEffect(() => { localStorage.setItem('shopping_transferProductIds', JSON.stringify(Array.from(transferProductIds))) }, [transferProductIds])
   useEffect(() => { localStorage.setItem('shopping_stockBookedProductIds', JSON.stringify(Array.from(stockBookedProductIds))) }, [stockBookedProductIds])
-  useEffect(() => { localStorage.setItem('shopping_shoppingDate', shoppingDate) }, [shoppingDate])
   useEffect(() => { localStorage.setItem('shopping_filterDeliveryDate', filterDeliveryDate) }, [filterDeliveryDate])
   useEffect(() => { localStorage.setItem('shopping_lastGeneratedDoc', JSON.stringify(lastGeneratedDoc)) }, [lastGeneratedDoc])
 
   // State Snapshot history for undoing actions
   const [history, setHistory] = useState<Array<{
-    manualItems: Array<{id: string, productId: string, qty: number, price: number}>;
+    manualItems: Array<{id: string, productId: string, qty: number, price: number, source: 'manual' | 'susulan'}>;
     customPrices: Record<string, number>;
     customQtys: Record<string, number>;
     vendorAssignments: Record<string, string>;
@@ -393,10 +392,9 @@ export default function ShoppingListPage() {
       // Draft = belum diapprove; Belanja = sudah "Go to Sourcing", siap dibelanjakan.
       // Keduanya valid untuk dikompilasi selama belum masuk dokumen belanja.
       .filter(so => (so.status === 'Draft' || so.status === 'Belanja') && !so.shoppingListCompiledAt)
-      .filter(so => !shoppingDate || toDateInputValue(so.orderDate) === shoppingDate)
       .filter(so => !filterDeliveryDate || toDateInputValue(so.targetDeliveryDate) === filterDeliveryDate)
       .sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime())
-  }, [salesOrders, shoppingDate, filterDeliveryDate])
+  }, [salesOrders, filterDeliveryDate])
   const candidateSOKey = candidateSOs.map(so => so.id).join('|')
 
   // PR Approved bisa dipakai untuk banyak Shopping List — tidak ada batasan 1:1
@@ -507,7 +505,7 @@ export default function ShoppingListPage() {
 
     setManualItems(prev => [
       ...prev,
-      { id: uuidv4(), productId: selectedProductId, qty: manualQty, price: manualPrice }
+      { id: uuidv4(), productId: selectedProductId, qty: manualQty, price: manualPrice, source: 'manual' }
     ])
 
     // Update global purchase method preference for this product
@@ -539,7 +537,7 @@ export default function ShoppingListPage() {
     const manualId = uuidv4()
     setManualItems(prev => [
       ...prev,
-      { id: manualId, productId: reject.productId, qty: reject.qty, price: product?.basePrice || 0 }
+      { id: manualId, productId: reject.productId, qty: reject.qty, price: product?.basePrice || 0, source: 'susulan' }
     ])
     
     // Mark reject ID as compiled locally
@@ -660,6 +658,11 @@ export default function ShoppingListPage() {
       // Reset local compiledRejectIds state
       setCompiledRejectIds(new Set())
       localStorage.setItem('shopping_compiledRejectIds', '[]')
+
+      // Manual + susulan stock items were folded into this document too, so clear
+      // them like the PO items (which drop out via shoppingListCompiledAt). The
+      // persist effect syncs localStorage.
+      setManualItems([])
 
       setSelectedPRId('')
       // Clear "from stock" selections that were just processed into bookings.
@@ -941,18 +944,6 @@ export default function ShoppingListPage() {
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                     <div className="flex flex-wrap gap-3">
                       <div className="grid gap-2">
-                        <Label htmlFor="shopping-date" className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                          Filter Tanggal PO
-                        </Label>
-                        <Input
-                          id="shopping-date"
-                          type="date"
-                          value={shoppingDate}
-                          onChange={(e) => setShoppingDate(e.target.value)}
-                          className="h-11 w-full rounded-xl border-slate-200 font-black text-slate-700 lg:w-[200px]"
-                        />
-                      </div>
-                      <div className="grid gap-2">
                         <Label htmlFor="filter-delivery-date" className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                           Filter Tanggal Kirim
                         </Label>
@@ -969,8 +960,8 @@ export default function ShoppingListPage() {
                       <Button
                         variant="ghost"
                         className="h-10 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-400"
-                        disabled={!shoppingDate && !filterDeliveryDate}
-                        onClick={() => { setShoppingDate(''); setFilterDeliveryDate('') }}
+                        disabled={!filterDeliveryDate}
+                        onClick={() => { setFilterDeliveryDate('') }}
                       >
                         Semua Tanggal
                       </Button>
@@ -1291,7 +1282,8 @@ export default function ShoppingListPage() {
                             id: uuidv4(),
                             productId: item.productId,
                             qty: item.qty,
-                            price: product?.basePrice || 0
+                            price: product?.basePrice || 0,
+                            source: 'susulan'
                           })
                           nextCompiled.add(item.id)
                         })
@@ -1517,6 +1509,18 @@ export default function ShoppingListPage() {
                                       <TableCell className="font-medium leading-tight">
                                         <div className="flex flex-col gap-1 w-full max-w-[200px] whitespace-normal">
                                           <span className="text-xs">{item.productName}</span>
+                                          {(() => {
+                                            const cat = item.salesOrderId
+                                              ? { label: 'PO', cls: 'bg-indigo-100 text-indigo-700' }
+                                              : manualItems.find(mi => mi.productId === item.productId)?.source === 'susulan'
+                                                ? { label: 'Susulan', cls: 'bg-orange-100 text-orange-700' }
+                                                : { label: 'Manual', cls: 'bg-slate-200 text-slate-600' }
+                                            return (
+                                              <span className={cn("w-fit text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded", cat.cls)}>
+                                                {cat.label}
+                                              </span>
+                                            )
+                                          })()}
                                            {(() => {
                                              const alreadyBought = rekapPOByProduct[item.productId] || 0
                                              if (alreadyBought <= 0) return null
@@ -1767,148 +1771,6 @@ export default function ShoppingListPage() {
                   })()}
                 </div>
 
-                {manualItems.length > 0 && (
-                  <div className="space-y-2 p-3 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-lg border border-emerald-100 dark:border-emerald-900/50">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-emerald-500">
-                      Item Belanja Manual (Antrean Produk)
-                    </Label>
-                    <div className="grid gap-2">
-                      {manualItems.map(item => {
-                        const product = products.find(p => p.id === item.productId)
-                        const purchaseMethod = transferProductIds.has(item.productId)
-                          ? 'Transfer'
-                          : onlineProductIds.has(item.productId)
-                            ? 'Online'
-                            : 'Pasar';
-
-                        return (
-                          <div key={item.id} className="flex flex-col sm:flex-row sm:items-center justify-between text-sm bg-white dark:bg-slate-900 p-3 rounded-xl border shadow-sm group gap-3">
-                            <div className="flex flex-col min-w-[200px]">
-                              <span className="font-semibold text-slate-800 dark:text-slate-200">{product?.name}</span>
-                              <span className="text-[10px] text-slate-400 font-medium">{product?.skuCode}</span>
-                            </div>
-
-                            <div className="flex flex-wrap items-center gap-4">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Vendor:</span>
-                                {stockBookedProductIds.has(item.productId) ? (
-                                  <span className="text-[10px] font-black uppercase bg-slate-100 text-slate-600 px-2 py-1 rounded inline-flex items-center gap-1" title="Barang diambil dari Gudang">
-                                    <Warehouse className="w-3.5 h-3.5 text-slate-500" /> Gudang
-                                  </span>
-                                ) : (
-                                  <div className="flex items-center gap-1">
-                                    <select
-                                      className="text-[10px] p-1 border rounded bg-slate-50 text-slate-700 dark:bg-slate-800 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-emerald-500 min-w-[130px]"
-                                      value={vendorAssignments[item.productId] || ''}
-                                      onChange={(e) => {
-                                        saveToHistory();
-                                        setVendorAssignments(prev => {
-                                          const next = { ...prev };
-                                          if (e.target.value) next[item.productId] = e.target.value;
-                                          else delete next[item.productId];
-                                          return next;
-                                        });
-                                      }}
-                                    >
-                                      <option value="">-- Pilih --</option>
-                                      {vendors.map(v => (
-                                        <option key={v.id} value={v.id}>{v.companyName}</option>
-                                      ))}
-                                    </select>
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      type="button"
-                                      onClick={() => {
-                                        setAutoAssignProductId(item.productId)
-                                        setIsAddVendorOpen(true)
-                                      }}
-                                      className="h-7 w-7 p-0 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md border border-slate-200 shrink-0"
-                                      title="Tambah Vendor Baru"
-                                    >
-                                      <Plus className="h-3.5 w-3.5 text-slate-500" />
-                                    </Button>
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* Purchase Method Toggles */}
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Metode:</span>
-                                <div className="flex items-center gap-1">
-                                  {/* Button Pasar */}
-                                  <button
-                                    onClick={() => selectPasar(item.productId)}
-                                    className={cn(
-                                      "p-1.5 rounded-lg border transition-all flex items-center justify-center hover:scale-105",
-                                      purchaseMethod === 'Pasar' && !stockBookedProductIds.has(item.productId)
-                                        ? "bg-emerald-50 border-emerald-200 text-emerald-600 dark:bg-emerald-950/40 dark:border-emerald-900 ring-2 ring-emerald-100"
-                                        : "bg-slate-50 border-slate-200 text-slate-400 dark:bg-slate-800 dark:border-slate-700"
-                                    )}
-                                    title="Pindah ke Beli di Pasar"
-                                  >
-                                    <div className="relative flex items-center justify-center w-4 h-4">
-                                      <Store className="w-4 h-4" />
-                                      <div className="absolute -bottom-1 -right-1 flex bg-white/80 dark:bg-slate-800 rounded-full p-[0.5px]">
-                                        <Carrot className="w-2.5 h-2.5 text-orange-500" />
-                                      </div>
-                                    </div>
-                                  </button>
-
-                                  {/* Button Online */}
-                                  <button
-                                    onClick={() => selectOnline(item.productId)}
-                                    className={cn(
-                                      "p-1.5 rounded-lg border transition-all flex items-center justify-center hover:scale-105",
-                                      purchaseMethod === 'Online' && !stockBookedProductIds.has(item.productId)
-                                        ? "bg-blue-50 border-blue-200 text-blue-600 dark:bg-blue-950/40 dark:border-blue-900 ring-2 ring-blue-100"
-                                        : "bg-slate-50 border-slate-200 text-slate-400 dark:bg-slate-800 dark:border-slate-700"
-                                    )}
-                                    title="Pindah ke Beli Online"
-                                  >
-                                    <div className="relative flex items-center justify-center w-4 h-4">
-                                      <Laptop className="w-4 h-4" />
-                                      <ShoppingCart className="w-2 h-2 absolute top-[2px]" />
-                                    </div>
-                                  </button>
-
-                                  {/* Button Transfer */}
-                                  <button
-                                    onClick={() => selectTransfer(item.productId)}
-                                    className={cn(
-                                      "p-1.5 rounded-lg border transition-all flex items-center justify-center hover:scale-105",
-                                      purchaseMethod === 'Transfer' && !stockBookedProductIds.has(item.productId)
-                                        ? "bg-purple-50 border-purple-200 text-purple-600 dark:bg-purple-950/40 dark:border-purple-900 ring-2 ring-purple-100"
-                                        : "bg-slate-50 border-slate-200 text-slate-400 dark:bg-slate-800 dark:border-slate-700"
-                                    )}
-                                    title="Transfer: dibayar finance"
-                                  >
-                                    <div className="relative flex items-center justify-center w-4 h-4">
-                                      <ArrowRightLeft className="w-4 h-4" />
-                                      <CircleDollarSign className="w-2.5 h-2.5 text-amber-500 absolute -top-1 -right-1 bg-white dark:bg-slate-800 rounded-full" />
-                                    </div>
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-3 ml-auto sm:ml-0">
-                              <span className="font-bold text-emerald-600">{item.qty} {product?.uom}</span>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="h-7 w-7 text-rose-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
-                                onClick={() => handleRemoveManualItem(item.id)}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )}
                 
                 {/* PR Selector — opsional sebelum compile */}
                 <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 mt-4">
