@@ -55,7 +55,7 @@ import {
 import { format } from "date-fns"
 import { Printer } from "lucide-react"
 import { toast } from "sonner"
-import { generateDocumentNumber, updateProductPriceHistory } from "@/lib/accounting"
+import { generateDocumentNumber, updateProductPriceHistory, finalizeSalesOrderDelivery } from "@/lib/accounting"
 import { generateSuratJalan, generateBA } from "@/lib/pdf"
 import {
   Popover,
@@ -799,6 +799,21 @@ export default function SalesOrdersPage() {
       currentStatus === 'Packing' ? 'Dikirim' :
       currentStatus === 'Siap Kirim' ? 'Dikirim' :
       currentStatus === 'Dikirim' ? 'Terkirim' : currentStatus;
+
+    // Reaching Terkirim must finalize like the finance delivery audit: create the
+    // invoice, book omzet + HPP, and deduct stock. Otherwise this manual shortcut
+    // leaves a delivered order with no invoice (Tukar Faktur stays empty).
+    if (nextStatus === 'Terkirim' && currentStatus !== 'Terkirim') {
+      toast.loading("Finalisasi pengiriman & invoice...", { id: `ship-${soId}` })
+      const ok = await finalizeSalesOrderDelivery(soId)
+      if (!ok) {
+        toast.error("Gagal finalisasi pengiriman ke jurnal.", { id: `ship-${soId}` })
+        return
+      }
+      await updateSalesOrder(soId, { status: 'Terkirim' })
+      toast.success("Terkirim! Invoice, omzet, HPP & stok tercatat.", { id: `ship-${soId}` })
+      return
+    }
 
     updateSalesOrder(soId, { status: nextStatus as SalesOrderStatus })
 

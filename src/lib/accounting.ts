@@ -660,6 +660,78 @@ export const recordDeliveryAndInvoice = async (
   return true;
 };
 
+// Finalize a delivered sales order the same way the finance delivery audit does:
+// ensure an invoice + delivery exist, then book revenue, HPP and deduct stock.
+// Used by the manual "Dikirim -> Terkirim" shortcut so it stops skipping the
+// books (previously it only flipped status → no invoice, no omzet/HPP, no stock,
+// so Tukar Faktur had nothing to pull). Idempotent: recordDeliveryAndInvoice
+// dup-guards on the invoice, so re-running (e.g. after courier already booked)
+// is a no-op. Wrapped as one undo batch.
+export const finalizeSalesOrderDelivery = async (soId: string) => {
+  const store = useAppStore.getState();
+  const so = store.salesOrders.find(s => s.id === soId);
+  if (!so) return false;
+
+  const soItems = store.salesOrderItems.filter(i => i.salesOrderId === soId);
+  const totalRevenue = soItems.reduce((sum, item) => sum + ((item.qtyFinal ?? item.qty) * item.unitPrice), 0);
+
+  const existingInvoice = store.invoices.find(inv => inv.salesOrderId === soId);
+  const existingDelivery = store.deliveries.find(d => d.salesOrderId === soId);
+
+  store.beginUndoableBatch();
+  try {
+    let invoiceId = existingInvoice?.id;
+    if (!invoiceId) {
+      invoiceId = uuidv4();
+      await store.addInvoice({
+        id: invoiceId,
+        salesOrderId: soId,
+        clientId: so.clientId || '',
+        issueDate: new Date().toISOString(),
+        dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+        totalAmount: totalRevenue,
+        amountPaid: 0,
+        status: 'Unpaid',
+      });
+    }
+
+    let deliveryId = existingDelivery?.id;
+    if (!deliveryId) {
+      deliveryId = uuidv4();
+      await store.addDelivery({
+        id: deliveryId,
+        salesOrderId: soId,
+        courierId: '',
+        status: 'Terkirim',
+        deliveryDate: new Date().toISOString(),
+        invoiceId,
+        notes: 'Manual ship (PO page)',
+      });
+    }
+
+    let totalCogs = 0;
+    const stockDeductionItems: { productId: string; qty: number }[] = [];
+    soItems.forEach(item => {
+      const finalQty = item.qtyFinal ?? item.qty;
+      let pItem = store.purchaseItems.find(pi => pi.salesOrderId === soId && pi.productId === item.productId && pi.actualUnitPrice > 0);
+      if (!pItem) pItem = store.purchaseItems.filter(pi => pi.productId === item.productId && pi.actualUnitPrice > 0).pop();
+      const unitCogs = pItem ? pItem.actualUnitPrice : (store.products.find(p => p.id === item.productId)?.basePrice || 0);
+      totalCogs += unitCogs * finalQty;
+      stockDeductionItems.push({ productId: item.productId, qty: finalQty });
+    });
+
+    const ok = await recordDeliveryAndInvoice(deliveryId, invoiceId, totalRevenue, totalCogs, stockDeductionItems, false);
+    if (!ok) return false;
+
+    if (existingDelivery && existingDelivery.status !== 'Terkirim') {
+      await store.updateDelivery(deliveryId, { status: 'Terkirim' });
+    }
+    return true;
+  } finally {
+    store.endUndoableBatch();
+  }
+};
+
 export const recordManualReceivable = async (invoiceId: string, amount: number, date: string) => {
   const store = useAppStore.getState();
 
