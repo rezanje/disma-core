@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useAppStore } from "@/lib/store"
-import { recordOnlinePurchase, recordVendorTransferPurchase } from "@/lib/accounting"
+import { recordOnlinePurchase, recordVendorTransferBulk } from "@/lib/accounting"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -59,16 +59,19 @@ export default function OnlinePurchasePage() {
     const loadingId = toast.loading('Memproses transfer vendor...')
     try {
       const ref = `TRF-${Date.now().toString().slice(-6)}`
-      for (const id of Array.from(transferSelected)) {
-        const pi = transferItems.find(t => t.id === id)
-        if (!pi) continue
-        const amount = (pi.estimatedUnitPrice || pi.product?.basePrice || 0) * (pi.qtyTarget || 0)
-        const ok = await recordVendorTransferPurchase(
-          pi.id, amount, pi.product?.name || 'Item', transferVendorId, vendor?.companyName || 'Vendor', transferBankId, ref
-        )
-        if (!ok) throw new Error(`Gagal mencatat transfer untuk item ${pi.id}`)
-      }
-      toast.success('Transfer vendor tercatat ke ledger.', { id: loadingId })
+      const items = Array.from(transferSelected)
+        .map(id => transferItems.find(t => t.id === id))
+        .filter((pi): pi is NonNullable<typeof pi> => !!pi)
+        .map(pi => ({
+          itemId: pi.id,
+          amount: (pi.estimatedUnitPrice || pi.product?.basePrice || 0) * (pi.qtyTarget || 0),
+        }))
+      // Same vendor + same bank → one combined transfer, not one per SKU.
+      const ok = await recordVendorTransferBulk(
+        items, transferVendorId, vendor?.companyName || 'Vendor', transferBankId, ref
+      )
+      if (!ok) throw new Error('Gagal mencatat transfer vendor.')
+      toast.success('Transfer vendor tercatat ke ledger (1 transaksi).', { id: loadingId })
       setTransferSelected(new Set()); setTransferVendorId(''); setTransferBankId('')
     } catch (e) {
       toast.error(`Gagal: ${e instanceof Error ? e.message : String(e)}`, { id: loadingId })
@@ -416,7 +419,7 @@ export default function OnlinePurchasePage() {
                   </SelectContent>
                 </Select>
                 <Select value={transferBankId} onValueChange={(v) => setTransferBankId(v ?? '')}>
-                  <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="-- Rekening --" /></SelectTrigger>
+                  <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="-- Rekening --">{transferBankId ? bankAccounts.find(b => b.id === transferBankId)?.name : undefined}</SelectValue></SelectTrigger>
                   <SelectContent>
                     {bankAccounts.map(b => (<SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>))}
                   </SelectContent>

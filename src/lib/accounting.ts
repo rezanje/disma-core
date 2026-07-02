@@ -1329,37 +1329,39 @@ export const recordPRExpensePayment = async (
   return success;
 };
 
-/** Finance pays a vendor by transfer for a market item; sourcing only picks it up.
- *  Mirrors recordOnlinePurchase: books goods to AP-accrual, HPP finalized at QC. */
-export const recordVendorTransferPurchase = async (
-  itemId: string,
-  amount: number,
-  productName: string,
+// Bulk transfer to ONE vendor: a single bank movement (one journal + one cash
+// tx) for the summed total, instead of one transaction per SKU. Each item is
+// still marked paid and its price history updated. Wrapped as one undo batch.
+export const recordVendorTransferBulk = async (
+  items: { itemId: string; amount: number }[],
   vendorId: string,
   vendorName: string,
   bankAccountId: string,
   transferRef: string = ''
 ) => {
   const store = useAppStore.getState();
-  const total = Number(amount || 0);
-  const existing = store.purchaseItems.find(pi => pi.id === itemId);
-  if (existing?.isTransferPaid) {
-    console.warn(`[Accounting] Transfer purchase already recorded for item ${itemId}`);
-    return true;
-  }
+  const pending = items.filter(it => {
+    const ex = store.purchaseItems.find(pi => pi.id === it.itemId);
+    return ex && !ex.isTransferPaid;
+  });
+  if (pending.length === 0) return true;
 
+  const total = pending.reduce((s, it) => s + Number(it.amount || 0), 0);
   const bank = store.bankAccounts.find(b => b.id === bankAccountId);
   const bankAccountCode = bank?.accountCode || '1-1200';
+  const ref = transferRef || pending[0].itemId;
 
-  const success = await createAccountingEntry(
-    `Transfer Vendor: ${productName} (${vendorName}) - Ref: ${itemId.slice(0, 8)}`,
-    'Purchase',
-    itemId,
-    [{ accountCode: '2-1100', amount: total }],
-    [{ accountCode: bankAccountCode, amount: total }]
-  );
+  store.beginUndoableBatch();
+  try {
+    const success = await createAccountingEntry(
+      `Transfer Vendor: ${pending.length} item (${vendorName}) - Ref: ${ref}`,
+      'Purchase',
+      ref,
+      [{ accountCode: '2-1100', amount: total }],
+      [{ accountCode: bankAccountCode, amount: total }]
+    );
+    if (!success) return false;
 
-  if (success) {
     if (total > 0) {
       await store.addCashTransaction({
         id: uuidv4(),
@@ -1367,23 +1369,30 @@ export const recordVendorTransferPurchase = async (
         amount: total,
         type: 'Out',
         category: 'Transfer Vendor',
-        description: `Transfer Vendor: ${productName} (${vendorName})`,
+        description: `Transfer Vendor: ${pending.length} item ke ${vendorName}`,
         bankAccountId,
         counterpartName: vendorName,
-        referenceId: itemId,
+        referenceId: ref,
         referenceType: 'Purchase',
       });
     }
-    const qty = existing?.qtyTarget || 1;
-    await store.updatePurchaseItem(itemId, {
-      isTransferPaid: true,
-      transferVendorId: vendorId,
-      vendorId,
-      transferRef,
-      actualUnitPrice: total / qty,
-    });
-    const product = store.products.find(p => p.id === existing?.productId);
-    if (product) updateProductPriceHistory(product.id, total / qty, 'Transfer Vendor');
+
+    for (const it of pending) {
+      const ex = store.purchaseItems.find(pi => pi.id === it.itemId);
+      const qty = ex?.qtyTarget || 1;
+      const amt = Number(it.amount || 0);
+      await store.updatePurchaseItem(it.itemId, {
+        isTransferPaid: true,
+        transferVendorId: vendorId,
+        vendorId,
+        transferRef: ref,
+        actualUnitPrice: amt / qty,
+      });
+      const product = store.products.find(p => p.id === ex?.productId);
+      if (product) updateProductPriceHistory(product.id, amt / qty, 'Transfer Vendor');
+    }
+    return true;
+  } finally {
+    store.endUndoableBatch();
   }
-  return success;
 };
