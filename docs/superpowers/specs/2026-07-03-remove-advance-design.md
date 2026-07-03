@@ -69,7 +69,22 @@ Consequences:
   'kurir' | 'umum', migration applied to prod `ckkohudfuisgzlrjipev`) +
   `BankAccountPurpose` type + purpose Select in Cash & Bank create/edit forms.
   Finance can now tag the real Bank Jago account as `purpose='sourcing'`.
-- **P2b NEXT** — rewire `sourcing/list` + `sourcing/expenses` to the real account:
+- **P2b–P3 DONE (code)** (2026-07-04, branch `docs/sourcing-pocket-daily-spec`):
+  implemented the daily self-serve pocket model per
+  [sourcing-pocket-daily spec](2026-07-03-sourcing-pocket-daily-design.md) +
+  [plan](../plans/2026-07-03-sourcing-pocket-daily.md). Shared Bank Jago pool
+  (`purpose='sourcing'`) + per-sourcer pocket (`purpose='sourcing_pocket'` +
+  `ownerUserId`); helpers `recordPocketWithdrawal`/`recordPocketReturn`/
+  `recordPocketPurchase`; "Kantong Hari Ini" panel (self-serve tarik + daily
+  Tutup Hari) replacing the derived tally on the top summary card; `TutupHariKantong`
+  marker + finance "Pantau Harian Sourcing" dashboard. NARROWED: the legacy
+  "Rekon Catatan" breakdown was kept as historical (not torn down). **PENDING:**
+  (1) apply migration `20260704000001_sourcing_pocket.sql` to prod DB, (2) tag the
+  real Bank Jago (`sourcing`) + create/tag each sourcer pocket in Cash & Bank so
+  DB rows carry `purpose`/`owner_user_id` (until then cash-tx sync reverts local
+  tags to stale DB rows), (3) live e2e once (1)+(2) done. Courier (P4) + dead-code
+  (P5) still pending.
+- **P2b original notes** — rewire `sourcing/list` + `sourcing/expenses` to the real account:
   - The sourcing wallet card currently shows a DERIVED tally
     (`totalAdvanceReceived` = Σ funded purchases; `totalHolding` = received −
     shop − expenses). Replace with the balance of the `purpose==='sourcing'`
