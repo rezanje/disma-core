@@ -240,9 +240,6 @@ export interface PurchaseItem {
   inboundVerifiedAt?: string;
   inboundVerifiedBy?: string;
   inboundNote?: string;
-  isTransferPaid?: boolean;
-  transferVendorId?: string;
-  transferRef?: string;
   expiryDate?: string;
 }
 
@@ -421,7 +418,7 @@ export interface Reimbursement {
   paymentReference?: string;
 }
 
-export type BankAccountPurpose = 'sourcing' | 'kurir' | 'umum';
+export type BankAccountPurpose = 'sourcing' | 'sourcing_pocket' | 'kurir' | 'umum';
 
 export interface BankAccount {
   id: string;
@@ -430,6 +427,22 @@ export interface BankAccount {
   accountCode?: string; // Linked COA
   balance: number;
   purpose?: BankAccountPurpose; // sourcing/courier pool designation (replaces Advance wallets)
+  ownerUserId?: string; // set only for purpose='sourcing_pocket': the sourcer who owns this pocket
+}
+
+/** Thin daily-close marker for a sourcer's cash pocket. NOT a money store —
+ * all money lives in CashTransactions; this snapshots the day and locks it. */
+export interface TutupHariKantong {
+  id: string;
+  sourcerId: string;       // user id of the sourcer
+  pocketBankAccountId: string;
+  date: string;            // 'YYYY-MM-DD' — the closed day
+  ditarik: number;         // Σ pocket-In from pool that day
+  belanja: number;         // Σ pocket-Out (purchases) that day
+  disetor: number;         // amount returned to pool at close
+  defisit: number;         // >0 if pocket went negative (personal cash covered a buy)
+  closedAt: string;        // ISO timestamp
+  closedBy: string;        // user id/name who closed
 }
 
 export interface CashTransaction {
