@@ -10,7 +10,8 @@ const DEFAULT_BANK_ACCOUNTS: BankAccount[] = [
   { id: 'bank-2', name: 'Mandiri (Ops)', accountNumber: '123000998877', accountCode: '1-1300', balance: 0 },
   { id: 'bank-3', name: 'BRI (Simpanan)', accountNumber: '001122334455', accountCode: '1-1000', balance: 0 },
   { id: 'bank-4', name: 'Petty Cash', accountCode: '1-1000', balance: 0 },
-  { id: 'bank-advance-sourcing', name: 'Kas Sourcing (Hilman)', accountCode: '1-1500', balance: 0 },
+  { id: 'bank-jago', name: 'Bank Jago', accountNumber: '', accountCode: '1-1400', balance: 0, purpose: 'sourcing' },
+  { id: 'bank-advance-sourcing', name: 'Kas Sourcing (Hilman)', accountCode: '1-1500', balance: 0, purpose: 'sourcing_pocket', ownerUserId: '22222222-2222-2222-2222-222222222222' },
   { id: 'bank-advance-courier', name: 'Kas Kurir (Rifai)', accountCode: '1-1510', balance: 0 },
 ];
 
