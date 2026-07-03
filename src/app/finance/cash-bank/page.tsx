@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { v4 as uuidv4 } from "uuid"
 import { createAccountingEntry } from "@/lib/accounting"
+import type { BankAccountPurpose } from "@/types"
 import { computeBankBalances } from "@/lib/bank-balance"
 import ReceiptUpload from "@/components/ui/receipt-upload"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -59,7 +60,7 @@ export default function CashAndBankPage() {
   const [isAddTxOpen, setIsAddTxOpen] = useState(false)
   const [isAddBankOpen, setIsAddBankOpen] = useState(false)
   const [editingBank, setEditingBank] = useState<any>(null)
-  const [bankForm, setBankForm] = useState({ name: '', number: '', balance: 0, accountCode: '1-1000' })
+  const [bankForm, setBankForm] = useState<{ name: string; number: string; balance: number; accountCode: string; purpose: BankAccountPurpose }>({ name: '', number: '', balance: 0, accountCode: '1-1000', purpose: 'umum' })
 
   const [txType, setTxType] = useState<'In' | 'Out' | 'Transfer'>('In')
   const [bankId, setBankId] = useState('')
@@ -130,7 +131,8 @@ export default function CashAndBankPage() {
         name: bankForm.name,
         accountNumber: bankForm.number,
         accountCode: bankForm.accountCode,
-        balance: bankForm.balance
+        balance: bankForm.balance,
+        purpose: bankForm.purpose
       })
 
       if (Number(bankForm.balance) > 0) {
@@ -162,7 +164,7 @@ export default function CashAndBankPage() {
       }
 
       setIsAddBankOpen(false)
-      setBankForm({ name: '', number: '', balance: 0, accountCode: '1-1000' })
+      setBankForm({ name: '', number: '', balance: 0, accountCode: '1-1000', purpose: 'umum' })
       toast.success(`${bankForm.name} berhasil didaftarkan!`, { id: loadingToast })
     } catch (e: any) {
       toast.error("Gagal mendaftarkan bank: " + e.message, { id: loadingToast })
@@ -243,6 +245,7 @@ export default function CashAndBankPage() {
         name: editingBank.name,
         accountNumber: editingBank.accountNumber,
         accountCode: editingBank.accountCode,
+        purpose: editingBank.purpose || 'umum',
         // Balance is NOT updated here because addCashTransaction already updated it
       })
       setEditingBank(null)
@@ -543,6 +546,19 @@ export default function CashAndBankPage() {
                                     {c.accountCode} - {c.accountName}
                                  </SelectItem>
                               ))}
+                           </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-1">
+                       <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 text-center block">Peruntukan Rekening</label>
+                        <Select value={bankForm.purpose} onValueChange={(val) => setBankForm({ ...bankForm, purpose: (val || 'umum') as BankAccountPurpose })}>
+                           <SelectTrigger className="h-12 rounded-xl text-center font-bold">
+                              <SelectValue />
+                           </SelectTrigger>
+                           <SelectContent>
+                              <SelectItem value="umum">Umum</SelectItem>
+                              <SelectItem value="sourcing">Kas Sourcing (kantong belanja)</SelectItem>
+                              <SelectItem value="kurir">Kas Kurir</SelectItem>
                            </SelectContent>
                         </Select>
                     </div>
@@ -859,6 +875,19 @@ export default function CashAndBankPage() {
                       {c.accountCode} - {c.accountName}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 text-center block">Peruntukan Rekening</label>
+              <Select value={editingBank?.purpose || 'umum'} onValueChange={(val) => setEditingBank({ ...editingBank, purpose: val || 'umum' })}>
+                <SelectTrigger className="h-12 rounded-xl text-center font-bold">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="umum">Umum</SelectItem>
+                  <SelectItem value="sourcing">Kas Sourcing (kantong belanja)</SelectItem>
+                  <SelectItem value="kurir">Kas Kurir</SelectItem>
                 </SelectContent>
               </Select>
             </div>

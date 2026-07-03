@@ -421,12 +421,15 @@ export interface Reimbursement {
   paymentReference?: string;
 }
 
+export type BankAccountPurpose = 'sourcing' | 'kurir' | 'umum';
+
 export interface BankAccount {
   id: string;
   name: string; // e.g., 'BCA - 1234567890', 'Petty Cash'
   accountNumber?: string;
   accountCode?: string; // Linked COA
   balance: number;
+  purpose?: BankAccountPurpose; // sourcing/courier pool designation (replaces Advance wallets)
 }
 
 export interface CashTransaction {
