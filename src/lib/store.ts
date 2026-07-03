@@ -7,7 +7,7 @@ import {
   BankAccount, CashTransaction, Reimbursement, FixedAsset,
   Employee, SmartKpi, OkrObjective, OkrKeyResult, RolePermissionMap, AccessKey, PendingReturn, RejectedItem, StockMovement, ClientPrice, ClientPriceTier,
   VendorBill, VendorBillPayment, TukarFaktur, PurchaseRequest, VendorPrice,
-  BudgetPlan, BudgetCategory, BudgetSubCategory, BudgetAdjustment, DisbursementRequest
+  BudgetPlan, BudgetCategory, BudgetSubCategory, BudgetAdjustment, DisbursementRequest, TutupHariKantong
 } from '@/types';
 import { COA_SEED, CLIENTS_SEED, VENDORS_SEED, MOCK_USERS, KPI_SEED } from './constants';
 import { PRODUCTS_SEED } from './products_seed';
@@ -430,6 +430,9 @@ interface AppState {
   addDisbursementRequest: (dr: DisbursementRequest) => Promise<void>;
   updateDisbursementRequest: (id: string, updates: Partial<DisbursementRequest>) => Promise<void>;
   deleteDisbursementRequest: (id: string) => Promise<void>;
+
+  tutupHariKantong: TutupHariKantong[];
+  addTutupHariKantong: (rec: TutupHariKantong) => Promise<void>;
 
   deliveries: Delivery[];
   addDelivery: (d: Delivery) => void;
@@ -1096,6 +1099,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             setIfDefined('purchaseItems', data.purchaseItems);
             setIfDefined('purchaseRequests', data.purchaseRequests);
             setIfDefined('disbursementRequests', data.disbursementRequests);
+            setIfDefined('tutupHariKantong', data.tutupHariKantong);
             setIfDefined('cashTransactions', data.cashTransactions);
             setIfDefined('journalEntries', data.journalEntries);
             setIfDefined('journalLines', data.journalLines);
@@ -1915,6 +1919,12 @@ export const useAppStore = create<AppState>((set, get) => ({
         } catch (e) {
           console.error("Failed to delete disbursement request from server:", e);
         }
+      },
+
+      tutupHariKantong: [],
+      addTutupHariKantong: async (rec) => {
+        set({ tutupHariKantong: [...get().tutupHariKantong, rec] });
+        await get().syncTable('tutup_hari_kantong', rec);
       },
 
 
