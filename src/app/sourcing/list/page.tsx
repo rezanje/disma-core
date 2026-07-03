@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { useAppStore } from "@/lib/store"
-import { getAdvanceWalletByUserId } from "@/lib/accounting"
+import { getAdvanceWalletByUserId, recordPocketPurchase } from "@/lib/accounting"
+import { computeBankBalances } from "@/lib/bank-balance"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -97,6 +98,12 @@ export default function SourcingDashboard() {
   }
 
   const bankAccounts = useAppStore(state => state.bankAccounts)
+  const cashTransactions = useAppStore(state => state.cashTransactions)
+
+  const derivedBanks = useMemo(() => computeBankBalances(bankAccounts, cashTransactions), [bankAccounts, cashTransactions])
+  const myPocket = derivedBanks.find(b => b.purpose === 'sourcing_pocket' && b.ownerUserId === currentUser?.id)
+  const pool = derivedBanks.find(b => b.purpose === 'sourcing')
+  const pocketBalance = myPocket?.balance ?? 0
 
   useEffect(() => {
     if (!returnTargetBank && bankAccounts.length > 0) {
@@ -260,9 +267,20 @@ export default function SourcingDashboard() {
           reconciliationStatus: 'Laporan Masuk',
           reconciliationProofUrl: proofImage || undefined
         })
+
+        if (myPocket) {
+          // Pocket cash spend = items paid Cash (not Tempo) and not Online (Online is
+          // paid from BCA by finance). Reuses pm()/lineTotal() so the active-item edit
+          // overrides apply — keeps this exactly consistent with pCashCost above.
+          const pocketSpend = pItems.reduce((sum, item) =>
+            (pm(item) !== 'Tempo' && item.purchaseMethod !== 'Online') ? sum + lineTotal(item) : sum, 0)
+          if (pocketSpend > 0) {
+            await recordPocketPurchase(p.id, myPocket.id, pocketSpend, currentUser?.name || 'Sourcing')
+          }
+        }
       }
 
-      // Saldo sourcing derived — tidak perlu CashTransaction, otomatis berkurang dari actualSpent
+      // Cash belanja dibukukan real ke kantong via recordPocketPurchase; sisa derived dari saldo pocket
       // Harga rekomendasi produk baru di-update setelah finance approve rekon (bukan di sini)
 
       // Ambil semua salesOrderId unik dari items yang baru saja disubmit
@@ -580,7 +598,7 @@ export default function SourcingDashboard() {
                                <Badge variant="outline" className="mt-1.5 bg-blue-50 text-blue-600 border-blue-200 text-[9px] font-black uppercase">🛒 Online Queue</Badge>
                             )}
                             {item.purchaseMethod === 'Transfer' && (
-                               <Badge variant="outline" className="mt-1.5 bg-violet-50 text-violet-700 border-violet-200 text-[9px] font-black uppercase">💸 Sudah Dibayar Finance — Tinggal Ambil</Badge>
+                               <Badge variant="outline" className="mt-1.5 bg-violet-50 text-violet-700 border-violet-200 text-[9px] font-black uppercase">📋 Tempo — Ambil Barang, Hutang Otomatis</Badge>
                             )}
                           </div>
                         </div>
@@ -598,7 +616,7 @@ export default function SourcingDashboard() {
                               // Transfer item: sudah dibayar finance, tinggal ambil
                               <>
                                 <div className="bg-violet-50 border border-violet-200 p-3 rounded-lg text-xs font-bold text-violet-700">
-                                  💸 Barang ini sudah dibayar Finance via transfer. Tinggal ambil dari vendor — tidak perlu keluar uang kas.
+                                  📋 Tempo — ambil barang dari vendor sekarang, tidak perlu keluar uang kas. Hutang ke vendor otomatis tercatat di AP Aging pas lolos QC, dibayar belakangan sesuai kesepakatan tempo.
                                 </div>
                                 <div className="space-y-2">
                                   <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">

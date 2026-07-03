@@ -960,6 +960,36 @@ export const recordPocketReturn = async (
   }
 };
 
+// Book a sourcer's actual Cash/Pasar spend against their pocket: Dr HPP / Cr
+// pocket. Only for cash-paid items — Tempo (AP) and Online (BCA) are handled
+// elsewhere and must NOT be passed here.
+export const recordPocketPurchase = async (
+  purchaseId: string,
+  pocketBankAccountId: string,
+  amount: number,
+  sourcerName: string
+) => {
+  const store = useAppStore.getState();
+  const pocket = store.bankAccounts.find(b => b.id === pocketBankAccountId);
+  if (!pocket || amount <= 0) return false;
+  const pocketCode = pocket.accountCode || '1-1500';
+  const ok = await createAccountingEntry(
+    `Belanja Tunai Sourcing (${sourcerName}) - Ref: ${purchaseId.slice(0, 8)}`,
+    'Purchase',
+    purchaseId,
+    [{ accountCode: HPP_ACCOUNT_CODE, amount }],
+    [{ accountCode: pocketCode, amount }]
+  );
+  if (!ok) return false;
+  await store.addCashTransaction({
+    id: `pocket-buy-${purchaseId}`, date: new Date().toISOString(), amount,
+    type: 'Out', category: 'Belanja Sourcing (HPP)',
+    description: `Belanja tunai - Ref: ${purchaseId.slice(0, 8)}`,
+    bankAccountId: pocketBankAccountId, referenceId: purchaseId, referenceType: 'Purchase',
+  });
+  return true;
+};
+
 export const recordReconciliationSettlement = async (
   purchaseId: string, 
   actualShopCost: number, 
