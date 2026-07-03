@@ -65,6 +65,23 @@ Consequences:
 - **P1 DONE** (commit 705bbc1): removed ADVANCE tab + `backfillMissingAdvances` +
   `handleTransferBudget` + advance-only state from `approvals`. No new advances
   created/given. Settlement/audit/delivery tabs untouched.
+- **P2a DONE** (commit 331ead3): `bank_accounts.purpose` column ('sourcing' |
+  'kurir' | 'umum', migration applied to prod `ckkohudfuisgzlrjipev`) +
+  `BankAccountPurpose` type + purpose Select in Cash & Bank create/edit forms.
+  Finance can now tag the real Bank Jago account as `purpose='sourcing'`.
+- **P2b NEXT** — rewire `sourcing/list` + `sourcing/expenses` to the real account:
+  - The sourcing wallet card currently shows a DERIVED tally
+    (`totalAdvanceReceived` = Σ funded purchases; `totalHolding` = received −
+    shop − expenses). Replace with the balance of the `purpose==='sourcing'`
+    bank account (`bankAccounts.find(b => b.purpose === 'sourcing')`).
+    `totalHolding`/`totalAdvanceReceived`/`fundedPurchases` are threaded through
+    progress bars, belanja-submit, reconciliation, and `handleReportReturn` —
+    trace every consumer before swapping.
+  - Expense/belanja posting: `recordAdvanceExpense` (credits virtual wallet CoA
+    1-1500) → book against the real sourcing bank's CoA + a real cash Out tx.
+  - `handleReportReturn`: setor sisa → kas pindah into the sourcing account
+    (or leave as an expense-return record if finance prefers).
+  - Risk: core sourcing workflow; do as its own focused session, verify heavily.
 
 ## Phased plan (each phase independently shippable + verifiable)
 
