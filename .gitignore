@@ -51,3 +51,6 @@ node_modules\ 2/
 # local scratch and utility scripts
 /scratch/
 /scripts/
+
+# Superpowers brainstorm companion (local, ephemeral)
+.superpowers/
