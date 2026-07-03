@@ -85,6 +85,20 @@ Consequences:
   `recordAdvanceExpense/Return`, `recordOperationalAdvanceTransfer`, `advanceCode`,
   advance fields no longer read. Clean `simulation.ts`, `audit`, `vendor-payable`.
 
+## P2 designation decision (how the app knows the sourcing/courier pool account)
+
+Recommended: **A — `purpose` flag on bank account** (`'sourcing' | 'kurir' | 'umum'`).
+Finance sets it in Cash & Bank; sourcing/courier pages query the account with the
+matching purpose for both the wallet display and expense posting. Needs a
+`bank_accounts.purpose` column (Supabase migration, nullable text default `'umum'`)
++ one Select in the edit-bank modal.
+
+- B (hardcode account ids in config): simplest but brittle — ids are user-managed
+  DB uuids; breaks when finance recreates the account. Rejected.
+- C (finance picks each session): fine for the disbursement step (already works
+  that way) but the sourcing wallet card needs a persistent designation. Rejected
+  as the primary mechanism.
+
 ## Open questions / risks
 
 - **DB accounts**: does a real "Bank Jago" sourcing account (and courier account)
