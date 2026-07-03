@@ -56,11 +56,12 @@ export default function CashAndBankPage() {
   const deleteCashTransaction = useAppStore(state => state.deleteCashTransaction)
   const bulkDeleteCashTransactions = useAppStore(state => state.bulkDeleteCashTransactions)
   const coas = useAppStore(state => state.coas)
+  const users = useAppStore(state => state.users)
 
   const [isAddTxOpen, setIsAddTxOpen] = useState(false)
   const [isAddBankOpen, setIsAddBankOpen] = useState(false)
   const [editingBank, setEditingBank] = useState<any>(null)
-  const [bankForm, setBankForm] = useState<{ name: string; number: string; balance: number; accountCode: string; purpose: BankAccountPurpose }>({ name: '', number: '', balance: 0, accountCode: '1-1000', purpose: 'umum' })
+  const [bankForm, setBankForm] = useState<{ name: string; number: string; balance: number; accountCode: string; purpose: BankAccountPurpose; ownerUserId: string }>({ name: '', number: '', balance: 0, accountCode: '1-1000', purpose: 'umum', ownerUserId: '' })
 
   const [txType, setTxType] = useState<'In' | 'Out' | 'Transfer'>('In')
   const [bankId, setBankId] = useState('')
@@ -132,7 +133,8 @@ export default function CashAndBankPage() {
         accountNumber: bankForm.number,
         accountCode: bankForm.accountCode,
         balance: bankForm.balance,
-        purpose: bankForm.purpose
+        purpose: bankForm.purpose,
+        ownerUserId: bankForm.purpose === 'sourcing_pocket' ? bankForm.ownerUserId : undefined,
       })
 
       if (Number(bankForm.balance) > 0) {
@@ -164,7 +166,7 @@ export default function CashAndBankPage() {
       }
 
       setIsAddBankOpen(false)
-      setBankForm({ name: '', number: '', balance: 0, accountCode: '1-1000', purpose: 'umum' })
+      setBankForm({ name: '', number: '', balance: 0, accountCode: '1-1000', purpose: 'umum', ownerUserId: '' })
       toast.success(`${bankForm.name} berhasil didaftarkan!`, { id: loadingToast })
     } catch (e: any) {
       toast.error("Gagal mendaftarkan bank: " + e.message, { id: loadingToast })
@@ -246,6 +248,7 @@ export default function CashAndBankPage() {
         accountNumber: editingBank.accountNumber,
         accountCode: editingBank.accountCode,
         purpose: editingBank.purpose || 'umum',
+        ownerUserId: editingBank.purpose === 'sourcing_pocket' ? editingBank.ownerUserId : undefined,
         // Balance is NOT updated here because addCashTransaction already updated it
       })
       setEditingBank(null)
@@ -538,7 +541,7 @@ export default function CashAndBankPage() {
                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 text-center block">Link ke Buku Besar (COA)</label>
                         <Select value={bankForm.accountCode} onValueChange={(val) => setBankForm({ ...bankForm, accountCode: val || '' })}>
                            <SelectTrigger className="h-12 rounded-xl text-center font-bold">
-                              <SelectValue placeholder="Pilih Akun" />
+                              <SelectValue placeholder="Pilih Akun">{bankForm.accountCode ? (() => { const acc = coas.find(c => c.accountCode === bankForm.accountCode); return acc ? `${acc.accountCode} - ${acc.accountName}` : bankForm.accountCode })() : undefined}</SelectValue>
                            </SelectTrigger>
                            <SelectContent>
                               {coas.filter(c => c.accountType === 'Asset' && c.accountCode.startsWith('1-1')).map(c => (
@@ -557,11 +560,25 @@ export default function CashAndBankPage() {
                            </SelectTrigger>
                            <SelectContent>
                               <SelectItem value="umum">Umum</SelectItem>
-                              <SelectItem value="sourcing">Kas Sourcing (kantong belanja)</SelectItem>
+                              <SelectItem value="sourcing">Kas Sourcing (pool bersama)</SelectItem>
+                              <SelectItem value="sourcing_pocket">Kantong Sourcing (per orang)</SelectItem>
                               <SelectItem value="kurir">Kas Kurir</SelectItem>
                            </SelectContent>
                         </Select>
                     </div>
+                    {bankForm.purpose === 'sourcing_pocket' && (
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 text-center block">Pemilik Kantong (Sourcing)</label>
+                        <Select value={bankForm.ownerUserId} onValueChange={(val) => setBankForm({ ...bankForm, ownerUserId: val || '' })}>
+                          <SelectTrigger className="h-12 rounded-xl text-center font-bold"><SelectValue placeholder="Pilih sourcing..." /></SelectTrigger>
+                          <SelectContent>
+                            {users.filter(u => u.role === 'sourcing').map(u => (
+                              <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                     <Button onClick={handleCreateBank} disabled={isSubmitting} className="w-full h-14 bg-slate-900 text-white rounded-[1.5rem] font-black uppercase text-[10px] tracking-widest shadow-xl mt-4">
                        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Buka Akun Kas/Bank"}
                     </Button>
@@ -867,7 +884,7 @@ export default function CashAndBankPage() {
               <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 text-center block">Link ke Buku Besar (COA)</label>
               <Select value={editingBank?.accountCode || ''} onValueChange={(val) => setEditingBank({ ...editingBank, accountCode: val || '' })}>
                 <SelectTrigger className="h-12 rounded-xl text-center font-bold">
-                  <SelectValue placeholder="Pilih Akun" />
+                  <SelectValue placeholder="Pilih Akun">{editingBank?.accountCode ? (() => { const acc = coas.find(c => c.accountCode === editingBank.accountCode); return acc ? `${acc.accountCode} - ${acc.accountName}` : editingBank.accountCode })() : undefined}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {coas.filter(c => c.accountType === 'Asset' && c.accountCode.startsWith('1-1')).map(c => (
@@ -886,11 +903,25 @@ export default function CashAndBankPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="umum">Umum</SelectItem>
-                  <SelectItem value="sourcing">Kas Sourcing (kantong belanja)</SelectItem>
+                  <SelectItem value="sourcing">Kas Sourcing (pool bersama)</SelectItem>
+                  <SelectItem value="sourcing_pocket">Kantong Sourcing (per orang)</SelectItem>
                   <SelectItem value="kurir">Kas Kurir</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            {editingBank?.purpose === 'sourcing_pocket' && (
+              <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 text-center block">Pemilik Kantong (Sourcing)</label>
+                <Select value={editingBank?.ownerUserId || ''} onValueChange={(val) => setEditingBank({ ...editingBank, ownerUserId: val || '' })}>
+                  <SelectTrigger className="h-12 rounded-xl text-center font-bold"><SelectValue placeholder="Pilih sourcing..." /></SelectTrigger>
+                  <SelectContent>
+                    {users.filter(u => u.role === 'sourcing').map(u => (
+                      <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {/* Adjustment Category Logic */}
             {editingBank && (Number(editingBank.balance) !== (bankAccounts.find(b => b.id === editingBank.id)?.balance || 0)) && (
