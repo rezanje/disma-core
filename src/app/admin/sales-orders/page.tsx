@@ -1650,14 +1650,14 @@ export default function SalesOrdersPage() {
                               Approve (Go to Sourcing)
                             </Button>
                           )}
-                          {(so.status === 'Belanja' || (so.status === 'Draft' && so.shoppingListCompiledAt)) && (
-                            <Button 
-                              size="sm" 
+                          {so.status === 'QC' && (
+                            <Button
+                              size="sm"
                               variant="outline"
-                              className="text-amber-600 border-amber-200 bg-amber-50 hover:bg-amber-100 font-bold" 
+                              className="text-amber-600 border-amber-200 bg-amber-50 hover:bg-amber-100 font-bold"
                               onClick={() => {
-                                // If retroactively stuck in Draft but has compiled list, advance twice basically, but we just set it to Packing.
-                                advanceStatus(so.id, 'Belanja') 
+                                // QC = belanja sudah terbeli sourcing. 'Belanja' arg reuses the →Packing mapping in advanceStatus.
+                                advanceStatus(so.id, 'Belanja')
                               }}
                             >
                               Mulai Packing

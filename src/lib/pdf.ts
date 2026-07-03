@@ -490,7 +490,9 @@ export function generateShoppingListPDFDataUrl(
   items: Array<{productId: string, productName: string, skuCode: string, uom?: string, totalQty: number, estimatedPrice: number, purchaseMethod?: string, vendorName?: string}>,
   titleOverride?: string
 ) {
-  return buildShoppingListPDF(items, titleOverride).output('datauristring')
+  // blob: URL, not a data: URI — renders reliably in an <iframe> preview (data: URIs
+  // are unreliable/blocked for iframe embedding in some Chromium versions).
+  return buildShoppingListPDF(items, titleOverride).output('bloburl').toString()
 }
 
 export function generateShoppingListPDF(

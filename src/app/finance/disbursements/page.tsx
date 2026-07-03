@@ -403,11 +403,12 @@ export default function DisbursementsPage() {
 
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 pl-0.5">Nominal Transfer (IDR)</Label>
-              <Input 
-                type="number" 
-                placeholder="Masukkan nominal..." 
-                value={amount || ""} 
-                onChange={(e) => setAmount(Math.max(0, parseFloat(e.target.value) || 0))}
+              <Input
+                type="text"
+                inputMode="numeric"
+                placeholder="Masukkan nominal..."
+                value={amount ? amount.toLocaleString("id-ID") : ""}
+                onChange={(e) => setAmount(Math.max(0, parseInt(e.target.value.replace(/\D/g, ""), 10) || 0))}
                 className="h-10 border-slate-200 rounded-xl text-xs"
               />
             </div>

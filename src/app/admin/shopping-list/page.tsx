@@ -16,6 +16,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn, formatRupiah } from "@/lib/utils"
 import GlobalUndoButton from "@/components/global-undo-button"
+import { PdfCanvasPreview } from "@/components/pdf-canvas-preview"
 
 type ShoppingListDocumentItem = {
   productId: string
@@ -30,6 +31,8 @@ type ShoppingListDocumentItem = {
   vendorId?: string
   vendorName?: string
 }
+
+const CARA_BELANJA_LABEL: Record<string, string> = { Pasar: 'Pasar', Online: 'Beli Online', Transfer: 'Tempo' }
 
 const toDateInputValue = (date?: string) => {
   if (!date) return ''
@@ -602,7 +605,8 @@ export default function ShoppingListPage() {
         estimatedUnitPrice: item.estimatedPrice,
         actualUnitPrice: 0,
         isChecked: false,
-        purchaseMethod: item.purchaseMethod
+        purchaseMethod: item.purchaseMethod,
+        vendorId: item.vendorId
       })))
 
       // Reserve (book) warehouse stock for items fulfilled from inventory. These were
@@ -1227,7 +1231,7 @@ export default function ShoppingListPage() {
                           <TableHead className="w-[80px] text-right">Qty</TableHead>
                           <TableHead className="w-[130px] text-right">Budget</TableHead>
                           <TableHead className="w-[130px] text-right">Subtotal</TableHead>
-                          <TableHead className="w-[100px] text-center">Metode</TableHead>
+                          <TableHead className="w-[100px] text-center">Cara Belanja</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1238,7 +1242,7 @@ export default function ShoppingListPage() {
                             <TableCell className="text-right text-sm font-black text-slate-700">{item.totalQty}</TableCell>
                             <TableCell className="text-right text-xs font-bold text-slate-500">{formatRupiah(item.estimatedPrice)}</TableCell>
                             <TableCell className="text-right text-xs font-black text-emerald-600">{formatRupiah(item.estimatedPrice * item.totalQty)}</TableCell>
-                            <TableCell className="text-center text-[10px] font-black uppercase tracking-widest text-slate-400">{item.purchaseMethod}</TableCell>
+                            <TableCell className="text-center text-[10px] font-black uppercase tracking-widest text-slate-400">{CARA_BELANJA_LABEL[item.purchaseMethod] || item.purchaseMethod}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -1433,7 +1437,7 @@ export default function ShoppingListPage() {
                             <TableHead className="w-[110px] text-right">Sell Price</TableHead>
                             <TableHead className="w-[140px] text-right">Est. Buy</TableHead>
                             <TableHead className="w-[110px] text-right">Subtotal</TableHead>
-                            <TableHead className="w-[140px] text-center">Metode</TableHead>
+                            <TableHead className="w-[140px] text-center">Cara Belanja</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -1449,7 +1453,7 @@ export default function ShoppingListPage() {
                                     <div className="flex items-center justify-between w-full gap-2 flex-wrap">
                                       <span className="text-xs font-black uppercase tracking-widest text-slate-500">{vName}</span>
                                       <div className="flex items-center gap-1.5 shrink-0">
-                                        {/* Bulk metode pembayaran - hanya tampil untuk vendor yang teridentifikasi */}
+                                        {/* Bulk cara belanja - hanya tampil untuk vendor yang teridentifikasi */}
                                         {vKey !== 'unassigned' && items.length > 0 && (
                                           <div className="flex items-center gap-1 border border-slate-200 rounded-lg p-0.5 bg-white">
                                             <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 pl-1.5 pr-0.5">Bulk:</span>
@@ -1463,16 +1467,16 @@ export default function ShoppingListPage() {
                                             <button
                                               onClick={() => { saveToHistory(); items.forEach(i => selectOnline(i.productId)) }}
                                               className="px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105 bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
-                                              title={`Set semua ${items.length} item di ${vName} ke Online`}
+                                              title={`Set semua ${items.length} item di ${vName} ke Beli Online`}
                                             >
-                                              Online
+                                              Beli Online
                                             </button>
                                             <button
                                               onClick={() => { saveToHistory(); items.forEach(i => selectTransfer(i.productId)) }}
                                               className="px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105 bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100"
-                                              title={`Set semua ${items.length} item di ${vName} ke Transfer`}
+                                              title={`Set semua ${items.length} item di ${vName} ke Tempo`}
                                             >
-                                              Transfer
+                                              Tempo
                                             </button>
                                           </div>
                                         )}
@@ -1573,8 +1577,8 @@ export default function ShoppingListPage() {
                                         ) : (
                                           <div className="flex items-center gap-1">
                                             <select
-                                              className="text-[10px] w-full max-w-[120px] p-1 border rounded bg-slate-50 text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                                              value={vendorAssignments[item.productId] || ''}
+                                              className="text-[10px] flex-1 min-w-[76px] p-1 border rounded bg-slate-50 text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                              value={vendorAssignments[item.productId] || item.vendorId || ''}
                                               onChange={(e) => {
                                                 saveToHistory();
                                                 setVendorAssignments(prev => {
@@ -1642,6 +1646,11 @@ export default function ShoppingListPage() {
                                               </span>
                                             )
                                           })()}
+                                          {!item.fromStock && (product?.currentStock || 0) > 0 && (product?.currentStock || 0) < item.kebutuhan && (
+                                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded text-slate-500 bg-slate-100">
+                                              {product?.currentStock} dari gudang + {item.totalQty} dibeli
+                                            </span>
+                                          )}
                                         </div>
                                       </TableCell>
                                       <TableCell className="text-right pr-4">
@@ -1660,16 +1669,18 @@ export default function ShoppingListPage() {
                                       <TableCell className="text-right text-slate-500 pr-4">
                                          <div className="flex items-center justify-end gap-1">
                                             <span className="text-[10px] text-slate-400 font-bold shrink-0">Rp</span>
-                                            <Input 
-                                               type="number"
+                                            <Input
+                                               type="text"
+                                               inputMode="numeric"
                                                className="h-8 w-24 text-right text-xs font-black border-slate-200"
                                                placeholder="0"
-                                               value={item.estimatedPrice || ''}
+                                               value={item.estimatedPrice ? item.estimatedPrice.toLocaleString("id-ID") : ''}
                                                onChange={(e) => {
                                                   saveToHistory();
-                                                  setCustomPrices(prev => ({ 
-                                                     ...prev, 
-                                                     [item.productId]: parseFloat(e.target.value) || 0 
+                                                  const val = parseInt(e.target.value.replace(/\D/g, ""), 10) || 0
+                                                  setCustomPrices(prev => ({
+                                                     ...prev,
+                                                     [item.productId]: val
                                                   }));
                                                }}
                                             />
@@ -1701,11 +1712,11 @@ export default function ShoppingListPage() {
                                                      ? "bg-blue-100 border-blue-300 text-blue-700"
                                                      : "bg-slate-50 border-slate-200 text-slate-400"
                                                )}
-                                               title="Pindah ke Beli Online"
+                                               title="Lokasi: Beli Online"
                                             >
-                                               Online
+                                               Beli Online
                                             </button>
-  
+
                                             {/* Button Transfer */}
                                             <button
                                                onClick={() => selectTransfer(item.productId)}
@@ -1715,9 +1726,9 @@ export default function ShoppingListPage() {
                                                      ? "bg-purple-100 border-purple-300 text-purple-700"
                                                      : "bg-slate-50 border-slate-200 text-slate-400"
                                                )}
-                                               title="Tandai dibayar via Transfer (finance)"
+                                               title="Tempo — bayar transfer belakangan sesuai kesepakatan vendor"
                                             >
-                                               Transfer
+                                               Tempo
                                             </button>
   
                                             {/* Button Gudang */}
@@ -1963,7 +1974,7 @@ export default function ShoppingListPage() {
       </div>
 
       <Dialog open={!!pdfPreview} onOpenChange={(open) => !open && setPdfPreview(null)}>
-        <DialogContent className="max-w-[96vw] w-[96vw] h-[96vh] p-0 rounded-[2rem] overflow-hidden border-none bg-slate-900 shadow-2xl flex flex-col">
+        <DialogContent className="max-w-[96vw] sm:max-w-[96vw] w-[96vw] h-[96vh] p-0 rounded-[2rem] overflow-hidden border-none bg-slate-900 shadow-2xl flex flex-col">
           <DialogHeader className="p-6 bg-slate-900 text-white flex flex-row items-center justify-between shrink-0 space-y-0">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400">
@@ -1984,13 +1995,7 @@ export default function ShoppingListPage() {
             </Button>
           </DialogHeader>
           <div className="flex-1 bg-slate-800 p-4 overflow-hidden">
-            {pdfPreview && (
-              <iframe
-                src={`${pdfPreview.url}#toolbar=0&navpanes=0&scrollbar=0`}
-                className="w-full h-full rounded-sm border-none bg-white shadow-2xl"
-                title="Preview Daftar Belanja"
-              />
-            )}
+            {pdfPreview && <PdfCanvasPreview url={pdfPreview.url} />}
           </div>
           <DialogFooter className="p-5 bg-slate-900 border-t border-white/10 gap-3 sm:justify-between">
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
@@ -2079,7 +2084,7 @@ export default function ShoppingListPage() {
                         <TableHead className="text-[10px] font-black uppercase tracking-widest text-right w-[80px]">Qty</TableHead>
                         <TableHead className="text-[10px] font-black uppercase tracking-widest text-right w-[120px]">Est. Harga</TableHead>
                         <TableHead className="text-[10px] font-black uppercase tracking-widest text-right w-[120px]">Subtotal</TableHead>
-                        <TableHead className="text-[10px] font-black uppercase tracking-widest text-center w-[90px]">Metode</TableHead>
+                        <TableHead className="text-[10px] font-black uppercase tracking-widest text-center w-[90px]">Cara Belanja</TableHead>
                         <TableHead className="text-[10px] font-black uppercase tracking-widest w-[120px]">Vendor</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -2101,7 +2106,7 @@ export default function ShoppingListPage() {
                             <TableCell className="text-right text-xs font-bold text-emerald-600">{formatRupiah(item.estimatedUnitPrice * item.qtyTarget)}</TableCell>
                             <TableCell className="text-center">
                               <span className={cn("px-1.5 py-0.5 rounded text-[9px] font-black uppercase border", methodColor)}>
-                                {item.purchaseMethod}
+                                {CARA_BELANJA_LABEL[item.purchaseMethod || ''] || item.purchaseMethod}
                               </span>
                             </TableCell>
                             <TableCell className="text-[10px] text-slate-500 font-bold">{vnd?.companyName || '—'}</TableCell>

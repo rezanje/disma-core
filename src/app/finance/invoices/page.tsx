@@ -1219,7 +1219,7 @@ export default function InvoicesPage() {
               <label className="text-sm font-semibold">Rekening Bank Tujuan</label>
               <Select value={paymentBankAccountId} onValueChange={(val) => setPaymentBankAccountId(val || "")}>
                 <SelectTrigger className="h-12">
-                  <SelectValue placeholder="Pilih rekening bank..." />
+                  <SelectValue placeholder="Pilih rekening bank...">{paymentBankAccountId ? bankAccounts.find(b => b.id === paymentBankAccountId)?.name : undefined}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {bankAccounts.map((account) => (

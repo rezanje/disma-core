@@ -2,10 +2,9 @@
 
 import { useState, useEffect } from "react"
 import { useAppStore } from "@/lib/store"
-import { recordOnlinePurchase, recordVendorTransferBulk } from "@/lib/accounting"
+import { recordOnlinePurchase } from "@/lib/accounting"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
@@ -19,7 +18,6 @@ export default function OnlinePurchasePage() {
   const purchaseItems = useAppStore(state => state.purchaseItems)
   const products = useAppStore(state => state.products)
   const updatePurchaseItem = useAppStore(state => state.updatePurchaseItem)
-  const vendors = useAppStore(state => state.vendors) || []
   const bankAccounts = useAppStore(state => state.bankAccounts) || []
 
   const [searchTerm, setSearchTerm] = useState("")
@@ -32,53 +30,6 @@ export default function OnlinePurchasePage() {
     totalPrice: number,
     ref: string
   }>>({})
-
-  const [transferSelected, setTransferSelected] = useState<Set<string>>(new Set())
-  const [transferVendorId, setTransferVendorId] = useState("")
-  const [transferBankId, setTransferBankId] = useState("")
-  const [transferLoading, setTransferLoading] = useState(false)
-
-  const transferItems = purchaseItems
-    .filter(pi => pi.purchaseMethod === 'Transfer' && !pi.isTransferPaid)
-    .map(pi => ({ ...pi, product: products.find(p => p.id === pi.productId) }))
-
-  const toggleTransferItem = (id: string) => {
-    setTransferSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
-  }
-
-  const transferTotal = transferItems
-    .filter(pi => transferSelected.has(pi.id))
-    .reduce((s, pi) => s + (pi.estimatedUnitPrice || pi.product?.basePrice || 0) * (pi.qtyTarget || 0), 0)
-
-  const handlePayTransfer = async () => {
-    if (transferSelected.size === 0) { toast.error('Pilih minimal 1 item.'); return }
-    if (!transferVendorId) { toast.error('Pilih vendor.'); return }
-    if (!transferBankId) { toast.error('Pilih rekening sumber.'); return }
-    const vendor = vendors.find(v => v.id === transferVendorId)
-    setTransferLoading(true)
-    const loadingId = toast.loading('Memproses transfer vendor...')
-    try {
-      const ref = `TRF-${Date.now().toString().slice(-6)}`
-      const items = Array.from(transferSelected)
-        .map(id => transferItems.find(t => t.id === id))
-        .filter((pi): pi is NonNullable<typeof pi> => !!pi)
-        .map(pi => ({
-          itemId: pi.id,
-          amount: (pi.estimatedUnitPrice || pi.product?.basePrice || 0) * (pi.qtyTarget || 0),
-        }))
-      // Same vendor + same bank → one combined transfer, not one per SKU.
-      const ok = await recordVendorTransferBulk(
-        items, transferVendorId, vendor?.companyName || 'Vendor', transferBankId, ref
-      )
-      if (!ok) throw new Error('Gagal mencatat transfer vendor.')
-      toast.success('Transfer vendor tercatat ke ledger (1 transaksi).', { id: loadingId })
-      setTransferSelected(new Set()); setTransferVendorId(''); setTransferBankId('')
-    } catch (e) {
-      toast.error(`Gagal: ${e instanceof Error ? e.message : String(e)}`, { id: loadingId })
-    } finally {
-      setTransferLoading(false)
-    }
-  }
 
   // Only show Online items belonging to a purchase that has been sent to Finance ("Belum Transfer" or further).
   const sentPurchaseIds = new Set(
@@ -191,14 +142,13 @@ export default function OnlinePurchasePage() {
       const soId = item.salesOrderId
       const allPOItems = store.purchaseItems.filter(pi => pi.salesOrderId === soId)
       
-      // All items are READY if: (Market: isChecked) AND (Online: isOnlineOrdered)
-      // Note: In sourcing list, Market items are marked isChecked. 
-      // In this hub, Online items are marked isOnlineOrdered.
+      // All items are READY if: (Market & Tempo: isChecked) AND (Online: isOnlineOrdered)
+      // Note: In sourcing list, Market and Tempo items are marked isChecked
+      // ("Tandai Sudah Diambil" for Tempo). In this hub, Online items are marked isOnlineOrdered.
       const isAllReady = allPOItems.every(pi => {
         if (pi.id === itemId) return true; // Just finished this one
         if (pi.purchaseMethod === 'Online') return pi.isOnlineOrdered;
-        if (pi.purchaseMethod === 'Transfer') return pi.isTransferPaid;
-        return pi.isChecked; // For Market items
+        return pi.isChecked; // Market & Tempo items
       })
 
       if (isAllReady) {
@@ -393,47 +343,6 @@ export default function OnlinePurchasePage() {
           })
         )}
       </div>
-
-        <div className="mt-8 space-y-4">
-          <h2 className="text-sm font-black uppercase tracking-widest text-purple-600 px-1">Transfer Vendor (Dibayar Finance)</h2>
-          {transferItems.length === 0 ? (
-            <div className="rounded-2xl border border-dashed p-6 text-center text-xs font-bold text-slate-400">Tidak ada item transfer menunggu pembayaran.</div>
-          ) : (
-            <div className="rounded-2xl border border-slate-100 p-4 space-y-3 bg-white dark:bg-slate-900">
-              <div className="space-y-2 max-h-[200px] overflow-auto">
-                {transferItems.map(pi => (
-                  <label key={pi.id} className="flex items-center justify-between gap-2 rounded-xl border border-slate-100 p-2 text-xs font-bold cursor-pointer">
-                    <span className="flex items-center gap-2 min-w-0">
-                      <input type="checkbox" checked={transferSelected.has(pi.id)} onChange={() => toggleTransferItem(pi.id)} className="accent-purple-600 h-4 w-4" />
-                      <span className="truncate">{pi.product?.name || 'Item'} · {pi.qtyTarget} {pi.product?.uom || ''}</span>
-                    </span>
-                    <span className="text-purple-600 shrink-0">{formatRupiah((pi.estimatedUnitPrice || pi.product?.basePrice || 0) * (pi.qtyTarget || 0))}</span>
-                  </label>
-                ))}
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <Select value={transferVendorId} onValueChange={(v) => setTransferVendorId(v ?? '')}>
-                  <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="-- Vendor --" /></SelectTrigger>
-                  <SelectContent>
-                    {vendors.map(v => (<SelectItem key={v.id} value={v.id}>{v.companyName}</SelectItem>))}
-                  </SelectContent>
-                </Select>
-                <Select value={transferBankId} onValueChange={(v) => setTransferBankId(v ?? '')}>
-                  <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="-- Rekening --">{transferBankId ? bankAccounts.find(b => b.id === transferBankId)?.name : undefined}</SelectValue></SelectTrigger>
-                  <SelectContent>
-                    {bankAccounts.map(b => (<SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-black text-slate-500">Total: {formatRupiah(transferTotal)}</span>
-                <Button onClick={handlePayTransfer} disabled={transferLoading} className="bg-purple-600 hover:bg-purple-700 text-white font-black uppercase text-[10px] tracking-widest h-10 rounded-xl px-5">
-                  {transferLoading ? 'Memproses...' : 'Bayar Transfer'}
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
     </div>
   )
 }

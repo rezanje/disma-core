@@ -3,7 +3,7 @@
 import type { SVGProps } from "react"
 import { useState, useCallback } from "react"
 import { useAppStore } from "@/lib/store"
-import { recordShrinkage, recordStockMovement, recordInboundQC } from "@/lib/accounting"
+import { recordShrinkage, recordStockMovement, recordInboundQC, recordVendorBillFromInbound } from "@/lib/accounting"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -264,6 +264,27 @@ export default function QCPage() {
           read: false,
           createdAt: new Date().toISOString()
         })
+      }
+    }
+
+    // 6. Tempo (dulu 'Transfer'): barang diterima duluan, tagihan otomatis jadi Hutang Vendor (AP Aging).
+    // netAccrual harus sama persis dengan yang di-credit ke 2-1100 oleh recordInboundQC di atas.
+    if (activePurchaseItem.purchaseMethod === 'Transfer') {
+      if (!activePurchaseItem.vendorId) {
+        toast.warning(`${activeProduct.name} (Tempo) tidak ada vendor — hutang tidak otomatis dicatat. Catat manual di AP Aging.`)
+      } else {
+        const qtyReceived = qtyPassToInventory + totalAllocatedToPos + qtyReject
+        const grossAccrual = qtyReceived * unitCost
+        const netAccrual = grossAccrual - (qtyReject > 0 && rejectAction === 'Return' ? qtyReject * unitCost : 0)
+        if (netAccrual > 0) {
+          await recordVendorBillFromInbound(
+            activePurchaseItem.id,
+            activePurchaseItem.vendorId,
+            netAccrual,
+            `Tempo: ${activeProduct.name} (QC ${new Date().toLocaleDateString('id-ID')})`,
+            activePurchaseItem.purchaseId
+          )
+        }
       }
     }
 
