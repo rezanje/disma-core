@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useMemo } from "react"
 import { useAppStore } from "@/lib/store"
 import { getAdvanceWalletByUserId, recordPocketPurchase, recordPocketWithdrawal, recordPocketReturn } from "@/lib/accounting"
 import { computeBankBalances } from "@/lib/bank-balance"
@@ -54,7 +54,6 @@ export default function SourcingDashboard() {
   const [newVendorTermDays, setNewVendorTermDays] = useState(14)
   const [reconciliationNote, setReconciliationNote] = useState('')
   const [proofImage, setProofImage] = useState<string | null>(null)
-  const [returnTargetBank, setReturnTargetBank] = useState('')
 
   const handleExpandItem = (item: PurchaseItem | null) => {
     setActiveItem(item)
@@ -105,13 +104,6 @@ export default function SourcingDashboard() {
   const pool = derivedBanks.find(b => b.purpose === 'sourcing')
   const pocketBalance = myPocket?.balance ?? 0
 
-  useEffect(() => {
-    if (!returnTargetBank && bankAccounts.length > 0) {
-      const fallback = bankAccounts.find(b => b.id !== 'bank-advance-sourcing') || bankAccounts[0]
-      setReturnTargetBank(fallback.id)
-    }
-  }, [bankAccounts, returnTargetBank])
-
   // === DERIVED SOURCING WALLET (internal money tracker, terpisah dari buku kas perusahaan) ===
   // Modal = total budget yang sudah ditransfer finance untuk user ini (semua purchase yang sudah punya budgetTransferDate)
   const myPurchases = purchases.filter(p =>
@@ -139,36 +131,7 @@ export default function SourcingDashboard() {
   // Saldo = modal diterima - belanja - ops (semua derived, tidak pakai CashTransaction)
   const totalHolding = totalAdvanceReceived - totalShopSpent - totalExpenses
 
-  const handleReportReturn = async () => {
-    if (totalHolding <= 0) return toast.error("Saldo kas sudah nol, tidak ada yang perlu disetor.");
-    const loadingToast = toast.loading("Mengirim laporan pengembalian dana...");
-
-    try {
-      const addExpense = useAppStore.getState().addExpense;
-      const targetBank = useAppStore.getState().bankAccounts.find(b => b.id === returnTargetBank)
-      // Hanya buat expense record — saldo sourcing derived, jadi otomatis ter-deduct
-      // Buku kas perusahaan baru dicatat saat finance approve di Finance Hub
-      await addExpense({
-        id: `return-${Date.now()}`,
-        date: new Date().toISOString(),
-        amount: totalHolding,
-        category: 'Setoran Pengembalian',
-        description: `Setoran Tunai Sisa Kas (${formatRupiah(totalHolding)}) - ${currentUser?.name || 'Sourcing'} → ${targetBank?.name || returnTargetBank}`,
-        status: 'Pending Audit',
-        reporterId: currentUser?.id || '22222222-2222-2222-2222-222222222222',
-        receiptUrl: proofImage || undefined,
-        targetBankAccountId: returnTargetBank
-      });
-
-      setProofImage(null);
-      toast.success("Laporan setoran dikirim! Silakan serahkan uang ke Admin.", { id: loadingToast });
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Unknown error'
-      toast.error("Gagal mengirim laporan: " + message, { id: loadingToast });
-    }
-  };
-
-  const activePurchases = purchases.filter(p => 
+  const activePurchases = purchases.filter(p =>
     (p.status === 'Pending' || p.status === 'Belanja') && 
     (!p.purchaserId || p.purchaserId === currentUser?.id || p.purchaserId === 'pending' || p.purchaserId === '22222222-2222-2222-2222-222222222222')
   )
@@ -334,7 +297,7 @@ export default function SourcingDashboard() {
       })
       toast.success("Pengajuan Reimbursement berhasil dikirim!")
     } else {
-      const kasAmount = Math.max(0, Math.min(opsFormData.amount, totalHolding))
+      const kasAmount = Math.max(0, Math.min(opsFormData.amount, pocketBalance))
       const reimbAmount = opsFormData.amount - kasAmount
 
       if (kasAmount > 0) {
@@ -385,14 +348,8 @@ export default function SourcingDashboard() {
     const qty = activeItem?.id === item.id ? (editQty || item.qtyTarget) : (item.qtyPurchased || 0)
     return qty * price
   }
-  const totalShopSpentActual = currentItems.reduce((sum, item) =>
-    (item.isChecked && itemPM(item) !== 'Tempo') ? sum + itemLineTotal(item) : sum, 0)
   const totalTempoActual = currentItems.reduce((sum, item) =>
     (item.isChecked && itemPM(item) === 'Tempo') ? sum + itemLineTotal(item) : sum, 0)
-
-  // Sisa kas = totalHolding sudah derived (advance - submitted shop - all expenses)
-  // Kurangi lagi dengan belanjaan yg sedang diisi tapi belum disubmit
-  const remainingCash = totalHolding - totalShopSpentActual
 
   const todayStr = new Date().toISOString().slice(0, 10)
   const myPocketTx = cashTransactions.filter(t => t.bankAccountId === myPocket?.id && t.date.slice(0, 10) === todayStr)
@@ -412,11 +369,11 @@ export default function SourcingDashboard() {
               <div className="p-2 bg-white/10 rounded-xl">
                 <Wallet className="w-4 h-4 text-emerald-400" />
               </div>
-              <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Advance</span>
+              <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Kantong</span>
             </div>
             <div>
-              <p className="text-[8px] font-black uppercase text-slate-500 tracking-widest leading-none mb-1">Modal Diterima</p>
-              <p className="text-2xl font-black tracking-tighter leading-none">{formatRupiah(totalAdvanceReceived)}</p>
+              <p className="text-[8px] font-black uppercase text-slate-500 tracking-widest leading-none mb-1">Ditarik Hari Ini</p>
+              <p className="text-2xl font-black tracking-tighter leading-none">{formatRupiah(ditarikHariIni)}</p>
             </div>
           </div>
         </div>
@@ -424,18 +381,18 @@ export default function SourcingDashboard() {
         {/* Box 2: Balance sheet mini */}
         <div className="bg-slate-50 dark:bg-slate-800/60 rounded-[2rem] p-5 flex flex-col gap-3">
           <p className="text-[8px] font-black uppercase text-slate-500 tracking-widest leading-none">Estimasi Sisa</p>
-          <p className={cn("text-2xl font-black tracking-tighter leading-none", remainingCash < 0 ? "text-rose-500" : "text-emerald-600")}>
-            {formatRupiah(remainingCash)}
+          <p className={cn("text-2xl font-black tracking-tighter leading-none", pocketBalance < 0 ? "text-rose-500" : "text-emerald-600")}>
+            {formatRupiah(pocketBalance)}
           </p>
           <div>
             <div className="h-1.5 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden mb-1.5">
               <div
                 className="h-full bg-emerald-500 transition-all duration-700 rounded-full"
-                style={{ width: `${totalAdvanceReceived > 0 ? Math.min(100, ((totalAdvanceReceived - totalHolding + totalShopSpentActual) / totalAdvanceReceived) * 100) : 0}%` }}
+                style={{ width: `${ditarikHariIni > 0 ? Math.min(100, (belanjaHariIni / ditarikHariIni) * 100) : 0}%` }}
               />
             </div>
             <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest">
-              Pemakaian: {formatRupiah(totalAdvanceReceived - totalHolding + totalShopSpentActual)}
+              Pemakaian: {formatRupiah(belanjaHariIni)}
             </p>
           </div>
           {totalTempoActual > 0 && (
@@ -1084,39 +1041,6 @@ export default function SourcingDashboard() {
           </form>
         </div>
       </section>
-      {/* Setor Sisa Kas */}
-      {totalHolding > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-sm font-black uppercase tracking-widest text-slate-500 px-1">Setor Sisa Kas</h2>
-          <div className="bg-slate-50 dark:bg-slate-800/60 rounded-[2rem] p-5 space-y-4">
-            <div className="flex items-end justify-between">
-              <div>
-                <p className="text-[8px] font-black uppercase text-slate-500 tracking-widest mb-1">Sisa untuk disetor</p>
-                <p className="text-2xl font-black tracking-tighter text-emerald-600">{formatRupiah(totalHolding)}</p>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <Select value={returnTargetBank} onValueChange={(v) => v && setReturnTargetBank(v)}>
-                <SelectTrigger className="h-11 flex-1 rounded-2xl">
-                  <SelectValue>{returnTargetBank ? bankAccounts.find(b => b.id === returnTargetBank)?.name : undefined}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {bankAccounts.filter(b => b.id !== 'bank-advance-sourcing').map(b => (
-                    <SelectItem key={b.id} value={b.id} className="text-xs font-bold">{b.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button
-                className="h-11 px-6 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black uppercase text-[10px] whitespace-nowrap"
-                onClick={handleReportReturn}
-              >
-                Setor Kas
-              </Button>
-            </div>
-          </div>
-        </section>
-      )}
-
       {/* Rekon Catatan — internal read-only summary */}
       <section className="space-y-3 pb-8">
         <h2 className="text-sm font-black uppercase tracking-widest text-slate-500 px-1">Rekon Catatan</h2>
