@@ -860,6 +860,106 @@ export const recordBudgetTransfer = async (purchaseId: string, amount: number, b
   }
 };
 
+// Sourcing self-serve: move cash from the shared pool (Bank Jago) into a
+// sourcer's cash-in-hand pocket. Pool → pocket, no PurchaseId. Guarded by the
+// caller against pool balance; this fn assumes amount is already validated.
+export const recordPocketWithdrawal = async (
+  poolBankAccountId: string,
+  pocketBankAccountId: string,
+  amount: number,
+  sourcerName: string
+) => {
+  const store = useAppStore.getState();
+  const pool = store.bankAccounts.find(b => b.id === poolBankAccountId);
+  const pocket = store.bankAccounts.find(b => b.id === pocketBankAccountId);
+  if (!pool || !pocket || amount <= 0) return false;
+  if (poolBankAccountId === pocketBankAccountId) return false;
+
+  const poolCode = pool.accountCode || '1-1000';
+  const pocketCode = pocket.accountCode || '1-1500';
+  const ref = `POCKET-W-${Date.now().toString().slice(-8)}`;
+
+  store.beginUndoableBatch();
+  try {
+    const ok = await createAccountingEntry(
+      `Tarik Kantong: ${sourcerName} - ${new Date().toLocaleDateString('id-ID')}`,
+      'Transfer',
+      ref,
+      [{ accountCode: pocketCode, amount }],
+      [{ accountCode: poolCode, amount }]
+    );
+    if (!ok) return false;
+    const now = new Date().toISOString();
+    await store.addCashTransaction({
+      id: uuidv4(), date: now, amount, type: 'Out',
+      category: 'Tarik Kantong Sourcing',
+      description: `Tarik ke kantong ${sourcerName}`,
+      bankAccountId: poolBankAccountId, counterpartName: pocket.name,
+      referenceId: ref, referenceType: 'Transfer',
+    });
+    await store.addCashTransaction({
+      id: uuidv4(), date: now, amount, type: 'In',
+      category: 'Tarik Kantong Sourcing',
+      description: `Penerimaan kantong dari ${pool.name}`,
+      bankAccountId: pocketBankAccountId, counterpartName: pool.name,
+      referenceId: ref, referenceType: 'Transfer',
+    });
+    return true;
+  } finally {
+    store.endUndoableBatch();
+  }
+};
+
+// Daily close: return the pocket's entire remaining balance to the pool.
+// pocket → pool. Amount = current pocket balance (computed by caller). Returns
+// true on success so the caller can snapshot the TutupHariKantong marker.
+export const recordPocketReturn = async (
+  pocketBankAccountId: string,
+  poolBankAccountId: string,
+  amount: number,
+  sourcerName: string
+) => {
+  const store = useAppStore.getState();
+  const pool = store.bankAccounts.find(b => b.id === poolBankAccountId);
+  const pocket = store.bankAccounts.find(b => b.id === pocketBankAccountId);
+  if (!pool || !pocket || amount <= 0) return false;
+  if (poolBankAccountId === pocketBankAccountId) return false;
+
+  const poolCode = pool.accountCode || '1-1000';
+  const pocketCode = pocket.accountCode || '1-1500';
+  const ref = `POCKET-R-${Date.now().toString().slice(-8)}`;
+
+  store.beginUndoableBatch();
+  try {
+    const ok = await createAccountingEntry(
+      `Setor Sisa Kantong: ${sourcerName} - ${new Date().toLocaleDateString('id-ID')}`,
+      'Transfer',
+      ref,
+      [{ accountCode: poolCode, amount }],
+      [{ accountCode: pocketCode, amount }]
+    );
+    if (!ok) return false;
+    const now = new Date().toISOString();
+    await store.addCashTransaction({
+      id: uuidv4(), date: now, amount, type: 'Out',
+      category: 'Setor Sisa Kantong',
+      description: `Setor sisa kantong ${sourcerName} ke ${pool.name}`,
+      bankAccountId: pocketBankAccountId, counterpartName: pool.name,
+      referenceId: ref, referenceType: 'Transfer',
+    });
+    await store.addCashTransaction({
+      id: uuidv4(), date: now, amount, type: 'In',
+      category: 'Setor Sisa Kantong',
+      description: `Terima setoran kantong ${sourcerName}`,
+      bankAccountId: poolBankAccountId, counterpartName: pocket.name,
+      referenceId: ref, referenceType: 'Transfer',
+    });
+    return true;
+  } finally {
+    store.endUndoableBatch();
+  }
+};
+
 export const recordReconciliationSettlement = async (
   purchaseId: string, 
   actualShopCost: number, 
@@ -1259,6 +1359,57 @@ export const recordInboundQC = async (
   return true;
 };
 
+/**
+ * Tempo purchase (item.purchaseMethod === 'Transfer'): goods received now, paid later
+ * per vendor's agreed term. Converts the GR/IR accrual (2-1100) booked by recordInboundQC
+ * into a formal vendor payable (2-1000) tracked in AP Aging, instead of Finance prepaying
+ * the vendor before goods arrive.
+ */
+export const recordVendorBillFromInbound = async (
+  purchaseItemId: string,
+  vendorId: string,
+  amount: number,
+  description: string,
+  purchaseId?: string
+) => {
+  const store = useAppStore.getState();
+  const vendor = store.vendors.find((v) => v.id === vendorId);
+  if (!vendor || amount <= 0) return false;
+
+  const now = new Date();
+  const billId = uuidv4();
+  const billNumber = `VB-${format(now, 'yyyyMM')}-${billId.slice(0, 6).toUpperCase()}`;
+  const dueDate = dueDateFor(now, vendor.paymentTermDays || 14);
+
+  const success = await createAccountingEntry(
+    `Tempo QC: ${description} - Ref: ${purchaseItemId.slice(0, 8)}`,
+    'Purchase',
+    purchaseItemId,
+    [{ accountCode: '2-1100', amount }],
+    [{ accountCode: '2-1000', amount, vendorId, vendorBillId: billId }]
+  );
+  if (!success) return false;
+
+  const bill: VendorBill = {
+    id: billId,
+    billNumber,
+    vendorId,
+    vendorName: vendor.companyName,
+    issueDate: now.toISOString(),
+    dueDate,
+    description,
+    category: 'Bahan Baku',
+    totalAmount: amount,
+    amountPaid: 0,
+    status: 'Pending',
+    payments: [],
+    purchaseId,
+    createdAt: now.toISOString(),
+  };
+  await store.addVendorBill(bill);
+  return true;
+};
+
 export const recordDepreciation = async (assetId: string, amount: number, assetName: string) => {
   return await createAccountingEntry(
     `Penyusutan Aset: ${assetName}`,
@@ -1401,70 +1552,3 @@ export const recordPRExpensePayment = async (
   return success;
 };
 
-// Bulk transfer to ONE vendor: a single bank movement (one journal + one cash
-// tx) for the summed total, instead of one transaction per SKU. Each item is
-// still marked paid and its price history updated. Wrapped as one undo batch.
-export const recordVendorTransferBulk = async (
-  items: { itemId: string; amount: number }[],
-  vendorId: string,
-  vendorName: string,
-  bankAccountId: string,
-  transferRef: string = ''
-) => {
-  const store = useAppStore.getState();
-  const pending = items.filter(it => {
-    const ex = store.purchaseItems.find(pi => pi.id === it.itemId);
-    return ex && !ex.isTransferPaid;
-  });
-  if (pending.length === 0) return true;
-
-  const total = pending.reduce((s, it) => s + Number(it.amount || 0), 0);
-  const bank = store.bankAccounts.find(b => b.id === bankAccountId);
-  const bankAccountCode = bank?.accountCode || '1-1200';
-  const ref = transferRef || pending[0].itemId;
-
-  store.beginUndoableBatch();
-  try {
-    const success = await createAccountingEntry(
-      `Transfer Vendor: ${pending.length} item (${vendorName}) - Ref: ${ref}`,
-      'Purchase',
-      ref,
-      [{ accountCode: '2-1100', amount: total }],
-      [{ accountCode: bankAccountCode, amount: total }]
-    );
-    if (!success) return false;
-
-    if (total > 0) {
-      await store.addCashTransaction({
-        id: uuidv4(),
-        date: new Date().toISOString(),
-        amount: total,
-        type: 'Out',
-        category: 'Transfer Vendor',
-        description: `Transfer Vendor: ${pending.length} item ke ${vendorName}`,
-        bankAccountId,
-        counterpartName: vendorName,
-        referenceId: ref,
-        referenceType: 'Purchase',
-      });
-    }
-
-    for (const it of pending) {
-      const ex = store.purchaseItems.find(pi => pi.id === it.itemId);
-      const qty = ex?.qtyTarget || 1;
-      const amt = Number(it.amount || 0);
-      await store.updatePurchaseItem(it.itemId, {
-        isTransferPaid: true,
-        transferVendorId: vendorId,
-        vendorId,
-        transferRef: ref,
-        actualUnitPrice: amt / qty,
-      });
-      const product = store.products.find(p => p.id === ex?.productId);
-      if (product) updateProductPriceHistory(product.id, amt / qty, 'Transfer Vendor');
-    }
-    return true;
-  } finally {
-    store.endUndoableBatch();
-  }
-};
