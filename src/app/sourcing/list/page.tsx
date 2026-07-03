@@ -401,40 +401,7 @@ export default function SourcingDashboard() {
         </div>
       </div>
 
-      <section className="space-y-4">
-        <h2 className="text-sm font-black uppercase tracking-widest text-slate-500 px-1">Checklist Belanja</h2>
-        <>
-          {activePurchases.length === 0 && (
-            <div className="flex flex-col items-center justify-center text-center py-16 px-6">
-              <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
-                <CheckCircle2 className="w-8 h-8 text-slate-400" />
-              </div>
-              <p className="text-sm font-black uppercase tracking-widest text-slate-400">Tidak ada tugas belanja aktif</p>
-            </div>
-          )}
-          {activePurchases.length > 0 && <>
-          {/* Header Info */}
-          <div className="bg-white dark:bg-slate-900 -mx-4 p-4 border-b shadow-sm mb-6 rounded-b-[2rem]">
-            <h2 className="text-lg font-bold">Daftar Belanja Hari Ini</h2>
-            <p className="text-sm text-slate-500">
-              Target: {totalItems} jenis barang
-            </p>
-            
-            {/* Progress */}
-            <div className="mt-4 space-y-2">
-              <div className="flex justify-between text-xs font-semibold">
-                <span className="text-emerald-600">{completedItems} Selesai</span>
-                <span className="text-slate-500">{totalItems - completedItems} Tersisa</span>
-              </div>
-              <div className="h-2.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-emerald-500 transition-all duration-500 ease-out" 
-                  style={{ width: `${totalItems > 0 ? (completedItems / totalItems) * 100 : 0}%` }}
-                />
-              </div>
-            </div>
-          </div>
-
+      {/* Pocket panel — always visible, independent of active shopping tasks */}
       {myPocket ? (
         <div className="bg-violet-50 border border-violet-200 rounded-[2rem] p-5 space-y-3">
           <div className="flex items-center justify-between">
@@ -491,6 +458,40 @@ export default function SourcingDashboard() {
           Kantong sourcing kamu belum di-set. Minta finance bikin rekening kantong (purpose "Kantong Sourcing" + owner kamu) di Cash & Bank.
         </div>
       )}
+
+      <section className="space-y-4">
+        <h2 className="text-sm font-black uppercase tracking-widest text-slate-500 px-1">Checklist Belanja</h2>
+        <>
+          {activePurchases.length === 0 && (
+            <div className="flex flex-col items-center justify-center text-center py-16 px-6">
+              <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
+                <CheckCircle2 className="w-8 h-8 text-slate-400" />
+              </div>
+              <p className="text-sm font-black uppercase tracking-widest text-slate-400">Tidak ada tugas belanja aktif</p>
+            </div>
+          )}
+          {activePurchases.length > 0 && <>
+          {/* Header Info */}
+          <div className="bg-white dark:bg-slate-900 -mx-4 p-4 border-b shadow-sm mb-6 rounded-b-[2rem]">
+            <h2 className="text-lg font-bold">Daftar Belanja Hari Ini</h2>
+            <p className="text-sm text-slate-500">
+              Target: {totalItems} jenis barang
+            </p>
+            
+            {/* Progress */}
+            <div className="mt-4 space-y-2">
+              <div className="flex justify-between text-xs font-semibold">
+                <span className="text-emerald-600">{completedItems} Selesai</span>
+                <span className="text-slate-500">{totalItems - completedItems} Tersisa</span>
+              </div>
+              <div className="h-2.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-emerald-500 transition-all duration-500 ease-out" 
+                  style={{ width: `${totalItems > 0 ? (completedItems / totalItems) * 100 : 0}%` }}
+                />
+              </div>
+            </div>
+          </div>
 
       <div className="space-y-6">
         {Object.entries(itemsByVendor).map(([vendorId, items]) => {
