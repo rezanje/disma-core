@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { useAppStore } from "@/lib/store"
-import { getAdvanceWalletByUserId, recordPocketPurchase } from "@/lib/accounting"
+import { getAdvanceWalletByUserId, recordPocketPurchase, recordPocketWithdrawal, recordPocketReturn } from "@/lib/accounting"
 import { computeBankBalances } from "@/lib/bank-balance"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -394,6 +394,11 @@ export default function SourcingDashboard() {
   // Kurangi lagi dengan belanjaan yg sedang diisi tapi belum disubmit
   const remainingCash = totalHolding - totalShopSpentActual
 
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const myPocketTx = cashTransactions.filter(t => t.bankAccountId === myPocket?.id && t.date.slice(0, 10) === todayStr)
+  const ditarikHariIni = myPocketTx.filter(t => t.type === 'In' && t.category === 'Tarik Kantong Sourcing').reduce((s, t) => s + t.amount, 0)
+  const belanjaHariIni = myPocketTx.filter(t => t.type === 'Out' && t.category === 'Belanja Sourcing (HPP)').reduce((s, t) => s + t.amount, 0)
+  const alreadyClosedToday = useAppStore.getState().tutupHariKantong.some(m => m.sourcerId === currentUser?.id && m.date === todayStr)
 
   return (
     <div className="space-y-6 animate-in fade-in-50 duration-500 pb-20">
@@ -473,60 +478,62 @@ export default function SourcingDashboard() {
             </div>
           </div>
 
-      {/* Withdrawal from Bank Jago */}
-      {activePurchases.length > 0 && (() => {
-        const mainPurchase = activePurchases[0]
-        const saved = mainPurchase.withdrawalAmount || 0
-        return (
-          <div className="bg-violet-50 border border-violet-200 rounded-[2rem] p-5 space-y-3">
+      {myPocket ? (
+        <div className="bg-violet-50 border border-violet-200 rounded-[2rem] p-5 space-y-3">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Banknote className="w-4 h-4 text-violet-600" />
-              <p className="text-[10px] font-black uppercase tracking-widest text-violet-700">Uang Diambil dari Bank Jago</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-violet-700">Kantong Hari Ini · {myPocket.name}</p>
             </div>
-            {saved > 0 ? (
-              <div className="flex items-center justify-between">
-                <p className="text-xl font-black text-violet-800">{formatRupiah(saved)}</p>
-                <button
-                  className="text-[9px] font-black uppercase text-violet-500 underline"
-                  onClick={() => updatePurchase(mainPurchase.id, { withdrawalAmount: 0 })}
-                >
-                  Ubah
-                </button>
-              </div>
-            ) : (
-              <div className="flex gap-2">
-                <div className="flex items-center gap-1 flex-1 bg-white border-2 border-violet-200 rounded-xl px-3 focus-within:border-violet-500 transition-all">
-                  <span className="text-xs font-bold text-slate-400">Rp</span>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    className="flex-1 h-12 bg-transparent text-lg font-bold outline-none"
-                    placeholder="0"
-                    id="withdrawal-input"
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') {
-                        const val = parseNumber((document.getElementById('withdrawal-input') as HTMLInputElement).value)
-                        if (val > 0) updatePurchase(mainPurchase.id, { withdrawalAmount: val })
-                      }
-                    }}
-                  />
-                </div>
-                <Button
-                  className="h-12 px-5 bg-violet-600 hover:bg-violet-700 font-bold rounded-xl"
-                  onClick={() => {
-                    const val = parseNumber((document.getElementById('withdrawal-input') as HTMLInputElement).value)
-                    if (val > 0) updatePurchase(mainPurchase.id, { withdrawalAmount: val })
-                    else toast.error("Masukkan jumlah yang diambil.")
-                  }}
-                >
-                  Simpan
-                </Button>
-              </div>
-            )}
-            <p className="text-[9px] text-violet-400 font-bold uppercase">Catat berapa yang kamu ambil dari rekening bersama ke rekening pribadi sebelum belanja</p>
+            <p className="text-xl font-black text-violet-800">{formatRupiah(pocketBalance)}</p>
           </div>
-        )
-      })()}
+          <div className="grid grid-cols-2 gap-2 text-[10px] font-bold text-violet-600">
+            <span>Ditarik: {formatRupiah(ditarikHariIni)}</span>
+            <span>Kepake: {formatRupiah(belanjaHariIni)}</span>
+          </div>
+          <div className="flex gap-2">
+            <div className="flex items-center gap-1 flex-1 bg-white border-2 border-violet-200 rounded-xl px-3 focus-within:border-violet-500">
+              <span className="text-xs font-bold text-slate-400">Rp</span>
+              <input type="text" inputMode="numeric" id="pocket-withdraw-input" placeholder="0"
+                className="flex-1 h-12 bg-transparent text-lg font-bold outline-none" />
+            </div>
+            <Button className="h-12 px-5 bg-violet-600 hover:bg-violet-700 font-bold rounded-xl"
+              onClick={async () => {
+                const val = parseNumber((document.getElementById('pocket-withdraw-input') as HTMLInputElement).value)
+                if (val <= 0) return toast.error('Masukkan nominal tarik.')
+                if (!pool) return toast.error('Rekening Bank Jago (pool) belum di-set finance.')
+                if (val > (pool.balance ?? 0)) return toast.error(`Pool Bank Jago tidak cukup (tersedia ${formatRupiah(pool.balance ?? 0)}). Minta finance top-up.`)
+                const ok = await recordPocketWithdrawal(pool.id, myPocket.id, val, currentUser?.name || 'Sourcing')
+                if (ok) { toast.success(`Tarik ${formatRupiah(val)} ke kantong.`); (document.getElementById('pocket-withdraw-input') as HTMLInputElement).value = '' }
+                else toast.error('Gagal tarik.')
+              }}>
+              Tarik
+            </Button>
+          </div>
+          <Button
+            disabled={pocketBalance <= 0 || alreadyClosedToday}
+            className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 font-black rounded-xl uppercase text-[11px] tracking-widest disabled:opacity-40"
+            onClick={async () => {
+              if (!pool || !myPocket) return
+              const ok = await recordPocketReturn(myPocket.id, pool.id, pocketBalance, currentUser?.name || 'Sourcing')
+              if (!ok) return toast.error('Gagal setor sisa.')
+              await useAppStore.getState().addTutupHariKantong({
+                id: uuidv4(), sourcerId: currentUser?.id || 'unknown', pocketBankAccountId: myPocket.id,
+                date: todayStr, ditarik: ditarikHariIni, belanja: belanjaHariIni,
+                disetor: pocketBalance, defisit: pocketBalance < 0 ? Math.abs(pocketBalance) : 0,
+                closedAt: new Date().toISOString(), closedBy: currentUser?.name || currentUser?.id || 'Sourcing',
+              })
+              toast.success('Hari ditutup, sisa disetor ke Bank Jago.')
+            }}>
+            {alreadyClosedToday ? 'Hari Sudah Ditutup' : 'Tutup Hari (Setor Sisa)'}
+          </Button>
+          <p className="text-[9px] text-violet-400 font-bold uppercase">Tarik sesuai kebutuhan (boleh berkali-kali). Tiap sore tutup hari — sisa balik ke Bank Jago.</p>
+        </div>
+      ) : (
+        <div className="bg-amber-50 border border-amber-200 rounded-[2rem] p-5 text-[11px] font-bold text-amber-700">
+          Kantong sourcing kamu belum di-set. Minta finance bikin rekening kantong (purpose "Kantong Sourcing" + owner kamu) di Cash & Bank.
+        </div>
+      )}
 
       <div className="space-y-6">
         {Object.entries(itemsByVendor).map(([vendorId, items]) => {
