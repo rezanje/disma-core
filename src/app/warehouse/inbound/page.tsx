@@ -28,6 +28,8 @@ export default function InboundDashboard() {
 
        if ((pi.purchaseMethod === 'Pasar' || !pi.purchaseMethod) && parentP.status === 'Selesai') return true;
        if (pi.purchaseMethod === 'Online' && pi.isOnlineOrdered) return true;
+       // Vendor delivers direct — no sourcing checklist step, ready to accept as soon as compiled.
+       if (pi.purchaseMethod === 'Vendor') return true;
 
        return false;
     })
@@ -86,9 +88,11 @@ export default function InboundDashboard() {
               <Badge variant="outline" className={
                 item.purchaseMethod === 'Online'
                   ? 'bg-blue-50 text-blue-600 border-blue-200'
+                  : item.purchaseMethod === 'Vendor'
+                  ? 'bg-purple-50 text-purple-600 border-purple-200'
                   : 'bg-emerald-50 text-emerald-600 border-emerald-200'
               }>
-                {item.purchaseMethod === 'Online' ? 'Online' : 'Pasar'}
+                {item.purchaseMethod === 'Online' ? 'Online' : item.purchaseMethod === 'Vendor' ? 'Vendor' : 'Pasar'}
               </Badge>
             </TableCell>
             <TableCell className="text-xs">

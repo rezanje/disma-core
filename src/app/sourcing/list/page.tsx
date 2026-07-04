@@ -136,9 +136,10 @@ export default function SourcingDashboard() {
     (!p.purchaserId || p.purchaserId === currentUser?.id || p.purchaserId === 'pending' || p.purchaserId === '22222222-2222-2222-2222-222222222222')
   )
   
+  // Vendor items skip sourcing entirely — vendor delivers direct, warehouse accepts via Inbound.
   const currentItems = purchaseItems.filter(pi =>
     activePurchases.some(p => p.id === pi.purchaseId) &&
-    (pi.purchaseMethod === 'Pasar' || pi.purchaseMethod === 'Vendor')
+    pi.purchaseMethod === 'Pasar'
   )
 
   const itemsByVendor = useMemo(() => {
@@ -179,9 +180,8 @@ export default function SourcingDashboard() {
   const handleSubmitLaporan = async () => {
     if (activePurchases.length === 0) return
 
-    // Submit validation: all checked Pasar items must have a vendorId (Vendor items already have one from compile)
+    // Submit validation: all checked items must have a vendorId (currentItems is Pasar-only)
     const itemsWithoutVendor = currentItems.filter(item => {
-      if (item.purchaseMethod === 'Vendor') return false;
       const vendorId = activeItem?.id === item.id ? editVendorId : item.vendorId;
       return item.isChecked && !vendorId;
     });
@@ -572,9 +572,6 @@ export default function SourcingDashboard() {
                             {item.purchaseMethod === 'Online' && (
                                <Badge variant="outline" className="mt-1.5 bg-blue-50 text-blue-600 border-blue-200 text-[9px] font-black uppercase">🛒 Online Queue</Badge>
                             )}
-                            {item.purchaseMethod === 'Vendor' && (
-                               <Badge variant="outline" className="mt-1.5 bg-violet-50 text-violet-700 border-violet-200 text-[9px] font-black uppercase">🚚 Diantar Vendor</Badge>
-                            )}
                           </div>
                         </div>
                         {!item.isChecked && (
@@ -587,58 +584,8 @@ export default function SourcingDashboard() {
                         <div className="px-4 pb-4 pt-0 border-t border-slate-100 dark:border-slate-800 mt-2">
                           <div className="pt-4 grid gap-4">
 
-                            {item.purchaseMethod === 'Vendor' ? (
-                              // Vendor item: vendor & harga sudah ditentukan saat compile, tinggal konfirmasi terima barang
-                              <>
-                                <div className="bg-violet-50 border border-violet-200 p-3 rounded-lg text-xs font-bold text-violet-700">
-                                  🚚 Vendor — barang diantar/diambil, vendor &amp; harga sudah ditentukan saat compile.
-                                  {item.paymentMethod === 'Tempo' && ' Hutang ke vendor otomatis tercatat di AP Aging pas lolos QC, dibayar belakangan sesuai tempo.'}
-                                  {item.paymentMethod === 'Transfer' && ' Dibayar sekarang oleh finance via transfer bank.'}
-                                  {(!item.paymentMethod || item.paymentMethod === 'Cash') && ' Dibayar cash, potong kantong sourcing pas lapor.'}
-                                </div>
-                                <div className="space-y-2">
-                                  <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                                    Qty Diambil ({product.uom})
-                                  </Label>
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    step="any"
-                                    className="h-12 text-lg font-bold bg-white/50 border-2 transition-all focus:border-violet-500"
-                                    placeholder={`${item.qtyTarget}`}
-                                    value={editQty || ''}
-                                    onChange={(e) => setEditQty(parseFloat(e.target.value) || 0)}
-                                  />
-                                </div>
-                                <div className="space-y-2">
-                                  <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Catatan (Opsional)</Label>
-                                  <Input
-                                    type="text"
-                                    className="h-12 bg-white/50 border-2 transition-all focus:border-violet-500"
-                                    placeholder="Misal: ambil sebagian, sisanya besok"
-                                    value={editNote}
-                                    onChange={(e) => setEditNote(e.target.value)}
-                                  />
-                                </div>
-                                <Button
-                                  className="w-full h-12 bg-violet-600 hover:bg-violet-700 text-base font-bold"
-                                  onClick={() => {
-                                    handleExpandItem(null);
-                                    setTimeout(() => {
-                                      updatePurchaseItem(item.id, {
-                                        qtyPurchased: editQty || item.qtyTarget,
-                                        notes: editNote,
-                                        isChecked: true
-                                      })
-                                    }, 10);
-                                  }}
-                                >
-                                  <PackageCheck className="w-4 h-4 mr-2" /> Tandai Sudah Diambil
-                                </Button>
-                              </>
-                            ) : (
-                              // Pasar item: normal buy flow
-                              <>
+                            {/* currentItems is Pasar-only now — Vendor delivers direct via Inbound */}
+                            <>
                                 <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg flex justify-between items-center">
                                   <span className="text-xs text-slate-500">Estimasi Harga Pusat:</span>
                                   <span className="text-sm font-bold">{formatRupiah(item.estimatedUnitPrice)} / {product.uom}</span>
@@ -773,8 +720,7 @@ export default function SourcingDashboard() {
                                     <Globe className="w-4 h-4 mr-2" /> Tidak ada di pasar, Beli Online
                                   </Button>
                                 </div>
-                              </>
-                            )}
+                            </>
                           </div>
                         </div>
                       )}
