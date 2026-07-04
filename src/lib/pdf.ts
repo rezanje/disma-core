@@ -388,7 +388,7 @@ export function generateTukarFakturBundle(invoiceId: string, outputType: 'save' 
 }
 
 function buildShoppingListPDF(
-  items: Array<{productId: string, productName: string, skuCode: string, uom?: string, totalQty: number, estimatedPrice: number, purchaseMethod?: string, vendorName?: string}>,
+  items: Array<{productId: string, productName: string, skuCode: string, uom?: string, totalQty: number, estimatedPrice: number, purchaseMethod?: string, paymentMethod?: string, vendorName?: string}>,
   titleOverride?: string
 ) {
   // OPTIMIZATION: Enable compression
@@ -408,8 +408,9 @@ function buildShoppingListPDF(
   doc.setFont("helvetica", "normal")
   
   const printItems = items.filter(item => item.purchaseMethod !== 'Online')
+  // Cash needed today = only items actually paid Cash — Tempo defers, Transfer is paid by finance.
   const totalBudget = printItems
-    .filter(item => item.purchaseMethod !== 'Transfer')
+    .filter(item => (item.paymentMethod || 'Cash') === 'Cash')
     .reduce((sum, item) => sum + ((item.estimatedPrice || 0) * (item.totalQty || 0)), 0)
 
   // Print estimated cash on the right side
@@ -470,7 +471,7 @@ function buildShoppingListPDF(
       const nameLines = doc.splitTextToSize(item.productName, 75);
       doc.text(nameLines, 40, y)
       
-      const priceText = item.purchaseMethod === 'Transfer' ? '(Dibayar Kantor)' : formatRupiah(item.estimatedPrice)
+      const priceText = item.paymentMethod === 'Transfer' ? '(Dibayar Kantor)' : formatRupiah(item.estimatedPrice)
       doc.text(priceText, 120, y)
       
       doc.text(`${item.totalQty}${item.uom ? ' ' + item.uom : ''}`, 160, y)
@@ -487,7 +488,7 @@ function buildShoppingListPDF(
 }
 
 export function generateShoppingListPDFDataUrl(
-  items: Array<{productId: string, productName: string, skuCode: string, uom?: string, totalQty: number, estimatedPrice: number, purchaseMethod?: string, vendorName?: string}>,
+  items: Array<{productId: string, productName: string, skuCode: string, uom?: string, totalQty: number, estimatedPrice: number, purchaseMethod?: string, paymentMethod?: string, vendorName?: string}>,
   titleOverride?: string
 ) {
   // blob: URL, not a data: URI — renders reliably in an <iframe> preview (data: URIs
@@ -496,7 +497,7 @@ export function generateShoppingListPDFDataUrl(
 }
 
 export function generateShoppingListPDF(
-  items: Array<{productId: string, productName: string, skuCode: string, uom?: string, totalQty: number, estimatedPrice: number, purchaseMethod?: string, vendorName?: string}>,
+  items: Array<{productId: string, productName: string, skuCode: string, uom?: string, totalQty: number, estimatedPrice: number, purchaseMethod?: string, paymentMethod?: string, vendorName?: string}>,
   titleOverride?: string
 ) {
   const filename = titleOverride 

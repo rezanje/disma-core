@@ -26,13 +26,15 @@ type ShoppingListDocumentItem = {
   totalQty: number
   estimatedPrice: number
   sellPrice: number
-  purchaseMethod: 'Pasar' | 'Online' | 'Transfer'
+  purchaseMethod: 'Pasar' | 'Online' | 'Vendor'
+  paymentMethod?: 'Cash' | 'Tempo' | 'Transfer'
   salesOrderId?: string
   vendorId?: string
   vendorName?: string
 }
 
-const CARA_BELANJA_LABEL: Record<string, string> = { Pasar: 'Pasar', Online: 'Beli Online', Transfer: 'Tempo' }
+const LOKASI_LABEL: Record<string, string> = { Pasar: 'Pasar', Online: 'Beli Online', Vendor: 'Vendor' }
+const METODE_BAYAR_LABEL: Record<string, string> = { Cash: 'Cash', Tempo: 'Tempo', Transfer: 'Transfer' }
 
 const toDateInputValue = (date?: string) => {
   if (!date) return ''
@@ -162,9 +164,14 @@ export default function ShoppingListPage() {
     if (typeof window === 'undefined') return new Set()
     try { return new Set(JSON.parse(localStorage.getItem('shopping_onlineProductIds') || '[]')) } catch { return new Set() }
   })
-  const [transferProductIds, setTransferProductIds] = useState<Set<string>>(() => {
+  const [vendorProductIds, setVendorProductIds] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') return new Set()
-    try { return new Set(JSON.parse(localStorage.getItem('shopping_transferProductIds') || '[]')) } catch { return new Set() }
+    try { return new Set(JSON.parse(localStorage.getItem('shopping_vendorProductIds') || '[]')) } catch { return new Set() }
+  })
+  // Metode bayar per produk — independen dari lokasi ambil barang. Default Cash bila belum di-set.
+  const [paymentByProduct, setPaymentByProduct] = useState<Record<string, 'Cash' | 'Tempo' | 'Transfer'>>(() => {
+    if (typeof window === 'undefined') return {}
+    try { return JSON.parse(localStorage.getItem('shopping_paymentByProduct') || '{}') } catch { return {} }
   })
   // Products fulfilled from warehouse stock (booking) — excluded from the buy list
   const [stockBookedProductIds, setStockBookedProductIds] = useState<Set<string>>(() => {
@@ -197,7 +204,8 @@ export default function ShoppingListPage() {
   useEffect(() => { localStorage.setItem('shopping_compiledRejectIds', JSON.stringify(Array.from(compiledRejectIds))) }, [compiledRejectIds])
   useEffect(() => { localStorage.setItem('shopping_vendorAssignments', JSON.stringify(vendorAssignments)) }, [vendorAssignments])
   useEffect(() => { localStorage.setItem('shopping_onlineProductIds', JSON.stringify(Array.from(onlineProductIds))) }, [onlineProductIds])
-  useEffect(() => { localStorage.setItem('shopping_transferProductIds', JSON.stringify(Array.from(transferProductIds))) }, [transferProductIds])
+  useEffect(() => { localStorage.setItem('shopping_vendorProductIds', JSON.stringify(Array.from(vendorProductIds))) }, [vendorProductIds])
+  useEffect(() => { localStorage.setItem('shopping_paymentByProduct', JSON.stringify(paymentByProduct)) }, [paymentByProduct])
   useEffect(() => { localStorage.setItem('shopping_stockBookedProductIds', JSON.stringify(Array.from(stockBookedProductIds))) }, [stockBookedProductIds])
   useEffect(() => { localStorage.setItem('shopping_filterDeliveryDate', filterDeliveryDate) }, [filterDeliveryDate])
   useEffect(() => { localStorage.setItem('shopping_lastGeneratedDoc', JSON.stringify(lastGeneratedDoc)) }, [lastGeneratedDoc])
@@ -209,7 +217,8 @@ export default function ShoppingListPage() {
     customQtys: Record<string, number>;
     vendorAssignments: Record<string, string>;
     onlineProductIds: Set<string>;
-    transferProductIds: Set<string>;
+    vendorProductIds: Set<string>;
+    paymentByProduct: Record<string, 'Cash' | 'Tempo' | 'Transfer'>;
     stockBookedProductIds: Set<string>;
     selectedSOIds: Set<string>;
     compiledRejectIds: Set<string>;
@@ -225,7 +234,8 @@ export default function ShoppingListPage() {
         customQtys: { ...customQtys },
         vendorAssignments: { ...vendorAssignments },
         onlineProductIds: new Set(onlineProductIds),
-        transferProductIds: new Set(transferProductIds),
+        vendorProductIds: new Set(vendorProductIds),
+        paymentByProduct: { ...paymentByProduct },
         stockBookedProductIds: new Set(stockBookedProductIds),
         selectedSOIds: new Set(selectedSOIds),
         compiledRejectIds: new Set(compiledRejectIds)
@@ -246,7 +256,8 @@ export default function ShoppingListPage() {
           setCustomQtys(last.customQtys)
           setVendorAssignments(last.vendorAssignments)
           setOnlineProductIds(last.onlineProductIds)
-          setTransferProductIds(last.transferProductIds)
+          setVendorProductIds(last.vendorProductIds)
+          setPaymentByProduct(last.paymentByProduct)
           setStockBookedProductIds(last.stockBookedProductIds)
           setSelectedSOIds(last.selectedSOIds)
           setCompiledRejectIds(last.compiledRejectIds)
@@ -276,11 +287,13 @@ export default function ShoppingListPage() {
       next.delete(productId)
       return next
     })
-    setTransferProductIds(prev => {
+    setVendorProductIds(prev => {
       const next = new Set(prev)
       next.delete(productId)
       return next
     })
+    // Transfer bayar tidak berlaku di Pasar — turunkan ke Cash bila sebelumnya Transfer.
+    setPaymentByProduct(prev => prev[productId] === 'Transfer' ? { ...prev, [productId]: 'Cash' } : prev)
   }
 
   const selectOnline = (productId: string) => {
@@ -295,21 +308,21 @@ export default function ShoppingListPage() {
       next.add(productId)
       return next
     })
-    setTransferProductIds(prev => {
+    setVendorProductIds(prev => {
       const next = new Set(prev)
       next.delete(productId)
       return next
     })
   }
 
-  const selectTransfer = (productId: string) => {
+  const selectVendor = (productId: string) => {
     saveToHistory()
     setStockBookedProductIds(prev => {
       const next = new Set(prev)
       next.delete(productId)
       return next
     })
-    setTransferProductIds(prev => {
+    setVendorProductIds(prev => {
       const next = new Set(prev)
       next.add(productId)
       return next
@@ -319,6 +332,11 @@ export default function ShoppingListPage() {
       next.delete(productId)
       return next
     })
+  }
+
+  const setPaymentMethod = (productId: string, method: 'Cash' | 'Tempo' | 'Transfer') => {
+    saveToHistory()
+    setPaymentByProduct(prev => ({ ...prev, [productId]: method }))
   }
 
   const toggleStockBooked = (productId: string) => {
@@ -465,7 +483,8 @@ export default function ShoppingListPage() {
           totalQty: curr.qty,
           estimatedPrice: customPrice !== undefined ? customPrice : (curr.buyPrice || product.basePrice || 0),
           sellPrice: curr.sellPrice,
-          purchaseMethod: transferProductIds.has(curr.productId) ? 'Transfer' : onlineProductIds.has(curr.productId) ? 'Online' : 'Pasar',
+          purchaseMethod: vendorProductIds.has(curr.productId) ? 'Vendor' : onlineProductIds.has(curr.productId) ? 'Online' : 'Pasar',
+          paymentMethod: paymentByProduct[curr.productId] || 'Cash',
           salesOrderId: curr.salesOrderId,
           vendorId: vId,
           vendorName: vName,
@@ -474,7 +493,7 @@ export default function ShoppingListPage() {
       }
     }
     return acc
-  }, [] as Array<{productId: string, productName: string, skuCode: string, uom?: string, kebutuhan: number, totalQty: number, estimatedPrice: number, sellPrice: number, purchaseMethod: 'Pasar' | 'Online' | 'Transfer', salesOrderId?: string, vendorId?: string, vendorName?: string, fromStock?: boolean}>)
+  }, [] as Array<{productId: string, productName: string, skuCode: string, uom?: string, kebutuhan: number, totalQty: number, estimatedPrice: number, sellPrice: number, purchaseMethod: 'Pasar' | 'Online' | 'Vendor', paymentMethod: 'Cash' | 'Tempo' | 'Transfer', salesOrderId?: string, vendorId?: string, vendorName?: string, fromStock?: boolean}>)
 
   const consolidatedList = useMemo(() => {
     return rawConsolidatedList.map(item => {
@@ -606,6 +625,7 @@ export default function ShoppingListPage() {
         actualUnitPrice: 0,
         isChecked: false,
         purchaseMethod: item.purchaseMethod,
+        paymentMethod: item.paymentMethod,
         vendorId: item.vendorId
       })))
 
@@ -1231,7 +1251,7 @@ export default function ShoppingListPage() {
                           <TableHead className="w-[80px] text-right">Qty</TableHead>
                           <TableHead className="w-[130px] text-right">Budget</TableHead>
                           <TableHead className="w-[130px] text-right">Subtotal</TableHead>
-                          <TableHead className="w-[100px] text-center">Cara Belanja</TableHead>
+                          <TableHead className="w-[130px] text-center">Lokasi · Bayar</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1242,7 +1262,9 @@ export default function ShoppingListPage() {
                             <TableCell className="text-right text-sm font-black text-slate-700">{item.totalQty}</TableCell>
                             <TableCell className="text-right text-xs font-bold text-slate-500">{formatRupiah(item.estimatedPrice)}</TableCell>
                             <TableCell className="text-right text-xs font-black text-emerald-600">{formatRupiah(item.estimatedPrice * item.totalQty)}</TableCell>
-                            <TableCell className="text-center text-[10px] font-black uppercase tracking-widest text-slate-400">{CARA_BELANJA_LABEL[item.purchaseMethod] || item.purchaseMethod}</TableCell>
+                            <TableCell className="text-center text-[10px] font-black uppercase tracking-widest text-slate-400">
+                              {LOKASI_LABEL[item.purchaseMethod] || item.purchaseMethod} · {METODE_BAYAR_LABEL[item.paymentMethod || ''] || item.paymentMethod || 'Cash'}
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -1437,7 +1459,8 @@ export default function ShoppingListPage() {
                             <TableHead className="w-[110px] text-right">Sell Price</TableHead>
                             <TableHead className="w-[140px] text-right">Est. Buy</TableHead>
                             <TableHead className="w-[110px] text-right">Subtotal</TableHead>
-                            <TableHead className="w-[140px] text-center">Cara Belanja</TableHead>
+                            <TableHead className="w-[140px] text-center">Lokasi Ambil</TableHead>
+                            <TableHead className="w-[120px] text-center">Metode Bayar</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -1449,36 +1472,62 @@ export default function ShoppingListPage() {
                             return (
                               <React.Fragment key={vKey}>
                                 <TableRow className="bg-slate-100/50 dark:bg-slate-800/50 border-y-2 border-slate-200">
-                                  <TableCell colSpan={10} className="py-1.5 px-4">
+                                  <TableCell colSpan={11} className="py-1.5 px-4">
                                     <div className="flex items-center justify-between w-full gap-2 flex-wrap">
                                       <span className="text-xs font-black uppercase tracking-widest text-slate-500">{vName}</span>
                                       <div className="flex items-center gap-1.5 shrink-0">
-                                        {/* Bulk cara belanja - hanya tampil untuk vendor yang teridentifikasi */}
+                                        {/* Bulk lokasi + metode bayar - hanya tampil untuk vendor yang teridentifikasi */}
                                         {vKey !== 'unassigned' && items.length > 0 && (
-                                          <div className="flex items-center gap-1 border border-slate-200 rounded-lg p-0.5 bg-white">
-                                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 pl-1.5 pr-0.5">Bulk:</span>
-                                            <button
-                                              onClick={() => { saveToHistory(); items.forEach(i => selectPasar(i.productId)) }}
-                                              className="px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105 bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100"
-                                              title={`Set semua ${items.length} item di ${vName} ke Pasar`}
-                                            >
-                                              Pasar
-                                            </button>
-                                            <button
-                                              onClick={() => { saveToHistory(); items.forEach(i => selectOnline(i.productId)) }}
-                                              className="px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105 bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
-                                              title={`Set semua ${items.length} item di ${vName} ke Beli Online`}
-                                            >
-                                              Beli Online
-                                            </button>
-                                            <button
-                                              onClick={() => { saveToHistory(); items.forEach(i => selectTransfer(i.productId)) }}
-                                              className="px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105 bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100"
-                                              title={`Set semua ${items.length} item di ${vName} ke Tempo`}
-                                            >
-                                              Tempo
-                                            </button>
-                                          </div>
+                                          <>
+                                            <div className="flex items-center gap-1 border border-slate-200 rounded-lg p-0.5 bg-white">
+                                              <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 pl-1.5 pr-0.5">Lokasi:</span>
+                                              <button
+                                                onClick={() => { saveToHistory(); items.forEach(i => selectPasar(i.productId)) }}
+                                                className="px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105 bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100"
+                                                title={`Set semua ${items.length} item di ${vName} ke Pasar`}
+                                              >
+                                                Pasar
+                                              </button>
+                                              <button
+                                                onClick={() => { saveToHistory(); items.forEach(i => selectOnline(i.productId)) }}
+                                                className="px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105 bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+                                                title={`Set semua ${items.length} item di ${vName} ke Beli Online`}
+                                              >
+                                                Beli Online
+                                              </button>
+                                              <button
+                                                onClick={() => { saveToHistory(); items.forEach(i => selectVendor(i.productId)) }}
+                                                className="px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105 bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100"
+                                                title={`Set semua ${items.length} item di ${vName} ke Vendor`}
+                                              >
+                                                Vendor
+                                              </button>
+                                            </div>
+                                            <div className="flex items-center gap-1 border border-slate-200 rounded-lg p-0.5 bg-white">
+                                              <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 pl-1.5 pr-0.5">Bayar:</span>
+                                              <button
+                                                onClick={() => { items.forEach(i => setPaymentMethod(i.productId, 'Cash')) }}
+                                                className="px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105 bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100"
+                                                title={`Set semua ${items.length} item di ${vName} ke Cash`}
+                                              >
+                                                Cash
+                                              </button>
+                                              <button
+                                                onClick={() => { items.forEach(i => setPaymentMethod(i.productId, 'Tempo')) }}
+                                                className="px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105 bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100"
+                                                title={`Set semua ${items.length} item di ${vName} ke Tempo`}
+                                              >
+                                                Tempo
+                                              </button>
+                                              <button
+                                                onClick={() => { items.forEach(i => setPaymentMethod(i.productId, 'Transfer')) }}
+                                                className="px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105 bg-violet-50 border-violet-200 text-violet-700 hover:bg-violet-100"
+                                                title={`Set semua ${items.length} item di ${vName} ke Transfer`}
+                                              >
+                                                Transfer
+                                              </button>
+                                            </div>
+                                          </>
                                         )}
                                         {items.length > 0 && (
                                           <Button
@@ -1698,11 +1747,11 @@ export default function ShoppingListPage() {
                                                      ? "bg-emerald-100 border-emerald-300 text-emerald-700"
                                                      : "bg-slate-50 border-slate-200 text-slate-400"
                                                )}
-                                               title="Pindah ke Beli di Pasar"
+                                               title="Lokasi: Beli di Pasar"
                                             >
                                                Pasar
                                             </button>
-  
+
                                             {/* Button Online */}
                                             <button
                                                onClick={() => selectOnline(item.productId)}
@@ -1717,20 +1766,20 @@ export default function ShoppingListPage() {
                                                Beli Online
                                             </button>
 
-                                            {/* Button Transfer */}
+                                            {/* Button Vendor */}
                                             <button
-                                               onClick={() => selectTransfer(item.productId)}
+                                               onClick={() => selectVendor(item.productId)}
                                                className={cn(
                                                   "px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105",
-                                                  item.purchaseMethod === 'Transfer' && !item.fromStock
+                                                  item.purchaseMethod === 'Vendor' && !item.fromStock
                                                      ? "bg-purple-100 border-purple-300 text-purple-700"
                                                      : "bg-slate-50 border-slate-200 text-slate-400"
                                                )}
-                                               title="Tempo — bayar transfer belakangan sesuai kesepakatan vendor"
+                                               title="Lokasi: Diantar/Diambil dari Vendor"
                                             >
-                                               Tempo
+                                               Vendor
                                             </button>
-  
+
                                             {/* Button Gudang */}
                                             <button
                                                onClick={() => toggleStockBooked(item.productId)}
@@ -1769,6 +1818,52 @@ export default function ShoppingListPage() {
                                                <Trash2 className="w-3.5 h-3.5" />
                                             </button>
                                          </div>
+                                      </TableCell>
+                                      <TableCell className="text-center">
+                                         {item.purchaseMethod === 'Online' || item.fromStock ? (
+                                            <span className="text-[9px] text-slate-300 font-bold">—</span>
+                                         ) : (
+                                            <div className="flex flex-wrap items-center justify-center gap-1 w-[120px]">
+                                               <button
+                                                  onClick={() => setPaymentMethod(item.productId, 'Cash')}
+                                                  className={cn(
+                                                     "px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105",
+                                                     item.paymentMethod === 'Cash'
+                                                        ? "bg-emerald-100 border-emerald-300 text-emerald-700"
+                                                        : "bg-slate-50 border-slate-200 text-slate-400"
+                                                  )}
+                                                  title="Bayar Cash — potong kantong sourcing"
+                                               >
+                                                  Cash
+                                               </button>
+                                               <button
+                                                  onClick={() => setPaymentMethod(item.productId, 'Tempo')}
+                                                  className={cn(
+                                                     "px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105",
+                                                     item.paymentMethod === 'Tempo'
+                                                        ? "bg-amber-100 border-amber-300 text-amber-700"
+                                                        : "bg-slate-50 border-slate-200 text-slate-400"
+                                                  )}
+                                                  title="Tempo — hutang ke vendor, dibayar belakangan lewat AP Aging"
+                                               >
+                                                  Tempo
+                                               </button>
+                                               {item.purchaseMethod === 'Vendor' && (
+                                                  <button
+                                                     onClick={() => setPaymentMethod(item.productId, 'Transfer')}
+                                                     className={cn(
+                                                        "px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105",
+                                                        item.paymentMethod === 'Transfer'
+                                                           ? "bg-violet-100 border-violet-300 text-violet-700"
+                                                           : "bg-slate-50 border-slate-200 text-slate-400"
+                                                     )}
+                                                     title="Transfer — dibayar sekarang oleh finance dari BCA"
+                                                  >
+                                                     Transfer
+                                                  </button>
+                                               )}
+                                            </div>
+                                         )}
                                       </TableCell>
                                     </TableRow>
                                   );
@@ -2084,7 +2179,7 @@ export default function ShoppingListPage() {
                         <TableHead className="text-[10px] font-black uppercase tracking-widest text-right w-[80px]">Qty</TableHead>
                         <TableHead className="text-[10px] font-black uppercase tracking-widest text-right w-[120px]">Est. Harga</TableHead>
                         <TableHead className="text-[10px] font-black uppercase tracking-widest text-right w-[120px]">Subtotal</TableHead>
-                        <TableHead className="text-[10px] font-black uppercase tracking-widest text-center w-[90px]">Cara Belanja</TableHead>
+                        <TableHead className="text-[10px] font-black uppercase tracking-widest text-center w-[110px]">Lokasi · Bayar</TableHead>
                         <TableHead className="text-[10px] font-black uppercase tracking-widest w-[120px]">Vendor</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -2106,7 +2201,7 @@ export default function ShoppingListPage() {
                             <TableCell className="text-right text-xs font-bold text-emerald-600">{formatRupiah(item.estimatedUnitPrice * item.qtyTarget)}</TableCell>
                             <TableCell className="text-center">
                               <span className={cn("px-1.5 py-0.5 rounded text-[9px] font-black uppercase border", methodColor)}>
-                                {CARA_BELANJA_LABEL[item.purchaseMethod || ''] || item.purchaseMethod}
+                                {LOKASI_LABEL[item.purchaseMethod || ''] || item.purchaseMethod} · {METODE_BAYAR_LABEL[item.paymentMethod || ''] || item.paymentMethod || 'Cash'}
                               </span>
                             </TableCell>
                             <TableCell className="text-[10px] text-slate-500 font-bold">{vnd?.companyName || '—'}</TableCell>
@@ -2130,8 +2225,9 @@ export default function ShoppingListPage() {
                         uom: products.find(p => p.id === i.productId)?.uom,
                         totalQty: i.qtyTarget,
                         estimatedPrice: i.estimatedUnitPrice,
-                        sellPrice: products.find(p => p.id === i.productId)?.sellPrice || 0,
-                        purchaseMethod: i.purchaseMethod as 'Pasar' | 'Online' | 'Transfer',
+                        sellPrice: products.find(p => p.id === i.productId)?.sellingPrice || 0,
+                        purchaseMethod: i.purchaseMethod as 'Pasar' | 'Online' | 'Vendor',
+                        paymentMethod: i.paymentMethod,
                         vendorId: i.vendorId,
                         vendorName: vendors.find(v => v.id === i.vendorId)?.companyName,
                       }))
