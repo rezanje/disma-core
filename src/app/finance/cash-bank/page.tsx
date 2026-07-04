@@ -61,7 +61,7 @@ export default function CashAndBankPage() {
   const [isAddTxOpen, setIsAddTxOpen] = useState(false)
   const [isAddBankOpen, setIsAddBankOpen] = useState(false)
   const [editingBank, setEditingBank] = useState<any>(null)
-  const [bankForm, setBankForm] = useState<{ name: string; number: string; balance: number; accountCode: string; purpose: BankAccountPurpose; ownerUserId: string }>({ name: '', number: '', balance: 0, accountCode: '1-1000', purpose: 'umum', ownerUserId: '' })
+  const [bankForm, setBankForm] = useState<{ name: string; number: string; balance: number; accountCode: string; purpose: BankAccountPurpose; ownerUserId: string; cfoApprovalRequired: boolean }>({ name: '', number: '', balance: 0, accountCode: '1-1000', purpose: 'umum', ownerUserId: '', cfoApprovalRequired: false })
 
   const [txType, setTxType] = useState<'In' | 'Out' | 'Transfer'>('In')
   const [bankId, setBankId] = useState('')
@@ -135,6 +135,7 @@ export default function CashAndBankPage() {
         balance: bankForm.balance,
         purpose: bankForm.purpose,
         ownerUserId: bankForm.purpose === 'sourcing_pocket' ? bankForm.ownerUserId : undefined,
+        cfoApprovalRequired: bankForm.cfoApprovalRequired,
       })
 
       if (Number(bankForm.balance) > 0) {
@@ -166,7 +167,7 @@ export default function CashAndBankPage() {
       }
 
       setIsAddBankOpen(false)
-      setBankForm({ name: '', number: '', balance: 0, accountCode: '1-1000', purpose: 'umum', ownerUserId: '' })
+      setBankForm({ name: '', number: '', balance: 0, accountCode: '1-1000', purpose: 'umum', ownerUserId: '', cfoApprovalRequired: false })
       toast.success(`${bankForm.name} berhasil didaftarkan!`, { id: loadingToast })
     } catch (e: any) {
       toast.error("Gagal mendaftarkan bank: " + e.message, { id: loadingToast })
@@ -249,6 +250,7 @@ export default function CashAndBankPage() {
         accountCode: editingBank.accountCode,
         purpose: editingBank.purpose || 'umum',
         ownerUserId: editingBank.purpose === 'sourcing_pocket' ? editingBank.ownerUserId : undefined,
+        cfoApprovalRequired: !!editingBank.cfoApprovalRequired,
         // Balance is NOT updated here because addCashTransaction already updated it
       })
       setEditingBank(null)
@@ -579,6 +581,16 @@ export default function CashAndBankPage() {
                         </Select>
                       </div>
                     )}
+                    <div className="flex items-center gap-2 p-3 rounded-xl border border-slate-200">
+                      <Checkbox
+                        id="cfo-gate-create"
+                        checked={bankForm.cfoApprovalRequired}
+                        onCheckedChange={(checked) => setBankForm({ ...bankForm, cfoApprovalRequired: checked === true })}
+                      />
+                      <label htmlFor="cfo-gate-create" className="text-[10px] font-bold text-slate-600 leading-tight">
+                        Butuh Approval CFO untuk transfer KELUAR dari rekening ini (BRI, Mandiri)
+                      </label>
+                    </div>
                     <Button onClick={handleCreateBank} disabled={isSubmitting} className="w-full h-14 bg-slate-900 text-white rounded-[1.5rem] font-black uppercase text-[10px] tracking-widest shadow-xl mt-4">
                        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Buka Akun Kas/Bank"}
                     </Button>
@@ -838,6 +850,11 @@ export default function CashAndBankPage() {
                      <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest truncate">{b.accountNumber || 'PHYSICAL CASH'}</p>
                      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wide mt-0.5 truncate">{b.name}</p>
                      <p className="text-lg font-black mt-0.5 tracking-tighter">{formatRupiah(b.balance)}</p>
+                     {b.cfoApprovalRequired && (
+                        <Badge variant="outline" className="mt-1 text-[8px] font-black uppercase tracking-widest bg-amber-50 text-amber-700 border-amber-200">
+                           Butuh Approval CFO
+                        </Badge>
+                     )}
                   </div>
                   <div className="absolute right-[-8px] bottom-[-8px] opacity-[0.04] group-hover:rotate-12 transition-all duration-500">
                      <Landmark className="w-14 h-14" />
@@ -922,6 +939,16 @@ export default function CashAndBankPage() {
                 </Select>
               </div>
             )}
+            <div className="flex items-center gap-2 p-3 rounded-xl border border-slate-200">
+              <Checkbox
+                id="cfo-gate-edit"
+                checked={!!editingBank?.cfoApprovalRequired}
+                onCheckedChange={(checked) => setEditingBank({ ...editingBank, cfoApprovalRequired: checked === true })}
+              />
+              <label htmlFor="cfo-gate-edit" className="text-[10px] font-bold text-slate-600 leading-tight">
+                Butuh Approval CFO untuk transfer KELUAR dari rekening ini (BRI, Mandiri)
+              </label>
+            </div>
 
             {/* Adjustment Category Logic */}
             {editingBank && (Number(editingBank.balance) !== (bankAccounts.find(b => b.id === editingBank.id)?.balance || 0)) && (
