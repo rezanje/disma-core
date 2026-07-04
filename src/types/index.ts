@@ -188,7 +188,7 @@ export interface SalesOrderItem {
 }
 
 export type PurchaseStatus = 'Pending' | 'Belanja' | 'Selesai';
-export type PurchaseMethod = 'Pasar' | 'Online' | 'Transfer';
+export type PurchaseMethod = 'Pasar' | 'Vendor' | 'Online'; // lokasi ambil barang
 export type ReconciliationStatus = 'Belum Transfer' | 'Dana Ditransfer' | 'Laporan Masuk' | 'Terverifikasi' | 'Dispute';
 
 export interface Purchase {
@@ -234,7 +234,7 @@ export interface PurchaseItem {
   isOnlineOrdered?: boolean;
   isOnlineAudited?: boolean;
   vendorId?: string;
-  paymentMethod?: 'Cash' | 'Tempo';
+  paymentMethod?: 'Cash' | 'Tempo' | 'Transfer'; // metode bayar
   inboundStatus?: 'pra_inbound' | 'verified' | 'rejected' | 'partial';
   inboundQtyReceived?: number;
   inboundVerifiedAt?: string;

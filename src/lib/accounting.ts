@@ -990,6 +990,36 @@ export const recordPocketPurchase = async (
   return true;
 };
 
+// Metode Bayar 'Transfer': paid immediately (no queue, no approval) by bank
+// transfer instead of physical cash — same posting moment as recordPocketPurchase,
+// just credits a bank account (default BCA) instead of the sourcing pocket.
+export const recordVendorTransferPurchase = async (
+  purchaseId: string,
+  bankAccountId: string,
+  amount: number,
+  sourcerName: string
+) => {
+  const store = useAppStore.getState();
+  const bank = store.bankAccounts.find(b => b.id === bankAccountId);
+  if (!bank || amount <= 0) return false;
+  const bankCode = bank.accountCode || '1-1200';
+  const ok = await createAccountingEntry(
+    `Belanja Transfer Sourcing (${sourcerName}) - Ref: ${purchaseId.slice(0, 8)}`,
+    'Purchase',
+    purchaseId,
+    [{ accountCode: HPP_ACCOUNT_CODE, amount }],
+    [{ accountCode: bankCode, amount }]
+  );
+  if (!ok) return false;
+  await store.addCashTransaction({
+    id: `transfer-buy-${purchaseId}`, date: new Date().toISOString(), amount,
+    type: 'Out', category: 'Belanja Transfer Sourcing',
+    description: `Belanja transfer - Ref: ${purchaseId.slice(0, 8)}`,
+    bankAccountId, referenceId: purchaseId, referenceType: 'Purchase',
+  });
+  return true;
+};
+
 export const recordReconciliationSettlement = async (
   purchaseId: string, 
   actualShopCost: number, 
@@ -1390,10 +1420,11 @@ export const recordInboundQC = async (
 };
 
 /**
- * Tempo purchase (item.purchaseMethod === 'Transfer'): goods received now, paid later
- * per vendor's agreed term. Converts the GR/IR accrual (2-1100) booked by recordInboundQC
- * into a formal vendor payable (2-1000) tracked in AP Aging, instead of Finance prepaying
- * the vendor before goods arrive.
+ * Tempo purchase (item.purchaseMethod === 'Vendor' && item.paymentMethod === 'Tempo'):
+ * goods received now, paid later per vendor's agreed term. Converts the GR/IR accrual
+ * (2-1100) booked by recordInboundQC into a formal vendor payable (2-1000) tracked in
+ * AP Aging, instead of Finance prepaying the vendor before goods arrive. Only for
+ * Vendor-delivered items — Pasar+Tempo settles separately via recordReconciliationSettlement.
  */
 export const recordVendorBillFromInbound = async (
   purchaseItemId: string,

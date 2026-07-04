@@ -35,7 +35,7 @@ export default function QCPage() {
        if (pi.inboundStatus === 'verified' || pi.inboundStatus === 'rejected') return false;
        if (pi.inboundStatus === 'pra_inbound') return true;
 
-       if (pi.purchaseMethod === 'Transfer' && pi.isChecked) return true;
+       if (pi.purchaseMethod === 'Vendor' && pi.isChecked) return true;
 
        const parentP = purchases.find(p => p.id === pi.purchaseId);
        if (!parentP) return false;
@@ -267,9 +267,11 @@ export default function QCPage() {
       }
     }
 
-    // 6. Tempo (dulu 'Transfer'): barang diterima duluan, tagihan otomatis jadi Hutang Vendor (AP Aging).
-    // netAccrual harus sama persis dengan yang di-credit ke 2-1100 oleh recordInboundQC di atas.
-    if (activePurchaseItem.purchaseMethod === 'Transfer') {
+    // 6. Vendor+Tempo: barang diantar vendor, bayar belakangan — tagihan otomatis jadi Hutang
+    // Vendor (AP Aging). Pasar+Tempo settle lewat recordReconciliationSettlement, bukan di sini
+    // (hindari double-bill). netAccrual harus sama persis dengan yang di-credit ke 2-1100 oleh
+    // recordInboundQC di atas.
+    if (activePurchaseItem.purchaseMethod === 'Vendor' && activePurchaseItem.paymentMethod === 'Tempo') {
       if (!activePurchaseItem.vendorId) {
         toast.warning(`${activeProduct.name} (Tempo) tidak ada vendor — hutang tidak otomatis dicatat. Catat manual di AP Aging.`)
       } else {
