@@ -498,6 +498,7 @@ export default function DisbursementsPage() {
                 {/* 1. DRAFT ACTIONS (FINANCE ADMIN) */}
                 {selectedDisbursement.status === 'Draft' && isFinance && (
                   <div className="space-y-2">
+                    {/* BRI/Mandiri (strategic accounts) require CFO sign-off; every other account executes immediately */}
                     {bankRequiresCfoApproval(selectedDisbursement.fromBankAccountId) ? (
                       <Button
                         onClick={() => handleSubmitToCfo(selectedDisbursement.id)}
