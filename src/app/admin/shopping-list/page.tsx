@@ -699,7 +699,7 @@ export default function ShoppingListPage() {
       }
       setPdfPreview({
         title,
-        url: generateShoppingListPDFDataUrl(documentItems)
+        url: generateShoppingListPDFDataUrl(documentItems.filter(item => item.purchaseMethod === 'Pasar'))
       })
       toast.success(
         stockItems.length > 0
@@ -1226,7 +1226,7 @@ export default function ShoppingListPage() {
                       <Button
                         variant="outline"
                         className="h-11 rounded-xl bg-white font-black uppercase tracking-widest text-[10px]"
-                        onClick={() => handleOpenPdfPreview(lastGeneratedDoc.items)}
+                        onClick={() => handleOpenPdfPreview(lastGeneratedDoc.items.filter(item => item.purchaseMethod === 'Pasar'))}
                       >
                         <Printer className="mr-2 h-4 w-4" /> Print / PDF
                       </Button>
@@ -2231,7 +2231,7 @@ export default function ShoppingListPage() {
                         vendorId: i.vendorId,
                         vendorName: vendors.find(v => v.id === i.vendorId)?.companyName,
                       }))
-                      handleOpenPdfPreview(docItems, `DAFTAR BELANJA #${histPurchase.advanceCode || histPurchase.id.slice(0, 8)}`)
+                      handleOpenPdfPreview(docItems.filter(item => item.purchaseMethod === 'Pasar'), `DAFTAR BELANJA #${histPurchase.advanceCode || histPurchase.id.slice(0, 8)}`)
                       setSelectedHistoryPurchaseId(null)
                     }}
                   >

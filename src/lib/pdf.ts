@@ -407,9 +407,11 @@ function buildShoppingListPDF(
 
   doc.setFont("helvetica", "normal")
   
-  // Sourcing's physical shopping list is Pasar-only — Vendor delivers directly (no pickup
-  // needed), Online is bought through the finance online-purchase queue.
-  const printItems = items.filter(item => item.purchaseMethod === 'Pasar')
+  // Online is bought through the finance online-purchase queue, never printed here.
+  // Callers that specifically want sourcing's Pasar-only pickup list filter to
+  // 'Pasar' before calling this — this shared renderer also serves the per-vendor
+  // "Print PDF Vendor" button, which needs Pasar+Vendor items for that vendor.
+  const printItems = items.filter(item => item.purchaseMethod !== 'Online')
   // Cash needed today = only items actually paid Cash — Tempo defers, Transfer is paid by finance.
   const totalBudget = printItems
     .filter(item => (item.paymentMethod || 'Cash') === 'Cash')
