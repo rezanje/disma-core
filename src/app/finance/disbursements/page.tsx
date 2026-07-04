@@ -375,7 +375,7 @@ export default function DisbursementsPage() {
                 <SelectTrigger className="h-10 border-slate-200 rounded-xl text-xs bg-white">
                   <SelectValue placeholder="Pilih rekening asal...">{fromBankId ? derivedBankAccounts.find(b => b.id === fromBankId)?.name : undefined}</SelectValue>
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="w-auto min-w-[320px]">
                   {derivedBankAccounts.map(b => (
                     <SelectItem key={b.id} value={b.id} className="text-xs">
                       {b.name} — ({formatRupiah(b.balance)})
@@ -391,7 +391,7 @@ export default function DisbursementsPage() {
                 <SelectTrigger className="h-10 border-slate-200 rounded-xl text-xs bg-white">
                   <SelectValue placeholder="Pilih rekening tujuan...">{toBankId ? derivedBankAccounts.find(b => b.id === toBankId)?.name : undefined}</SelectValue>
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="w-auto min-w-[320px]">
                   {derivedBankAccounts.map(b => (
                     <SelectItem key={b.id} value={b.id} className="text-xs">
                       {b.name} — ({formatRupiah(b.balance)})

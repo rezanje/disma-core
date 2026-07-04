@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react"
 import { useAppStore } from "@/lib/store"
-import { getAdvanceWalletByUserId, recordPocketPurchase, recordPocketWithdrawal, recordPocketReturn } from "@/lib/accounting"
+import { getAdvanceWalletByUserId, recordPocketPurchase, recordPocketWithdrawal, recordPocketReturn, recordVendorTransferPurchase } from "@/lib/accounting"
 import { computeBankBalances } from "@/lib/bank-balance"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -47,7 +47,7 @@ export default function SourcingDashboard() {
   const [editQty, setEditQty] = useState<number>(0)
   const [editNote, setEditNote] = useState<string>('')
   const [editVendorId, setEditVendorId] = useState<string>('')
-  const [editPaymentMethod, setEditPaymentMethod] = useState<'Cash' | 'Tempo'>('Cash')
+  const [editPaymentMethod, setEditPaymentMethod] = useState<'Cash' | 'Tempo' | 'Transfer'>('Cash')
   const [isNewVendorOpen, setIsNewVendorOpen] = useState(false)
   const [newVendorName, setNewVendorName] = useState('')
   const [newVendorIsTempo, setNewVendorIsTempo] = useState(true)
@@ -138,7 +138,7 @@ export default function SourcingDashboard() {
   
   const currentItems = purchaseItems.filter(pi =>
     activePurchases.some(p => p.id === pi.purchaseId) &&
-    (pi.purchaseMethod === 'Pasar' || pi.purchaseMethod === 'Transfer')
+    (pi.purchaseMethod === 'Pasar' || pi.purchaseMethod === 'Vendor')
   )
 
   const itemsByVendor = useMemo(() => {
@@ -179,9 +179,9 @@ export default function SourcingDashboard() {
   const handleSubmitLaporan = async () => {
     if (activePurchases.length === 0) return
 
-    // Submit validation: all checked Pasar items must have a vendorId (Transfer items already handled by finance)
+    // Submit validation: all checked Pasar items must have a vendorId (Vendor items already have one from compile)
     const itemsWithoutVendor = currentItems.filter(item => {
-      if (item.purchaseMethod === 'Transfer') return false;
+      if (item.purchaseMethod === 'Vendor') return false;
       const vendorId = activeItem?.id === item.id ? editVendorId : item.vendorId;
       return item.isChecked && !vendorId;
     });
@@ -218,7 +218,8 @@ export default function SourcingDashboard() {
         }
         const pm = (item: PurchaseItem) => (activeItem?.id === item.id ? editPaymentMethod : (item.paymentMethod || 'Cash'))
         const pTotalCost = pItems.reduce((sum, item) => sum + lineTotal(item), 0)
-        const pCashCost = pItems.reduce((sum, item) => pm(item) !== 'Tempo' ? sum + lineTotal(item) : sum, 0)
+        // Only Cash draws the sourcer's cash advance/pocket — Tempo defers to AP, Transfer is paid by finance from BCA.
+        const pCashCost = pItems.reduce((sum, item) => pm(item) === 'Cash' ? sum + lineTotal(item) : sum, 0)
         const pBudget = (p.budgetAmount || 0) + (p.operationalSpareAmount || 0)
 
         await updatePurchase(p.id, {
@@ -232,13 +233,22 @@ export default function SourcingDashboard() {
         })
 
         if (myPocket) {
-          // Pocket cash spend = items paid Cash (not Tempo) and not Online (Online is
-          // paid from BCA by finance). Reuses pm()/lineTotal() so the active-item edit
-          // overrides apply — keeps this exactly consistent with pCashCost above.
+          // Cash items draw the sourcer's pocket. Online is always paid from BCA by finance
+          // regardless of paymentMethod field, so it's excluded here too.
           const pocketSpend = pItems.reduce((sum, item) =>
-            (pm(item) !== 'Tempo' && item.purchaseMethod !== 'Online') ? sum + lineTotal(item) : sum, 0)
+            (pm(item) === 'Cash' && item.purchaseMethod !== 'Online') ? sum + lineTotal(item) : sum, 0)
           if (pocketSpend > 0) {
             await recordPocketPurchase(p.id, myPocket.id, pocketSpend, currentUser?.name || 'Sourcing')
+          }
+        }
+
+        // Transfer = paid immediately by finance from BCA, no queue/approval — post now.
+        const transferSpend = pItems.reduce((sum, item) =>
+          (pm(item) === 'Transfer' && item.purchaseMethod !== 'Online') ? sum + lineTotal(item) : sum, 0)
+        if (transferSpend > 0) {
+          const bca = bankAccounts.find(b => b.accountCode === '1-1200')
+          if (bca) {
+            await recordVendorTransferPurchase(p.id, bca.id, transferSpend, currentUser?.name || 'Sourcing')
           }
         }
       }
@@ -562,8 +572,8 @@ export default function SourcingDashboard() {
                             {item.purchaseMethod === 'Online' && (
                                <Badge variant="outline" className="mt-1.5 bg-blue-50 text-blue-600 border-blue-200 text-[9px] font-black uppercase">🛒 Online Queue</Badge>
                             )}
-                            {item.purchaseMethod === 'Transfer' && (
-                               <Badge variant="outline" className="mt-1.5 bg-violet-50 text-violet-700 border-violet-200 text-[9px] font-black uppercase">📋 Tempo — Ambil Barang, Hutang Otomatis</Badge>
+                            {item.purchaseMethod === 'Vendor' && (
+                               <Badge variant="outline" className="mt-1.5 bg-violet-50 text-violet-700 border-violet-200 text-[9px] font-black uppercase">🚚 Diantar Vendor</Badge>
                             )}
                           </div>
                         </div>
@@ -577,11 +587,14 @@ export default function SourcingDashboard() {
                         <div className="px-4 pb-4 pt-0 border-t border-slate-100 dark:border-slate-800 mt-2">
                           <div className="pt-4 grid gap-4">
 
-                            {item.purchaseMethod === 'Transfer' ? (
-                              // Transfer item: sudah dibayar finance, tinggal ambil
+                            {item.purchaseMethod === 'Vendor' ? (
+                              // Vendor item: vendor & harga sudah ditentukan saat compile, tinggal konfirmasi terima barang
                               <>
                                 <div className="bg-violet-50 border border-violet-200 p-3 rounded-lg text-xs font-bold text-violet-700">
-                                  📋 Tempo — ambil barang dari vendor sekarang, tidak perlu keluar uang kas. Hutang ke vendor otomatis tercatat di AP Aging pas lolos QC, dibayar belakangan sesuai kesepakatan tempo.
+                                  🚚 Vendor — barang diantar/diambil, vendor &amp; harga sudah ditentukan saat compile.
+                                  {item.paymentMethod === 'Tempo' && ' Hutang ke vendor otomatis tercatat di AP Aging pas lolos QC, dibayar belakangan sesuai tempo.'}
+                                  {item.paymentMethod === 'Transfer' && ' Dibayar sekarang oleh finance via transfer bank.'}
+                                  {(!item.paymentMethod || item.paymentMethod === 'Cash') && ' Dibayar cash, potong kantong sourcing pas lapor.'}
                                 </div>
                                 <div className="space-y-2">
                                   <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">

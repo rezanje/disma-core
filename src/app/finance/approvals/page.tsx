@@ -149,7 +149,8 @@ export default function FinanceHubPage() {
     }> = {}
     items.forEach(item => {
       const vendor = vendors.find(v => v.id === item.vendorId)
-      const defaultPaymentMethod = item.paymentMethod || (vendor ? (vendor.isTempo ? 'Tempo' : 'Cash') : 'Tempo')
+      // Scoped to Pasar items only — Transfer/Vendor payment routing doesn't apply here.
+      const defaultPaymentMethod = (item.paymentMethod || (vendor ? (vendor.isTempo ? 'Tempo' : 'Cash') : 'Tempo')) as 'Cash' | 'Tempo'
       initialItems[item.id] = { 
         actualPrice: item.actualUnitPrice || item.estimatedUnitPrice || 0, 
         qtyPurchased: item.qtyPurchased || item.qtyTarget, 
