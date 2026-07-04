@@ -47,6 +47,15 @@ const resolveExpenseAccountCode = (category?: string) => {
   return '6-9000';
 };
 
+// Single source of truth for the CFO approval gate: transfers OUT of a
+// cfoApprovalRequired=true account (BRI, Mandiri) need CFO sign-off.
+// Everything else is admin-finance-only. Checked by both the Disbursement
+// page and the Purchase Request disburse flow — never duplicate this logic.
+export const bankRequiresCfoApproval = (bankAccountId: string): boolean => {
+  const bank = useAppStore.getState().bankAccounts.find(b => b.id === bankAccountId);
+  return bank?.cfoApprovalRequired === true;
+};
+
 export const getAdvanceWalletByRole = (role?: string | null) => {
   if (!role) return null;
   if (role === 'sourcing') return ADVANCE_WALLETS.sourcing;

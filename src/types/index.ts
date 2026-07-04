@@ -428,6 +428,7 @@ export interface BankAccount {
   balance: number;
   purpose?: BankAccountPurpose; // sourcing/courier pool designation (replaces Advance wallets)
   ownerUserId?: string; // set only for purpose='sourcing_pocket': the sourcer who owns this pocket
+  cfoApprovalRequired?: boolean; // true = transfers OUT of this account need CFO approval (BRI, Mandiri)
 }
 
 /** Thin daily-close marker for a sourcer's cash pocket. NOT a money store —
