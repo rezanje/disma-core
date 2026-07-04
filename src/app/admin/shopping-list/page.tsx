@@ -620,7 +620,12 @@ export default function ShoppingListPage() {
         productId: item.productId,
         salesOrderId: item.salesOrderId,
         qtyTarget: item.totalQty,
-        qtyPurchased: 0,
+        // Vendor items skip sourcing's checklist entirely (vendor delivers direct —
+        // see sourcing/list.tsx), so there's no later step to fill this in like Pasar's
+        // checkbox or Online's finance confirm step. Set it here so Inbound/QC don't
+        // see a permanent 0 qty; QC's pass/reject/unbalance-reason flow still catches
+        // any real delivery variance.
+        qtyPurchased: item.purchaseMethod === 'Vendor' ? item.totalQty : 0,
         estimatedUnitPrice: item.estimatedPrice,
         actualUnitPrice: 0,
         isChecked: false,
