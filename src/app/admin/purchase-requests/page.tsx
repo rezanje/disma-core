@@ -17,7 +17,7 @@ import {
   ClipboardList, Plus, FileText, CheckCircle2, AlertTriangle, 
   XCircle, Clock, ShieldCheck, Landmark, DollarSign, Search, Sparkles, ShoppingBag
 } from "lucide-react"
-import { recordBudgetTransfer, recordPRExpensePayment } from "@/lib/accounting"
+import { recordBudgetTransfer, recordPRExpensePayment, bankRequiresCfoApproval } from "@/lib/accounting"
 import { toast } from "sonner"
 import { v4 as uuidv4 } from "uuid"
 import GlobalUndoButton from "@/components/global-undo-button"
@@ -305,8 +305,9 @@ export default function PurchaseRequestsPage() {
   }
 
   // Finance Verification Handler
-  // Untuk PR kategori Sourcing: Finance langsung approve (skip CFO)
-  // Untuk non-Sourcing: tetap diteruskan ke CFO seperti biasa
+  // Finance langsung approve/reject di sini — CFO approval PR sekarang cuma
+  // dipicu belakangan, di titik cairkan dana, kalau rekening sumbernya
+  // strategis (lihat bankRequiresCfoApproval() di handleDisburse).
   const handleFinanceVerify = async (action: 'approve' | 'reject') => {
     if (!activePR) return
     if (!financeNote.trim()) {
@@ -371,13 +372,21 @@ export default function PurchaseRequestsPage() {
 
   const handleDisburse = async () => {
     if (!activePR) return
-    if (activePR.status !== 'Approved') { toast.error('PR belum di-approve CFO.'); return }
+    if (activePR.status !== 'Approved') { toast.error('PR belum di-approve.'); return }
     if (activePR.disbursedAt) { toast.error('PR ini sudah dicairkan.'); return }
 
     const amount = parseNumber(disburseAmountRaw)
     if (amount <= 0) { toast.error('Nominal harus lebih dari 0.'); return }
-    if (amount > activePR.amount) { toast.error('Nominal tidak boleh melebihi yang disetujui CFO.'); return }
     if (!disburseBankId) { toast.error('Pilih rekening sumber.'); return }
+
+    // Rekening strategis (BRI/Mandiri) butuh approval CFO dulu sebelum bisa
+    // dicairkan — jarang terjadi (mayoritas pencairan dari BCA/Jago, bebas).
+    if (bankRequiresCfoApproval(disburseBankId)) {
+      await updatePurchaseRequest(activePR.id, { status: 'Pending_CFO' })
+      toast.success('Rekening sumber butuh approval CFO. PR diajukan ke CFO — cairkan lagi setelah disetujui.')
+      setDisburseOpen(false)
+      return
+    }
 
     const now = new Date().toISOString()
     setIsDisbursing(true)
@@ -1268,7 +1277,7 @@ export default function PurchaseRequestsPage() {
               )}
 
               <div className="space-y-1">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Nominal (≤ {formatRupiah(activePR.amount)})</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Nominal (acuan pengajuan: {formatRupiah(activePR.amount)})</Label>
                 <Input value={disburseAmountRaw} onChange={(e) => setDisburseAmountRaw(formatNumber(e.target.value))} className="h-11 rounded-xl" />
               </div>
 
