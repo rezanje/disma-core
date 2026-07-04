@@ -982,11 +982,15 @@ export const recordPocketPurchase = async (
   const pocket = store.bankAccounts.find(b => b.id === pocketBankAccountId);
   if (!pocket || amount <= 0) return false;
   const pocketCode = pocket.accountCode || '1-1500';
+  // Dr 2-1100 (GR/IR accrual), not HPP directly — HPP is recognized once, at
+  // delivery (recordDeliveryAndInvoice), same as every other payment method.
+  // QC's Cr 2-1100 (recordInboundQC) clears this back to zero once goods are
+  // verified. Debiting HPP_ACCOUNT_CODE here would double-book COGS on ship.
   const ok = await createAccountingEntry(
     `Belanja Tunai Sourcing (${sourcerName}) - Ref: ${purchaseId.slice(0, 8)}`,
     'Purchase',
     purchaseId,
-    [{ accountCode: HPP_ACCOUNT_CODE, amount }],
+    [{ accountCode: '2-1100', amount }],
     [{ accountCode: pocketCode, amount }]
   );
   if (!ok) return false;
@@ -1012,11 +1016,13 @@ export const recordVendorTransferPurchase = async (
   const bank = store.bankAccounts.find(b => b.id === bankAccountId);
   if (!bank || amount <= 0) return false;
   const bankCode = bank.accountCode || '1-1200';
+  // Dr 2-1100, not HPP — same reasoning as recordPocketPurchase: HPP is
+  // recognized once, at delivery. QC's Cr 2-1100 clears this to zero.
   const ok = await createAccountingEntry(
     `Belanja Transfer Sourcing (${sourcerName}) - Ref: ${purchaseId.slice(0, 8)}`,
     'Purchase',
     purchaseId,
-    [{ accountCode: HPP_ACCOUNT_CODE, amount }],
+    [{ accountCode: '2-1100', amount }],
     [{ accountCode: bankCode, amount }]
   );
   if (!ok) return false;
@@ -1173,15 +1179,32 @@ export const recordReconciliationSettlement = async (
       });
     }
 
-    // Settle Advance for Cash portion
-    const settledAmount = Math.min(totalCash, Math.max(0, advanceAmount));
-    const defisitShop = totalCash > settledAmount ? totalCash - settledAmount : 0;
+    // If sourcing already reported this purchase via the pocket (Cash) or
+    // direct-transfer flow, the cash portion is already fully accounted for
+    // (Dr 2-1100 / Cr pocket-bank or bank), self-clearing against QC's Cr
+    // 2-1100. Settling it again here would double-count cash that already
+    // left the pocket/bank. Only Finance's "Direct Item Settlement" path
+    // (manual re-key, bypassing sourcing/pocket entirely) never creates that
+    // transaction — for that path the cash portion still needs settling here,
+    // same as before.
+    const cashAlreadyBookedByPocket = store.cashTransactions.some(tx =>
+      tx.referenceId === purchaseId &&
+      tx.type === 'Out' &&
+      (tx.category === 'Belanja Sourcing (HPP)' || tx.category === 'Belanja Transfer Sourcing')
+    );
 
-    if (settledAmount > 0) {
-      journalCredits.push({ accountCode: advanceAccountCode, amount: settledAmount });
-    }
-    if (defisitShop > 0) {
-      journalCredits.push({ accountCode: '2-1500', amount: defisitShop });
+    let cashDebit = 0;
+    if (!cashAlreadyBookedByPocket) {
+      const settledAmount = Math.min(totalCash, Math.max(0, advanceAmount));
+      const defisitShop = totalCash > settledAmount ? totalCash - settledAmount : 0;
+
+      if (settledAmount > 0) {
+        journalCredits.push({ accountCode: advanceAccountCode, amount: settledAmount });
+      }
+      if (defisitShop > 0) {
+        journalCredits.push({ accountCode: '2-1500', amount: defisitShop });
+      }
+      cashDebit = totalCash;
     }
 
     // Save vendor bills to store first, so they exist in the database and avoid foreign key constraint violation
@@ -1190,13 +1213,16 @@ export const recordReconciliationSettlement = async (
     }
 
     const shopDescription = `Penyelesaian Belanja Sourcing - Ref: ${purchaseRef}`;
-    const shopJournalSuccess = await createAccountingEntry(
-      shopDescription,
-      'Purchase',
-      purchaseId,
-      [{ accountCode: '2-1100', amount: actualShopCost }], // Dr 2-1100 AP Accrual
-      journalCredits
-    );
+    const shopDebitAmount = totalTempo + cashDebit;
+    const shopJournalSuccess = shopDebitAmount > 0
+      ? await createAccountingEntry(
+          shopDescription,
+          'Purchase',
+          purchaseId,
+          [{ accountCode: '2-1100', amount: shopDebitAmount }], // Dr 2-1100 AP Accrual
+          journalCredits
+        )
+      : true;
 
     if (!shopJournalSuccess) {
       // Rollback saved vendor bills if journal entry failed
@@ -1206,16 +1232,15 @@ export const recordReconciliationSettlement = async (
       return false;
     }
 
-    const postedShopEntry = findPostedEntry('Purchase', purchaseId, shopDescription);
-    const createdCashIds: string[] = [];
-
-    try {
-      if (totalCash > 0) {
+    if (cashDebit > 0) {
+      const postedShopEntry = findPostedEntry('Purchase', purchaseId, shopDescription);
+      const createdCashIds: string[] = [];
+      try {
         const txId = uuidv4();
         await store.addCashTransaction({
           id: txId,
           date: now,
-          amount: totalCash,
+          amount: cashDebit,
           type: 'Out',
           category: 'Sourcing (HPP)',
           description: `Belanja Pasar disetujui (Cash portion) - Ref: ${purchaseRef}`,
@@ -1223,15 +1248,15 @@ export const recordReconciliationSettlement = async (
           referenceId: purchaseId
         });
         createdCashIds.push(txId);
+      } catch (err) {
+        console.error('[Accounting] Failed to persist shop settlement cash transaction, rolling back journal:', err);
+        await cleanupCashTransactions(createdCashIds);
+        if (postedShopEntry) await cleanupJournalEntry(postedShopEntry.id);
+        for (const bill of vendorBillsToSave) {
+          await store.deleteVendorBill(bill.id);
+        }
+        return false;
       }
-    } catch (err) {
-      console.error('[Accounting] Failed to persist shop settlement cash transaction, rolling back journal:', err);
-      await cleanupCashTransactions(createdCashIds);
-      if (postedShopEntry) await cleanupJournalEntry(postedShopEntry.id);
-      for (const bill of vendorBillsToSave) {
-        await store.deleteVendorBill(bill.id);
-      }
-      return false;
     }
   }
 
