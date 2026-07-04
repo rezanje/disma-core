@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { v4 as uuidv4 } from "uuid"
-import { recordBudgetTransfer } from "@/lib/accounting"
+import { recordBudgetTransfer, bankRequiresCfoApproval } from "@/lib/accounting"
 import { computeBankBalances } from "@/lib/bank-balance"
 import { DisbursementRequest } from "@/types"
 
@@ -498,13 +498,22 @@ export default function DisbursementsPage() {
                 {/* 1. DRAFT ACTIONS (FINANCE ADMIN) */}
                 {selectedDisbursement.status === 'Draft' && isFinance && (
                   <div className="space-y-2">
-                    <Button 
-                      onClick={() => handleSubmitToCfo(selectedDisbursement.id)}
-                      className="w-full bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-[10px] uppercase tracking-wider h-11 rounded-xl shadow-sm"
-                    >
-                      Ajukan Approval ke CFO
-                    </Button>
-                    <Button 
+                    {bankRequiresCfoApproval(selectedDisbursement.fromBankAccountId) ? (
+                      <Button
+                        onClick={() => handleSubmitToCfo(selectedDisbursement.id)}
+                        className="w-full bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-[10px] uppercase tracking-wider h-11 rounded-xl shadow-sm"
+                      >
+                        Ajukan Approval ke CFO
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={() => handleExecuteTransfer(selectedDisbursement)}
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[10px] uppercase tracking-wider h-11 rounded-xl shadow-sm"
+                      >
+                        Eksekusi Transfer (Tanpa Approval CFO)
+                      </Button>
+                    )}
+                    <Button
                       variant="outline"
                       onClick={() => handleDeleteDraft(selectedDisbursement.id)}
                       className="w-full border-rose-200 text-rose-600 hover:bg-rose-50 font-extrabold text-[10px] uppercase tracking-wider h-11 rounded-xl"
