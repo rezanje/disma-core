@@ -85,14 +85,21 @@ Recompute SO status after BAST:
   aggregates whatever invoices exist, so multiple per-round invoices for one SO fold
   into the weekly batch naturally.
 
-**Booking trigger (resolves current Terkirim-vs-BAST split):** revenue/HPP/stock for a
-round is booked at **BAST confirm**, when `accepted` (qtyPass) is authoritative — not
-at Terkirim on the provisional `qtyFinal`. This avoids booking 9 at Terkirim then the
-client accepting 8. Concretely: `handleConfirmBAST` (`src/app/admin/sales-orders/page.tsx:179`)
-becomes the single booking point per round, creating the round's fresh invoice +
-delivery and calling `recordDeliveryAndInvoice` for the accepted qty. The Terkirim
-shortcut (`finalizeSalesOrderDelivery` via `advanceStatus`) is reconciled to this
-model so booking is not duplicated (dedup already guards on `invoiceId`).
+**Booking trigger (decided: keep at Terkirim, make per-round).** Booking stays at the
+two existing Terkirim entry points — `handleVerifyDelivery` (finance audit,
+`src/app/finance/approvals/page.tsx:566`) and `finalizeSalesOrderDelivery` (manual-ship
+shortcut). Moving booking to BAST was rejected: booking is controlled by the finance
+audit, so relocating it would rewrite the finance workflow (large, risky diff).
+
+The change is: make each booking **per-round** — a round creates a **fresh** invoice +
+delivery and books only that round's `qtyFinal`, instead of reusing one invoice per SO.
+`recordDeliveryAndInvoice` already dedup-guards on `invoiceId`, so a fresh invoice id
+per round books cleanly. `qtyDelivered` accumulates at **BAST** from the round's
+accepted qty, driving `Kurang Kirim` vs `Selesai` and the `qtyFinal` reset.
+
+*Known limitation (out of scope):* the pre-existing over-book when `accepted < shipped`
+(client accepts less than what was delivered/booked at Terkirim) is unchanged. For the
+primary scenario (QC shortfall, where shipped == accepted) there is no discrepancy.
 
 ## Susulan stock sources (3, all via existing paths)
 
