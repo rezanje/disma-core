@@ -280,6 +280,7 @@ export const STATUS_COLORS: Record<string, string> = {
   'Siap Kirim': 'bg-emerald-100 text-emerald-800 border-emerald-200',
   Dikirim: 'bg-emerald-50 text-emerald-700',
   Terkirim: 'bg-emerald-100 text-emerald-800',
+  'Kurang Kirim': 'bg-amber-100 text-amber-800 border-amber-200',
   Batal: 'bg-rose-100 text-rose-800',
   Pending: 'bg-amber-100 text-amber-800',
   Selesai: 'bg-emerald-100 text-emerald-800',
