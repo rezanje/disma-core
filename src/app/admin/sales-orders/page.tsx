@@ -57,6 +57,7 @@ import { Printer } from "lucide-react"
 import { toast } from "sonner"
 import { generateDocumentNumber, updateProductPriceHistory, finalizeSalesOrderDelivery } from "@/lib/accounting"
 import { generateSuratJalan, generateBA } from "@/lib/pdf"
+import { roundQtyToBook, nextSoStatus } from "@/lib/backorder"
 import {
   Popover,
   PopoverContent,
@@ -181,24 +182,25 @@ export default function SalesOrdersPage() {
     toast.loading("Memproses konfirmasi penerimaan...", { id: "confirm-bast" })
     try {
       let totalQtyRetur = 0
+      // Snapshot updated items so we can recompute SO status afterwards.
+      const updatedItems: { qty: number; qtyDelivered: number }[] = []
+
       for (const item of selectedItems) {
+        // Qty actually shipped THIS round (before this BAST folds into qtyDelivered).
+        const shippedThisRound = roundQtyToBook(item)
         const status = bastStatuses[item.id] || 'Accepted'
-        const targetQty = item.qtyFinal !== undefined ? item.qtyFinal : item.qty
-        
-        let qtyPass = targetQty
-        let qtyRetur = 0
-        
+
+        let accepted = shippedThisRound
         if (status === 'Return') {
-          qtyPass = 0
-          qtyRetur = targetQty
+          accepted = 0
         } else if (status === 'Partial') {
-          qtyPass = bastQtyPass[item.id] !== undefined ? bastQtyPass[item.id] : targetQty
-          qtyRetur = Math.max(0, targetQty - qtyPass)
+          accepted = bastQtyPass[item.id] !== undefined ? bastQtyPass[item.id] : shippedThisRound
         }
+        accepted = Math.max(0, Math.min(accepted, shippedThisRound))
+        const qtyRetur = shippedThisRound - accepted
 
         if (qtyRetur > 0) {
           totalQtyRetur += qtyRetur
-          // 1. Add rejected item
           await useAppStore.getState().addRejectedItem({
             id: uuidv4(),
             date: new Date().toISOString(),
@@ -211,25 +213,33 @@ export default function SalesOrdersPage() {
           })
         }
 
-        // 2. Update item quantities
+        const newQtyDelivered = (item.qtyDelivered ?? 0) + accepted
+        // Fold this round into cumulative delivered; reset qtyFinal so any remaining
+        // owed qty re-enters the QC queue as the next round.
         await updateSalesOrderItem(item.id, {
-          qtyFinal: qtyPass,
-          subtotalFinal: qtyPass * item.unitPrice
+          qtyDelivered: newQtyDelivered,
+          qtyFinal: undefined,
+          subtotalFinal: newQtyDelivered * item.unitPrice
         })
+        updatedItems.push({ qty: item.qty, qtyDelivered: newQtyDelivered })
       }
 
-      // 3. Mark SO as Selesai
+      const soStatus = nextSoStatus(updatedItems)
       await updateSalesOrder(selectedSO.id, {
-        status: 'Selesai',
+        status: soStatus,
         deliveredAt: new Date().toISOString()
       })
 
       setIsDetailOpen(false)
-      toast.success(totalQtyRetur > 0 
-        ? `BAST dikonfirmasi! ${totalQtyRetur} barang retur dicatat ke antrean susulan.` 
-        : "BAST dikonfirmasi! Pesanan selesai.", { id: "confirm-bast" })
-      
-      // Reset local states
+      toast.success(
+        soStatus === 'Kurang Kirim'
+          ? `BAST dikonfirmasi! Sisa kurang kirim masuk antrean susulan (QC).`
+          : (totalQtyRetur > 0
+              ? `BAST dikonfirmasi! ${totalQtyRetur} barang retur dicatat.`
+              : "BAST dikonfirmasi! Pesanan selesai."),
+        { id: "confirm-bast" }
+      )
+
       setBastStatuses({})
       setBastQtyPass({})
       setBastReasons({})
@@ -2107,9 +2117,9 @@ export default function SalesOrdersPage() {
                     <tbody>
                       {selectedItems.map(item => {
                         const product = products.find(p => p.id === item.productId)
-                        const targetQty = item.qtyFinal !== undefined ? item.qtyFinal : item.qty
+                        const shippedThisRound = roundQtyToBook(item)
                         const status = bastStatuses[item.id] || 'Accepted'
-                        const qtyPass = bastQtyPass[item.id] !== undefined ? bastQtyPass[item.id] : targetQty
+                        const qtyPass = bastQtyPass[item.id] !== undefined ? bastQtyPass[item.id] : shippedThisRound
                         
                         return (
                           <tr key={item.id} className="border-t hover:bg-slate-50/50">
@@ -2117,14 +2127,14 @@ export default function SalesOrdersPage() {
                               {product?.name}
                               <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">{product?.skuCode}</p>
                             </td>
-                            <td className="px-4 py-3 text-center font-bold text-slate-700">{targetQty} {product?.uom}</td>
+                            <td className="px-4 py-3 text-center font-bold text-slate-700">{shippedThisRound} {product?.uom}</td>
                             <td className="px-4 py-3 text-center">
                               <div className="flex items-center justify-center gap-1">
                                 <button
                                   type="button"
                                   onClick={() => {
                                     setBastStatuses(prev => ({ ...prev, [item.id]: 'Accepted' }))
-                                    setBastQtyPass(prev => ({ ...prev, [item.id]: targetQty }))
+                                    setBastQtyPass(prev => ({ ...prev, [item.id]: shippedThisRound }))
                                   }}
                                   className={cn(
                                     "px-2.5 py-1 text-[9px] font-black uppercase rounded-md border transition-all",
@@ -2139,7 +2149,7 @@ export default function SalesOrdersPage() {
                                   type="button"
                                   onClick={() => {
                                     setBastStatuses(prev => ({ ...prev, [item.id]: 'Partial' }))
-                                    setBastQtyPass(prev => ({ ...prev, [item.id]: targetQty - 1 }))
+                                    setBastQtyPass(prev => ({ ...prev, [item.id]: shippedThisRound - 1 }))
                                   }}
                                   className={cn(
                                     "px-2.5 py-1 text-[9px] font-black uppercase rounded-md border transition-all",
@@ -2174,7 +2184,7 @@ export default function SalesOrdersPage() {
                                 className="h-8 w-16 text-center font-bold text-xs border-slate-200 bg-white"
                                 value={qtyPass}
                                 onChange={(e) => {
-                                  const val = Math.max(0, Math.min(targetQty, parseFloat(e.target.value) || 0))
+                                  const val = Math.max(0, Math.min(shippedThisRound, parseFloat(e.target.value) || 0))
                                   setBastQtyPass(prev => ({ ...prev, [item.id]: val }))
                                 }}
                               />
