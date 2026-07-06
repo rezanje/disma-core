@@ -4,7 +4,7 @@
 /** Minimal shape these helpers read from a SalesOrderItem. */
 type ItemFulfillment = {
   qty: number;              // ordered
-  qtyFinal?: number;        // current round's QC-committed qty (reset to undefined after each round's BAST)
+  qtyFinal?: number | null; // current round's QC-committed qty (reset to null after each round's BAST)
   qtyDelivered?: number;    // cumulative accepted across rounds
 };
 

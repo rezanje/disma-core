@@ -139,7 +139,7 @@ export default function OutboundPage() {
                          {items.map(item => {
                              const product = products.find(p => p.id === item.productId)
                              const isPacked = !!item.isPacked
-                             const hasAdjustment = item.qtyFinal !== undefined && item.qtyFinal < item.qty
+                             const hasAdjustment = item.qtyFinal != null && item.qtyFinal < item.qty
                              const displayQty = item.qtyFinal ?? item.qty
                              return (
                                 <li key={item.id} className={cn(

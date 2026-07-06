@@ -175,7 +175,7 @@ export interface SalesOrderItem {
   salesOrderId: string;
   productId: string;
   qty: number;              // Original PO quantity
-  qtyFinal?: number;        // Actual quantity after QC (may differ due to reject/shortage)
+  qtyFinal?: number | null; // Actual quantity after QC (may differ due to reject/shortage). null = reset for a new backorder round.
   qtyDelivered?: number;    // Cumulative qty ACCEPTED by client across all delivery rounds. owed = qty - qtyDelivered
   unitPrice: number;
   subtotal: number;         // Original subtotal (qty * unitPrice)

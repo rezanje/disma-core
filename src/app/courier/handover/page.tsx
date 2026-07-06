@@ -119,7 +119,7 @@ export default function HandoverPage() {
                             <div>
                               <p className={`text-sm font-black ${isChecked ? 'line-through text-slate-400' : 'text-slate-800'}`}>{product?.name}</p>
                               <p className="text-[10px] font-bold text-slate-400 uppercase">
-                                {item.qtyFinal !== undefined && item.qtyFinal < item.qty ? (
+                                {item.qtyFinal != null && item.qtyFinal < item.qty ? (
                                   <><span className="line-through mr-1">{item.qty}</span><span className="text-amber-600">{item.qtyFinal} {product?.uom} (adjusted)</span></>
                                 ) : (
                                   <>{item.qtyFinal ?? item.qty} {product?.uom}</>

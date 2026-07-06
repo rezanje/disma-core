@@ -214,11 +214,13 @@ export default function SalesOrdersPage() {
         }
 
         const newQtyDelivered = (item.qtyDelivered ?? 0) + accepted
-        // Fold this round into cumulative delivered; reset qtyFinal so any remaining
-        // owed qty re-enters the QC queue as the next round.
+        // Fold this round into cumulative delivered; reset qtyFinal (explicit null so
+        // the reset persists to the DB — undefined would be dropped by JSON.stringify
+        // and the upsert would keep the stale value) so any remaining owed qty
+        // re-enters the QC queue as the next round.
         await updateSalesOrderItem(item.id, {
           qtyDelivered: newQtyDelivered,
-          qtyFinal: undefined,
+          qtyFinal: null,
           subtotalFinal: newQtyDelivered * item.unitPrice
         })
         updatedItems.push({ qty: item.qty, qtyDelivered: newQtyDelivered })
@@ -2260,7 +2262,7 @@ export default function SalesOrdersPage() {
                                        />
                                      ) : (
                                        <div>
-                                         {item.qtyFinal !== undefined && item.qtyFinal < item.qty ? (
+                                         {item.qtyFinal != null && item.qtyFinal < item.qty ? (
                                            <div className="space-y-0.5">
                                              <span className="font-bold text-sm text-amber-600">{item.qtyFinal} {product?.uom}</span>
                                              <p className="text-[9px] text-slate-400 line-through">{item.qty} {product?.uom}</p>
