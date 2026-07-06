@@ -62,13 +62,17 @@ export default function QCPage() {
   const buildFifoAllocations = useCallback((productId: string, totalPassed: number): { allocations: PoAllocation[], inventoryRemainder: number } => {
     const eligibleSos = salesOrders
       .filter(so => !['Batal', 'Selesai', 'Terkirim', 'Packing', 'Siap Kirim', 'Dikirim', 'Awaiting Audit'].includes(so.status))
-      .filter(so => salesOrderItems.some(i => i.salesOrderId === so.id && i.productId === productId && (i.qtyFinal == null)))
+      .filter(so => salesOrderItems.some(i =>
+        i.salesOrderId === so.id &&
+        i.productId === productId &&
+        Math.max(0, i.qty - (i.qtyDelivered ?? 0) - (i.qtyFinal ?? 0)) > 0
+      ))
       .sort((a, b) => a.orderDate.localeCompare(b.orderDate))
 
     let remaining = totalPassed
     const allocations: PoAllocation[] = eligibleSos.map(so => {
       const soItem = salesOrderItems.find(i => i.salesOrderId === so.id && i.productId === productId)
-      const needed = soItem ? Math.max(0, soItem.qty - (soItem.qtyFinal ?? 0)) : 0
+      const needed = soItem ? Math.max(0, soItem.qty - (soItem.qtyDelivered ?? 0) - (soItem.qtyFinal ?? 0)) : 0
       const alloc = Math.min(needed, remaining)
       remaining -= alloc
       return { soId: so.id, qty: alloc }
@@ -303,7 +307,7 @@ export default function QCPage() {
     for (const soId of affectedSoIds) {
       const storeState = useAppStore.getState()
       const soItems = storeState.salesOrderItems.filter(i => i.salesOrderId === soId)
-      if (soItems.length > 0 && soItems.every(i => i.qtyFinal != null)) {
+      if (soItems.length > 0 && soItems.every(i => (i.qtyFinal != null) || (i.qty - (i.qtyDelivered ?? 0) <= 0))) {
         await updateSalesOrder(soId, { status: 'Packing' })
       }
     }
@@ -555,7 +559,7 @@ export default function QCPage() {
                             const so = salesOrders.find(s => s.id === alloc.soId)
                             const client = clients.find(c => c.id === so?.clientId)
                             const soItem = salesOrderItems.find(i => i.salesOrderId === alloc.soId && i.productId === activePurchaseItem.productId)
-                            const needed = soItem ? Math.max(0, soItem.qty - (soItem.qtyFinal ?? 0)) : 0
+                            const needed = soItem ? Math.max(0, soItem.qty - (soItem.qtyDelivered ?? 0) - (soItem.qtyFinal ?? 0)) : 0
                             return (
                               <div key={alloc.soId} className={cn(
                                 "flex items-center gap-4 px-5 py-4 bg-indigo-50/40",
