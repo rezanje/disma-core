@@ -148,7 +148,7 @@ export interface StockMovement {
   unitCost?: number;
 }
 
-export type SalesOrderStatus = 'Pending Approval' | 'Draft' | 'Belanja' | 'Sourcing' | 'QC' | 'Packing' | 'Siap Kirim' | 'Dikirim' | 'Awaiting Audit' | 'Terkirim' | 'Selesai' | 'Batal';
+export type SalesOrderStatus = 'Pending Approval' | 'Draft' | 'Belanja' | 'Sourcing' | 'QC' | 'Packing' | 'Siap Kirim' | 'Dikirim' | 'Awaiting Audit' | 'Terkirim' | 'Kurang Kirim' | 'Selesai' | 'Batal';
 
 export interface SalesOrder {
   id: string;
@@ -176,6 +176,7 @@ export interface SalesOrderItem {
   productId: string;
   qty: number;              // Original PO quantity
   qtyFinal?: number;        // Actual quantity after QC (may differ due to reject/shortage)
+  qtyDelivered?: number;    // Cumulative qty ACCEPTED by client across all delivery rounds. owed = qty - qtyDelivered
   unitPrice: number;
   subtotal: number;         // Original subtotal (qty * unitPrice)
   subtotalFinal?: number;   // Adjusted subtotal (qtyFinal * unitPrice)
