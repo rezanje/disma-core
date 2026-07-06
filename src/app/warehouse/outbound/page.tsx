@@ -57,7 +57,9 @@ export default function OutboundPage() {
 
     // 3. Create Delivery Mission (Wait for Handover)
     const existingDeliveries = useAppStore.getState().deliveries;
-    const alreadyHasDelivery = existingDeliveries.some(d => d.salesOrderId === soId);
+    // A completed (Terkirim) delivery from a previous round must NOT block a new
+    // round's delivery — only an in-flight delivery should.
+    const alreadyHasDelivery = existingDeliveries.some(d => d.salesOrderId === soId && d.status !== 'Terkirim');
 
     if (!alreadyHasDelivery) {
       addDelivery({
