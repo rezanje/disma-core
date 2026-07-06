@@ -2243,6 +2243,7 @@ export default function SalesOrdersPage() {
                            const product = products.find(p => p.id === item.productId)
                            const isEditable = selectedSO?.status === 'Pending Approval' || selectedSO?.status === 'Draft'
                            const currentEdit = editingItems[item.id] || { qty: item.qty, price: item.unitPrice }
+                           const owed = Math.max(0, item.qty - (item.qtyDelivered ?? 0))
                            
                            return (
                               <TableRow key={item.id} className="hover:bg-slate-50/50">
@@ -2270,6 +2271,11 @@ export default function SalesOrdersPage() {
                                            </div>
                                          ) : (
                                            <span className="font-bold text-sm">{item.qty} {product?.uom}</span>
+                                         )}
+                                         {owed > 0 && (
+                                           <span className="ml-2 text-[10px] font-black uppercase text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
+                                             Kurang {owed}{product?.uom ? ` ${product.uom}` : ''}
+                                           </span>
                                          )}
                                        </div>
                                      )}
