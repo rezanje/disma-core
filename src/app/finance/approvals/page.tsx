@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from "react"
 import { useAppStore } from "@/lib/store"
 import { computeBankBalances } from "@/lib/bank-balance"
+import { roundQtyToBook } from "@/lib/backorder"
 import { formatRupiah, cn } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -572,15 +573,21 @@ export default function FinanceHubPage() {
     if (!delivery || !soId) return
 
     const soItems = salesOrderItems.filter(i => i.salesOrderId === soId)
-    const totalRevenue = soItems.reduce((sum, item) => sum + ((item.qtyFinal ?? item.qty) * item.unitPrice), 0)
+    const roundQtyById = new Map(soItems.map(i => [i.id, roundQtyToBook(i)]))
+    const totalRevenue = soItems.reduce((sum, item) => sum + ((roundQtyById.get(item.id) ?? 0) * item.unitPrice), 0)
 
-    const fallbackInvoice = invoices.find(inv => inv.salesOrderId === soId)
-    let invoiceId = delivery?.invoiceId || fallbackInvoice?.id
-
-    if (!invoiceId) {
+    // Reuse the delivery's own invoice only if it is not already booked; otherwise
+    // this is a new round → create a fresh invoice so recordDeliveryAndInvoice books it.
+    const bookedInvoiceIds = new Set(
+      useAppStore.getState().journalEntries
+        .filter(e => e.referenceType === 'Invoice')
+        .map(e => e.referenceId)
+    )
+    let invoiceId = delivery?.invoiceId
+    if (!invoiceId || bookedInvoiceIds.has(invoiceId)) {
       const so = salesOrders.find(s => s.id === soId)
       invoiceId = uuidv4()
-      const newInvoice = {
+      await useAppStore.getState().addInvoice({
         id: invoiceId,
         salesOrderId: soId,
         clientId: so?.clientId || '',
@@ -589,22 +596,22 @@ export default function FinanceHubPage() {
         totalAmount: totalRevenue,
         amountPaid: 0,
         status: 'Unpaid' as const
-      }
-      await useAppStore.getState().addInvoice(newInvoice)
+      })
+      await updateDelivery(deliveryId, { invoiceId })
     }
 
     let totalCogs = 0
     const stockDeductionItems: { productId: string, qty: number }[] = []
-    
     soItems.forEach(item => {
-      const finalQty = item.qtyFinal ?? item.qty
+      const roundQty = roundQtyById.get(item.id) ?? 0
+      if (roundQty <= 0) return
       let pItem = purchaseItems.find(pi => pi.salesOrderId === soId && pi.productId === item.productId && pi.actualUnitPrice > 0)
       if (!pItem) {
         pItem = purchaseItems.filter(pi => pi.productId === item.productId && pi.actualUnitPrice > 0).pop()
       }
       const unitCogs = pItem ? pItem.actualUnitPrice : (products.find(p => p.id === item.productId)?.basePrice || 0)
-      totalCogs += (unitCogs * finalQty)
-      stockDeductionItems.push({ productId: item.productId, qty: finalQty })
+      totalCogs += (unitCogs * roundQty)
+      stockDeductionItems.push({ productId: item.productId, qty: roundQty })
     })
 
     const isFastTrack = delivery?.notes?.toLowerCase().includes('fast-track') || false
