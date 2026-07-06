@@ -1082,7 +1082,7 @@ export default function FinanceHubPage() {
                      const client = clients.find(c => c.id === so?.clientId)
                      const courier = users.find(u => u.id === delivery.courierId)
                      const soItems = salesOrderItems.filter(i => i.salesOrderId === so?.id)
-                     const totalRev = soItems.reduce((sum, item) => sum + ((item.qtyFinal ?? item.qty) * item.unitPrice), 0)
+                     const totalRev = soItems.reduce((sum, item) => sum + (roundQtyToBook(item) * item.unitPrice), 0)
                      return (
                         <Card key={delivery.id} className="border-none shadow-xl rounded-[2.5rem] bg-white group overflow-hidden">
                            <CardHeader className="p-6 pb-2">

@@ -38,7 +38,10 @@ export default function HandoverPage() {
     })
 
     // 2. Update Delivery
-    const delivery = deliveries.find(d => d.salesOrderId === soId)
+    // Pick the in-flight delivery, not a completed (Terkirim) one from a prior
+    // backorder round — otherwise handover flips a finished delivery back to Dikirim
+    // and strands the new round's delivery at Menunggu.
+    const delivery = deliveries.find(d => d.salesOrderId === soId && d.status !== 'Terkirim')
     if (delivery) {
       updateDelivery(delivery.id, { 
         status: 'Dikirim',

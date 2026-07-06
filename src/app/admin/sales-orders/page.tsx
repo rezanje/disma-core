@@ -213,11 +213,17 @@ export default function SalesOrdersPage() {
           })
         }
 
-        const newQtyDelivered = (item.qtyDelivered ?? 0) + accepted
-        // Fold this round into cumulative delivered; reset qtyFinal (explicit null so
-        // the reset persists to the DB — undefined would be dropped by JSON.stringify
-        // and the upsert would keep the stale value) so any remaining owed qty
-        // re-enters the QC queue as the next round.
+        // Backorder tracks UNDER-SHIPMENT, so cumulative delivered advances by what we
+        // SHIPPED this round, not what the client accepted. A client rejecting part of a
+        // shipped round is a return (logged as a rejectedItem above for restock), NOT a
+        // re-owed backorder — otherwise the rejected qty would re-enter QC, get re-shipped,
+        // and be booked twice for a round already booked at Terkirim.
+        // (Re-shipping rejected goods to the client, with a revenue reversal, is a
+        // separate follow-up — out of scope here.)
+        const newQtyDelivered = (item.qtyDelivered ?? 0) + shippedThisRound
+        // Reset qtyFinal (explicit null so the reset persists to the DB — undefined would
+        // be dropped by JSON.stringify and the upsert would keep the stale value) so any
+        // remaining owed qty re-enters the QC queue as the next round.
         await updateSalesOrderItem(item.id, {
           qtyDelivered: newQtyDelivered,
           qtyFinal: null,

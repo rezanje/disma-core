@@ -8,6 +8,7 @@ import { MapPin, Navigation, PackageCheck, Truck, Camera, ExternalLink } from "l
 import { toast } from "sonner"
 import { v4 as uuidv4 } from "uuid"
 import DocumentPreview from "@/components/delivery/DocumentPreview"
+import { roundQtyToBook } from "@/lib/backorder"
 import { cn } from "@/lib/utils"
 
 export default function CourierDashboard() {
@@ -20,7 +21,6 @@ export default function CourierDashboard() {
   const updateDelivery = useAppStore(state => state.updateDelivery)
   const updateSalesOrder = useAppStore(state => state.updateSalesOrder)
   const addInvoice = useAppStore(state => state.addInvoice)
-  const addPendingReturn = useAppStore(state => state.addPendingReturn)
 
   const [activeDeliveryId, setActiveDeliveryId] = useState<string | null>(null)
   
@@ -106,9 +106,10 @@ export default function CourierDashboard() {
     if (!so || !client) return
 
     const soItems = salesOrderItems.filter(i => i.salesOrderId === soId)
+    // Only THIS round's shipped qty (backorder: a re-shipped round carries qtyFinal for
+    // the remainder, not the full order).
     const totalRevenue = soItems.reduce((sum, item) => {
-      const finalQty = item.qtyFinal ?? item.qty
-      return sum + (finalQty * item.unitPrice)
+      return sum + (roundQtyToBook(item) * item.unitPrice)
     }, 0)
 
     // 1. Update Delivery
@@ -139,25 +140,10 @@ export default function CourierDashboard() {
     // 4. Update delivery with invoice link
     await updateDelivery(deliveryId, { invoiceId })
 
-    // 5. Handling Returns & Rejections
-    const pendingReturnPromises = soItems.map(async (item) => {
-      const finalQty = item.qtyFinal ?? item.qty
-      const rejectedQty = item.qty - finalQty
-
-      if (rejectedQty > 0) {
-        await addPendingReturn({
-          id: uuidv4(),
-          productId: item.productId,
-          originalSoId: soId,
-          qty: rejectedQty,
-          reason: item.qtyAdjustmentReason || "Reject di Customer",
-          date: new Date().toISOString(),
-          status: 'Pending QC'
-        })
-      }
-    })
-
-    await Promise.all(pendingReturnPromises)
+    // 5. Under-shipment is now handled by the backorder / Kurang Kirim flow (qtyDelivered
+    // re-enters QC), so the courier no longer raises a Pending-QC return for the shortfall
+    // here — that double-counted against the backorder. Genuine customer rejects are
+    // captured at BAST confirmation as rejectedItems.
 
     setActiveDeliveryId(null)
 

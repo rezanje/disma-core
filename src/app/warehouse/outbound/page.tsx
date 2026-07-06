@@ -9,6 +9,7 @@ import { toast } from "sonner"
 import { v4 as uuidv4 } from "uuid"
 import { cn } from "@/lib/utils"
 import { recordStockMovement } from "@/lib/accounting"
+import { roundQtyToBook } from "@/lib/backorder"
 
 export default function OutboundPage() {
   const currentUser = useAppStore(state => state.currentUser)
@@ -30,7 +31,11 @@ export default function OutboundPage() {
     for (const item of items) {
       const product = products.find(p => p.id === item.productId)
       if (product) {
-        const qtyToDeduct = item.qtyFinal ?? item.qty
+        // Deduct only THIS round's qty. For an item already fully delivered in a prior
+        // round (qtyFinal reset to null, nothing owed) this is 0, avoiding a phantom
+        // outbound of already-shipped stock in a mixed backorder SO.
+        const qtyToDeduct = roundQtyToBook(item)
+        if (qtyToDeduct <= 0) continue
         await recordStockMovement({
           productId: product.id,
           quantity: qtyToDeduct,
