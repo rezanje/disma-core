@@ -4,6 +4,7 @@ import { JournalEntry, JournalLine, StockMovement, VendorBill } from '@/types';
 import { format } from 'date-fns';
 import { supabase } from './supabase';
 import { dueDateFor } from './vendor-payable';
+import { roundQtyToBook } from './backorder';
 
 /**
  * Double-Entry Bookkeeping Helper functions
@@ -682,59 +683,55 @@ export const finalizeSalesOrderDelivery = async (soId: string) => {
   if (!so) return false;
 
   const soItems = store.salesOrderItems.filter(i => i.salesOrderId === soId);
-  const totalRevenue = soItems.reduce((sum, item) => sum + ((item.qtyFinal ?? item.qty) * item.unitPrice), 0);
+  const roundQtyById = new Map(soItems.map(i => [i.id, roundQtyToBook(i)]));
+  const totalRevenue = soItems.reduce((sum, item) => sum + ((roundQtyById.get(item.id) ?? 0) * item.unitPrice), 0);
 
-  const existingInvoice = store.invoices.find(inv => inv.salesOrderId === soId);
-  const existingDelivery = store.deliveries.find(d => d.salesOrderId === soId);
+  // Nothing left to ship this round → nothing to book.
+  if (totalRevenue <= 0 && soItems.every(i => (roundQtyById.get(i.id) ?? 0) <= 0)) {
+    return true;
+  }
 
   store.beginUndoableBatch();
   try {
-    let invoiceId = existingInvoice?.id;
-    if (!invoiceId) {
-      invoiceId = uuidv4();
-      await store.addInvoice({
-        id: invoiceId,
-        salesOrderId: soId,
-        clientId: so.clientId || '',
-        issueDate: new Date().toISOString(),
-        dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-        totalAmount: totalRevenue,
-        amountPaid: 0,
-        status: 'Unpaid',
-      });
-    }
+    // Fresh invoice for THIS round (never reuse an already-booked one).
+    const invoiceId = uuidv4();
+    await store.addInvoice({
+      id: invoiceId,
+      salesOrderId: soId,
+      clientId: so.clientId || '',
+      issueDate: new Date().toISOString(),
+      dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+      totalAmount: totalRevenue,
+      amountPaid: 0,
+      status: 'Unpaid',
+    });
 
-    let deliveryId = existingDelivery?.id;
-    if (!deliveryId) {
-      deliveryId = uuidv4();
-      await store.addDelivery({
-        id: deliveryId,
-        salesOrderId: soId,
-        courierId: '',
-        status: 'Terkirim',
-        deliveryDate: new Date().toISOString(),
-        invoiceId,
-        notes: 'Manual ship (PO page)',
-      });
-    }
+    // Fresh delivery for THIS round.
+    const deliveryId = uuidv4();
+    await store.addDelivery({
+      id: deliveryId,
+      salesOrderId: soId,
+      courierId: '',
+      status: 'Terkirim',
+      deliveryDate: new Date().toISOString(),
+      invoiceId,
+      notes: 'Manual ship (PO page)',
+    });
 
     let totalCogs = 0;
     const stockDeductionItems: { productId: string; qty: number }[] = [];
     soItems.forEach(item => {
-      const finalQty = item.qtyFinal ?? item.qty;
+      const roundQty = roundQtyById.get(item.id) ?? 0;
+      if (roundQty <= 0) return;
       let pItem = store.purchaseItems.find(pi => pi.salesOrderId === soId && pi.productId === item.productId && pi.actualUnitPrice > 0);
       if (!pItem) pItem = store.purchaseItems.filter(pi => pi.productId === item.productId && pi.actualUnitPrice > 0).pop();
       const unitCogs = pItem ? pItem.actualUnitPrice : (store.products.find(p => p.id === item.productId)?.basePrice || 0);
-      totalCogs += unitCogs * finalQty;
-      stockDeductionItems.push({ productId: item.productId, qty: finalQty });
+      totalCogs += unitCogs * roundQty;
+      stockDeductionItems.push({ productId: item.productId, qty: roundQty });
     });
 
     const ok = await recordDeliveryAndInvoice(deliveryId, invoiceId, totalRevenue, totalCogs, stockDeductionItems, false);
     if (!ok) return false;
-
-    if (existingDelivery && existingDelivery.status !== 'Terkirim') {
-      await store.updateDelivery(deliveryId, { status: 'Terkirim' });
-    }
     return true;
   } finally {
     store.endUndoableBatch();
