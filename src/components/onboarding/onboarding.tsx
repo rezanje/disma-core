@@ -61,17 +61,12 @@ export function OnboardingProvider() {
   const pathname = usePathname()
   const router = useRouter()
   const currentUser = useAppStore(state => state.currentUser)
-  const rolePermissions = useAppStore(state => state.rolePermissions) ?? NO_PERMISSIONS
   const [showWelcome, setShowWelcome] = useState(false)
 
   const userId = currentUser?.id
-  // Dipakai di dalam callback driver.js yang hidup di luar siklus render React.
-  const finishedRef = useRef(false)
   // Tour yang sedang tampil, supaya bisa dimatikan kalau efeknya dijalankan ulang
   // (React StrictMode di dev, atau perubahan dependency) — tanpa ini popovernya dobel.
   const tourRef = useRef<Driver | null>(null)
-  // Menandai pembersihan, bukan aksi user: jangan ubah state panduan saat destroy.
-  const silentRef = useRef(false)
 
   const patchState = useCallback(
     (patch: Partial<ReturnType<typeof loadOnboarding>>) => {
@@ -103,11 +98,24 @@ export function OnboardingProvider() {
     const segment = flow?.segments[active.segIndex]
     if (!flow || !segment || segment.path !== pathname) return
 
-    // Beri jeda agar halaman selesai render sebelum elemen dicari.
-    const timer = window.setTimeout(() => {
+    // Milik satu kali jalannya efek ini, tidak pernah di-reset. driver.js memanggil
+    // onDestroyed secara asinkron, jadi penanda yang dipakai bersama antar-jalan
+    // (useRef) sudah keburu berubah nilainya saat callback-nya akhirnya jalan.
+    let cancelled = false
+    let finished = false
+
+    // Tunggu elemen targetnya benar-benar ada sebelum tour dimulai. Jeda tetap
+    // tidak cukup: saat halaman dibuka dari nol, HydrationGate masih menampilkan
+    // loader, dan semua langkah akan dianggap tidak ada lalu dilewati.
+    const start = () => {
+      // Dibaca langsung dari store, bukan lewat selector: StoreSync menyegarkan
+      // data secara berkala, dan objek izin yang identitasnya berubah tiap sync
+      // akan menjalankan ulang efek ini — tour jadi mengulang dari langkah satu
+      // di tengah jalan.
+      const perms = useAppStore.getState().rolePermissions ?? NO_PERMISSIONS
       const nextSegment = flow.segments[active.segIndex + 1]
       const canGoNext =
-        !!nextSegment && canAccessPath(nextSegment.path, currentUser?.role, rolePermissions)
+        !!nextSegment && canAccessPath(nextSegment.path, currentUser?.role, perms)
 
       const steps: DriveStep[] = [
         ...presentSteps(segment).map(s => ({
@@ -123,7 +131,6 @@ export function OnboardingProvider() {
         },
       ]
 
-      finishedRef.current = false
       const tour = driver({
         steps,
         showProgress: true,
@@ -138,13 +145,13 @@ export function OnboardingProvider() {
         doneBtnText: "Selesai",
         progressText: "{{current}} dari {{total}}",
         onDoneClick: () => {
-          finishedRef.current = true
+          finished = true
           tour.destroy()
         },
         onDestroyed: () => {
-          if (silentRef.current) return // dimatikan oleh cleanup, bukan oleh user
+          if (cancelled) return // dimatikan oleh cleanup, bukan oleh user
           tourRef.current = null
-          if (!finishedRef.current) {
+          if (!finished) {
             patchState({ active: null }) // ditutup di tengah jalan
             return
           }
@@ -165,19 +172,32 @@ export function OnboardingProvider() {
 
       tourRef.current = tour
       tour.drive()
-    }, 600)
+    }
+
+    const POLL_MS = 150
+    const GIVE_UP_MS = 5000
+    let waited = 0
+    const timer = window.setInterval(() => {
+      waited += POLL_MS
+      // Mulai begitu ada satu target yang muncul. Kalau sampai batas waktu tidak
+      // ada satu pun (halaman kosong, layar kecil, atau role tanpa tombol itu),
+      // tour tetap jalan dengan kartu penutupnya saja.
+      if (presentSteps(segment).length > 0 || waited >= GIVE_UP_MS) {
+        window.clearInterval(timer)
+        if (!cancelled) start()
+      }
+    }, POLL_MS)
 
     return () => {
-      window.clearTimeout(timer)
-      if (tourRef.current) {
-        silentRef.current = true
-        tourRef.current.destroy()
-        tourRef.current = null
-        silentRef.current = false
-      }
+      window.clearInterval(timer)
+      cancelled = true
+      tourRef.current?.destroy()
+      tourRef.current = null
     }
-    // rolePermissions & currentUser.role ikut dipantau agar izin terbaru terpakai.
-  }, [userId, pathname, currentUser?.role, rolePermissions, router, patchState])
+    // Sengaja hanya nilai yang stabil. Apa pun yang identitasnya berubah tiap
+    // sinkronisasi data akan menjalankan ulang efek ini dan mengulang tour
+    // dari langkah satu — izin dibaca dari store saat dibutuhkan.
+  }, [userId, pathname, currentUser?.role, router, patchState])
 
   // --- pemicu dari tombol Panduan -----------------------------------------
   useEffect(() => {

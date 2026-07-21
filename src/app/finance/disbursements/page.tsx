@@ -231,14 +231,14 @@ export default function DisbursementsPage() {
           <p className="text-muted-foreground text-sm">Pemindahan dana kas utama ke kas operasional untuk kebutuhan belanja mingguan.</p>
         </div>
         {isFinance && (
-          <Button onClick={() => setIsCreateOpen(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs uppercase tracking-wider px-5 py-2">
+          <Button data-tour="disb-new" onClick={() => setIsCreateOpen(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs uppercase tracking-wider px-5 py-2">
             <Plus className="w-4 h-4 mr-2" /> Request Baru
           </Button>
         )}
       </div>
 
       {/* SUMMARY METRICS CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div data-tour="disb-metrics" className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="rounded-[1.5rem] border border-slate-100 shadow-sm bg-gradient-to-br from-amber-50/30 to-amber-50/10">
           <CardHeader className="pb-2">
             <CardDescription className="text-[10px] font-black uppercase tracking-wider text-amber-600 flex items-center gap-1">
@@ -294,7 +294,7 @@ export default function DisbursementsPage() {
       </div>
 
       {/* TABLE LIST VIEW */}
-      <div className="rounded-[1.5rem] border border-slate-100 overflow-hidden bg-white shadow-sm">
+      <div data-tour="disb-table" className="rounded-[1.5rem] border border-slate-100 overflow-hidden bg-white shadow-sm">
         <Table>
           <TableHeader>
             <TableRow className="bg-slate-50/80">
