@@ -428,11 +428,13 @@ export default function QCPage() {
       })
     }
 
-    for (const soId of selectedDispatchSoIds) {
-      await updateSalesOrder(soId, { status: 'Siap Kirim' })
-    }
+    // Sengaja TIDAK memajukan status ke 'Siap Kirim'. Rilis barang hanya boleh
+    // lewat Goods Outbound, karena di sanalah stok dikurangi dan misi pengiriman
+    // untuk kurir dibuat. Memajukan status di sini justru mengeluarkan PO dari
+    // antrian Outbound, sehingga satu-satunya jalur yang benar jadi tak bisa
+    // ditempuh — barang berangkat tanpa pernah tercatat keluar.
 
-    toast.success(`${selectedDispatchSoIds.size} PO siap kirim. Serah terima ke logistik selesai.`, { id: "dispatch" })
+    toast.success(`Persiapan ${selectedDispatchSoIds.size} PO tersimpan. Lanjutkan rilis di Gudang › Goods Outbound.`, { id: "dispatch" })
     setSelectedDispatchSoIds(new Set())
     setDispatchQty({})
     setDispatchNote({})
@@ -854,7 +856,7 @@ export default function QCPage() {
                 </div>
                 Persiapan Pengiriman
               </CardTitle>
-              <p className="text-slate-500 text-sm">Pilih PO yang akan dikirim hari ini, input qty & catatan per item, lalu serah terima ke logistik.</p>
+              <p className="text-slate-500 text-sm">Pilih PO yang akan dikirim hari ini, input qty &amp; catatan per item, lalu simpan. Rilis barangnya dilakukan di Gudang › Goods Outbound.</p>
             </CardHeader>
             <CardContent className="p-8 space-y-6">
               {packingSos.length === 0 ? (
@@ -974,7 +976,7 @@ export default function QCPage() {
                         className="w-full py-4 bg-violet-600 hover:bg-violet-700 text-white font-black text-sm uppercase tracking-widest rounded-2xl flex items-center justify-center gap-2 transition-colors"
                       >
                         <ClipboardCheck className="w-4 h-4" />
-                        Serah Terima ke Logistik ({selectedDispatchSoIds.size} PO)
+                        Simpan Persiapan ({selectedDispatchSoIds.size} PO)
                       </button>
                     </div>
                   )}

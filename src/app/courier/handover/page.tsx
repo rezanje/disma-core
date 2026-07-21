@@ -23,6 +23,19 @@ export default function HandoverPage() {
   const pendingPickup = salesOrders.filter(so => so.status === 'Siap Kirim')
 
   const handleHandoverSubmit = (soId: string) => {
+    // Cari misi pengirimannya DULU. Tanpa ini kurir tidak punya rute sama sekali,
+    // dan kalau status SO tetap dimajukan, PO nyangkut di 'Dikirim' selamanya —
+    // tidak pernah sampai 'Terkirim', tidak pernah jadi tagihan. Sebelumnya blok
+    // ini diam saja saat misinya tidak ada, lalu tetap melaporkan "berhasil".
+    // Pilih misi yang masih berjalan, bukan yang sudah 'Terkirim' dari ronde
+    // backorder sebelumnya — kalau tidak, handover membalik pengiriman yang sudah
+    // selesai dan menelantarkan ronde baru di 'Menunggu'.
+    const delivery = deliveries.find(d => d.salesOrderId === soId && d.status !== 'Terkirim')
+    if (!delivery) {
+      toast.error("Belum ada misi pengiriman untuk PO ini. Rilis dulu barangnya di Gudang › Goods Outbound.")
+      return
+    }
+
     // Sync all checks to store before finalizing
     const items = salesOrderItems.filter(i => i.salesOrderId === soId)
     items.forEach(item => {
@@ -37,17 +50,11 @@ export default function HandoverPage() {
       receivedBy: currentUser?.id || 'system'
     })
 
-    // 2. Update Delivery
-    // Pick the in-flight delivery, not a completed (Terkirim) one from a prior
-    // backorder round — otherwise handover flips a finished delivery back to Dikirim
-    // and strands the new round's delivery at Menunggu.
-    const delivery = deliveries.find(d => d.salesOrderId === soId && d.status !== 'Terkirim')
-    if (delivery) {
-      updateDelivery(delivery.id, { 
-        status: 'Dikirim',
-        courierId: currentUser?.id || 'system'
-      })
-    }
+    // 2. Update Delivery (sudah dipastikan ada di awal fungsi)
+    updateDelivery(delivery.id, {
+      status: 'Dikirim',
+      courierId: currentUser?.id || 'system'
+    })
 
     toast.success("Serah terima berhasil! Silakan mulai perjalanan.")
     setActiveHandoverId(null)
