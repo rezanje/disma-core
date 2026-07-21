@@ -13,6 +13,7 @@ import { ShieldAlert, ShieldCheck, Tag, RefreshCcw, PackageSearch, AlertTriangle
 import { toast } from "sonner"
 import { v4 as uuidv4 } from "uuid"
 import { cn } from "@/lib/utils"
+import { qtyOwed } from "@/lib/backorder"
 
 type PoAllocation = { soId: string; qty: number }
 
@@ -925,11 +926,26 @@ export default function QCPage() {
                             <div className="divide-y divide-slate-50">
                               {items.map(item => {
                                 const product = products.find(p => p.id === item.productId)
+                                // Yang masih harus dikirim, bukan qty asli PO — untuk pengiriman
+                                // susulan sisanya lebih kecil dari pesanan awal.
+                                const owed = qtyOwed(item)
+                                const isPartial = (item.qtyDelivered || 0) > 0
+                                const passed = item.qtyFinal ?? 0
+                                const isShort = passed < owed
                                 return (
                                   <div key={item.id} className="px-5 py-4 bg-white grid grid-cols-[1fr_120px_1fr] gap-4 items-center">
                                     <div>
                                       <p className="font-semibold text-slate-800 text-sm">{product?.name}</p>
-                                      <p className="text-xs text-slate-400">QC Passed: {item.qtyFinal ?? '-'} {product?.uom}</p>
+                                      <p className="text-xs font-bold text-slate-600">
+                                        Dibutuhkan: {owed} {product?.uom}
+                                        {isPartial && (
+                                          <span className="font-normal text-slate-400"> (sisa dari {item.qty})</span>
+                                        )}
+                                      </p>
+                                      <p className={cn("text-xs", isShort ? "font-bold text-amber-600" : "text-slate-400")}>
+                                        QC Passed: {item.qtyFinal ?? '-'} {product?.uom}
+                                        {isShort && <span> — kurang {owed - passed}</span>}
+                                      </p>
                                     </div>
                                     <input
                                       type="number"
