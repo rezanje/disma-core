@@ -123,6 +123,46 @@ const W2_PR_TO_DISBURSEMENT: Flow = {
   ],
 }
 
-export const FLOWS: Flow[] = [W2_PR_TO_DISBURSEMENT]
+// ---------------------------------------------------------------------------
+// W4 — Disbursement (Kas Pindah): pindah dana antar rekening
+// ---------------------------------------------------------------------------
+
+const W4_DISBURSEMENT: Flow = {
+  id: 'disbursement',
+  name: 'Disbursement (Kas Pindah)',
+  desc: 'Memindahkan dana dari kas utama ke kas operasional — termasuk kapan transfer wajib lewat persetujuan CFO.',
+  segments: [
+    {
+      path: '/finance/disbursements',
+      steps: [
+        {
+          target: 'disb-new',
+          title: 'Buat request pemindahan dana',
+          body: 'Semua kas pindah dimulai dari sini. Di formnya Anda pilih rekening asal, rekening tujuan, nominal, dan keperluannya. Isi keperluan sedetail mungkin — kalau transfernya butuh persetujuan CFO, itulah yang dibaca beliau.',
+        },
+        {
+          target: 'disb-metrics',
+          title: 'Tiga kotak ini = tiga tahap',
+          body: 'Menunggu CFO Approval, Approved (Siap Transfer), dan Berhasil Ditransfer. Angkanya menunjukkan total dana yang sedang nyangkut di tiap tahap — kalau ada dana yang tertahan lama di kotak pertama, berarti ada yang menunggu keputusan CFO.',
+        },
+        {
+          target: 'disb-table',
+          title: 'Klik barisnya untuk bertindak',
+          body: 'Tabel ini memuat semua request beserta statusnya. Tombol aksinya tidak ada di halaman ini — klik salah satu baris, lalu tombolnya muncul di jendela detail sesuai status request dan wewenang Anda.',
+        },
+      ],
+      handoff: {
+        title: 'Yang menentukan perlu CFO: rekening asalnya',
+        body:
+          'Ini bagian yang paling sering disalahpahami. Perlu-tidaknya persetujuan CFO ditentukan oleh REKENING ASAL, bukan besar nominalnya. ' +
+          'Transfer keluar dari rekening strategis (BRI, Mandiri) wajib lewat CFO: statusnya jadi Draft → Ajukan Approval ke CFO → CFO setujui → Finance eksekusi transfer → Transferred. ' +
+          'Transfer dari rekening lain langsung bisa dieksekusi Finance sendiri tanpa CFO, dari Draft langsung ke Transferred. ' +
+          'Selama masih Draft, request masih bisa dihapus. Setelah ditransfer, dananya muncul di Cash & Bank dan siap dipakai belanja.',
+      },
+    },
+  ],
+}
+
+export const FLOWS: Flow[] = [W2_PR_TO_DISBURSEMENT, W4_DISBURSEMENT]
 
 export const getFlow = (id: string) => FLOWS.find(f => f.id === id)
