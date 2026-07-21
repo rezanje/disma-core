@@ -21,6 +21,7 @@ import {
 import { toast } from "sonner"
 import { v4 as uuidv4 } from "uuid"
 import { recordReimbursementPayment, recordOperationalExpense, recordReconciliationSettlement, recordDeliveryAndInvoice, recordAdvanceReturn, updateProductPriceHistory, recordAdvanceExpense, getAdvanceWalletByRole, getAdvanceWalletByUserId, recordOnlinePurchase } from "@/lib/accounting"
+import { isLegacyAdvance } from "@/lib/settlement-model"
 import AuthGuard from "@/components/auth/auth-guard"
 import { 
   Dialog, 
@@ -123,7 +124,12 @@ export default function FinanceHubPage() {
 
   // Derived calculations
   const directSettlePurchase = purchases.find(p => p.id === directSettleId)
-  const directSettleBudget = (directSettlePurchase?.budgetAmount || 0) + (directSettlePurchase?.operationalSpareAmount || 0)
+  // Spare only counts when it was actually handed over; see settlement-model.
+  const directSettleBudget = directSettlePurchase
+    ? (isLegacyAdvance(directSettlePurchase)
+        ? (directSettlePurchase.budgetAmount || 0) + (directSettlePurchase.operationalSpareAmount || 0)
+        : (directSettlePurchase.budgetAmount || 0))
+    : 0
   const currentTotalHPP = Object.values(settlementItems).reduce((sum, item) => sum + ((item.actualPrice || 0) * (item.qtyPurchased || 0)), 0)
   const currentTotalCashHPP = Object.values(settlementItems).reduce((sum, item) => {
     const vendor = vendors.find(v => v.id === item.vendorId)
@@ -280,8 +286,11 @@ export default function FinanceHubPage() {
         return
       }
 
-      const advanceAmount = (purchase.budgetAmount || 0) + (purchase.operationalSpareAmount || 0)
-      
+      const isLegacy = isLegacyAdvance(purchase)
+      const advanceAmount = isLegacy
+        ? (purchase.budgetAmount || 0) + (purchase.operationalSpareAmount || 0)
+        : (purchase.budgetAmount || 0)
+
       // Find all linked items
       const pOps = useAppStore.getState().expenses.filter(e => e.purchaseId === purchaseId && e.status === 'Pending Audit' && e.category !== 'Setoran Pengembalian')
       const pReimbs = useAppStore.getState().reimbursements.filter(r => r.purchaseId === purchaseId && r.status === 'Pending')
@@ -325,16 +334,20 @@ export default function FinanceHubPage() {
          const totalOpsDeducted = allOpsForPurchase.reduce((sum, e) => sum + e.amount, 0)
          const remainingAdvanceForHPP = Math.max(0, advanceAmount - totalOpsDeducted)
 
-         const success = await recordReconciliationSettlement(
-            purchaseId,
-            purchase.actualSpent || 0,
-            0,
-            remainingAdvanceForHPP,
-            purchase.budgetBankAccountId || 'bank-1'
-         )
-         if (!success) {
-           toast.error("Gagal settle rekonsiliasi jurnal HPP.", { id: "rekon" })
-           return
+         // Pool-funded (non-legacy) spending was already booked by recordPocketPurchase
+         // at buy time — posting here would double-book it and credit a deleted wallet.
+         if (isLegacy) {
+           const success = await recordReconciliationSettlement(
+              purchaseId,
+              purchase.actualSpent || 0,
+              0,
+              remainingAdvanceForHPP,
+              purchase.budgetBankAccountId || 'bank-1'
+           )
+           if (!success) {
+             toast.error("Gagal settle rekonsiliasi jurnal HPP.", { id: "rekon" })
+             return
+           }
          }
          await updatePurchase(purchaseId, { reconciliationStatus: 'Terverifikasi', status: 'Selesai' })
 
