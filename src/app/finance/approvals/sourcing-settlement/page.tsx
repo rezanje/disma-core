@@ -14,6 +14,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { recordReconciliationSettlement, recordOperationalExpense, recordReimbursementPayment, recordAdvanceReturn, updateProductPriceHistory, getAdvanceWalletByUserId, recordAdvanceExpense } from "@/lib/accounting"
+import { computeSettlement } from "@/lib/settlement-model"
 import AuthGuard from "@/components/auth/auth-guard"
 import { 
   Dialog, 
@@ -49,11 +50,16 @@ export default function SourcingSettlementPage() {
     proofUrl: ""
   })
 
-  // Filter purchases that need settlement
+  // Queue on the report, not on the transfer. Purchases funded from the sourcing
+  // pool never carry budgetTransferDate, so keying off it hid them entirely.
+  // sourcing/list writes 'Laporan Masuk' on submit under both models.
+  // Also require an approved budget: a shopping doc that was compiled but never
+  // sent to Finance ("Kirim ke Finance") has no budgetAmount, yet the sourcer
+  // checklist stamps it 'Laporan Masuk' on submit anyway — its baseline would
+  // read 0 and the whole spend would render as overspend. Legacy purchases stay
+  // visible via budgetTransferDate even if budgetAmount is missing.
   const pendingSettlements = purchases.filter(p => {
-    // Show if money has been given (budgetTransferDate exists) 
-    // AND it hasn't been finalized yet (reconciliationStatus !== 'Terverifikasi')
-    return p.budgetTransferDate && p.reconciliationStatus !== 'Terverifikasi'
+    return p.reconciliationStatus === 'Laporan Masuk' && ((p.budgetAmount || 0) > 0 || !!p.budgetTransferDate)
   }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
   const selectedPurchase = pendingSettlements.find(p => p.id === selectedPurchaseId)
@@ -66,15 +72,17 @@ export default function SourcingSettlementPage() {
   const pReimbs = reimbursements.filter(r => r.purchaseId === selectedPurchaseId && r.status === 'Pending')
   const pReturns = expenses.filter(e => e.purchaseId === selectedPurchaseId && e.status === 'Pending Audit' && e.category === 'Setoran Pengembalian')
 
-  const totalBudget = (selectedPurchase?.budgetAmount || 0) + (selectedPurchase?.operationalSpareAmount || 0)
-  const totalShopSpent = pItems.reduce((sum, item) => sum + (item.actualUnitPrice * item.qtyPurchased), 0)
-  const totalOpsSpent = pExpenses.reduce((sum, e) => sum + e.amount, 0)
+  const figures = selectedPurchase ? computeSettlement(selectedPurchase, pItems, pExpenses) : null
+  const totalBudget = figures?.baseline || 0
+  const totalShopSpent = figures?.shopSpent || 0
+  const totalOpsSpent = figures?.opsSpent || 0
   const totalReimbRequested = pReimbs.reduce((sum, r) => sum + r.amount, 0)
   const totalReturns = pReturns.reduce((sum, r) => sum + r.amount, 0)
 
   // Calculation for returns vs budget
-  const expectedReturns = totalBudget - totalShopSpent - totalOpsSpent
+  const expectedReturns = figures?.expectedReturns ?? 0
   const returnDiscrepancy = totalReturns - expectedReturns
+  const isLegacySettlement = figures?.isLegacy ?? false
 
   const handleAuditExpense = async (expenseId: string, status: 'Approved' | 'Rejected') => {
     const latestExpenses = useAppStore.getState().expenses
@@ -84,7 +92,9 @@ export default function SourcingSettlementPage() {
     if (status === 'Approved') {
        const latestPurchases = useAppStore.getState().purchases
        const relatedPurchase = latestPurchases.find(p => p.id === exp.purchaseId)
-       const walletUserId = relatedPurchase?.purchaserId || exp.reporterId
+       const walletUserId = (relatedPurchase?.purchaserId && relatedPurchase.purchaserId !== 'pending')
+         ? relatedPurchase.purchaserId
+         : exp.reporterId
        const advanceWallet = getAdvanceWalletByUserId(walletUserId)
        const selectedBank = relatedPurchase?.budgetBankAccountId || 'bank-1'
        const latestBankAccounts = useAppStore.getState().bankAccounts
@@ -148,8 +158,8 @@ export default function SourcingSettlementPage() {
     const freshReimbs = state.reimbursements.filter(r => r.purchaseId === purchaseId && r.status === 'Pending')
     const freshReturns = state.expenses.filter(e => e.purchaseId === purchaseId && e.status === 'Pending Audit' && e.category === 'Setoran Pengembalian')
 
-    const totalBudget = (latestPurchase.budgetAmount || 0) + (latestPurchase.operationalSpareAmount || 0)
-    const totalShopSpent = freshItems.reduce((sum, item) => sum + (item.actualUnitPrice * item.qtyPurchased), 0)
+    const figures = computeSettlement(latestPurchase, freshItems, freshExpenses)
+    const totalShopSpent = figures.shopSpent
 
     // 1. Approve all operational expenses
     for (const op of freshExpenses) {
@@ -166,16 +176,20 @@ export default function SourcingSettlementPage() {
       await handleAuditExpense(ret.id, 'Approved')
     }
 
-    // 4. Settle HPP and sync budget
-    const success = await recordReconciliationSettlement(
-      purchaseId,
-      totalShopSpent,
-      0, // Ops already handled above as individual expenses
-      totalBudget,
-      latestPurchase.budgetBankAccountId || 'bank-1'
-    )
-
-    if (!success) throw new Error("Gagal settle rekonsiliasi jurnal HPP.")
+    // 4. Settle HPP and sync budget — legacy advances only. Under the pool model
+    // recordPocketPurchase already booked Dr 2-1100 / Cr pocket at buy time, so
+    // posting here would double-book, and the credit would land on the deleted
+    // bank-advance-sourcing wallet whenever budgetDestBankAccountId is absent.
+    if (figures.isLegacy) {
+      const success = await recordReconciliationSettlement(
+        purchaseId,
+        totalShopSpent,
+        0, // Ops already handled above as individual expenses
+        figures.baseline,
+        latestPurchase.budgetBankAccountId || 'bank-1'
+      )
+      if (!success) throw new Error("Gagal settle rekonsiliasi jurnal HPP.")
+    }
 
     // 5. Update purchase status & sync actualSpent to live total
     await updatePurchase(purchaseId, {
@@ -425,6 +439,19 @@ export default function SourcingSettlementPage() {
                                     <Badge className="bg-emerald-50 text-emerald-600 border-none font-black text-[9px] px-3 py-1 uppercase">{selectedPurchase?.reconciliationStatus}</Badge>
                                  </div>
                               </div>
+                              {!isLegacySettlement && figures && (
+                                <div className="flex items-center justify-between border-t border-slate-100 pt-3">
+                                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                    Selisih vs Anggaran
+                                  </span>
+                                  <span className={cn(
+                                    "text-sm font-black",
+                                    figures.variance !== null && figures.variance > 0 ? "text-rose-600" : "text-emerald-600"
+                                  )}>
+                                    {figures.variance !== null && figures.variance > 0 ? '+' : ''}{formatRupiah(figures.variance || 0)}
+                                  </span>
+                                </div>
+                              )}
                            </div>
                             <div className="md:w-72 space-y-3">
                                <div className="p-8 bg-slate-950 rounded-[3rem] text-white flex flex-col justify-between shadow-2xl relative overflow-hidden group">
@@ -592,45 +619,49 @@ export default function SourcingSettlementPage() {
                         </div>
                      </div>
 
-                     {/* Reconciliation Watcher */}
-                     <Card className="liquid-card border-none bg-orange-50 overflow-hidden relative">
-                        <div className="absolute top-0 right-0 w-64 h-64 bg-orange-200/50 rounded-full blur-3xl -mr-32 -mt-32" />
-                        <CardContent className="p-10 relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
-                           <div className="flex items-center gap-6">
-                              <div className="w-16 h-16 bg-white rounded-[2rem] flex items-center justify-center shadow-xl">
-                                 <AlertCircle className="w-8 h-8 text-orange-500" />
-                              </div>
-                              <div>
-                                 <h3 className="text-2xl font-black text-slate-900 tracking-tight">Reconciliation Watcher</h3>
-                                 <p className="text-[10px] font-black text-orange-600 uppercase tracking-widest mt-1">Uang yang harus kembali ke kantor</p>
-                              </div>
-                           </div>
-                           <div className="flex items-center gap-10">
-                              <div className="text-center md:text-right">
-                                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Dana Setoran Masuk</p>
-                                 <p className="text-3xl font-black text-slate-900">{formatRupiah(totalReturns)}</p>
-                                 <p className={cn(
-                                   "text-[10px] font-bold mt-1 uppercase tracking-tighter",
-                                   Math.abs(returnDiscrepancy) < 100 ? "text-emerald-500" : "text-rose-500"
-                                 )}>
-                                    {Math.abs(returnDiscrepancy) < 100 ? "✓ Sesuai Target" : `⚠ Selisih ${formatRupiah(returnDiscrepancy)}`}
-                                 </p>
-                              </div>
-                              <div className="h-16 w-px bg-orange-200 hidden md:block" />
-                              <div className="flex -space-x-3">
-                                 {pReturns.map(ret => (
-                                   <div 
-                                     key={ret.id} 
-                                     className="w-14 h-14 rounded-2xl bg-white border-2 border-orange-100 shadow-xl p-1 cursor-pointer hover:scale-110 hover:z-20 transition-all"
-                                     onClick={() => setPreviewImage(ret.receiptUrl!)}
-                                   >
-                                      {ret.receiptUrl ? <img src={ret.receiptUrl} className="w-full h-full object-cover rounded-xl" /> : <div className="w-full h-full bg-slate-50 flex items-center justify-center rounded-xl"><ImageIcon className="w-4 h-4 text-slate-200" /></div>}
-                                   </div>
-                                 ))}
-                              </div>
-                           </div>
-                        </CardContent>
-                     </Card>
+                     {/* Reconciliation Watcher — legacy cash-advance model only; the pool
+                         model never hands cash to the sourcer, so there is nothing to
+                         reconcile back to the office. */}
+                     {isLegacySettlement && (
+                       <Card className="liquid-card border-none bg-orange-50 overflow-hidden relative">
+                          <div className="absolute top-0 right-0 w-64 h-64 bg-orange-200/50 rounded-full blur-3xl -mr-32 -mt-32" />
+                          <CardContent className="p-10 relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
+                             <div className="flex items-center gap-6">
+                                <div className="w-16 h-16 bg-white rounded-[2rem] flex items-center justify-center shadow-xl">
+                                   <AlertCircle className="w-8 h-8 text-orange-500" />
+                                </div>
+                                <div>
+                                   <h3 className="text-2xl font-black text-slate-900 tracking-tight">Reconciliation Watcher</h3>
+                                   <p className="text-[10px] font-black text-orange-600 uppercase tracking-widest mt-1">Uang yang harus kembali ke kantor</p>
+                                </div>
+                             </div>
+                             <div className="flex items-center gap-10">
+                                <div className="text-center md:text-right">
+                                   <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Dana Setoran Masuk</p>
+                                   <p className="text-3xl font-black text-slate-900">{formatRupiah(totalReturns)}</p>
+                                   <p className={cn(
+                                     "text-[10px] font-bold mt-1 uppercase tracking-tighter",
+                                     Math.abs(returnDiscrepancy) < 100 ? "text-emerald-500" : "text-rose-500"
+                                   )}>
+                                      {Math.abs(returnDiscrepancy) < 100 ? "✓ Sesuai Target" : `⚠ Selisih ${formatRupiah(returnDiscrepancy)}`}
+                                   </p>
+                                </div>
+                                <div className="h-16 w-px bg-orange-200 hidden md:block" />
+                                <div className="flex -space-x-3">
+                                   {pReturns.map(ret => (
+                                     <div
+                                       key={ret.id}
+                                       className="w-14 h-14 rounded-2xl bg-white border-2 border-orange-100 shadow-xl p-1 cursor-pointer hover:scale-110 hover:z-20 transition-all"
+                                       onClick={() => setPreviewImage(ret.receiptUrl!)}
+                                     >
+                                        {ret.receiptUrl ? <img src={ret.receiptUrl} className="w-full h-full object-cover rounded-xl" /> : <div className="w-full h-full bg-slate-50 flex items-center justify-center rounded-xl"><ImageIcon className="w-4 h-4 text-slate-200" /></div>}
+                                     </div>
+                                   ))}
+                                </div>
+                             </div>
+                          </CardContent>
+                       </Card>
+                     )}
                   </motion.div>
                 )}
              </AnimatePresence>
