@@ -49,11 +49,11 @@ export default function SourcingSettlementPage() {
     proofUrl: ""
   })
 
-  // Filter purchases that need settlement
+  // Queue on the report, not on the transfer. Purchases funded from the sourcing
+  // pool never carry budgetTransferDate, so keying off it hid them entirely.
+  // sourcing/list writes 'Laporan Masuk' on submit under both models.
   const pendingSettlements = purchases.filter(p => {
-    // Show if money has been given (budgetTransferDate exists) 
-    // AND it hasn't been finalized yet (reconciliationStatus !== 'Terverifikasi')
-    return p.budgetTransferDate && p.reconciliationStatus !== 'Terverifikasi'
+    return p.reconciliationStatus === 'Laporan Masuk'
   }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
   const selectedPurchase = pendingSettlements.find(p => p.id === selectedPurchaseId)

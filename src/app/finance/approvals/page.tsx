@@ -168,10 +168,9 @@ export default function FinanceHubPage() {
 
   
   // --- DATA FILTERING ---
+  // Queue on the report, not on the transfer — see sourcing-settlement/page.tsx.
   const sourcingSettlements = purchases.filter(p => {
-    // Show if money has been given (budgetTransferDate exists) 
-    // AND it hasn't been finalized yet (reconciliationStatus !== 'Terverifikasi')
-    return p.budgetTransferDate && p.reconciliationStatus !== 'Terverifikasi';
+    return p.reconciliationStatus === 'Laporan Masuk';
   }).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   const pendingExpensesLain = expenses.filter(e => e.status === 'Pending Audit' && e.category !== 'Belanja Online' && e.category !== 'Sourcing (HPP)' && e.category !== 'Setoran Pengembalian');
