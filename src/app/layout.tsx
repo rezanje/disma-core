@@ -23,6 +23,7 @@ export const metadata: Metadata = {
 
 import DevOverlay from "@/components/dev-overlay";
 import GlobalUndoButton from "@/components/global-undo-button";
+import { OnboardingProvider } from "@/components/onboarding/onboarding";
 
 export default function RootLayout({
   children,
@@ -43,6 +44,7 @@ export default function RootLayout({
         <Toaster />
         <DevOverlay />
         <GlobalUndoButton />
+        <OnboardingProvider />
       </body>
     </html>
   );

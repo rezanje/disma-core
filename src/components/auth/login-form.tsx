@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select"
 import { useAppStore } from "@/lib/store"
 import { MOCK_USERS } from "@/lib/constants"
+import { PENDING_WELCOME_KEY } from "@/lib/onboarding/state"
 import { toast } from "sonner"
 
 const formSchema = zodSchema.object({
@@ -56,6 +57,9 @@ export default function LoginForm() {
       useAppStore.setState({ users: MOCK_USERS })
       
       setCurrentUser(matchedUser)
+      // Menandai login baru, dibaca sekali oleh OnboardingProvider untuk
+      // memunculkan popup "Mau dibimbing dulu?".
+      try { sessionStorage.setItem(PENDING_WELCOME_KEY, "1") } catch {}
       toast.success(`Welcome back, ${matchedUser.name}!`)
       
       // Role-based redirect
