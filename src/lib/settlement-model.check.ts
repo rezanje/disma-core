@@ -4,16 +4,15 @@
  */
 import assert from 'node:assert/strict';
 import { isLegacyAdvance, computeSettlement } from './settlement-model';
-import type { Purchase, PurchaseItem, OperationalExpense } from '@/types';
 
-const purchase = (over: Partial<Purchase>): Purchase =>
-  ({ id: 'p1', date: '2026-07-21', status: 'Belanja', ...over } as Purchase);
+const purchase = (over: Partial<any>) =>
+  ({ id: 'p1', date: '2026-07-21', status: 'Belanja', ...over } as any);
 
-const item = (price: number, qty: number): PurchaseItem =>
-  ({ id: 'i', purchaseId: 'p1', actualUnitPrice: price, qtyPurchased: qty, isChecked: true } as PurchaseItem);
+const item = (price: number, qty: number) =>
+  ({ id: 'i', purchaseId: 'p1', actualUnitPrice: price, qtyPurchased: qty, isChecked: true } as any);
 
-const ops = (amount: number): OperationalExpense =>
-  ({ id: 'e', purchaseId: 'p1', amount } as OperationalExpense);
+const ops = (amount: number) =>
+  ({ id: 'e', purchaseId: 'p1', amount } as any);
 
 // Legacy: money was transferred, so we still ask for the balance back.
 const legacy = purchase({
