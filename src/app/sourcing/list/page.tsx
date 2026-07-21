@@ -287,8 +287,10 @@ export default function SourcingDashboard() {
     const id = uuidv4()
     
     // Find active purchase to link this expense to
+    // Attach to the newest shopping run still open for this sourcer. Pool-funded
+    // runs have no budgetTransferDate, so requiring it orphaned their ops costs.
     const activePurchase = myPurchases
-      .filter(p => p.budgetTransferDate && p.reconciliationStatus !== 'Laporan Masuk' && p.reconciliationStatus !== 'Terverifikasi')
+      .filter(p => p.reconciliationStatus !== 'Laporan Masuk' && p.reconciliationStatus !== 'Terverifikasi')
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
     const activePurchaseId = activePurchase?.id
 
