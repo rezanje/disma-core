@@ -7,6 +7,7 @@ import { MoreHorizontal } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet"
 import { useAppStore } from "@/lib/store"
+import { GuideButton } from "@/components/onboarding/onboarding"
 
 interface NavItem {
   key: string
@@ -54,10 +55,10 @@ export default function BottomNav({ items }: BottomNavProps) {
     pathname === href || pathname.startsWith(`${href}/`)
 
   // 3. Split into primary slots + overflow
-  // 4 primary slots + 1 "More" = MAX_SLOTS; exactly MAX_SLOTS fills all slots directly
-  const needsMore = sortedNavItems.length > MAX_SLOTS
-  const primaryItems = needsMore ? sortedNavItems.slice(0, MAX_SLOTS - 1) : sortedNavItems
-  const overflowItems = needsMore ? sortedNavItems.slice(MAX_SLOTS - 1) : []
+  // Slot "More" selalu ada — selain menampung kelebihan menu, di situlah tombol
+  // Panduan tinggal (sidebar tidak tampil di layar HP). Jadi 4 slot utama + More.
+  const primaryItems = sortedNavItems.slice(0, MAX_SLOTS - 1)
+  const overflowItems = sortedNavItems.slice(MAX_SLOTS - 1)
   const overflowActive = overflowItems.some(item => isItemActive(item.href))
 
   return (
@@ -81,8 +82,7 @@ export default function BottomNav({ items }: BottomNavProps) {
         )
       })}
 
-      {needsMore && (
-        <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
+      <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
           <SheetTrigger
             type="button"
             className={cn(
@@ -115,10 +115,15 @@ export default function BottomNav({ items }: BottomNavProps) {
                   </Link>
                 )
               })}
+
+              {/* Akses panduan di layar HP — di desktop tombolnya ada di sidebar. */}
+              <GuideButton
+                showLabel
+                className="flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors touch-manipulation outline-none w-full"
+              />
             </div>
           </SheetContent>
-        </Sheet>
-      )}
+      </Sheet>
     </div>
   )
 }

@@ -478,7 +478,8 @@ export default function PurchaseRequestsPage() {
         
         <div className="flex items-center gap-2">
           <GlobalUndoButton inline />
-          <Button 
+          <Button
+            data-tour="pr-new"
             onClick={() => setIsFormOpen(!isFormOpen)}
             className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl px-6 h-12 font-extrabold text-xs uppercase tracking-wider transition-all shadow-lg shadow-emerald-600/20 active:scale-95"
           >
@@ -547,7 +548,7 @@ export default function PurchaseRequestsPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-8">
-                <form onSubmit={handleCreatePR} className="space-y-5">
+                <form data-tour="pr-form" onSubmit={handleCreatePR} className="space-y-5">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="pr-title" className="text-[10px] font-black uppercase tracking-wider text-slate-400">Judul Pengajuan</Label>
@@ -732,7 +733,7 @@ export default function PurchaseRequestsPage() {
                     />
                   </div>
 
-                  <Button type="submit" className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold uppercase tracking-widest text-xs rounded-xl mt-4">
+                  <Button data-tour="pr-submit" type="submit" className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold uppercase tracking-widest text-xs rounded-xl mt-4">
                     Ajukan Sekarang
                   </Button>
                 </form>
@@ -741,7 +742,7 @@ export default function PurchaseRequestsPage() {
           )}
 
           {/* PR LIST */}
-          <Card className="rounded-[2.5rem] border-none shadow-xl bg-white dark:bg-slate-900 overflow-hidden">
+          <Card data-tour="pr-list" className="rounded-[2.5rem] border-none shadow-xl bg-white dark:bg-slate-900 overflow-hidden">
             <CardHeader className="border-b border-slate-50 dark:border-slate-800/50 p-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <CardTitle className="text-lg font-black text-slate-800 dark:text-white uppercase">Daftar Pengajuan</CardTitle>
@@ -966,6 +967,7 @@ export default function PurchaseRequestsPage() {
                             </div>
                           ) : activePR.status === 'Approved' && isFinanceRole ? (
                             <Button
+                              data-tour="pr-disburse"
                               onClick={() => openDisburse(activePR)}
                               className="mt-1 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[10px] uppercase tracking-wider h-9 rounded-xl px-4"
                             >
@@ -981,7 +983,7 @@ export default function PurchaseRequestsPage() {
 
                   {/* ACTION CONTROLS */}
                   {activePR.status === 'Pending_Finance' && isFinanceRole && (
-                    <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
+                    <div data-tour="pr-finance-actions" className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
                       <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Tindakan Audit Finance</Label>
                       <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-emerald-50 border border-emerald-100">
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
@@ -1013,7 +1015,7 @@ export default function PurchaseRequestsPage() {
 
 
                   {activePR.status === 'Pending_CFO' && isCfoRole && (
-                    <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
+                    <div data-tour="pr-cfo-actions" className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
                       <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Tindakan Persetujuan CFO</Label>
                       <Textarea 
                         placeholder="Tambahkan catatan persetujuan CFO..."

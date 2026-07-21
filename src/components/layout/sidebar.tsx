@@ -13,6 +13,7 @@ import {
 import { useAppStore, clearAllOperationalCaches } from "@/lib/store"
 import { useTaskNotifications } from "@/lib/use-task-notifications"
 import CommandPalette from "./command-palette"
+import { GuideButton } from "@/components/onboarding/onboarding"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -199,7 +200,12 @@ export default function Sidebar({ roleName }: SidebarProps) {
         )}>
           <CheckSquare className="w-4 h-4" />
         </Link>
-        
+
+        <GuideButton className={cn(
+          "p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 rounded-xl transition-all outline-none",
+          isMinimized ? "w-10 h-10 flex items-center justify-center" : ""
+        )} />
+
         <DropdownMenu>
           <DropdownMenuTrigger className={cn(
             "relative p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 rounded-xl transition-all outline-none",

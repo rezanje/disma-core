@@ -995,6 +995,7 @@ export default function ShoppingListPage() {
                         Semua Tanggal
                       </Button>
                       <Button
+                        data-tour="sl-picker"
                         variant="outline"
                         className="h-10 rounded-xl text-[10px] font-black uppercase tracking-widest"
                         disabled={candidateSOs.length === 0}
@@ -1215,6 +1216,7 @@ export default function ShoppingListPage() {
                           </div>
                         ) : (
                           <Button
+                            data-tour="sl-send-finance"
                             className="h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black uppercase tracking-widest text-[10px] shadow-md shadow-blue-500/20"
                             onClick={() => handleSendToFinance(lastGeneratedDoc.purchaseId)}
                             disabled={isSendingToFinance === lastGeneratedDoc.purchaseId}
@@ -1961,7 +1963,7 @@ export default function ShoppingListPage() {
                   <Button variant="outline" onClick={() => handleOpenPdfPreview(consolidatedList.filter(item => item.purchaseMethod === 'Pasar'))}>
                     <Printer className="mr-2 h-4 w-4" /> Print PDF
                   </Button>
-                  <Button onClick={handleGenerateDocument} disabled={isLoading} className="bg-emerald-600 hover:bg-emerald-700 shadow-md shadow-emerald-500/20">
+                  <Button data-tour="sl-generate" onClick={handleGenerateDocument} disabled={isLoading} className="bg-emerald-600 hover:bg-emerald-700 shadow-md shadow-emerald-500/20">
                     {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShoppingBasket className="mr-2 h-4 w-4" />}
                     {isLoading ? "Generating..." : "Buat Dokumen List"}
                   </Button>
