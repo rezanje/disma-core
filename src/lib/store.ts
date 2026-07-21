@@ -547,6 +547,7 @@ interface AppState {
   pendingReturns: PendingReturn[];
   addPendingReturn: (ret: PendingReturn) => void;
   removePendingReturn: (id: string) => void;
+  updatePendingReturn: (id: string, data: Partial<PendingReturn>) => Promise<void>;
   rejectedItems: RejectedItem[];
   addRejectedItem: (item: RejectedItem) => void;
   updateRejectedItem: (item: RejectedItem) => Promise<void>;
@@ -3014,6 +3015,15 @@ export const useAppStore = create<AppState>((set, get) => ({
         await get().syncTable('pending_returns', ret);
       },
       removePendingReturn: (id) => set((state) => ({ pendingReturns: state.pendingReturns.filter(r => r.id !== id) })),
+      // Menandai retur selesai HARUS dipersist. removePendingReturn hanya membuang
+      // dari state di memori, jadi barisnya kembali pada sinkronisasi berikutnya —
+      // dan retur yang sudah di-restock bisa di-restock lagi.
+      updatePendingReturn: async (id, data) => {
+        const updated = get().pendingReturns.map(r => r.id === id ? { ...r, ...data } : r);
+        set({ pendingReturns: updated });
+        const row = updated.find(r => r.id === id);
+        if (row) await get().syncTable('pending_returns', row);
+      },
 
       rejectedItems: [],
       addRejectedItem: async (item) => {

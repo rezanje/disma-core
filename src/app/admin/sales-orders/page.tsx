@@ -173,53 +173,30 @@ export default function SalesOrdersPage() {
   const [isDetailOpen, setIsDetailOpen] = useState(false)
 
   // BAST Confirmation states
-  const [bastStatuses, setBastStatuses] = useState<{ [itemId: string]: 'Accepted' | 'Partial' | 'Return' }>({})
-  const [bastQtyPass, setBastQtyPass] = useState<{ [itemId: string]: number }>({})
-  const [bastReasons, setBastReasons] = useState<{ [itemId: string]: string }>({})
 
   const handleConfirmBAST = async () => {
     if (!selectedSO) return
     toast.loading("Memproses konfirmasi penerimaan...", { id: "confirm-bast" })
     try {
-      let totalQtyRetur = 0
       // Snapshot updated items so we can recompute SO status afterwards.
       const updatedItems: { qty: number; qtyDelivered: number }[] = []
 
+      // Penolakan klien dicatat SEKALI, oleh kurir di lokasi — angkanya sudah masuk
+      // qtyFinal dan sudah menjadi dasar tagihan, dan barangnya sudah masuk antrean
+      // Inspeksi Retur Customer di QC. BAST dahulu menanyakannya lagi (Accepted /
+      // Partial / Return) dan itulah kebocorannya: unit yang ditolak dicatat sebagai
+      // retur TAPI qtyDelivered tetap maju sebesar yang dikirim, sehingga barang yang
+      // sama ditagihkan, tidak pernah kembali ke stok, dan tidak pernah terutang lagi.
+      // BAST sekarang murni konfirmasi atas apa yang sudah dicatat kurir.
       for (const item of selectedItems) {
         // Qty actually shipped THIS round (before this BAST folds into qtyDelivered).
         const shippedThisRound = roundQtyToBook(item)
-        const status = bastStatuses[item.id] || 'Accepted'
 
-        let accepted = shippedThisRound
-        if (status === 'Return') {
-          accepted = 0
-        } else if (status === 'Partial') {
-          accepted = bastQtyPass[item.id] !== undefined ? bastQtyPass[item.id] : shippedThisRound
-        }
-        accepted = Math.max(0, Math.min(accepted, shippedThisRound))
-        const qtyRetur = shippedThisRound - accepted
-
-        if (qtyRetur > 0) {
-          totalQtyRetur += qtyRetur
-          await useAppStore.getState().addRejectedItem({
-            id: uuidv4(),
-            date: new Date().toISOString(),
-            productId: item.productId,
-            qty: qtyRetur,
-            reason: bastReasons[item.id] || 'Retur BAST Delivery',
-            source: 'Return',
-            referenceId: selectedSO.id,
-            reportedBy: currentUser?.id || 'system'
-          })
-        }
-
-        // Backorder tracks UNDER-SHIPMENT, so cumulative delivered advances by what we
-        // SHIPPED this round, not what the client accepted. A client rejecting part of a
-        // shipped round is a return (logged as a rejectedItem above for restock), NOT a
-        // re-owed backorder — otherwise the rejected qty would re-enter QC, get re-shipped,
-        // and be booked twice for a round already booked at Terkirim.
-        // (Re-shipping rejected goods to the client, with a revenue reversal, is a
-        // separate follow-up — out of scope here.)
+        // roundQtyToBook resolves to qtyFinal, which the courier already reduced to what
+        // the client accepted. So this advances by the ACCEPTED quantity, the unaccepted
+        // remainder stays owed, and nextSoStatus below turns the order into Kurang Kirim
+        // for a follow-up round. The rejected goods themselves are handled separately, as
+        // a pending return the warehouse inspects in QC.
         const newQtyDelivered = (item.qtyDelivered ?? 0) + shippedThisRound
         // Reset qtyFinal (explicit null so the reset persists to the DB — undefined would
         // be dropped by JSON.stringify and the upsert would keep the stale value) so any
@@ -242,15 +219,10 @@ export default function SalesOrdersPage() {
       toast.success(
         soStatus === 'Kurang Kirim'
           ? `BAST dikonfirmasi! Sisa kurang kirim masuk antrean susulan (QC).`
-          : (totalQtyRetur > 0
-              ? `BAST dikonfirmasi! ${totalQtyRetur} barang retur dicatat.`
-              : "BAST dikonfirmasi! Pesanan selesai."),
+          : "BAST dikonfirmasi! Pesanan selesai.",
         { id: "confirm-bast" }
       )
 
-      setBastStatuses({})
-      setBastQtyPass({})
-      setBastReasons({})
     } catch (e) {
       console.error(e)
       toast.error("Gagal memproses BAST", { id: "confirm-bast" })
@@ -2116,97 +2088,29 @@ export default function SalesOrdersPage() {
                     <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase font-bold border-b">
                       <tr>
                         <th className="text-left px-4 py-2.5">Produk</th>
-                        <th className="text-center px-4 py-2.5 w-20">Qty Kirim</th>
-                        <th className="text-center px-4 py-2.5 w-[220px]">Status Penerimaan</th>
-                        <th className="text-center px-4 py-2.5 w-24">Qty Diterima</th>
-                        <th className="text-left px-4 py-2.5">Alasan (jika Retur/Partial)</th>
+                        <th className="text-center px-4 py-2.5 w-28">Qty Diterima</th>
+                        <th className="text-center px-4 py-2.5 w-28">Sisa Pesanan</th>
+                        <th className="text-left px-4 py-2.5">Catatan Kurir</th>
                       </tr>
                     </thead>
                     <tbody>
                       {selectedItems.map(item => {
                         const product = products.find(p => p.id === item.productId)
-                        const shippedThisRound = roundQtyToBook(item)
-                        const status = bastStatuses[item.id] || 'Accepted'
-                        const qtyPass = bastQtyPass[item.id] !== undefined ? bastQtyPass[item.id] : shippedThisRound
-                        
+                        // Sudah dicatat kurir di lokasi. BAST hanya mengkonfirmasi.
+                        const accepted = roundQtyToBook(item)
+                        const owedAfter = Math.max(0, item.qty - ((item.qtyDelivered ?? 0) + accepted))
                         return (
                           <tr key={item.id} className="border-t hover:bg-slate-50/50">
                             <td className="px-4 py-3 font-bold text-slate-800">
                               {product?.name}
                               <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">{product?.skuCode}</p>
                             </td>
-                            <td className="px-4 py-3 text-center font-bold text-slate-700">{shippedThisRound} {product?.uom}</td>
-                            <td className="px-4 py-3 text-center">
-                              <div className="flex items-center justify-center gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setBastStatuses(prev => ({ ...prev, [item.id]: 'Accepted' }))
-                                    setBastQtyPass(prev => ({ ...prev, [item.id]: shippedThisRound }))
-                                  }}
-                                  className={cn(
-                                    "px-2.5 py-1 text-[9px] font-black uppercase rounded-md border transition-all",
-                                    status === 'Accepted'
-                                      ? "bg-emerald-100 border-emerald-300 text-emerald-700 font-black"
-                                      : "bg-slate-50 border-slate-200 text-slate-400"
-                                  )}
-                                >
-                                  Diterima
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setBastStatuses(prev => ({ ...prev, [item.id]: 'Partial' }))
-                                    setBastQtyPass(prev => ({ ...prev, [item.id]: shippedThisRound - 1 }))
-                                  }}
-                                  className={cn(
-                                    "px-2.5 py-1 text-[9px] font-black uppercase rounded-md border transition-all",
-                                    status === 'Partial'
-                                      ? "bg-amber-100 border-amber-300 text-amber-700 font-black"
-                                      : "bg-slate-50 border-slate-200 text-slate-400"
-                                  )}
-                                >
-                                  Partial
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setBastStatuses(prev => ({ ...prev, [item.id]: 'Return' }))
-                                    setBastQtyPass(prev => ({ ...prev, [item.id]: 0 }))
-                                  }}
-                                  className={cn(
-                                    "px-2.5 py-1 text-[9px] font-black uppercase rounded-md border transition-all",
-                                    status === 'Return'
-                                      ? "bg-rose-100 border-rose-300 text-rose-700 font-black"
-                                      : "bg-slate-50 border-slate-200 text-slate-400"
-                                  )}
-                                >
-                                  Retur
-                                </button>
-                              </div>
+                            <td className="px-4 py-3 text-center font-bold text-slate-700">{accepted} {product?.uom}</td>
+                            <td className={cn("px-4 py-3 text-center font-bold", owedAfter > 0 ? "text-amber-600" : "text-slate-300")}>
+                              {owedAfter > 0 ? `${owedAfter} ${product?.uom ?? ''}` : '—'}
                             </td>
-                            <td className="px-4 py-3 text-center">
-                              <Input
-                                type="number"
-                                disabled={status === 'Accepted' || status === 'Return'}
-                                className="h-8 w-16 text-center font-bold text-xs border-slate-200 bg-white"
-                                value={qtyPass}
-                                onChange={(e) => {
-                                  const val = Math.max(0, Math.min(shippedThisRound, parseFloat(e.target.value) || 0))
-                                  setBastQtyPass(prev => ({ ...prev, [item.id]: val }))
-                                }}
-                              />
-                            </td>
-                            <td className="px-4 py-3">
-                              <Input
-                                disabled={status === 'Accepted'}
-                                className="h-8 text-xs border-slate-200 bg-white placeholder:text-[10px]"
-                                placeholder="Alasan retur/partial..."
-                                value={bastReasons[item.id] || ''}
-                                onChange={(e) => {
-                                  setBastReasons(prev => ({ ...prev, [item.id]: e.target.value }))
-                                }}
-                              />
+                            <td className="px-4 py-3 text-[11px] text-slate-500 italic">
+                              {item.qtyAdjustmentReason || '—'}
                             </td>
                           </tr>
                         )

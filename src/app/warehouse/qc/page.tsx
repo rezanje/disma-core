@@ -21,13 +21,16 @@ export default function QCPage() {
   const products = useAppStore(state => state.products)
   const purchases = useAppStore(state => state.purchases)
   const purchaseItems = useAppStore(state => state.purchaseItems)
-  const pendingReturns = useAppStore(state => state.pendingReturns)
+  const allPendingReturns = useAppStore(state => state.pendingReturns)
+  // Yang sudah diproses tetap tersimpan sebagai riwayat, tapi tidak boleh muncul
+  // lagi di antrian — kalau muncul, barangnya bisa di-restock dua kali.
+  const pendingReturns = allPendingReturns.filter(r => r.status !== 'Processed')
   const salesOrders = useAppStore(state => state.salesOrders)
   const salesOrderItems = useAppStore(state => state.salesOrderItems)
   const clients = useAppStore(state => state.clients)
 
   const updatePurchaseItem = useAppStore(state => state.updatePurchaseItem)
-  const removePendingReturn = useAppStore(state => state.removePendingReturn)
+  const updatePendingReturn = useAppStore(state => state.updatePendingReturn)
   const updateSalesOrder = useAppStore(state => state.updateSalesOrder)
 
   const pendingQCItems = purchaseItems
@@ -392,7 +395,9 @@ export default function QCPage() {
       toast.error(`${retQtyReject} unit rusak/dibuang.`)
     }
 
-    removePendingReturn(activeReturn.id)
+    // Tandai selesai dan persist. Membuang dari state saja membuat barisnya kembali
+    // pada sinkronisasi berikutnya, dan barang yang sudah masuk stok bisa masuk lagi.
+    await updatePendingReturn(activeReturn.id, { status: 'Processed' })
     setSelectedReturnId("")
     setRetQtyPass(0)
     setRetQtyReject(0)

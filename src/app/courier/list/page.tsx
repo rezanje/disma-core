@@ -21,6 +21,7 @@ export default function CourierDashboard() {
   const updateDelivery = useAppStore(state => state.updateDelivery)
   const updateSalesOrder = useAppStore(state => state.updateSalesOrder)
   const addInvoice = useAppStore(state => state.addInvoice)
+  const addPendingReturn = useAppStore(state => state.addPendingReturn)
 
   const [activeDeliveryId, setActiveDeliveryId] = useState<string | null>(null)
   
@@ -56,11 +57,33 @@ export default function CourierDashboard() {
        if (adjustments) {
         Object.entries(adjustments).forEach(([itemId, finalQty]) => {
           const item = salesOrderItems.find(i => i.id === itemId)
-          if (item && item.qty !== finalQty) {
-            useAppStore.getState().updateSalesOrderItem(itemId, { 
-              qtyFinal: finalQty,
-              subtotalFinal: finalQty * item.unitPrice,
-              qtyAdjustmentReason: (item.qtyAdjustmentReason ? item.qtyAdjustmentReason + " + " : "") + "Reject di Lokasi"
+          if (!item) return
+
+          // Bandingkan dengan yang BENAR-BENAR berangkat ronde ini, bukan qty pesanan.
+          // Kekurangan dari QC bukan penolakan klien: memakai item.qty membuat barang
+          // yang tidak pernah naik mobil ikut tercatat "Reject di Lokasi".
+          const shipped = roundQtyToBook(item)
+          if (shipped === finalQty) return
+
+          useAppStore.getState().updateSalesOrderItem(itemId, {
+            qtyFinal: finalQty,
+            subtotalFinal: finalQty * item.unitPrice,
+            qtyAdjustmentReason: (item.qtyAdjustmentReason ? item.qtyAdjustmentReason + " + " : "") + "Reject di Lokasi"
+          })
+
+          // Barang yang ditolak ikut kurir pulang ke gudang. Tanpa baris ini tidak ada
+          // catatan apa pun yang mengikutinya — stok tidak pernah kembali, dan tab
+          // "Inspeksi Retur Customer" di QC tidak pernah terisi.
+          const rejectedQty = shipped - finalQty
+          if (rejectedQty > 0) {
+            addPendingReturn({
+              id: uuidv4(),
+              productId: item.productId,
+              originalSoId: selectedSoId,
+              qty: rejectedQty,
+              reason: 'Ditolak klien saat serah terima',
+              date: new Date().toISOString(),
+              status: 'Pending QC',
             })
           }
         })
