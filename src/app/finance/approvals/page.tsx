@@ -175,8 +175,13 @@ export default function FinanceHubPage() {
   
   // --- DATA FILTERING ---
   // Queue on the report, not on the transfer — see sourcing-settlement/page.tsx.
+  // Also require an approved budget: a shopping doc compiled but never sent to
+  // Finance ("Kirim ke Finance") has no budgetAmount, yet the sourcer checklist
+  // stamps it 'Laporan Masuk' on submit anyway — its baseline would read 0 and
+  // the whole spend would render as overspend. Legacy purchases stay visible via
+  // budgetTransferDate even if budgetAmount is missing.
   const sourcingSettlements = purchases.filter(p => {
-    return p.reconciliationStatus === 'Laporan Masuk';
+    return p.reconciliationStatus === 'Laporan Masuk' && ((p.budgetAmount || 0) > 0 || !!p.budgetTransferDate);
   }).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   const pendingExpensesLain = expenses.filter(e => e.status === 'Pending Audit' && e.category !== 'Belanja Online' && e.category !== 'Sourcing (HPP)' && e.category !== 'Setoran Pengembalian');
@@ -200,7 +205,9 @@ export default function FinanceHubPage() {
        const freshPurchases = useAppStore.getState().purchases
        const freshBankAccounts = useAppStore.getState().bankAccounts
        const relatedPurchase = freshPurchases.find(p => p.id === exp.purchaseId)
-       const walletUserId = relatedPurchase?.purchaserId || exp.reporterId
+       const walletUserId = (relatedPurchase?.purchaserId && relatedPurchase.purchaserId !== 'pending')
+         ? relatedPurchase.purchaserId
+         : exp.reporterId
        const advanceWallet = getAdvanceWalletByUserId(walletUserId)
        const bank = freshBankAccounts.find(b => b.id === selectedBank)
 
@@ -402,14 +409,24 @@ export default function FinanceHubPage() {
       return
     }
 
-    // Guard: confirm bila defisit (HPP + Ops > Advance) — sourcer harus talangin.
+    // Guard: confirm bila defisit (HPP + Ops > Advance). Legacy: sourcer fronted cash
+    // from their own pocket and must be talangin-reimbursed. Pool-funded: the money
+    // already came out of the Bank Jago pool at buy time — nobody fronted anything,
+    // this only means realisasi > budget yang disetujui.
     if (netBalance < 0) {
-      const msg = `⚠ DEFISIT ${formatRupiah(Math.abs(netBalance))}\n\n` +
-        `Budget: ${formatRupiah(directSettleBudget)}\n` +
-        `HPP: ${formatRupiah(currentTotalHPP)}\n` +
-        `Ops: ${formatRupiah(currentTotalOps)}\n` +
-        `Selisih: -${formatRupiah(Math.abs(netBalance))}\n\n` +
-        `Sourcer harus talangin ${formatRupiah(Math.abs(netBalance))}. Yakin lanjut?`
+      const msg = isLegacyAdvance(purchase)
+        ? `⚠ DEFISIT ${formatRupiah(Math.abs(netBalance))}\n\n` +
+          `Budget: ${formatRupiah(directSettleBudget)}\n` +
+          `HPP: ${formatRupiah(currentTotalHPP)}\n` +
+          `Ops: ${formatRupiah(currentTotalOps)}\n` +
+          `Selisih: -${formatRupiah(Math.abs(netBalance))}\n\n` +
+          `Sourcer harus talangin ${formatRupiah(Math.abs(netBalance))}. Yakin lanjut?`
+        : `⚠ REALISASI MELEBIHI BUDGET ${formatRupiah(Math.abs(netBalance))}\n\n` +
+          `Budget Disetujui: ${formatRupiah(directSettleBudget)}\n` +
+          `HPP: ${formatRupiah(currentTotalHPP)}\n` +
+          `Ops: ${formatRupiah(currentTotalOps)}\n` +
+          `Selisih: -${formatRupiah(Math.abs(netBalance))}\n\n` +
+          `Dana belanja ini sudah keluar dari pool Bank Jago saat sourcer belanja, jadi tidak ada yang perlu ditalangin. Realisasi belanja lebih besar dari budget yang disetujui — yakin mau tutup buku sesi ini?`
       if (!window.confirm(msg)) {
         return
       }
@@ -479,8 +496,12 @@ export default function FinanceHubPage() {
       const finalNetBalance = directSettleBudget - totalCashHPP - totalOps
       const returned = settlementReturnedCustom !== null ? settlementReturnedCustom : Math.max(0, finalNetBalance)
 
-      // 4. Create Return Record
-      if (returned > 0) {
+      // 4. Create Return Record — legacy advance only. Under the pool model
+      // directSettleBudget is the approved plan, not money handed over, so any
+      // "remainder" here is not cash that ever moved. Posting a return would
+      // debit the bank and credit the pocket for money neither ever touched
+      // (recordAdvanceReturn), double-booking on top of recordPocketPurchase.
+      if (returned > 0 && isLegacyAdvance(purchase)) {
         await addExpense({
           id: `ret-${Date.now()}`,
           purchaseId: directSettleId,

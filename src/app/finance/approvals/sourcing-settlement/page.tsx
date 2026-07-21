@@ -14,7 +14,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { recordReconciliationSettlement, recordOperationalExpense, recordReimbursementPayment, recordAdvanceReturn, updateProductPriceHistory, getAdvanceWalletByUserId, recordAdvanceExpense } from "@/lib/accounting"
-import { computeSettlement, isLegacyAdvance } from "@/lib/settlement-model"
+import { computeSettlement } from "@/lib/settlement-model"
 import AuthGuard from "@/components/auth/auth-guard"
 import { 
   Dialog, 
@@ -53,8 +53,13 @@ export default function SourcingSettlementPage() {
   // Queue on the report, not on the transfer. Purchases funded from the sourcing
   // pool never carry budgetTransferDate, so keying off it hid them entirely.
   // sourcing/list writes 'Laporan Masuk' on submit under both models.
+  // Also require an approved budget: a shopping doc that was compiled but never
+  // sent to Finance ("Kirim ke Finance") has no budgetAmount, yet the sourcer
+  // checklist stamps it 'Laporan Masuk' on submit anyway — its baseline would
+  // read 0 and the whole spend would render as overspend. Legacy purchases stay
+  // visible via budgetTransferDate even if budgetAmount is missing.
   const pendingSettlements = purchases.filter(p => {
-    return p.reconciliationStatus === 'Laporan Masuk'
+    return p.reconciliationStatus === 'Laporan Masuk' && ((p.budgetAmount || 0) > 0 || !!p.budgetTransferDate)
   }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
   const selectedPurchase = pendingSettlements.find(p => p.id === selectedPurchaseId)
@@ -87,7 +92,9 @@ export default function SourcingSettlementPage() {
     if (status === 'Approved') {
        const latestPurchases = useAppStore.getState().purchases
        const relatedPurchase = latestPurchases.find(p => p.id === exp.purchaseId)
-       const walletUserId = relatedPurchase?.purchaserId || exp.reporterId
+       const walletUserId = (relatedPurchase?.purchaserId && relatedPurchase.purchaserId !== 'pending')
+         ? relatedPurchase.purchaserId
+         : exp.reporterId
        const advanceWallet = getAdvanceWalletByUserId(walletUserId)
        const selectedBank = relatedPurchase?.budgetBankAccountId || 'bank-1'
        const latestBankAccounts = useAppStore.getState().bankAccounts
