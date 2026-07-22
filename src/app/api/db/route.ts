@@ -158,10 +158,11 @@ export async function GET(request: Request) {
 
     // --- GROUP 4: Warehouse & Logistics ---
     if (group === '4') {
-      const [vendors, deliveries, stockMovements, pendingReturns, rejectedItems, vendorPrices] = await Promise.all([
+      const [vendors, deliveries, stockMovements, pendingReturns, rejectedItems, vendorPrices, vendorReturns] = await Promise.all([
         fetchTable('vendors'), fetchTable('deliveries'),
         fetchTable('stock_movements'), fetchTable('pending_returns'),
-        fetchTable('rejected_items'), fetchTable('vendor_prices')
+        fetchTable('rejected_items'), fetchTable('vendor_prices'),
+        fetchTable('vendor_returns')
       ]);
       return NextResponse.json({
         vendors: toCamel(vendors),
@@ -170,6 +171,7 @@ export async function GET(request: Request) {
         pendingReturns: toCamel(pendingReturns),
         rejectedItems: toCamel(rejectedItems),
         vendorPrices: toCamel(vendorPrices),
+        vendorReturns: toCamel(vendorReturns),
       }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
     }
 

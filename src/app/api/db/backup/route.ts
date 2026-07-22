@@ -12,7 +12,7 @@ const TABLES_IN_WIPE_ORDER = [
   'sales_order_items', 'purchase_items', 'journal_lines', 'okr_key_results',
   'deliveries', 'invoices', 'tukar_faktur', 'sales_orders', 'vendor_bills', 'purchases', 'purchase_requests', 'journal_entries',
   'stock_movements', 'rejected_items', 'okr_objectives', 'reimbursements', 
-  'expenses', 'cash_transactions', 'pending_returns', 'fixed_assets', 
+  'expenses', 'cash_transactions', 'pending_returns', 'vendor_returns', 'fixed_assets',
   'notifications', 'disma_tasks', 'leads', 'employees', 'kpis', 'record_history',
   'vendor_prices', 'client_prices', 'bank_accounts', 'coas', 'products', 'vendors', 'clients', 'users'
 ];
