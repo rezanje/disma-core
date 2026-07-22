@@ -5,7 +5,7 @@ import {
   PurchaseItem, Delivery, Invoice, InvoiceStatus, ChartOfAccount, JournalEntry, 
   JournalLine, OperationalExpense, User, Vendor, Role, Lead, Announcement, AppTask, AppNotification,
   BankAccount, CashTransaction, Reimbursement, FixedAsset,
-  Employee, SmartKpi, OkrObjective, OkrKeyResult, RolePermissionMap, AccessKey, PendingReturn, RejectedItem, StockMovement, ClientPrice, ClientPriceTier,
+  Employee, SmartKpi, OkrObjective, OkrKeyResult, RolePermissionMap, AccessKey, PendingReturn, VendorReturn, RejectedItem, StockMovement, ClientPrice, ClientPriceTier,
   VendorBill, VendorBillPayment, TukarFaktur, PurchaseRequest, VendorPrice,
   BudgetPlan, BudgetCategory, BudgetSubCategory, BudgetAdjustment, DisbursementRequest, TutupHariKantong
 } from '@/types';
@@ -548,6 +548,9 @@ interface AppState {
   addPendingReturn: (ret: PendingReturn) => void;
   removePendingReturn: (id: string) => void;
   updatePendingReturn: (id: string, data: Partial<PendingReturn>) => Promise<void>;
+  vendorReturns: VendorReturn[];
+  addVendorReturn: (vr: VendorReturn) => Promise<void>;
+  updateVendorReturn: (id: string, data: Partial<VendorReturn>) => Promise<void>;
   rejectedItems: RejectedItem[];
   addRejectedItem: (item: RejectedItem) => void;
   updateRejectedItem: (item: RejectedItem) => Promise<void>;
@@ -1120,6 +1123,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             setIfDefined('employees', data.employees);
             setIfDefined('fixedAssets', data.fixedAssets);
             setIfDefined('pendingReturns', data.pendingReturns);
+            setIfDefined('vendorReturns', data.vendorReturns);
             setIfDefined('rejectedItems', data.rejectedItems);
             setIfDefined('okrObjectives', data.okrObjectives);
             setIfDefined('budgetPlans', data.budgetPlans);
@@ -3023,6 +3027,18 @@ export const useAppStore = create<AppState>((set, get) => ({
         set({ pendingReturns: updated });
         const row = updated.find(r => r.id === id);
         if (row) await get().syncTable('pending_returns', row);
+      },
+
+      vendorReturns: [],
+      addVendorReturn: async (vr) => {
+        set((state) => ({ vendorReturns: [...state.vendorReturns, vr] }));
+        await get().syncTable('vendor_returns', vr);
+      },
+      updateVendorReturn: async (id, data) => {
+        const updated = get().vendorReturns.map(v => v.id === id ? { ...v, ...data } : v);
+        set({ vendorReturns: updated });
+        const row = updated.find(v => v.id === id);
+        if (row) await get().syncTable('vendor_returns', row);
       },
 
       rejectedItems: [],
