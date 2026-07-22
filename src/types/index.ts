@@ -622,6 +622,20 @@ export interface PendingReturn {
   status: 'Pending QC' | 'Processed';
 }
 
+export interface VendorReturn {
+  id: string;
+  productId: string;
+  vendorId: string;
+  qty: number;
+  reason: string;
+  date: string;                  // ISO timestamp, created
+  originalReturnId: string;      // the PendingReturn this came from
+  status: 'Menunggu Vendor' | 'Selesai-Ditukar' | 'Selesai-Ditolak';
+  resolvedDate?: string;         // ISO timestamp, set on resolution
+  replacementPassQty?: number;   // set on Ditukar
+  replacementRejectQty?: number; // set on Ditukar
+}
+
 export interface RejectedItem {
   id: string;
   date: string;
