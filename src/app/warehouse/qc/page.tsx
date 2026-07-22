@@ -582,7 +582,7 @@ export default function QCPage() {
                                   min="0"
                                   step="any"
                                   className="w-28 text-lg font-black h-12 rounded-xl border-indigo-200 bg-white text-center"
-                                  value={alloc.qty || ''}
+                                  value={alloc.qty}
                                   onChange={(e) => {
                                     const val = parseFloat(e.target.value) || 0
                                     setPoAllocations(prev => prev.map((a, i) => i === idx ? { ...a, qty: val } : a))
@@ -607,7 +607,7 @@ export default function QCPage() {
                           min="0"
                           step="any"
                           className="text-2xl font-black h-14 rounded-xl border-none shadow-sm"
-                          value={qtyPassToInventory || ''}
+                          value={qtyPassToInventory}
                           onChange={(e) => setQtyPassToInventory(parseFloat(e.target.value) || 0)}
                         />
                         <p className="text-[8px] font-bold text-emerald-400 uppercase">Masuk Stok Gudang (Available)</p>
@@ -622,7 +622,7 @@ export default function QCPage() {
                           min="0"
                           step="any"
                           className="text-2xl font-black h-14 rounded-xl border-none shadow-sm"
-                          value={qtyReject || ''}
+                          value={qtyReject}
                           onChange={(e) => setQtyReject(parseFloat(e.target.value) || 0)}
                         />
                         <p className="text-[8px] font-bold text-rose-400 uppercase">Buang / Shrinkage</p>
@@ -820,7 +820,7 @@ export default function QCPage() {
                            min="0"
                            step="any"
                            className="text-2xl font-black h-14 rounded-xl border-none shadow-sm"
-                           value={retQtyPass || ''}
+                           value={retQtyPass}
                            onChange={(e) => setRetQtyPass(parseFloat(e.target.value) || 0)}
                         />
                       </div>
@@ -833,7 +833,7 @@ export default function QCPage() {
                            min="0"
                            step="any"
                            className="text-2xl font-black h-14 rounded-xl border-none shadow-sm"
-                           value={retQtyReject || ''}
+                           value={retQtyReject}
                            onChange={(e) => setRetQtyReject(parseFloat(e.target.value) || 0)}
                         />
                       </div>
