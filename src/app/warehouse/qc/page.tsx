@@ -9,11 +9,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ShieldAlert, ShieldCheck, Tag, RefreshCcw, PackageSearch, AlertTriangle, Warehouse, Truck, ClipboardCheck, ChevronDown } from "lucide-react"
+import { ShieldAlert, ShieldCheck, Tag, RefreshCcw, PackageSearch, AlertTriangle, Warehouse, Truck, ClipboardCheck, ChevronDown, Store } from "lucide-react"
 import { toast } from "sonner"
 import { v4 as uuidv4 } from "uuid"
 import { cn } from "@/lib/utils"
 import { qtyOwed } from "@/lib/backorder"
+import { isReturnSplitValid, isSwapSplitValid } from "@/lib/vendor-return"
 
 type PoAllocation = { soId: string; qty: number }
 
@@ -28,6 +29,9 @@ export default function QCPage() {
   const salesOrders = useAppStore(state => state.salesOrders)
   const salesOrderItems = useAppStore(state => state.salesOrderItems)
   const clients = useAppStore(state => state.clients)
+  const vendors = useAppStore(state => state.vendors)
+  const vendorPrices = useAppStore(state => state.vendorPrices)
+  const vendorReturns = useAppStore(state => state.vendorReturns)
 
   const updatePurchaseItem = useAppStore(state => state.updatePurchaseItem)
   const updatePendingReturn = useAppStore(state => state.updatePendingReturn)
@@ -337,13 +341,19 @@ export default function QCPage() {
   const [retQtyPass, setRetQtyPass] = useState(0)
   const [retQtyReject, setRetQtyReject] = useState(0)
   const [retReason, setRetReason] = useState("")
+  const [retQtyVendor, setRetQtyVendor] = useState(0)
+  const [retVendorId, setRetVendorId] = useState("")
 
   const handleProcessReturnQC = async () => {
     if (!activeReturn || !activeReturnProduct) return
     const currentUser = useAppStore.getState().currentUser
 
-    if (retQtyPass + retQtyReject !== activeReturn.qty) {
+    if (!isReturnSplitValid({ pass: retQtyPass, buang: retQtyReject, vendor: retQtyVendor }, activeReturn.qty)) {
       toast.error(`Total QC harus match dengan jumlah retur (${activeReturn.qty})`)
+      return
+    }
+    if (retQtyVendor > 0 && !retVendorId) {
+      toast.error("Pilih vendor tujuan retur dulu.")
       return
     }
 
@@ -380,8 +390,6 @@ export default function QCPage() {
         note: `Retur customer reject: ${retReason || activeReturn.reason}`,
         createdByUserId: currentUser?.id || 'system',
       })
-      
-      // Log to Rejection Monitor
       await useAppStore.getState().addRejectedItem({
         id: rejectId,
         date: new Date().toISOString(),
@@ -395,12 +403,43 @@ export default function QCPage() {
       toast.error(`${retQtyReject} unit rusak/dibuang.`)
     }
 
-    // Tandai selesai dan persist. Membuang dari state saja membuat barisnya kembali
-    // pada sinkronisasi berikutnya, dan barang yang sudah masuk stok bisa masuk lagi.
+    if (retQtyVendor > 0) {
+      const vrId = uuidv4()
+      await useAppStore.getState().addVendorReturn({
+        id: vrId,
+        productId: activeReturnProduct.id,
+        vendorId: retVendorId,
+        qty: retQtyVendor,
+        reason: retReason || activeReturn.reason,
+        date: new Date().toISOString(),
+        originalReturnId: activeReturn.id,
+        status: 'Menunggu Vendor',
+      })
+      // Notify Admin PO — they coordinate the swap with the vendor.
+      const vendorName = vendors.find(v => v.id === retVendorId)?.companyName || 'vendor'
+      const adminUsers = useAppStore.getState().users.filter(u => u.role === 'admin_po')
+      for (const adminUser of adminUsers) {
+        await useAppStore.getState().addNotification({
+          id: uuidv4(),
+          userId: adminUser.id,
+          title: `Retur ke Vendor: ${activeReturnProduct.name}`,
+          message: `${retQtyVendor} ${activeReturnProduct.uom} diretur ke ${vendorName} untuk ditukar.`,
+          type: 'system',
+          link: '/warehouse/qc',
+          read: false,
+          createdAt: new Date().toISOString()
+        })
+      }
+      toast.success(`${retQtyVendor} unit diretur ke vendor untuk ditukar.`)
+    }
+
+    // Persist completion — a state-only mutation reappears on next sync.
     await updatePendingReturn(activeReturn.id, { status: 'Processed' })
     setSelectedReturnId("")
     setRetQtyPass(0)
     setRetQtyReject(0)
+    setRetQtyVendor(0)
+    setRetVendorId("")
     setRetReason("")
   }
 
@@ -780,6 +819,9 @@ export default function QCPage() {
                               setSelectedReturnId(ret.id)
                               setRetQtyPass(ret.qty)
                               setRetQtyReject(0)
+                              setRetQtyVendor(0)
+                              const suggested = vendorPrices.find(vp => vp.productId === ret.productId && vp.status === 'active')?.vendorId || ""
+                              setRetVendorId(suggested)
                             }}
                             className={cn(
                               "p-5 rounded-[2rem] border text-left flex justify-between items-center transition-all",
@@ -810,38 +852,61 @@ export default function QCPage() {
                        </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-6">
-                      <div className="bg-emerald-50/50 p-6 rounded-[2rem] border border-emerald-100/50 space-y-4">
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="bg-emerald-50/50 p-5 rounded-[2rem] border border-emerald-100/50 space-y-3">
                         <Label className="text-emerald-700 font-black uppercase text-[10px] tracking-widest flex items-center gap-2">
-                          <RefreshCcw className="w-4 h-4" /> Layak (Restock)
+                          <RefreshCcw className="w-4 h-4" /> Masuk Stok
                         </Label>
-                        <Input 
-                           type="number" 
-                           min="0"
-                           step="any"
+                        <Input
+                           type="number" min="0" step="any"
                            className="text-2xl font-black h-14 rounded-xl border-none shadow-sm"
                            value={retQtyPass}
                            onChange={(e) => setRetQtyPass(parseFloat(e.target.value) || 0)}
                         />
                       </div>
-                      <div className="bg-rose-50/50 p-6 rounded-[2rem] border border-rose-100/50 space-y-4">
+                      <div className="bg-rose-50/50 p-5 rounded-[2rem] border border-rose-100/50 space-y-3">
                         <Label className="text-rose-700 font-black uppercase text-[10px] tracking-widest flex items-center gap-2">
-                          <Trash2 className="w-4 h-4" /> Rusak (Write-off)
+                          <Trash2 className="w-4 h-4" /> Buang
                         </Label>
-                        <Input 
-                           type="number" 
-                           min="0"
-                           step="any"
+                        <Input
+                           type="number" min="0" step="any"
                            className="text-2xl font-black h-14 rounded-xl border-none shadow-sm"
                            value={retQtyReject}
                            onChange={(e) => setRetQtyReject(parseFloat(e.target.value) || 0)}
                         />
                       </div>
+                      <div className="bg-blue-50/50 p-5 rounded-[2rem] border border-blue-100/50 space-y-3">
+                        <Label className="text-blue-700 font-black uppercase text-[10px] tracking-widest flex items-center gap-2">
+                          <Store className="w-4 h-4" /> Retur ke Vendor
+                        </Label>
+                        <Input
+                           type="number" min="0" step="any"
+                           className="text-2xl font-black h-14 rounded-xl border-none shadow-sm"
+                           value={retQtyVendor}
+                           onChange={(e) => setRetQtyVendor(parseFloat(e.target.value) || 0)}
+                        />
+                      </div>
                     </div>
+
+                    {retQtyVendor > 0 && (
+                      <div className="bg-blue-50/50 p-5 rounded-[2rem] border border-blue-100/50 space-y-3">
+                        <Label className="text-blue-700 font-black uppercase text-[10px] tracking-widest">Vendor Tujuan Retur</Label>
+                        <select
+                          className="w-full h-14 rounded-xl border border-blue-100 bg-white px-4 font-bold text-slate-700"
+                          value={retVendorId}
+                          onChange={(e) => setRetVendorId(e.target.value)}
+                        >
+                          <option value="">— Pilih vendor —</option>
+                          {vendors.map(v => (
+                            <option key={v.id} value={v.id}>{v.companyName}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
 
                     <Button 
                       className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-3xl font-black uppercase tracking-[0.2em] shadow-2xl active:scale-95 transition-all"
-                      disabled={retQtyPass + retQtyReject !== activeReturn.qty}
+                      disabled={!isReturnSplitValid({ pass: retQtyPass, buang: retQtyReject, vendor: retQtyVendor }, activeReturn.qty)}
                       onClick={handleProcessReturnQC}
                     >
                       Input Hasil QC Retur
