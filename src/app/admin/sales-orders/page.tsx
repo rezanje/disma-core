@@ -410,6 +410,13 @@ export default function SalesOrdersPage() {
       return { label: 'Lunas', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' }
     }
 
+    // Record invoice sudah ada (dibuat saat pengiriman), tapi faktur baru resmi
+    // terbit setelah audit finance meloloskan SO dari 'Awaiting Audit'. Sebelum
+    // itu tagihan belum berjalan, jadi jangan tampil sebagai Outstanding.
+    if (so.status === 'Awaiting Audit') {
+      return { label: 'Menunggu Terbit Faktur', color: 'bg-sky-100 text-sky-800 border-sky-200' }
+    }
+
     return { label: 'Outstanding', color: 'bg-amber-100 text-amber-800 border-amber-200' }
   }
 

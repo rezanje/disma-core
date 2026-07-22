@@ -853,6 +853,10 @@ export default function ClientsPage() {
                          } else if (relatedInvoice) {
                             if (relatedInvoice.status === 'Paid') {
                               finStatus = { label: 'Lunas', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' }
+                            } else if (so.status === 'Awaiting Audit') {
+                              // Faktur baru resmi terbit setelah audit finance; sebelum itu
+                              // record invoice yang ada belum berjalan sebagai tagihan.
+                              finStatus = { label: 'Menunggu Terbit Faktur', color: 'bg-sky-100 text-sky-800 border-sky-200' }
                             } else {
                               finStatus = { label: 'Outstanding', color: 'bg-amber-100 text-amber-800 border-amber-200' }
                             }
