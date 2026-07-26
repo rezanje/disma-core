@@ -5,7 +5,7 @@ import {
   PurchaseItem, Delivery, Invoice, InvoiceStatus, ChartOfAccount, JournalEntry, 
   JournalLine, OperationalExpense, User, Vendor, Role, Lead, Announcement, AppTask, AppNotification,
   BankAccount, CashTransaction, Reimbursement, FixedAsset,
-  Employee, SmartKpi, OkrObjective, OkrKeyResult, RolePermissionMap, AccessKey, PendingReturn, VendorReturn, RejectedItem, StockMovement, ClientPrice, ClientPriceTier,
+  Employee, SmartKpi, OkrObjective, OkrKeyResult, RolePermissionMap, AccessKey, PendingReturn, VendorReturn, RejectedItem, StockMovement, ClientPrice, ClientPriceTier, PriceBaseline,
   VendorBill, VendorBillPayment, TukarFaktur, PurchaseRequest, VendorPrice,
   BudgetPlan, BudgetCategory, BudgetSubCategory, BudgetAdjustment, DisbursementRequest, TutupHariKantong
 } from '@/types';
@@ -363,6 +363,7 @@ interface AppState {
 
   tierMargins: Record<ClientPriceTier, number>;
   updateTierMargins: (margins: Record<ClientPriceTier, number>) => Promise<void>;
+  priceBaseline: PriceBaseline | null;
 
   clients: Client[];
   addClient: (client: Client) => void;
@@ -1124,6 +1125,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             setIfDefined('fixedAssets', data.fixedAssets);
             setIfDefined('pendingReturns', data.pendingReturns);
             setIfDefined('vendorReturns', data.vendorReturns);
+            setIfDefined('priceBaseline', data.priceBaseline);
             setIfDefined('rejectedItems', data.rejectedItems);
             setIfDefined('okrObjectives', data.okrObjectives);
             setIfDefined('budgetPlans', data.budgetPlans);
@@ -1409,6 +1411,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           role_permissions: state.rolePermissions
         }, true);
       },
+      priceBaseline: null,
 
       clients: CLIENTS_SEED,
       addClient: async (client) => {
