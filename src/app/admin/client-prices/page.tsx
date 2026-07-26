@@ -5,7 +5,7 @@ import { useAppStore } from "@/lib/store"
 import { formatRupiah, parseNumber, formatNumber, getEffectiveBasePrice } from "@/lib/utils"
 import { v4 as uuidv4 } from "uuid"
 import { Product, ClientPriceTier, ClientPrice } from "@/types"
-import { Search, Download, Calculator, Check, Plus, Trash2, ChevronsUpDown, FileText, Eye } from "lucide-react"
+import { Search, Download, Calculator, Check, Plus, Trash2, ChevronsUpDown, FileText, Eye, Info } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -62,6 +62,7 @@ export default function ClientPricesPage() {
   const updateProduct = useAppStore(state => state.updateProduct)
   const currentUser = useAppStore(state => state.currentUser)
   const tierMargins = useAppStore(state => state.tierMargins)
+  const priceBaseline = useAppStore(state => state.priceBaseline)
 
   const [selectedClientId, setSelectedClientId] = useState<string>("")
   const [searchQuery, setSearchQuery] = useState("")
@@ -581,6 +582,17 @@ export default function ClientPricesPage() {
             Atur harga jual kustom berdasarkan masing-masing client dan download penawarannya.
           </p>
         </div>
+        {priceBaseline && (
+          <div className="w-full md:w-auto flex items-start gap-3 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3">
+            <Info className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+            <p className="text-[11px] font-bold text-slate-500 leading-relaxed">
+              Data dasar: <span className="text-slate-800">{priceBaseline.label}</span>
+              {" · "}{priceBaseline.productCount.toLocaleString('id-ID')} produk
+              <br />
+              Perubahan setelah ini mengikuti sistem.
+            </p>
+          </div>
+        )}
         {activeClient && (
           <div className="flex gap-2">
             <div className="relative">
