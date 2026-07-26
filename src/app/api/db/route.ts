@@ -105,6 +105,7 @@ export async function GET(request: Request) {
         navConfigs: globalSettings?.nav_configs || {},
         rolePermissions: globalSettings?.role_permissions || {},
         tierMargins: globalSettings?.nav_configs?.tier_margins || {},
+        priceBaseline: globalSettings?.nav_configs?.price_baseline || null,
       }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
     }
 
