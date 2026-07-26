@@ -118,13 +118,23 @@ export default function ClientPricesPage() {
             </p>
           </div>
         )}
-        <Button
-          onClick={handlePublishWeeklyHPP}
-          variant="outline"
-          className="border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100 font-bold"
-        >
-          <Calculator className="mr-2 h-4 w-4" /> Publish Weekly HPP
-        </Button>
+        {/* Aksi global: menyentuh SEMUA produk, bukan client yang sedang dipilih.
+            Karena itu tombolnya di chrome halaman, bukan di dalam ClientPriceList —
+            di dalam tab detail client, tombol ini akan terbaca seolah hanya
+            mempengaruhi client tersebut. */}
+        <div className="w-full md:w-auto rounded-2xl border border-amber-100 bg-amber-50/60 px-4 py-3">
+          <p className="text-[10px] font-black uppercase tracking-widest text-amber-700">Sinkron HPP Mingguan</p>
+          <p className="text-[11px] font-bold text-amber-800/70 leading-relaxed mt-0.5 mb-2">
+            Ambil HPP terendah minggu ini jadi HPP master — berlaku untuk semua produk, bukan cuma client ini.
+          </p>
+          <Button
+            onClick={handlePublishWeeklyHPP}
+            variant="outline"
+            className="h-9 border-amber-300 text-amber-800 bg-white hover:bg-amber-100 font-bold text-xs"
+          >
+            <Calculator className="mr-2 h-4 w-4" /> Sync HPP Weekly Low → Master
+          </Button>
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col md:flex-row gap-6 items-end">
