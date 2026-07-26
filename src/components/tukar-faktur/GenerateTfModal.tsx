@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { useAppStore } from "@/lib/store"
 import type { Invoice, TukarFaktur } from "@/types"
@@ -29,6 +29,7 @@ export function GenerateTfModal({ open, onOpenChange }: Props) {
   const pathname = usePathname()
   const clients = useAppStore(s => s.clients)
   const invoices = useAppStore(s => s.invoices)
+  const salesOrders = useAppStore(s => s.salesOrders)
   const tukarFakturs = useAppStore(s => s.tukarFakturs)
   const currentUser = useAppStore(s => s.currentUser)
   const addTukarFaktur = useAppStore(s => s.addTukarFaktur)
@@ -46,17 +47,29 @@ export function GenerateTfModal({ open, onOpenChange }: Props) {
 
   const today = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d }, [open])
 
+  // Faktur baru resmi terbit setelah audit finance meloloskan SO dari 'Awaiting Audit'.
+  // Invoice draft yang SO-nya masih menunggu audit belum boleh ditarik ke Tukar Faktur —
+  // konsisten dengan badge PO 'Menunggu Terbit Faktur'.
+  const isInvoiceIssued = useCallback((inv: Invoice) => {
+    const soIds = inv.salesOrderIds?.length ? inv.salesOrderIds : (inv.salesOrderId ? [inv.salesOrderId] : [])
+    if (soIds.length === 0) return true // invoice tanpa link SO (manual) — anggap sudah terbit
+    return soIds.every(id => {
+      const so = salesOrders.find(s => s.id === id)
+      return !so || so.status !== 'Awaiting Audit'
+    })
+  }, [salesOrders])
+
   const eligibleClients = useMemo(() => {
     const cutoff = new Date(today); cutoff.setDate(cutoff.getDate() - 14)
     const idsWithEligibleInv = new Set(
       invoices
-        .filter(inv => !inv.tukarFakturId && new Date(inv.issueDate) >= cutoff)
+        .filter(inv => !inv.tukarFakturId && new Date(inv.issueDate) >= cutoff && isInvoiceIssued(inv))
         .map(inv => inv.clientId)
     )
     return clients
       .filter(c => idsWithEligibleInv.has(c.id))
       .sort((a, b) => a.companyName.localeCompare(b.companyName))
-  }, [clients, invoices, today])
+  }, [clients, invoices, today, isInvoiceIssued])
 
   const candidateGroups = useMemo<PeriodGroup[]>(() => {
     if (!clientId) return []
@@ -64,7 +77,8 @@ export function GenerateTfModal({ open, onOpenChange }: Props) {
     const eligible = invoices.filter(inv =>
       inv.clientId === clientId &&
       !inv.tukarFakturId &&
-      new Date(inv.issueDate) >= cutoff
+      new Date(inv.issueDate) >= cutoff &&
+      isInvoiceIssued(inv)
     )
     const byKey = new Map<string, PeriodGroup>()
     eligible.forEach(inv => {
@@ -76,7 +90,7 @@ export function GenerateTfModal({ open, onOpenChange }: Props) {
       g.total += inv.totalAmount
     })
     return Array.from(byKey.values()).sort((a, b) => a.period.periodStart.getTime() - b.period.periodStart.getTime())
-  }, [clientId, invoices, today])
+  }, [clientId, invoices, today, isInvoiceIssued])
 
   useEffect(() => {
     const next = new Set<string>()
