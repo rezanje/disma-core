@@ -15,31 +15,31 @@ import { ClientPriceTier } from "@/types"
 export default function PricingSettingsPage() {
   const tierMargins = useAppStore(state => state.tierMargins) || {
     'Standard': 0,
-    'Tier 1': 50,
-    'Tier 2': 30,
+    'Tier 1': 30,
+    'Tier 2': 25,
     'Tier 3': 20,
-    'Tier 4': 15,
-    'Tier 5': 10,
+    'Tier 4': 10,
+    'Tier 5': 15,
     'Custom': 0
   }
   const updateTierMargins = useAppStore(state => state.updateTierMargins)
 
   const [margins, setMargins] = useState<Record<string, number>>({
-    'Tier 1': 50,
-    'Tier 2': 30,
+    'Tier 1': 30,
+    'Tier 2': 25,
     'Tier 3': 20,
-    'Tier 4': 15,
-    'Tier 5': 10,
+    'Tier 4': 10,
+    'Tier 5': 15,
   })
 
   useEffect(() => {
     if (tierMargins) {
       setMargins({
-        'Tier 1': tierMargins['Tier 1'] ?? 50,
-        'Tier 2': tierMargins['Tier 2'] ?? 30,
+        'Tier 1': tierMargins['Tier 1'] ?? 30,
+        'Tier 2': tierMargins['Tier 2'] ?? 25,
         'Tier 3': tierMargins['Tier 3'] ?? 20,
-        'Tier 4': tierMargins['Tier 4'] ?? 15,
-        'Tier 5': tierMargins['Tier 5'] ?? 10,
+        'Tier 4': tierMargins['Tier 4'] ?? 10,
+        'Tier 5': tierMargins['Tier 5'] ?? 15,
       })
     }
   }, [tierMargins])
@@ -48,11 +48,11 @@ export default function PricingSettingsPage() {
     try {
       const payload: Record<ClientPriceTier, number> = {
         'Standard': 0,
-        'Tier 1': margins['Tier 1'] ?? 50,
-        'Tier 2': margins['Tier 2'] ?? 30,
+        'Tier 1': margins['Tier 1'] ?? 30,
+        'Tier 2': margins['Tier 2'] ?? 25,
         'Tier 3': margins['Tier 3'] ?? 20,
-        'Tier 4': margins['Tier 4'] ?? 15,
-        'Tier 5': margins['Tier 5'] ?? 10,
+        'Tier 4': margins['Tier 4'] ?? 10,
+        'Tier 5': margins['Tier 5'] ?? 15,
         'Custom': 0
       }
       await updateTierMargins(payload)
@@ -92,11 +92,11 @@ export default function PricingSettingsPage() {
             <div className="space-y-4">
               {['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4', 'Tier 5'].map((tier) => {
                 const labels: Record<string, string> = {
-                  'Tier 1': 'Tier 1 / B2C (Standard +50%)',
-                  'Tier 2': 'Tier 2 / General (Standard +30%)',
+                  'Tier 1': 'Tier 1 / B2C (Standard +30%)',
+                  'Tier 2': 'Tier 2 / General (Standard +25%)',
                   'Tier 3': 'Tier 3 / Cash (Standard +20%)',
-                  'Tier 4': 'Tier 4 / Bottom (Standard +15%)',
-                  'Tier 5': 'Tier 5 / Special Request (Standard +10%)',
+                  'Tier 4': 'Tier 4 / Bottom (Standard +10%)',
+                  'Tier 5': 'Tier 5 / Special Request (Standard +15%)',
                 }
                 return (
                   <div key={tier} className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center border-b border-slate-50 pb-4 last:border-0 last:pb-0">

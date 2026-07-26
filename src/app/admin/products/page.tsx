@@ -497,13 +497,13 @@ export default function ProductsPage() {
                        // Automatic margin examples
                         setFormData({
                           ...formData,
-                          tier1Price: Math.round(base * 1.50), // B2C (+50%)
-                          tier2Price: Math.round(base * 1.30), // General (+30%)
+                          tier1Price: Math.round(base * 1.30), // B2C (+30%)
+                          tier2Price: Math.round(base * 1.25), // General (+25%)
                           tier3Price: Math.round(base * 1.20), // Cash (+20%)
-                          tier4Price: Math.round(base * 1.15), // Bottom (+15%)
-                          tier5Price: Math.round(base * 1.10)  // Special Request (+10%)
+                          tier4Price: Math.round(base * 1.10), // Bottom (+10%)
+                          tier5Price: Math.round(base * 1.15)  // Special Request (+15%)
                         });
-                        toast.info("Tiers dihitung ulang (50%, 30%, 20%, 15%, 10%)");
+                        toast.info("Tiers dihitung ulang (30%, 25%, 20%, 10%, 15%)");
                     }}
                   >
                     Auto-Calc Margins

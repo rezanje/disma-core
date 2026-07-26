@@ -1193,11 +1193,11 @@ export default function SalesOrdersPage() {
                                   <SelectTrigger className="w-full bg-white dark:bg-slate-950 h-10"><SelectValue placeholder="Pilih Margin/Tier" /></SelectTrigger>
                                   <SelectContent>
                                     <SelectItem value="Standard">Standard</SelectItem>
-                                    <SelectItem value="Tier 1">Tier 1 (+50%)</SelectItem>
-                                    <SelectItem value="Tier 2">Tier 2 (+30%)</SelectItem>
+                                    <SelectItem value="Tier 1">Tier 1 (+30%)</SelectItem>
+                                    <SelectItem value="Tier 2">Tier 2 (+25%)</SelectItem>
                                     <SelectItem value="Tier 3">Tier 3 (+20%)</SelectItem>
-                                    <SelectItem value="Tier 4">Tier 4 (+15%)</SelectItem>
-                                    <SelectItem value="Tier 5">Tier 5 (+10%)</SelectItem>
+                                    <SelectItem value="Tier 4">Tier 4 (+10%)</SelectItem>
+                                    <SelectItem value="Tier 5">Tier 5 (+15%)</SelectItem>
                                     <SelectItem value="HPP">HPP</SelectItem>
                                     <SelectItem value="Custom">Custom</SelectItem>
                                   </SelectContent>
@@ -1274,11 +1274,11 @@ export default function SalesOrdersPage() {
                             <SelectTrigger className="w-full bg-white dark:bg-slate-950 h-10"><SelectValue placeholder="Pilih Margin/Tier" /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="Standard">Harga Jual Standard</SelectItem>
-                              <SelectItem value="Tier 1">Tier 1 (+50% Margin)</SelectItem>
-                              <SelectItem value="Tier 2">Tier 2 (+30% Margin)</SelectItem>
+                              <SelectItem value="Tier 1">Tier 1 (+30% Margin)</SelectItem>
+                              <SelectItem value="Tier 2">Tier 2 (+25% Margin)</SelectItem>
                               <SelectItem value="Tier 3">Tier 3 (+20% Margin)</SelectItem>
-                              <SelectItem value="Tier 4">Tier 4 (+15% Margin)</SelectItem>
-                              <SelectItem value="Tier 5">Tier 5 (+10% Margin)</SelectItem>
+                              <SelectItem value="Tier 4">Tier 4 (+10% Margin)</SelectItem>
+                              <SelectItem value="Tier 5">Tier 5 (+15% Margin)</SelectItem>
                               <SelectItem value="HPP">HPP (+0% Margin)</SelectItem>
                               <SelectItem value="Custom">Harga Kustom (Manual)</SelectItem>
                             </SelectContent>

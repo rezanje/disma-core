@@ -54,7 +54,7 @@ export default function ClientOrderPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
 
-  const tierMargins = useAppStore(state => state.tierMargins) || { 'Tier 1': 50, 'Tier 2': 30, 'Tier 3': 20, 'Tier 4': 15, 'Tier 5': 10 }
+  const tierMargins = useAppStore(state => state.tierMargins) || { 'Tier 1': 30, 'Tier 2': 25, 'Tier 3': 20, 'Tier 4': 10, 'Tier 5': 15 }
   const hasDefaultTier = client?.defaultPriceTier && client.defaultPriceTier !== 'Standard'
 
   // Calculate dynamic price based on tier preference

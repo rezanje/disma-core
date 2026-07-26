@@ -1069,11 +1069,11 @@ export const useAppStore = create<AppState>((set, get) => ({
 
             const defaultMargins = {
               'Standard': 0,
-              'Tier 1': 50,
-              'Tier 2': 30,
+              'Tier 1': 30,
+              'Tier 2': 25,
               'Tier 3': 20,
-              'Tier 4': 15,
-              'Tier 5': 10,
+              'Tier 4': 10,
+              'Tier 5': 15,
               'Custom': 0
             };
 
@@ -1390,11 +1390,11 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       tierMargins: {
         'Standard': 0,
-        'Tier 1': 50,
-        'Tier 2': 30,
+        'Tier 1': 30,
+        'Tier 2': 25,
         'Tier 3': 20,
-        'Tier 4': 15,
-        'Tier 5': 10,
+        'Tier 4': 10,
+        'Tier 5': 15,
         'Custom': 0
       },
       updateTierMargins: async (margins) => {

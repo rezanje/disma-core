@@ -42,11 +42,11 @@ import { generatePriceListPDF } from "@/lib/pdf"
 
 const TIER_LABELS: Record<string, string> = {
   'Standard': 'Standard',
-  'Tier 1': 'B2C (+50%)',
-  'Tier 2': 'General (+30%)',
+  'Tier 1': 'B2C (+30%)',
+  'Tier 2': 'General (+25%)',
   'Tier 3': 'Cash (+20%)',
-  'Tier 4': 'Bottom (+15%)',
-  'Tier 5': 'Special Request (+10%)',
+  'Tier 4': 'Bottom (+10%)',
+  'Tier 5': 'Special Request (+15%)',
   'Custom': 'Custom Price'
 }
 
@@ -170,7 +170,7 @@ export default function ClientPricesPage() {
   // Keeps client pricelist anchored to lowest market HPP captured during reconciliation.
   const calculateEffectivePrice = (product: Product, record?: ClientPrice) => {
     const { price: basePrice, source: baseSource } = getEffectiveBasePrice(product)
-    const activeTierMargins = tierMargins || { 'Tier 1': 50, 'Tier 2': 30, 'Tier 3': 20, 'Tier 4': 15, 'Tier 5': 10 }
+    const activeTierMargins = tierMargins || { 'Tier 1': 30, 'Tier 2': 25, 'Tier 3': 20, 'Tier 4': 10, 'Tier 5': 15 }
 
     if (!record) {
       const defaultTier = activeClient?.defaultPriceTier
@@ -1042,11 +1042,11 @@ export default function ClientPricesPage() {
                            </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="Standard" className="text-slate-500 font-medium">Standard (Default)</SelectItem>
-                            <SelectItem value="Tier 1" className="font-bold">B2C (+50%)</SelectItem>
-                            <SelectItem value="Tier 2" className="font-bold">General (+30%)</SelectItem>
+                            <SelectItem value="Tier 1" className="font-bold">B2C (+30%)</SelectItem>
+                            <SelectItem value="Tier 2" className="font-bold">General (+25%)</SelectItem>
                             <SelectItem value="Tier 3" className="font-bold">Cash (+20%)</SelectItem>
-                            <SelectItem value="Tier 4" className="font-bold">Bottom (+15%)</SelectItem>
-                            <SelectItem value="Tier 5" className="font-bold text-emerald-600">Special Request (+10%)</SelectItem>
+                            <SelectItem value="Tier 4" className="font-bold">Bottom (+10%)</SelectItem>
+                            <SelectItem value="Tier 5" className="font-bold text-emerald-600">Special Request (+15%)</SelectItem>
                             <SelectItem value="Custom" className="text-rose-600 font-bold">Custom Price</SelectItem>
                           </SelectContent>
                          </Select>

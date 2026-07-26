@@ -788,7 +788,7 @@ export function generatePriceListPDF(clientId: string, outputType: 'save' | 'dat
       // Base = weekly low (fresh Thu-Wed window) else master HPP.
       // Anchors quoted price to lowest market HPP captured during reconciliation.
       const { price: basePrice } = getEffectiveBasePrice(product)
-      const tierMargins = store.tierMargins || { 'Tier 1': 50, 'Tier 2': 30, 'Tier 3': 20, 'Tier 4': 15, 'Tier 5': 10 }
+      const tierMargins = store.tierMargins || { 'Tier 1': 30, 'Tier 2': 25, 'Tier 3': 20, 'Tier 4': 10, 'Tier 5': 15 }
 
       if (record) {
         hasSpecialPrice = true
