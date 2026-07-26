@@ -29,6 +29,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import GlobalUndoButton from "@/components/global-undo-button"
+import { ClientPriceList } from "@/components/client-prices/ClientPriceList"
 import {
   BarChart,
   Bar,
@@ -622,7 +623,7 @@ export default function ClientsPage() {
     if (selectedClient.isBrand) {
       tabsList.push('Cabang / Outlets')
     }
-    tabsList.push('Purchase Orders', 'Invoices', 'Histori Produk', 'Payment History', 'Notes')
+    tabsList.push('Purchase Orders', 'Invoices', 'Price List', 'Histori Produk', 'Payment History', 'Notes')
 
     return (
       <div className="space-y-6">
@@ -940,6 +941,10 @@ export default function ClientsPage() {
                     )}
                  </TableBody>
                </Table>
+            </TabsContent>
+
+            <TabsContent value="price-list" className="p-8 flex-1">
+               <ClientPriceList clientId={selectedClient.id} />
             </TabsContent>
 
              <TabsContent value="histori-produk" className="p-8 space-y-6 flex-1 bg-white">
