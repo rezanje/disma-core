@@ -10,11 +10,15 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { cn } from "@/lib/utils"
+import { cn, getEffectiveBasePrice } from "@/lib/utils"
+import { rescaleTiers } from "@/lib/tier-rescale"
+import { toast } from "sonner"
 import { ClientPriceList } from "@/components/client-prices/ClientPriceList"
 
 export default function ClientPricesPage() {
   const clients = useAppStore(state => state.clients)
+  const products = useAppStore(state => state.products)
+  const updateProduct = useAppStore(state => state.updateProduct)
   const priceBaseline = useAppStore(state => state.priceBaseline)
 
   const [selectedClientId, setSelectedClientId] = useState<string>("")
@@ -28,6 +32,71 @@ export default function ClientPricesPage() {
     c.companyName.toLowerCase().includes(clientSearch.toLowerCase()) ||
     c.picName.toLowerCase().includes(clientSearch.toLowerCase())
   ).slice(0, 50)
+
+  /**
+   * Publish-mingguan: snapshot `weeklyPriceRange.min` → `basePrice` for every product
+   * that has a fresh weekly low. After this runs, every client pricelist is locked
+   * to the lowest market HPP captured during the Thu-Wed window. Tier price overrides
+   * are also cleared so future quotes recompute from the new master base.
+   *
+   * This action is global across every product, so it lives on the page rather than
+   * inside `ClientPriceList` — that component also renders inside a single client's
+   * detail tab, where a global republish would read as client-scoped.
+   */
+  const handlePublishWeeklyHPP = async () => {
+    const candidates = products.filter(p => {
+      const eff = getEffectiveBasePrice(p)
+      return eff.source === 'weekly_low' && eff.price > 0 && eff.price !== p.basePrice
+    })
+
+    if (candidates.length === 0) {
+      toast.info("Tidak ada HPP weekly low baru yang perlu disinkronkan.")
+      return
+    }
+
+    setTimeout(async () => {
+      if (!confirm(
+        `Publish pricelist mingguan?\n\n` +
+        `${candidates.length} barang akan di-update HPP master-nya ke harga terendah ` +
+        `minggu berjalan. Semua pricelist client otomatis mengikuti.\n\n` +
+        `Lanjutkan?`
+      )) return
+
+      toast.loading(`Sinkron HPP ${candidates.length} barang...`, { id: "publish_weekly" })
+
+      try {
+        const chunkSize = 15
+        for (let i = 0; i < candidates.length; i += chunkSize) {
+          const chunk = candidates.slice(i, i + chunkSize)
+          await Promise.all(chunk.map(p => {
+            const { price } = getEffectiveBasePrice(p)
+            // Carry each product's own margin across the new base. The published
+            // pricelist sets margins per item, so clearing the overrides here would
+            // silently reprice every product whose margin is not the global default.
+            // Slots that yield undefined fall back to the global margin, as before.
+            const [t1, t2, t3, t4, t5] = rescaleTiers(p.basePrice, price, [
+              p.tier1Price, p.tier2Price, p.tier3Price, p.tier4Price, p.tier5Price,
+            ])
+            return updateProduct(p.id, {
+              basePrice: price,
+              tier1Price: t1,
+              tier2Price: t2,
+              tier3Price: t3,
+              tier4Price: t4,
+              tier5Price: t5,
+            })
+          }))
+        }
+        toast.success(
+          `${candidates.length} HPP master tersinkron. Pricelist client locked untuk minggu ini.`,
+          { id: "publish_weekly" }
+        )
+      } catch (err) {
+        console.error('[Publish Weekly HPP] failed:', err)
+        toast.error("Gagal sinkron HPP mingguan", { id: "publish_weekly" })
+      }
+    }, 100)
+  }
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
@@ -49,6 +118,13 @@ export default function ClientPricesPage() {
             </p>
           </div>
         )}
+        <Button
+          onClick={handlePublishWeeklyHPP}
+          variant="outline"
+          className="border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100 font-bold"
+        >
+          <Calculator className="mr-2 h-4 w-4" /> Publish Weekly HPP
+        </Button>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col md:flex-row gap-6 items-end">

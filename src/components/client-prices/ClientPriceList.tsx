@@ -22,7 +22,6 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
-import { rescaleTiers } from "@/lib/tier-rescale"
 import { generatePriceListPDF } from "@/lib/pdf"
 
 const TIER_LABELS: Record<string, string> = {
@@ -382,67 +381,6 @@ export function ClientPriceList({ clientId }: ClientPriceListProps) {
     }, 100)
   }
 
-  /**
-   * Publish-mingguan: snapshot `weeklyPriceRange.min` → `basePrice` for every product
-   * that has a fresh weekly low. After this runs, every client pricelist is locked
-   * to the lowest market HPP captured during the Thu-Wed window. Tier price overrides
-   * are also cleared so future quotes recompute from the new master base.
-   */
-  const handlePublishWeeklyHPP = async () => {
-    const candidates = products.filter(p => {
-      const eff = getEffectiveBasePrice(p)
-      return eff.source === 'weekly_low' && eff.price > 0 && eff.price !== p.basePrice
-    })
-
-    if (candidates.length === 0) {
-      toast.info("Tidak ada HPP weekly low baru yang perlu disinkronkan.")
-      return
-    }
-
-    setTimeout(async () => {
-      if (!confirm(
-        `Publish pricelist mingguan?\n\n` +
-        `${candidates.length} barang akan di-update HPP master-nya ke harga terendah ` +
-        `minggu berjalan. Semua pricelist client otomatis mengikuti.\n\n` +
-        `Lanjutkan?`
-      )) return
-
-      toast.loading(`Sinkron HPP ${candidates.length} barang...`, { id: "publish_weekly" })
-
-      try {
-        const chunkSize = 15
-        for (let i = 0; i < candidates.length; i += chunkSize) {
-          const chunk = candidates.slice(i, i + chunkSize)
-          await Promise.all(chunk.map(p => {
-            const { price } = getEffectiveBasePrice(p)
-            // Carry each product's own margin across the new base. The published
-            // pricelist sets margins per item, so clearing the overrides here would
-            // silently reprice every product whose margin is not the global default.
-            // Slots that yield undefined fall back to the global margin, as before.
-            const [t1, t2, t3, t4, t5] = rescaleTiers(p.basePrice, price, [
-              p.tier1Price, p.tier2Price, p.tier3Price, p.tier4Price, p.tier5Price,
-            ])
-            return updateProduct(p.id, {
-              basePrice: price,
-              tier1Price: t1,
-              tier2Price: t2,
-              tier3Price: t3,
-              tier4Price: t4,
-              tier5Price: t5,
-            })
-          }))
-        }
-        toast.success(
-          `${candidates.length} HPP master tersinkron. Pricelist client locked untuk minggu ini.`,
-          { id: "publish_weekly" }
-        )
-      } catch (err) {
-        console.error('[Publish Weekly HPP] failed:', err)
-        toast.error("Gagal sinkron HPP mingguan", { id: "publish_weekly" })
-      }
-    }, 100)
-  }
-
   const handleRemoveProduct = async (productId: string) => {
     const record = getRecord(productId)
     if (record) {
@@ -741,18 +679,6 @@ export function ClientPriceList({ clientId }: ClientPriceListProps) {
                           </Button>
                         ))}
                       </div>
-                    <div className="pb-2 border-b border-emerald-50">
-                      <h4 className="font-bold text-xs uppercase tracking-widest text-emerald-700">Publish Pricelist Mingguan</h4>
-                      <p className="text-[10px] text-slate-400">Snapshot HPP terendah minggu ini ke Master. Semua pricelist client otomatis ikut.</p>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 text-[10px] justify-start px-2 mt-2 w-full hover:bg-emerald-50 hover:text-emerald-700 font-bold border border-transparent hover:border-emerald-100"
-                        onClick={handlePublishWeeklyHPP}
-                      >
-                        <Check className="mr-2 h-3 w-3" /> Sync HPP Weekly Low → Master
-                      </Button>
-                    </div>
 
                     <div>
                       <h4 className="font-bold text-xs uppercase tracking-widest text-slate-500">Aksi Bahaya</h4>
