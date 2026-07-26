@@ -38,6 +38,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
+import { rescaleTiers } from "@/lib/tier-rescale"
 import { generatePriceListPDF } from "@/lib/pdf"
 
 const TIER_LABELS: Record<string, string> = {
@@ -435,14 +436,20 @@ export default function ClientPricesPage() {
           const chunk = candidates.slice(i, i + chunkSize)
           await Promise.all(chunk.map(p => {
             const { price } = getEffectiveBasePrice(p)
+            // Carry each product's own margin across the new base. The published
+            // pricelist sets margins per item, so clearing the overrides here would
+            // silently reprice every product whose margin is not the global default.
+            // Slots that yield undefined fall back to the global margin, as before.
+            const [t1, t2, t3, t4, t5] = rescaleTiers(p.basePrice, price, [
+              p.tier1Price, p.tier2Price, p.tier3Price, p.tier4Price, p.tier5Price,
+            ])
             return updateProduct(p.id, {
               basePrice: price,
-              // Clear stale tier overrides so the new base flows through margin formulas.
-              tier1Price: undefined,
-              tier2Price: undefined,
-              tier3Price: undefined,
-              tier4Price: undefined,
-              tier5Price: undefined,
+              tier1Price: t1,
+              tier2Price: t2,
+              tier3Price: t3,
+              tier4Price: t4,
+              tier5Price: t5,
             })
           }))
         }
