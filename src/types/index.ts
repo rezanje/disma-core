@@ -750,3 +750,10 @@ export interface DisbursementRequest {
   transferredAt?: string;
   transferredBy?: string; // userId
 }
+
+/** Provenance for the pricing data the app started from. Stored once in app_settings. */
+export interface PriceBaseline {
+  label: string;        // e.g. "Pricelist DISMA 20–26 Juli 2026"
+  date: string;         // ISO date, e.g. "2026-07-26"
+  productCount: number; // products carrying a baseline price at load time
+}
