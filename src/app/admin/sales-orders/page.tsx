@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useMemo } from "react"
+import { useState, useEffect, useRef, useMemo, useCallback, memo } from "react"
 import { useAppStore } from "@/lib/store"
 import { cn, formatRupiah, formatNumber, parseNumber } from "@/lib/utils"
 import { Plus, Trash2, ShoppingCart, Search, ChevronsUpDown, Check, Eye, FileText, Download, Loader2, X, Pencil, ArrowUp, ArrowDown } from "lucide-react"
@@ -27,7 +27,7 @@ import GlobalUndoButton from "@/components/global-undo-button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { STATUS_COLORS } from "@/lib/constants"
-import { SalesOrderStatus, SalesOrderItem, SalesOrder } from "@/types"
+import { SalesOrderStatus, SalesOrderItem, SalesOrder, Product } from "@/types"
 import {
   Table,
   TableBody,
@@ -125,6 +125,67 @@ function EditNumber({
     />
   )
 }
+
+/**
+ * One row of the client pricelist checklist. Memoised because the list runs to
+ * 2,000+ rows on the bigger accounts: without it, every keystroke in any qty box
+ * re-rendered all of them and typing lagged by about a second.
+ */
+const PricelistRow = memo(function PricelistRow({
+  product, price, tier, qty, freq, onSetQty,
+}: {
+  product: Product
+  price: number
+  tier: string
+  qty: number
+  freq: number
+  onSetQty: (productId: string, qty: number) => void
+}) {
+  const checked = qty > 0
+  return (
+    <tr
+      className={cn(
+        "border-b last:border-b-0 transition-colors",
+        checked ? "bg-emerald-50/60 dark:bg-emerald-950/20" : "hover:bg-slate-50 dark:hover:bg-slate-900/30"
+      )}
+    >
+      <td className="px-3 py-2.5">
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={(e) => onSetQty(product.id, e.target.checked ? (qty || 1) : 0)}
+          className="w-4 h-4 accent-emerald-600 cursor-pointer"
+        />
+      </td>
+      <td className="py-2.5">
+        <div className="flex flex-col gap-0.5">
+          <span className={cn("font-semibold", checked && "text-emerald-800 dark:text-emerald-300")}>{product.name}</span>
+          <span className="text-[10px] text-slate-400 font-medium">
+            {product.skuCode} • {product.uom} • Stok: {product.currentStock}
+            {freq ? ` • ${freq}x pernah dibeli` : ""}
+          </span>
+        </div>
+      </td>
+      <td className="text-right pr-3 font-bold text-slate-700 dark:text-slate-200 whitespace-nowrap">
+        {formatRupiah(price)}
+        {tier !== 'Standard' && (
+          <span className="ml-1 text-[9px] font-black text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200 uppercase">{tier}</span>
+        )}
+      </td>
+      <td className="py-2 px-2 text-center">
+        <EditNumber
+          decimal
+          inputMode="decimal"
+          placeholder="0"
+          value={qty}
+          onCommit={(v) => onSetQty(product.id, v)}
+          onFocus={(e) => e.target.select()}
+          className="w-20 h-8 text-center text-sm font-bold border rounded-md bg-white dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+        />
+      </td>
+    </tr>
+  )
+})
 
 export default function SalesOrdersPage() {
   const salesOrders = useAppStore(state => state.salesOrders)
@@ -307,6 +368,10 @@ export default function SalesOrdersPage() {
     if (key === pricelistSort) setPricelistSortDir(d => (d === 'asc' ? 'desc' : 'asc'))
     else { setPricelistSort(key); setPricelistSortDir(key === 'suggest' ? 'desc' : 'asc') }
   }
+
+  const setPricelistQty = useCallback((productId: string, qty: number) => {
+    setPricelistDraft(prev => ({ ...prev, [productId]: qty }))
+  }, [])
 
   // ponytail: "sering dibeli" = how many past SOs of this client contain the product.
   // Full recompute over all items; fine at this data size, index by clientId if it drags.
@@ -541,12 +606,26 @@ export default function SalesOrdersPage() {
     toast.success("Product added and selected")
   }
 
+  // Lookup indexes. resolveClientPrice runs once per pricelist row — 2,000+ times
+  // on the bigger accounts — and each linear scan over 20k clientPrices made
+  // typing anywhere in the form stall for seconds.
+  const productById = useMemo(() => new Map(products.map(p => [p.id, p])), [products])
+  const clientById = useMemo(() => new Map(clients.map(c => [c.id, c])), [clients])
+  const clientPriceByKey = useMemo(() => {
+    const m = new Map<string, typeof clientPrices[number]>()
+    for (const cp of clientPrices) {
+      const k = `${cp.clientId}|${cp.productId}`
+      if (!m.has(k)) m.set(k, cp) // first match wins, same as the .find it replaces
+    }
+    return m
+  }, [clientPrices])
+
   const resolveClientPrice = (pid: string, targetClientId: string) => {
-    const product = products.find(p => p.id === pid)
+    const product = productById.get(pid)
     if (!product) return { price: 0, isCustom: false, source: "" }
 
     if (targetClientId) {
-      const activeRecord = clientPrices.find(cp => cp.clientId === targetClientId && cp.productId === pid)
+      const activeRecord = clientPriceByKey.get(`${targetClientId}|${pid}`)
       if (activeRecord) {
         let specializedPrice = product.sellingPrice
         if (activeRecord.tier === 'Custom') specializedPrice = activeRecord.agreedPrice
@@ -558,7 +637,7 @@ export default function SalesOrdersPage() {
       }
 
       // Check client-wide default tier
-      const client = clients.find(c => c.id === targetClientId)
+      const client = clientById.get(targetClientId)
       if (client?.defaultPriceTier && client.defaultPriceTier !== 'Standard') {
         const tier = client.defaultPriceTier
         const marginPct = (tierMargins as any)[tier] || 0
@@ -574,6 +653,47 @@ export default function SalesOrdersPage() {
 
     return { price: product.sellingPrice, isCustom: false, source: "" }
   }
+
+  /**
+   * The pricelist rows the checklist renders, already filtered, sorted and priced.
+   * Kept out of the render body because resolveClientPrice scans all 20k+
+   * clientPrices per call: doing that for 2,000 rows on every keystroke was what
+   * made typing a qty lag. Recomputes only when the pricelist, search or sort
+   * changes — never when a qty does.
+   * ponytail: no memo on resolveClientPrice itself; hoisting the call sites was enough.
+   */
+  const pricelistRows = useMemo(() => {
+    if (!clientId) return []
+    const seen = new Set<string>()
+    const rows = []
+    for (const cp of clientPrices) {
+      if (cp.clientId !== clientId || seen.has(cp.productId)) continue
+      seen.add(cp.productId)
+      const product = productById.get(cp.productId)
+      if (!product) continue
+      rows.push({ product, tier: cp.tier, price: resolveClientPrice(cp.productId, clientId).price })
+    }
+    return rows
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientPrices, products, clients, tierMargins, clientId])
+
+  const visiblePricelistRows = useMemo(() => {
+    const q = pricelistSearch.trim().toLowerCase()
+    const rows = q
+      ? pricelistRows.filter(r => r.product.name.toLowerCase().includes(q) || r.product.skuCode.toLowerCase().includes(q))
+      : [...pricelistRows]
+    const dir = pricelistSortDir === 'asc' ? 1 : -1
+    rows.sort((a, b) => {
+      const nameCmp = a.product.name.localeCompare(b.product.name)
+      if (pricelistSort === 'price') return dir * (a.price - b.price)
+      if (pricelistSort === 'suggest') {
+        const diff = (clientOrderFreq[a.product.id] ?? 0) - (clientOrderFreq[b.product.id] ?? 0)
+        return diff !== 0 ? dir * diff : nameCmp // tie-break always A-Z
+      }
+      return dir * nameCmp
+    })
+    return rows
+  }, [pricelistRows, pricelistSearch, pricelistSort, pricelistSortDir, clientOrderFreq])
 
   const recalculatePricesForClient = (newClientId: string) => {
     // 1. Update lineItems in cart
@@ -1055,45 +1175,18 @@ export default function SalesOrdersPage() {
                 
                 {/* === Detail Pesanan: checklist when pricelist exists, single-select otherwise === */}
                 {(() => {
-                  const clientPriceRows = (() => {
-                    const seen = new Set<string>()
-                    return clientPrices.filter(cp => {
-                      if (cp.clientId !== clientId || seen.has(cp.productId)) return false
-                      seen.add(cp.productId)
-                      return true
-                    })
-                  })()
-                  const hasPricelist = clientId && clientPriceRows.length > 0
+                  const hasPricelist = clientId && pricelistRows.length > 0
 
                   if (hasPricelist) {
                     const checkedCount = Object.values(pricelistDraft).filter(q => q > 0).length
                     const q = pricelistSearch.trim().toLowerCase()
-                    const visibleRows = clientPriceRows
-                      .filter(cp => {
-                        if (!q) return true
-                        const p = products.find(p => p.id === cp.productId)
-                        return !!p && (p.name.toLowerCase().includes(q) || p.skuCode.toLowerCase().includes(q))
-                      })
-                      .sort((a, b) => {
-                        const dir = pricelistSortDir === 'asc' ? 1 : -1
-                        const nameCmp = (products.find(p => p.id === a.productId)?.name ?? "")
-                          .localeCompare(products.find(p => p.id === b.productId)?.name ?? "")
-                        if (pricelistSort === 'price') {
-                          return dir * (resolveClientPrice(a.productId, clientId).price - resolveClientPrice(b.productId, clientId).price)
-                        }
-                        if (pricelistSort === 'suggest') {
-                          const diff = (clientOrderFreq[a.productId] ?? 0) - (clientOrderFreq[b.productId] ?? 0)
-                          if (diff !== 0) return dir * diff
-                          return nameCmp // tie-break always A-Z
-                        }
-                        return dir * nameCmp
-                      })
+                    const visibleRows = visiblePricelistRows
                     return (
                       <div className="space-y-3 animate-in fade-in duration-200">
                         {/* Header */}
                         <div className="flex items-center justify-between">
                           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                            Price List Client ({q ? `${visibleRows.length} / ` : ""}{clientPriceRows.length} produk)
+                            Price List Client ({q ? `${visibleRows.length} / ` : ""}{pricelistRows.length} produk)
                           </p>
                           <div className="flex items-center gap-2">
                             <button
@@ -1169,60 +1262,17 @@ export default function SalesOrdersPage() {
                               {visibleRows.length === 0 && (
                                 <tr><td colSpan={4} className="py-6 text-center text-xs text-slate-400 font-medium">Produk tidak ditemukan.</td></tr>
                               )}
-                              {visibleRows.map(cp => {
-                                const product = products.find(p => p.id === cp.productId)
-                                if (!product) return null
-                                const { price } = resolveClientPrice(cp.productId, clientId)
-                                const qty = pricelistDraft[cp.productId] ?? 0
-                                const checked = qty > 0
-                                return (
-                                  <tr
-                                    key={cp.productId}
-                                    className={cn(
-                                      "border-b last:border-b-0 transition-colors",
-                                      checked ? "bg-emerald-50/60 dark:bg-emerald-950/20" : "hover:bg-slate-50 dark:hover:bg-slate-900/30"
-                                    )}
-                                  >
-                                    <td className="px-3 py-2.5">
-                                      <input
-                                        type="checkbox"
-                                        checked={checked}
-                                        onChange={(e) => setPricelistDraft(prev => ({
-                                          ...prev,
-                                          [cp.productId]: e.target.checked ? (prev[cp.productId] || 1) : 0
-                                        }))}
-                                        className="w-4 h-4 accent-emerald-600 cursor-pointer"
-                                      />
-                                    </td>
-                                    <td className="py-2.5">
-                                      <div className="flex flex-col gap-0.5">
-                                        <span className={cn("font-semibold", checked && "text-emerald-800 dark:text-emerald-300")}>{product.name}</span>
-                                        <span className="text-[10px] text-slate-400 font-medium">
-                                          {product.skuCode} • {product.uom} • Stok: {product.currentStock}
-                                          {clientOrderFreq[cp.productId] ? ` • ${clientOrderFreq[cp.productId]}x pernah dibeli` : ""}
-                                        </span>
-                                      </div>
-                                    </td>
-                                    <td className="text-right pr-3 font-bold text-slate-700 dark:text-slate-200 whitespace-nowrap">
-                                      {formatRupiah(price)}
-                                      {cp.tier !== 'Standard' && (
-                                        <span className="ml-1 text-[9px] font-black text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200 uppercase">{cp.tier}</span>
-                                      )}
-                                    </td>
-                                    <td className="py-2 px-2 text-center">
-                                      <EditNumber
-                                        decimal
-                                        inputMode="decimal"
-                                        placeholder="0"
-                                        value={qty}
-                                        onCommit={(v) => setPricelistDraft(prev => ({ ...prev, [cp.productId]: v }))}
-                                        onFocus={(e) => e.target.select()}
-                                        className="w-20 h-8 text-center text-sm font-bold border rounded-md bg-white dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                                      />
-                                    </td>
-                                  </tr>
-                                )
-                              })}
+                              {visibleRows.map(row => (
+                                <PricelistRow
+                                  key={row.product.id}
+                                  product={row.product}
+                                  price={row.price}
+                                  tier={row.tier}
+                                  qty={pricelistDraft[row.product.id] ?? 0}
+                                  freq={clientOrderFreq[row.product.id] ?? 0}
+                                  onSetQty={setPricelistQty}
+                                />
+                              ))}
                             </tbody>
                           </table>
                         </div>
