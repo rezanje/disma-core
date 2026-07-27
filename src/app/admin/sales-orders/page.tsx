@@ -1210,16 +1210,12 @@ export default function SalesOrdersPage() {
                                       )}
                                     </td>
                                     <td className="py-2 px-2 text-center">
-                                      <input
-                                        type="number"
-                                        min={0}
-                                        step={1}
-                                        value={qty || ""}
+                                      <EditNumber
+                                        decimal
+                                        inputMode="decimal"
                                         placeholder="0"
-                                        onChange={(e) => {
-                                          const v = parseFloat(e.target.value) || 0
-                                          setPricelistDraft(prev => ({ ...prev, [cp.productId]: v }))
-                                        }}
+                                        value={qty}
+                                        onCommit={(v) => setPricelistDraft(prev => ({ ...prev, [cp.productId]: v }))}
                                         onFocus={(e) => e.target.select()}
                                         className="w-20 h-8 text-center text-sm font-bold border rounded-md bg-white dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                                       />
