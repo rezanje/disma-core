@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from "react"
 import { useAppStore } from "@/lib/store"
 import { cn, formatRupiah, formatNumber, parseNumber } from "@/lib/utils"
-import { Plus, Trash2, ShoppingCart, Search, ChevronsUpDown, Check, Eye, FileText, Download, Loader2, X, Pencil } from "lucide-react"
+import { Plus, Trash2, ShoppingCart, Search, ChevronsUpDown, Check, Eye, FileText, Download, Loader2, X, Pencil, ArrowUp, ArrowDown } from "lucide-react"
 import { v4 as uuidv4 } from "uuid"
 
 const toDateInputValue = (date?: string) => {
@@ -299,6 +299,25 @@ export default function SalesOrdersPage() {
   // ponytail: checklist draft { productId -> qty } for pricelist bulk-add
   const [pricelistDraft, setPricelistDraft] = useState<Record<string, number>>({})
   const [showManualAdd, setShowManualAdd] = useState(false)
+  const [pricelistSearch, setPricelistSearch] = useState("")
+  const [pricelistSort, setPricelistSort] = useState<'suggest' | 'name' | 'price'>('suggest')
+  const [pricelistSortDir, setPricelistSortDir] = useState<'asc' | 'desc'>('desc')
+  // ponytail: click same key = flip direction, click other key = its sensible default
+  const togglePricelistSort = (key: 'suggest' | 'name' | 'price') => {
+    if (key === pricelistSort) setPricelistSortDir(d => (d === 'asc' ? 'desc' : 'asc'))
+    else { setPricelistSort(key); setPricelistSortDir(key === 'suggest' ? 'desc' : 'asc') }
+  }
+
+  // ponytail: "sering dibeli" = how many past SOs of this client contain the product.
+  // Full recompute over all items; fine at this data size, index by clientId if it drags.
+  const clientOrderFreq = useMemo(() => {
+    const soIds = new Set(salesOrders.filter(so => so.clientId === clientId).map(so => so.id))
+    const freq: Record<string, number> = {}
+    for (const it of salesOrderItems) {
+      if (soIds.has(it.salesOrderId)) freq[it.productId] = (freq[it.productId] ?? 0) + 1
+    }
+    return freq
+  }, [salesOrders, salesOrderItems, clientId])
 
   const closeSOModal = () => {
     setIsOpen(false)
@@ -309,6 +328,7 @@ export default function SalesOrdersPage() {
     setShowPricelistOnly(true)
     setPricelistDraft({})
     setShowManualAdd(false)
+    setPricelistSearch("")
   }
 
   const handleEditSO = (so: SalesOrder) => {
@@ -319,6 +339,7 @@ export default function SalesOrdersPage() {
     setShowPricelistOnly(true)
     setPricelistDraft({})
     setShowManualAdd(false)
+    setPricelistSearch("")
     
     // load line items
     const relatedItems = salesOrderItems.filter(item => item.salesOrderId === so.id)
@@ -500,6 +521,7 @@ export default function SalesOrdersPage() {
     setShowPricelistOnly(true)
     setPricelistDraft({})
     setShowManualAdd(false)
+    setPricelistSearch("")
     setIsClientQuickAddOpen(false)
     setNewClientData({ companyName: "", picName: "", email: "", phone: "", address: "", parentId: "" })
     toast.success("Client added and selected")
@@ -684,6 +706,7 @@ export default function SalesOrdersPage() {
     })
     setPricelistDraft({})
     setShowManualAdd(false)
+    setPricelistSearch("")
   }
 
 
@@ -1044,12 +1067,33 @@ export default function SalesOrdersPage() {
 
                   if (hasPricelist) {
                     const checkedCount = Object.values(pricelistDraft).filter(q => q > 0).length
+                    const q = pricelistSearch.trim().toLowerCase()
+                    const visibleRows = clientPriceRows
+                      .filter(cp => {
+                        if (!q) return true
+                        const p = products.find(p => p.id === cp.productId)
+                        return !!p && (p.name.toLowerCase().includes(q) || p.skuCode.toLowerCase().includes(q))
+                      })
+                      .sort((a, b) => {
+                        const dir = pricelistSortDir === 'asc' ? 1 : -1
+                        const nameCmp = (products.find(p => p.id === a.productId)?.name ?? "")
+                          .localeCompare(products.find(p => p.id === b.productId)?.name ?? "")
+                        if (pricelistSort === 'price') {
+                          return dir * (resolveClientPrice(a.productId, clientId).price - resolveClientPrice(b.productId, clientId).price)
+                        }
+                        if (pricelistSort === 'suggest') {
+                          const diff = (clientOrderFreq[a.productId] ?? 0) - (clientOrderFreq[b.productId] ?? 0)
+                          if (diff !== 0) return dir * diff
+                          return nameCmp // tie-break always A-Z
+                        }
+                        return dir * nameCmp
+                      })
                     return (
                       <div className="space-y-3 animate-in fade-in duration-200">
                         {/* Header */}
                         <div className="flex items-center justify-between">
                           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                            Price List Client ({clientPriceRows.length} produk)
+                            Price List Client ({q ? `${visibleRows.length} / ` : ""}{clientPriceRows.length} produk)
                           </p>
                           <div className="flex items-center gap-2">
                             <button
@@ -1072,6 +1116,44 @@ export default function SalesOrdersPage() {
                           </div>
                         </div>
 
+                        {/* Search + sort */}
+                        <div className="flex items-center gap-2">
+                          <div className="relative flex-1">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                            <input
+                              value={pricelistSearch}
+                              onChange={(e) => setPricelistSearch(e.target.value)}
+                              placeholder="Cari nama produk atau SKU..."
+                              className="w-full h-8 pl-8 pr-3 text-sm border rounded-md bg-white dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                            />
+                          </div>
+                          {([
+                            ['suggest', 'Sering Dibeli'],
+                            ['name', 'A-Z'],
+                            ['price', 'Harga'],
+                          ] as const).map(([key, label]) => (
+                            <button
+                              key={key}
+                              type="button"
+                              onClick={() => togglePricelistSort(key)}
+                              title={pricelistSort === key ? "Klik lagi untuk balik urutan" : undefined}
+                              className={cn(
+                                "h-8 px-2.5 text-[11px] font-bold rounded-md border transition-colors inline-flex items-center gap-1",
+                                pricelistSort === key
+                                  ? "bg-emerald-600 border-emerald-600 text-white"
+                                  : "bg-white dark:bg-slate-950 text-slate-500 hover:text-emerald-600"
+                              )}
+                            >
+                              {label}
+                              {pricelistSort === key && (
+                                pricelistSortDir === 'asc'
+                                  ? <ArrowUp className="w-3 h-3" />
+                                  : <ArrowDown className="w-3 h-3" />
+                              )}
+                            </button>
+                          ))}
+                        </div>
+
                         {/* Checklist table */}
                         <div className="rounded-lg border bg-white dark:bg-slate-950 overflow-hidden">
                           <table className="w-full text-sm">
@@ -1084,7 +1166,10 @@ export default function SalesOrdersPage() {
                               </tr>
                             </thead>
                             <tbody>
-                              {clientPriceRows.map(cp => {
+                              {visibleRows.length === 0 && (
+                                <tr><td colSpan={4} className="py-6 text-center text-xs text-slate-400 font-medium">Produk tidak ditemukan.</td></tr>
+                              )}
+                              {visibleRows.map(cp => {
                                 const product = products.find(p => p.id === cp.productId)
                                 if (!product) return null
                                 const { price } = resolveClientPrice(cp.productId, clientId)
@@ -1112,7 +1197,10 @@ export default function SalesOrdersPage() {
                                     <td className="py-2.5">
                                       <div className="flex flex-col gap-0.5">
                                         <span className={cn("font-semibold", checked && "text-emerald-800 dark:text-emerald-300")}>{product.name}</span>
-                                        <span className="text-[10px] text-slate-400 font-medium">{product.skuCode} • {product.uom} • Stok: {product.currentStock}</span>
+                                        <span className="text-[10px] text-slate-400 font-medium">
+                                          {product.skuCode} • {product.uom} • Stok: {product.currentStock}
+                                          {clientOrderFreq[cp.productId] ? ` • ${clientOrderFreq[cp.productId]}x pernah dibeli` : ""}
+                                        </span>
                                       </div>
                                     </td>
                                     <td className="text-right pr-3 font-bold text-slate-700 dark:text-slate-200 whitespace-nowrap">
