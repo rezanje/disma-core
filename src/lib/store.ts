@@ -890,7 +890,12 @@ export const useAppStore = create<AppState>((set, get) => ({
           const fetchGroup = async (group: number): Promise<Record<string, any>> => {
             try {
               const controller = new AbortController();
-              const timeoutId = setTimeout(() => controller.abort(), 9000);
+              // Group 1 ships ~5.7MB (20k client_prices rows) and takes 13-15s from
+              // production, so the old 9s budget aborted it on every boot and left the
+              // app on its stale local snapshot. Vercel functions run up to 300s.
+              // ponytail: one timeout for all groups; split the fat tables out if the
+              // payload keeps growing.
+              const timeoutId = setTimeout(() => controller.abort(), 45000);
               const res = await fetch(`/api/db?group=${group}&ts=${ts}`, { 
                 cache: 'no-store',
                 signal: controller.signal 
