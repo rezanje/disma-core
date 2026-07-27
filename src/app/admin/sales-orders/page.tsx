@@ -430,23 +430,33 @@ export default function SalesOrdersPage() {
     }
   }, [isOpen, editingSO])
 
-  const filteredClients = clients.filter(c => 
-    c.companyName.toLowerCase().includes(clientSearch.toLowerCase())
-  ).slice(0, 50)
-
-  const filteredProducts = products.filter(p => {
-    const matchesSearch = 
-      p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-      p.skuCode.toLowerCase().includes(productSearch.toLowerCase())
-    if (!matchesSearch) return false
-
-    if (clientId && showPricelistOnly) {
-      const hasOverride = clientPrices.some(cp => cp.clientId === clientId && cp.productId === p.id)
-      return hasOverride
+  // Lookup indexes over the store's biggest tables. Every linear scan below used
+  // to run on each render — 2,064 products x 20,150 clientPrices for the pricelist
+  // filter alone — which is what made typing anywhere in this form lag.
+  const productById = useMemo(() => new Map(products.map(p => [p.id, p])), [products])
+  const clientById = useMemo(() => new Map(clients.map(c => [c.id, c])), [clients])
+  const clientPriceByKey = useMemo(() => {
+    const m = new Map<string, typeof clientPrices[number]>()
+    for (const cp of clientPrices) {
+      const k = `${cp.clientId}|${cp.productId}`
+      if (!m.has(k)) m.set(k, cp) // first match wins, same as the .find it replaces
     }
+    return m
+  }, [clientPrices])
 
-    return true
-  }).slice(0, 50)
+  const filteredClients = useMemo(() => {
+    const q = clientSearch.toLowerCase()
+    return clients.filter(c => c.companyName.toLowerCase().includes(q)).slice(0, 50)
+  }, [clients, clientSearch])
+
+  const filteredProducts = useMemo(() => {
+    const q = productSearch.toLowerCase()
+    return products.filter(p => {
+      if (q && !(p.name.toLowerCase().includes(q) || p.skuCode.toLowerCase().includes(q))) return false
+      if (clientId && showPricelistOnly) return clientPriceByKey.has(`${clientId}|${p.id}`)
+      return true
+    }).slice(0, 50)
+  }, [products, productSearch, clientId, showPricelistOnly, clientPriceByKey])
 
   // Auto-switch to pending tab if new requests arrive
   useEffect(() => {
@@ -605,20 +615,6 @@ export default function SalesOrdersPage() {
     setNewProductData({ skuCode: "", name: "", uom: "kg", basePrice: 0, sellingPrice: 0 })
     toast.success("Product added and selected")
   }
-
-  // Lookup indexes. resolveClientPrice runs once per pricelist row — 2,000+ times
-  // on the bigger accounts — and each linear scan over 20k clientPrices made
-  // typing anywhere in the form stall for seconds.
-  const productById = useMemo(() => new Map(products.map(p => [p.id, p])), [products])
-  const clientById = useMemo(() => new Map(clients.map(c => [c.id, c])), [clients])
-  const clientPriceByKey = useMemo(() => {
-    const m = new Map<string, typeof clientPrices[number]>()
-    for (const cp of clientPrices) {
-      const k = `${cp.clientId}|${cp.productId}`
-      if (!m.has(k)) m.set(k, cp) // first match wins, same as the .find it replaces
-    }
-    return m
-  }, [clientPrices])
 
   const resolveClientPrice = (pid: string, targetClientId: string) => {
     const product = productById.get(pid)
