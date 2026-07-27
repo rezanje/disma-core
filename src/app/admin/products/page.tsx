@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import GlobalUndoButton from "@/components/global-undo-button"
+import { ladderFor, tierPricesFor } from "@/lib/tier-margins"
 import {
   Table,
   TableBody,
@@ -493,17 +494,22 @@ export default function ProductsPage() {
                     type="button"
                     className="h-7 text-[10px] uppercase tracking-widest"
                     onClick={() => {
-                       const base = formData.basePrice;
-                       // Automatic margin examples
+                       // Sayuran and Buah carry a wider B2C margin than packaged goods,
+                       // so the ladder is picked from the category, not fixed.
+                       const ladder = ladderFor(formData.category);
+                       const [t1, t2, t3, t4, t5] = tierPricesFor(formData.basePrice, formData.category);
                         setFormData({
                           ...formData,
-                          tier1Price: Math.round(base * 1.30), // B2C (+30%)
-                          tier2Price: Math.round(base * 1.25), // General (+25%)
-                          tier3Price: Math.round(base * 1.20), // Cash (+20%)
-                          tier4Price: Math.round(base * 1.10), // Bottom (+10%)
-                          tier5Price: Math.round(base * 1.15)  // Special Request (+15%)
+                          tier1Price: t1,
+                          tier2Price: t2,
+                          tier3Price: t3,
+                          tier4Price: t4,
+                          tier5Price: t5
                         });
-                        toast.info("Tiers dihitung ulang (30%, 25%, 20%, 10%, 15%)");
+                        toast.info(
+                          `Tiers dihitung ulang (${['Tier 1','Tier 2','Tier 3','Tier 4','Tier 5']
+                            .map(t => `${ladder[t as keyof typeof ladder]}%`).join(', ')})`
+                        );
                     }}
                   >
                     Auto-Calc Margins

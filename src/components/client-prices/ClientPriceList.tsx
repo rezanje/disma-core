@@ -24,13 +24,17 @@ import {
 import { cn } from "@/lib/utils"
 import { generatePriceListPDF } from "@/lib/pdf"
 
+// No margin percentage in the label: the published pricelist runs two ladders,
+// +50/30/20/10/15 on fresh produce and +30/25/20/10/15 on packaged goods, so a
+// single number is wrong for half the catalogue. The EST MARGIN column already
+// shows each item's real margin, computed from its actual prices.
 const TIER_LABELS: Record<string, string> = {
   'Standard': 'Standard',
-  'Tier 1': 'B2C (+30%)',
-  'Tier 2': 'General (+25%)',
-  'Tier 3': 'Cash (+20%)',
-  'Tier 4': 'Bottom (+10%)',
-  'Tier 5': 'Special Request (+15%)',
+  'Tier 1': 'B2C',
+  'Tier 2': 'General',
+  'Tier 3': 'Cash',
+  'Tier 4': 'Bottom',
+  'Tier 5': 'Special Request',
   'Custom': 'Custom Price'
 }
 
@@ -868,12 +872,12 @@ export function ClientPriceList({ clientId }: ClientPriceListProps) {
                            </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="Standard" className="text-slate-500 font-medium">Standard (Default)</SelectItem>
-                            <SelectItem value="Tier 1" className="font-bold">B2C (+30%)</SelectItem>
-                            <SelectItem value="Tier 2" className="font-bold">General (+25%)</SelectItem>
-                            <SelectItem value="Tier 3" className="font-bold">Cash (+20%)</SelectItem>
-                            <SelectItem value="Tier 4" className="font-bold">Bottom (+10%)</SelectItem>
-                            <SelectItem value="Tier 5" className="font-bold text-emerald-600">Special Request (+15%)</SelectItem>
-                            <SelectItem value="Custom" className="text-rose-600 font-bold">Custom Price</SelectItem>
+                            <SelectItem value="Tier 1" className="font-bold">{TIER_LABELS['Tier 1']}</SelectItem>
+                            <SelectItem value="Tier 2" className="font-bold">{TIER_LABELS['Tier 2']}</SelectItem>
+                            <SelectItem value="Tier 3" className="font-bold">{TIER_LABELS['Tier 3']}</SelectItem>
+                            <SelectItem value="Tier 4" className="font-bold">{TIER_LABELS['Tier 4']}</SelectItem>
+                            <SelectItem value="Tier 5" className="font-bold text-emerald-600">{TIER_LABELS['Tier 5']}</SelectItem>
+                            <SelectItem value="Custom" className="text-rose-600 font-bold">{TIER_LABELS['Custom']}</SelectItem>
                           </SelectContent>
                          </Select>
                       </TableCell>
