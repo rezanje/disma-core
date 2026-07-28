@@ -8,6 +8,7 @@ export default function HydrationGate({ children }: { children: React.ReactNode 
   const pathname = usePathname()
   const isHydrated = useAppStore((state) => state.isHydrated)
   const isSyncing = useAppStore((state) => state.isSyncing)
+  const hydratedFromCache = useAppStore((state) => state.hydratedFromCache)
   const [hasInitialSyncCompleted, setHasInitialSyncCompleted] = useState(false)
 
   useEffect(() => {
@@ -21,7 +22,12 @@ export default function HydrationGate({ children }: { children: React.ReactNode 
     return <>{children}</>
   }
 
-  if (!isHydrated || (!hasInitialSyncCompleted && isSyncing)) {
+  // init() flips isHydrated and isSyncing in the same synchronous tick, so the
+  // effect above never observes the gap between them — on a cold boot the
+  // splash used to stay up for the whole Phase 2 fetch and the localStorage
+  // snapshot bought the user nothing. When Phase 1 restored a real cache we
+  // render it immediately and let the fetch finish underneath.
+  if (!isHydrated || (!hasInitialSyncCompleted && isSyncing && !hydratedFromCache)) {
     return (
       <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-white overflow-hidden">
         {/* Abstract Background Shapes */}

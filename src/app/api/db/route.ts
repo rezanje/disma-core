@@ -92,16 +92,15 @@ export async function GET(request: Request) {
 
     // --- GROUP 1: Core (users, clients, products, settings) ---
     if (group === '1') {
-      const [users, clients, products, appSettings, clientPrices] = await Promise.all([
+      const [users, clients, products, appSettings] = await Promise.all([
         fetchTable('users'), fetchTable('clients'), fetchTable('products'),
-        fetchTable('app_settings'), fetchTable('client_prices')
+        fetchTable('app_settings')
       ]);
       const globalSettings = appSettings.find((s: any) => s.id === 'global-settings') || appSettings[0];
       return NextResponse.json({
         users: toCamel(users),
         clients: toCamel(clients),
         products: toCamel(products),
-        clientPrices: toCamel(clientPrices),
         navConfigs: globalSettings?.nav_configs || {},
         rolePermissions: globalSettings?.role_permissions || {},
         tierMargins: globalSettings?.nav_configs?.tier_margins || {},
@@ -199,8 +198,19 @@ export async function GET(request: Request) {
       }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
     }
 
+    // --- GROUP 6: Client prices (split out of group 1) ---
+    // ~20k rows / 5.7MB, an order of magnitude bigger than every other group
+    // combined. It sits in its own group so the boot path can fetch it detached
+    // instead of blocking the first render on it.
+    if (group === '6') {
+      const clientPrices = await fetchTable('client_prices');
+      return NextResponse.json({
+        clientPrices: toCamel(clientPrices),
+      }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
+    }
+
     // --- NO GROUP: Return error instructing to use groups ---
-    return NextResponse.json({ error: 'Use ?group=1 through ?group=5' }, { status: 400 });
+    return NextResponse.json({ error: 'Use ?group=1 through ?group=6' }, { status: 400 });
 
   } catch (error) {
     console.error('API GET Error:', error);

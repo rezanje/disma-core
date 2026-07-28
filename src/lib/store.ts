@@ -335,6 +335,10 @@ interface AppState {
   // Storage
   isSyncing: boolean;
   isHydrated: boolean;
+  // True once Phase 1 restored a real localStorage snapshot. The loading gate
+  // uses this to let the UI through while Phase 2 still fetches — without it,
+  // a fresh browser would render the built-in seed data as if it were live.
+  hydratedFromCache: boolean;
   isResetting: boolean;
   _ignoreBroadcastUntil: number;
   _lastLocalMutationAt: number;
@@ -712,6 +716,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       isSyncing: false,
       isHydrated: false,
+      hydratedFromCache: false,
       isResetting: false,
       _ignoreBroadcastUntil: 0,
       _lastLocalMutationAt: 0,
@@ -874,13 +879,13 @@ export const useAppStore = create<AppState>((set, get) => ({
             });
           }
           // Mark as hydrated — UI can render with cached data now
-          set({ isHydrated: true });
+          set({ isHydrated: true, hydratedFromCache: hasCache });
         }
 
         // === PHASE 2: SEQUENTIAL API FETCH (one group at a time, no timeout) ===
         try {
           set({ isSyncing: true });
-          console.log('[INIT] Phase 2: Fetching data via API (5 sequential groups)...');
+          console.log('[INIT] Phase 2: Fetching data via API (5 parallel groups)...');
           const ts = Date.now();
           // Baseline for stale-snapshot detection: if any local mutation lands AFTER
           // this point while we're still fetching, the server snapshot is stale and
@@ -913,13 +918,36 @@ export const useAppStore = create<AppState>((set, get) => ({
             }
           };
 
-          // Fetch groups SEQUENTIALLY to avoid hitting Vercel's 10s timeout
-          // Each group only queries 4-8 tables, well under the limit
-          const g1 = await fetchGroup(1);
-          const g2 = await fetchGroup(2);
-          const g3 = await fetchGroup(3);
-          const g4 = await fetchGroup(4);
-          const g5 = await fetchGroup(5);
+          // Fetch groups in PARALLEL. Each group is its own serverless
+          // invocation with its own maxDuration, so running them concurrently
+          // costs no extra timeout budget — total wall clock is the slowest
+          // group instead of the sum of all five.
+          const [g1, g2, g3, g4, g5] = await Promise.all([
+            fetchGroup(1), fetchGroup(2), fetchGroup(3), fetchGroup(4), fetchGroup(5),
+          ]);
+
+          // client_prices (group 6) is ~20k rows / 5.7MB — bigger than every
+          // other group combined, and it used to dominate boot from inside
+          // group 1. Nothing on the first screen reads it, so fetch it DETACHED:
+          // the app renders on Phase 1's cached copy and the fresh rows swap in
+          // when they land.
+          // ponytail: still fetches all clients' prices; every consumer filters
+          // to one client, so move to a per-client endpoint if 20k stops fitting.
+          const pricesBefore = get().clientPrices;
+          void fetchGroup(6).then((g6) => {
+            if (g6.clientPrices === undefined) return;
+            // A local price edit while this was in flight replaces the array, so
+            // an unchanged reference means it is safe to apply the server copy.
+            if (get().clientPrices !== pricesBefore) {
+              console.warn('[INIT] Client prices edited during fetch — keeping local copy.');
+              return;
+            }
+            set({ clientPrices: g6.clientPrices });
+            try {
+              window.localStorage.setItem(LOCAL_CLIENT_PRICES_CACHE_KEY, JSON.stringify(g6.clientPrices));
+            } catch {}
+            console.log(`[INIT] Client prices loaded in background (${g6.clientPrices.length} rows).`);
+          });
 
           // Merge all groups into a single data object
           const data: Record<string, any> = { ...g1, ...g2, ...g3, ...g4, ...g5 };
@@ -1122,7 +1150,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             setIfDefined('reimbursements', data.reimbursements);
             setIfDefined('expenses', data.expenses);
             setIfDefined('stockMovements', data.stockMovements);
-            setIfDefined('clientPrices', data.clientPrices);
+            // clientPrices intentionally absent — group 6 applies it detached above.
             setIfDefined('vendorPrices', data.vendorPrices);
             setIfDefined('vendors', data.vendors);
             setIfDefined('notifications', data.notifications);
@@ -1162,9 +1190,6 @@ export const useAppStore = create<AppState>((set, get) => ({
             if (data.purchases !== undefined) saveLocalPurchasesCache(data.purchases);
             if (data.purchaseItems !== undefined) saveLocalPurchaseItemsCache(data.purchaseItems);
             if (data.purchaseRequests !== undefined) saveLocalPurchaseRequestsCache(data.purchaseRequests);
-            if (data.clientPrices !== undefined) {
-              try { window.localStorage.setItem(LOCAL_CLIENT_PRICES_CACHE_KEY, JSON.stringify(data.clientPrices)); } catch {}
-            }
             saveLocalBankAccountsCache(mergedBanks);
             if (data.journalEntries !== undefined) saveLocalCache(LOCAL_JOURNAL_ENTRIES_CACHE_KEY, data.journalEntries);
             if (data.journalLines !== undefined) saveLocalCache(LOCAL_JOURNAL_LINES_CACHE_KEY, data.journalLines);
