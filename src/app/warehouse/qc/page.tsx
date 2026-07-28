@@ -261,19 +261,48 @@ export default function QCPage() {
         imageUrl: qcPhoto || undefined
       })
 
+      // "Retur ke Supplier" used to be a log line and nothing else: no document to
+      // chase, no status, nobody told. Raise the same VendorReturn the customer-return
+      // path raises, so the swap can be tracked to Ditukar/Ditolak in the tab below.
+      const returnVendorId = rejectAction === 'Return'
+        ? (activePurchaseItem.vendorId || activeProduct.defaultVendorId)
+        : undefined
+
+      if (rejectAction === 'Return' && returnVendorId) {
+        await useAppStore.getState().addVendorReturn({
+          id: uuidv4(),
+          productId: activeProduct.id,
+          vendorId: returnVendorId,
+          qty: qtyReject,
+          reason: rejectReason || 'Gagal QC barang masuk',
+          date: new Date().toISOString(),
+          originalReturnId: activePurchaseItem.id,
+          status: 'Menunggu Vendor',
+        })
+      }
+
       // Kirim notifikasi ke Admin PO
+      const vendorName = vendors.find(v => v.id === returnVendorId)?.companyName
       const adminUsers = useAppStore.getState().users.filter(u => u.role === 'admin_po')
       for (const adminUser of adminUsers) {
         await useAppStore.getState().addNotification({
           id: uuidv4(),
           userId: adminUser.id,
-          title: `QC Reject: ${activeProduct.name}`,
-          message: `${qtyReject} ${activeProduct.uom} ditolak QC (${rejectAction}). Alasan: ${rejectReason || 'Tanpa alasan'}.`,
+          title: returnVendorId ? `Retur ke Vendor: ${activeProduct.name}` : `QC Reject: ${activeProduct.name}`,
+          message: returnVendorId
+            ? `${qtyReject} ${activeProduct.uom} diretur ke ${vendorName} untuk ditukar. Alasan: ${rejectReason || 'Tanpa alasan'}.`
+            : `${qtyReject} ${activeProduct.uom} ditolak QC (${rejectAction}). Alasan: ${rejectReason || 'Tanpa alasan'}.`,
           type: 'system',
-          link: '/admin/shopping-list',
+          link: returnVendorId ? '/warehouse/qc' : '/admin/shopping-list',
           read: false,
           createdAt: new Date().toISOString()
         })
+      }
+
+      if (rejectAction === 'Return') {
+        if (returnVendorId) toast.info(`Retur ke ${vendorName} dibuat — tunggu penggantian dari vendor.`)
+        // Belanja cash di pasar tidak punya vendor, jadi tidak ada yang bisa ditagih.
+        else toast.warning('Ditandai retur, tapi vendornya tidak diketahui — dokumen retur tidak dibuat.')
       }
     }
 
