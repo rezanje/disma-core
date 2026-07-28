@@ -1440,6 +1440,25 @@ export default function ShoppingListPage() {
                       Batal Pilih
                     </Button>
                   )}
+                  {/* Manual picks live in localStorage and outrank product.defaultVendorId, so a
+                      stale choice keeps showing the old vendor after the purchase data changes. */}
+                  {Object.keys(vendorAssignments).length > 0 && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-9 font-black text-[10px] uppercase tracking-widest text-slate-400 hover:text-emerald-700"
+                      title="Buang semua pilihan vendor manual, ikuti vendor dari data pembelian"
+                      onClick={() => {
+                        const n = Object.keys(vendorAssignments).length
+                        saveToHistory()
+                        setVendorAssignments({})
+                        toast.success(`${n} pilihan vendor manual dibuang — sekarang ikut data pembelian.`)
+                      }}
+                    >
+                      <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                      Pakai Vendor dari Data ({Object.keys(vendorAssignments).length})
+                    </Button>
+                  )}
                 </div>
 
                 <div className="rounded-md border bg-slate-50 dark:bg-slate-900 shadow-inner">
