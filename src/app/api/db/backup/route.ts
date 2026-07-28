@@ -4,9 +4,16 @@ import fs from 'fs';
 import path from 'path';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60; // Heavy operations
+export const maxDuration = 300; // A full dump/restore of ~30k rows outruns the old 60s
 
 const BACKUP_FILE_PATH = path.join(process.cwd(), 'data', 'safety_lock_backup.json');
+
+// Checkpoints live in Supabase Storage, not on disk: the serverless filesystem is
+// read-only in production and wiped on every deploy, so the old safety-lock file
+// silently saved nothing there.
+const CHECKPOINT_BUCKET = 'checkpoints';
+const CHECKPOINT_FILE = 'checkpoint.json';
+const PRE_RESTORE_FILE = 'pre-restore.json';   // one-step undo for a mistaken restore
 
 const TABLES_IN_WIPE_ORDER = [
   'sales_order_items', 'purchase_items', 'journal_lines', 'okr_key_results',
@@ -50,16 +57,99 @@ async function fetchTable(table: string) {
   }
 }
 
-export async function GET() {
+async function dumpAllTables() {
+  const backupData: Record<string, any> = {};
+  for (const table of TABLES_IN_INSERT_ORDER) {
+    backupData[table] = await fetchTable(table);
+  }
+  return backupData;
+}
+
+/** Create the private checkpoint bucket on first use so nothing has to be set up by hand. */
+async function ensureCheckpointBucket() {
+  const { data } = await supabaseAdmin.storage.getBucket(CHECKPOINT_BUCKET);
+  if (!data) await supabaseAdmin.storage.createBucket(CHECKPOINT_BUCKET, { public: false });
+}
+
+async function writeCheckpoint(file: string, payload: Record<string, any>) {
+  await ensureCheckpointBucket();
+  const body = JSON.stringify(payload);
+  const { error } = await supabaseAdmin.storage
+    .from(CHECKPOINT_BUCKET)
+    .upload(file, body, { contentType: 'application/json', upsert: true });
+  if (error) throw new Error(error.message);
+  return { bytes: body.length, rows: Object.values(payload).reduce((n: number, r: any) => n + (r?.length || 0), 0) };
+}
+
+/** Wipe every table child-first, then re-insert parent-first. Throws on the first failure. */
+async function restoreFromData(dataToRestore: Record<string, any>) {
+  console.log('[Restore] Starting restore of database...');
+
+  for (const table of TABLES_IN_WIPE_ORDER) {
+    const { error } = await supabaseAdmin
+      .from(table)
+      .delete()
+      .neq('id', '99999999-9999-9999-9999-999999999999'); // Avoid wiping system seed placeholders if any
+
+    if (error) {
+      if (isMissingTableError(error.message)) {
+        console.warn(`[Restore] Skipping missing table wipe: ${table}`);
+        continue;
+      }
+      throw new Error(`Failed to wipe ${table}: ${error.message}`);
+    }
+  }
+
+  for (const table of TABLES_IN_INSERT_ORDER) {
+    const rows = dataToRestore[table];
+    if (!rows || !Array.isArray(rows) || rows.length === 0) continue;
+
+    const CHUNK = 200;
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      const chunk = rows.slice(i, i + CHUNK);
+      const { error } = await supabaseAdmin.from(table).upsert(chunk, { onConflict: 'id' });
+
+      if (error) {
+        if (isMissingTableError(error.message)) {
+          console.warn(`[Restore] Skipping missing table seed: ${table}`);
+          break;
+        }
+        throw new Error(`Failed to restore table ${table}: ${error.message}`);
+      }
+    }
+    console.log(`[Restore] Restored table: ${table} (${rows.length} rows)`);
+  }
+  console.log('[Restore] ✅ Database restore completed successfully.');
+}
+
+async function readCheckpoint(file: string) {
+  const { data, error } = await supabaseAdmin.storage.from(CHECKPOINT_BUCKET).download(file);
+  if (error || !data) return null;
+  return JSON.parse(await data.text());
+}
+
+export async function GET(request: Request) {
   try {
     if (!supabaseAdmin) {
       return NextResponse.json({ error: 'Supabase Admin not initialized' }, { status: 500 });
     }
 
-    const backupData: Record<string, any> = {};
-    for (const table of TABLES_IN_INSERT_ORDER) {
-      backupData[table] = await fetchTable(table);
+    // ?info=checkpoint — what the maintenance page shows next to the button
+    if (new URL(request.url).searchParams.get('info') === 'checkpoint') {
+      await ensureCheckpointBucket();
+      const { data } = await supabaseAdmin.storage.from(CHECKPOINT_BUCKET).list('', { limit: 10 });
+      const find = (n: string) => (data || []).find((f: any) => f.name === n);
+      const meta = (f: any) => f ? {
+        savedAt: f.updated_at || f.created_at,
+        bytes: f.metadata?.size ?? null,
+      } : null;
+      return NextResponse.json({
+        checkpoint: meta(find(CHECKPOINT_FILE)),
+        preRestore: meta(find(PRE_RESTORE_FILE)),
+      }, { headers: { 'Cache-Control': 'no-store' } });
     }
+
+    const backupData = await dumpAllTables();
 
     return NextResponse.json(backupData, {
       headers: {
@@ -101,6 +191,26 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, message: 'Current data locked successfully as safety point.' });
     }
 
+    // --- Checkpoint: one saved slot, overwritten on every save ----------------
+    if (action === 'checkpoint_save') {
+      const stats = await writeCheckpoint(CHECKPOINT_FILE, await dumpAllTables());
+      console.log(`[Checkpoint] saved ${stats.rows} rows / ${stats.bytes} bytes`);
+      return NextResponse.json({ success: true, ...stats, savedAt: new Date().toISOString() });
+    }
+
+    if (action === 'checkpoint_restore' || action === 'checkpoint_undo') {
+      const file = action === 'checkpoint_undo' ? PRE_RESTORE_FILE : CHECKPOINT_FILE;
+      const snapshot = await readCheckpoint(file);
+      if (!snapshot) {
+        return NextResponse.json({ error: 'Checkpoint belum ada. Simpan checkpoint dulu.' }, { status: 404 });
+      }
+      // Keep the pre-restore copy so one wrong press is still reversible. Skipped when
+      // undoing, otherwise the undo slot would overwrite the state being undone.
+      if (action === 'checkpoint_restore') await writeCheckpoint(PRE_RESTORE_FILE, await dumpAllTables());
+      await restoreFromData(snapshot);
+      return NextResponse.json({ success: true, message: 'Database dikembalikan ke checkpoint.' });
+    }
+
     if (action === 'restore' || action === 'restore_upload') {
       let dataToRestore = uploadedData;
 
@@ -116,52 +226,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Invalid backup data provided.' }, { status: 400 });
       }
 
-      console.log(`[Restore] Starting restore of database...`);
-
-      // 1. WIPE Phase (Child to Parent order to avoid FK violation)
-      for (const table of TABLES_IN_WIPE_ORDER) {
-        const { error } = await supabaseAdmin
-          .from(table)
-          .delete()
-          .neq('id', '99999999-9999-9999-9999-999999999999'); // Avoid wiping system seed placeholders if any
-
-        if (error) {
-          if (isMissingTableError(error.message)) {
-            console.warn(`[Restore] Skipping missing table wipe: ${table}`);
-            continue;
-          }
-          console.error(`[Restore] Error wiping ${table}:`, error.message);
-          return NextResponse.json({ error: `Failed to wipe ${table}: ${error.message}` }, { status: 500 });
-        }
-        console.log(`[Restore] Wiped table: ${table}`);
-      }
-
-      // 2. SEED Phase (Parent to Child order)
-      for (const table of TABLES_IN_INSERT_ORDER) {
-        const rows = dataToRestore[table];
-        if (!rows || !Array.isArray(rows) || rows.length === 0) {
-          console.log(`[Restore] No data to insert for table: ${table}`);
-          continue;
-        }
-
-        const CHUNK = 200;
-        for (let i = 0; i < rows.length; i += CHUNK) {
-          const chunk = rows.slice(i, i + CHUNK);
-          const { error } = await supabaseAdmin.from(table).upsert(chunk, { onConflict: 'id' });
-
-          if (error) {
-            if (isMissingTableError(error.message)) {
-              console.warn(`[Restore] Skipping missing table seed: ${table}`);
-              break;
-            }
-            console.error(`[Restore] Error seeding ${table}:`, error.message);
-            return NextResponse.json({ error: `Failed to restore table ${table}: ${error.message}` }, { status: 500 });
-          }
-        }
-        console.log(`[Restore] Restored table: ${table} (${rows.length} rows)`);
-      }
-
-      console.log('[Restore] ✅ Database restore completed successfully.');
+      await restoreFromData(dataToRestore);
       return NextResponse.json({ success: true, message: 'Database restored successfully to locked safety point.' });
     }
 

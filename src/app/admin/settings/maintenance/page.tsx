@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -17,7 +17,10 @@ import {
   Download,
   Upload,
   ShieldCheck,
-  Loader2
+  Loader2,
+  History,
+  Save,
+  Undo2
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAppStore, clearAllOperationalCaches } from "@/lib/store"
@@ -76,9 +79,71 @@ const DATA_CATEGORIES = [
   }
 ]
 
+type CheckpointMeta = { savedAt: string; bytes: number | null } | null
+
 export default function MaintenancePage() {
   const resetSimulation = useAppStore(state => state.resetSimulation)
   const resetDb = useAppStore(state => state.resetDb)
+  const currentUser = useAppStore(state => state.currentUser)
+  const isSuperAdmin = currentUser?.role === 'super_admin'
+
+  const [checkpoint, setCheckpoint] = useState<CheckpointMeta>(null)
+  const [preRestore, setPreRestore] = useState<CheckpointMeta>(null)
+  const [isSavingCp, setIsSavingCp] = useState(false)
+  const [isRestoringCp, setIsRestoringCp] = useState(false)
+  const [cpConfirm, setCpConfirm] = useState("")
+
+  const loadCheckpoint = async () => {
+    try {
+      const res = await fetch('/api/db/backup?info=checkpoint', { cache: 'no-store' })
+      const d = await res.json()
+      setCheckpoint(d.checkpoint ?? null)
+      setPreRestore(d.preRestore ?? null)
+    } catch { /* tombolnya tetap bisa dipakai walau info gagal dimuat */ }
+  }
+
+  useEffect(() => { if (isSuperAdmin) loadCheckpoint() }, [isSuperAdmin])
+
+  const callCheckpoint = async (action: string) => {
+    const res = await fetch('/api/db/backup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action }),
+    })
+    const result = await res.json()
+    if (!res.ok) throw new Error(result.error || 'gagal')
+    return result
+  }
+
+  const handleSaveCheckpoint = async () => {
+    setIsSavingCp(true)
+    try {
+      const r = await callCheckpoint('checkpoint_save')
+      toast.success(`Checkpoint tersimpan — ${r.rows.toLocaleString('id-ID')} baris data.`)
+      loadCheckpoint()
+    } catch (e: any) {
+      toast.error('Gagal menyimpan checkpoint: ' + e.message)
+    } finally {
+      setIsSavingCp(false)
+    }
+  }
+
+  const handleRestoreCheckpoint = async (action: 'checkpoint_restore' | 'checkpoint_undo') => {
+    setIsRestoringCp(true)
+    try {
+      await callCheckpoint(action)
+      clearAllOperationalCaches()
+      toast.success('Database dikembalikan. Memuat ulang...')
+      setTimeout(() => window.location.reload(), 1500)
+    } catch (e: any) {
+      toast.error('Gagal mengembalikan: ' + e.message)
+      setIsRestoringCp(false)
+    }
+  }
+
+  const fmtWaktu = (iso?: string) =>
+    iso ? new Date(iso).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }) : '-'
+  const fmtMB = (b: number | null) => (b ? `${(b / 1024 / 1024).toFixed(1)} MB` : '')
 
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
@@ -282,6 +347,82 @@ export default function MaintenancePage() {
           <span className="text-xs font-black text-rose-700 uppercase tracking-tighter">Super Admin Authorization Required</span>
         </div>
       </div>
+
+      {isSuperAdmin && (
+        <Card className="liquid-card border-none bg-white shadow-xl overflow-hidden">
+          <CardHeader className="p-8 border-b bg-slate-50/50">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-sky-100 rounded-2xl flex items-center justify-center">
+                <History className="w-6 h-6 text-sky-600" />
+              </div>
+              <div>
+                <CardTitle className="text-xl font-black text-slate-900">Checkpoint</CardTitle>
+                <CardDescription className="text-xs font-bold text-slate-400">
+                  Simpan kondisi seluruh data sekarang, lalu kembali ke sana kapan pun setelah simulasi.
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-8 space-y-6">
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex-1 p-6 rounded-3xl bg-slate-50 border border-slate-100">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Checkpoint tersimpan</p>
+                <p className="text-lg font-black text-slate-900 mt-1">
+                  {checkpoint ? fmtWaktu(checkpoint.savedAt) : 'Belum ada'}
+                </p>
+                {checkpoint && <p className="text-xs font-bold text-slate-400">{fmtMB(checkpoint.bytes)}</p>}
+              </div>
+              <Button
+                onClick={handleSaveCheckpoint}
+                disabled={isSavingCp || isRestoringCp}
+                className="md:w-64 h-auto md:py-0 py-4 bg-sky-600 hover:bg-sky-700 text-white rounded-3xl font-black uppercase text-[11px] tracking-widest shadow-xl"
+              >
+                {isSavingCp ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                {isSavingCp ? 'Menyimpan...' : 'Save Checkpoint'}
+              </Button>
+            </div>
+
+            <div className="p-6 rounded-3xl border border-rose-100 bg-rose-50/50 space-y-4">
+              <div>
+                <h4 className="font-black text-slate-900 uppercase text-sm flex items-center gap-2">
+                  <RotateCcw className="w-4 h-4 text-rose-600" /> Kembali ke Checkpoint
+                </h4>
+                <p className="text-xs font-bold text-slate-500 mt-1">
+                  Seluruh data sekarang dihapus dan diganti isi checkpoint. Semua perubahan setelah{' '}
+                  {checkpoint ? fmtWaktu(checkpoint.savedAt) : 'checkpoint'} akan hilang. Ketik <b>KEMBALI</b> untuk mengaktifkan tombolnya.
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Input
+                  value={cpConfirm}
+                  onChange={(e) => setCpConfirm(e.target.value.toUpperCase())}
+                  placeholder="Ketik KEMBALI"
+                  className="sm:w-52 h-12 rounded-2xl font-black tracking-widest bg-white"
+                />
+                <Button
+                  onClick={() => handleRestoreCheckpoint('checkpoint_restore')}
+                  disabled={cpConfirm !== 'KEMBALI' || !checkpoint || isRestoringCp || isSavingCp}
+                  className="h-12 px-6 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest disabled:opacity-40"
+                >
+                  {isRestoringCp ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RotateCcw className="w-4 h-4 mr-2" />}
+                  Kembali ke Checkpoint
+                </Button>
+                {preRestore && (
+                  <Button
+                    variant="outline"
+                    onClick={() => handleRestoreCheckpoint('checkpoint_undo')}
+                    disabled={isRestoringCp || isSavingCp}
+                    className="h-12 px-4 rounded-2xl font-black uppercase text-[10px] tracking-widest border-slate-200 bg-white"
+                    title={`Kondisi sebelum restore terakhir (${fmtWaktu(preRestore.savedAt)})`}
+                  >
+                    <Undo2 className="w-4 h-4 mr-2" /> Batalkan restore terakhir
+                  </Button>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid md:grid-cols-2 gap-6">
          <Card className="liquid-card border-none bg-emerald-900 text-white overflow-hidden group">
