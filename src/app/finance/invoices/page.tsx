@@ -98,10 +98,52 @@ export default function InvoicesPage() {
     !inv.isConsolidated && !isManualInvoice(inv) && !isSuperseded(inv)
   )
   const consolidatedInvoices = filteredInvoices.filter(inv => inv.isConsolidated)
+
+  // Invoice anak dari sebuah batch tukar faktur. Ada dua generasi batch yang hidup
+  // berdampingan: invoice konsolidasi lama (anak ditandai `supersededByInvoiceId`) dan
+  // tabel `tukar_faktur` baru yang dipakai Admin PO (anak ditandai `tukarFakturId`).
+  const childrenOfBatch = (batchId: string) =>
+    invoices.filter(i => i.supersededByInvoiceId === batchId || i.tukarFakturId === batchId)
+
+  // TF dari sistem baru dibungkus jadi baris berbentuk invoice supaya tabel + dialog
+  // "Catat Bayar" yang sudah ada bisa dipakai apa adanya. Tanpa ini, TF yang diterbitkan
+  // Admin PO tidak pernah muncul di Finance dan pembayarannya tidak bisa dicatat sama
+  // sekali — invoice regulernya cuma menampilkan badge mati "Bayar via Tukar Faktur".
+  // Baris ini sengaja TIDAK masuk `visibleInvoices`: nilainya sudah terhitung lewat
+  // invoice anaknya, jadi menambahkannya akan menggandakan total di header.
+  const tukarFakturRows: Invoice[] = tukarFakturs
+    .filter(tf => tf.status !== 'Draft')
+    .map(tf => {
+      const children = childrenOfBatch(tf.id)
+      const poNumbers = children
+        .map(child => salesOrders.find(so => so.id === child.salesOrderId)?.poNumber)
+        .filter(Boolean) as string[]
+      const totalAmount = children.reduce((sum, child) => sum + child.totalAmount, 0)
+      const amountPaid = children.reduce((sum, child) => sum + (child.amountPaid || 0), 0)
+      return {
+        id: tf.id,
+        clientId: tf.clientId,
+        issueDate: tf.issueDate,
+        // Jatuh tempo batch = yang paling awal di antara invoice anaknya.
+        dueDate: children.map(c => c.dueDate).sort()[0] || tf.issueDate,
+        totalAmount,
+        amountPaid,
+        status: amountPaid >= totalAmount && totalAmount > 0 ? 'Paid' : amountPaid > 0 ? 'Partial' : 'Unpaid',
+        isConsolidated: true,
+        consolidatedOrderNumbers: poNumbers.length ? poNumbers : [tf.tfNumber],
+        salesOrderIds: children.map(c => c.salesOrderId).filter(Boolean) as string[],
+      } satisfies Invoice
+    })
+    .filter(row => {
+      const client = clients.find(c => c.id === row.clientId)
+      return client?.companyName.toLowerCase().includes(searchTerm.toLowerCase())
+    })
+
+  const batchRows = [...consolidatedInvoices, ...tukarFakturRows]
   const visibleInvoices = [...regularInvoices, ...manualInvoices, ...consolidatedInvoices]
 
   const childInvoices = activeInvoice && activeInvoice.isConsolidated
-    ? invoices.filter(i => i.supersededByInvoiceId === activeInvoice.id)
+    ? childrenOfBatch(activeInvoice.id)
     : []
 
   const handleAutoDistribute = () => {
@@ -460,7 +502,7 @@ export default function InvoicesPage() {
                 Piutang Manual ({manualInvoices.length})
               </TabsTrigger>
               <TabsTrigger value="consolidated" className="rounded-[1rem] px-6 font-black uppercase text-[10px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-md">
-                Tukar Faktur ({consolidatedInvoices.length})
+                Tukar Faktur ({batchRows.length})
               </TabsTrigger>
             </TabsList>
 
@@ -804,14 +846,14 @@ export default function InvoicesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {consolidatedInvoices.length === 0 ? (
+                    {batchRows.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">
                           Belum ada kumpulan tukar faktur yang dibuat.
                         </TableCell>
                       </TableRow>
                     ) : (
-                      consolidatedInvoices.map((inv) => {
+                      batchRows.map((inv) => {
                         const client = clients.find(c => c.id === inv.clientId)
                         const unpaid = inv.totalAmount - inv.amountPaid
                         const isExpanded = expandedInvoiceId === inv.id
@@ -834,7 +876,10 @@ export default function InvoicesPage() {
                                   {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                                 </Button>
                               </TableCell>
-                              <TableCell className="font-semibold text-[11px] font-mono text-slate-500">{inv.id}</TableCell>
+                              <TableCell className="font-semibold text-[11px] font-mono text-slate-500">
+                                {/* Batch sistem baru dikenali lewat nomor TF-nya, bukan uuid mentah. */}
+                                {tukarFakturs.find(t => t.id === inv.id)?.tfNumber || inv.id}
+                              </TableCell>
                               <TableCell className="font-medium">{client?.companyName}</TableCell>
                               <TableCell>
                                 <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">
@@ -925,7 +970,7 @@ export default function InvoicesPage() {
                                             Daftar PO (Invoice Asal)
                                           </h4>
                                           <span className="text-xs text-slate-500 font-medium bg-indigo-50 dark:bg-indigo-950/30 px-2.5 py-1 rounded-full border border-indigo-100 dark:border-indigo-900">
-                                            {invoices.filter(i => i.supersededByInvoiceId === inv.id).length} PO Terkait
+                                            {childrenOfBatch(inv.id).length} PO Terkait
                                           </span>
                                         </div>
 
@@ -943,7 +988,7 @@ export default function InvoicesPage() {
                                             </TableHeader>
                                             <TableBody>
                                               {(() => {
-                                                const childInvoices = invoices.filter(i => i.supersededByInvoiceId === inv.id);
+                                                const childInvoices = childrenOfBatch(inv.id);
                                                 if (childInvoices.length === 0) {
                                                   return (
                                                     <TableRow>

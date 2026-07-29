@@ -2194,15 +2194,22 @@ export const useAppStore = create<AppState>((set, get) => ({
           return update ? { ...inv, ...update.data } : inv;
         });
 
-        // Update parent Tukar Faktur invoice
+        // `tfId` bisa menunjuk ke dua jenis batch: invoice konsolidasi lama (punya baris
+        // invoice sendiri sebagai induk) atau baris `tukar_faktur` dari sistem baru (tidak
+        // punya invoice induk sama sekali). Dulu SELURUH penerapan hasil pembayaran ada di
+        // dalam `if (parent)`, jadi untuk batch sistem baru pembayaran anaknya hilang dari
+        // state dan tidak pernah tersimpan. Terapkan update anak lebih dulu, tanpa syarat.
         const parent = updatedInvoices.find(i => i.id === tfId);
         const invoicesToSync: Invoice[] = [];
+        let finalInvoices = updatedInvoices;
 
         if (parent) {
-          const parentChildren = updatedInvoices.filter(i => i.supersededByInvoiceId === tfId);
+          const parentChildren = updatedInvoices.filter(
+            i => i.supersededByInvoiceId === tfId || i.tukarFakturId === tfId
+          );
           const totalPaid = parentChildren.reduce((sum, c) => sum + (c.amountPaid || 0), 0);
           const status: InvoiceStatus = totalPaid >= parent.totalAmount ? 'Paid' : totalPaid > 0 ? 'Partial' : 'Unpaid';
-          
+
           const parentPaymentRecord = {
             id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
             amount: totalAmount,
@@ -2217,25 +2224,31 @@ export const useAppStore = create<AppState>((set, get) => ({
             payments: [...(parent.payments || []), parentPaymentRecord]
           };
 
-          const finalInvoices = updatedInvoices.map(inv => inv.id === tfId ? updatedParent : inv);
-          set({ invoices: finalInvoices });
-          
-          // Save to localStorage cache
-          saveLocalCache(LOCAL_INVOICES_CACHE_KEY, finalInvoices);
-
+          finalInvoices = updatedInvoices.map(inv => inv.id === tfId ? updatedParent : inv);
           invoicesToSync.push(updatedParent);
-          
-          for (const update of childUpdates) {
-            const updatedChild = finalInvoices.find(i => i.id === update.id);
-            if (updatedChild) {
-              invoicesToSync.push(updatedChild);
-            }
-          }
+        }
+
+        set({ invoices: finalInvoices });
+        saveLocalCache(LOCAL_INVOICES_CACHE_KEY, finalInvoices);
+
+        for (const update of childUpdates) {
+          const updatedChild = finalInvoices.find(i => i.id === update.id);
+          if (updatedChild) invoicesToSync.push(updatedChild);
         }
 
         // Sync parent and child invoices to database in a single batch request
         if (invoicesToSync.length > 0) {
           await get().syncTable('invoices', invoicesToSync);
+        }
+
+        // Batch sistem baru: tandai baris tukar_faktur-nya lunas kalau semua anaknya lunas.
+        const tf = get().tukarFakturs.find(t => t.id === tfId);
+        if (tf) {
+          const tfChildren = finalInvoices.filter(i => i.tukarFakturId === tfId);
+          const fullyPaid = tfChildren.length > 0 && tfChildren.every(c => c.status === 'Paid');
+          if (fullyPaid && tf.status !== 'Paid') {
+            await get().updateTukarFaktur(tfId, { status: 'Paid' });
+          }
         }
 
         return true;
