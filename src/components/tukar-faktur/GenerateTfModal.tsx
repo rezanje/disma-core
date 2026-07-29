@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { useAppStore } from "@/lib/store"
 import type { Invoice, TukarFaktur } from "@/types"
-import { tfPeriodFor, generateTfNumber, periodKey, type TfPeriod } from "@/lib/tukar-faktur"
+import { tfPeriodFor, generateTfNumber, periodKey, isoLocalDate, type TfPeriod } from "@/lib/tukar-faktur"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -13,7 +13,10 @@ import { toast } from "sonner"
 function formatRupiah(n: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(n || 0)
 }
-function isoDate(d: Date) { return d.toISOString().slice(0, 10) }
+// Periode TF dibangun dari tanggal lokal (mondayOf/sundayOf memakai setHours(0,0,0,0)).
+// toISOString() menggesernya ke UTC, jadi di WIB (+7) tengah malam lokal jatuh ke tanggal
+// sebelumnya — periode dan tanggal terbit tersimpan mundur satu hari.
+const isoDate = isoLocalDate
 
 interface PeriodGroup {
   key: string

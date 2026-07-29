@@ -58,6 +58,16 @@ export function getISOWeek(d: Date): number {
   return Math.ceil(((tmp.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
 }
 
+/**
+ * Client segment of a TF number. Every client id is prefixed `client-`, so slicing the
+ * raw id gave literally "CLIENT" for everyone — the number carried no identity at all.
+ * Strip the prefix (and separators) first so the segment names the client.
+ */
+function clientSegment(clientId: string): string {
+  const bare = clientId.replace(/^client-/i, '').replace(/[^a-z0-9]/gi, '');
+  return (bare || clientId).slice(0, 6).toUpperCase();
+}
+
 export function generateTfNumber(
   clientId: string,
   period: TfPeriod,
@@ -70,10 +80,15 @@ export function generateTfNumber(
     ? String(period.periodEnd.getMonth() + 1).padStart(2, '0')
     : `W${String(getISOWeek(period.periodEnd)).padStart(2, '0')}`;
   const seq = String(existingCount + 1).padStart(2, '0');
-  return `TF-${year}-${label}-${clientId.slice(0, 6).toUpperCase()}-${seq}`;
+  return `TF-${year}-${label}-${clientSegment(clientId)}-${seq}`;
+}
+
+/** Local-date ISO string. `toISOString()` would shift WIB midnight back a day. */
+export function isoLocalDate(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 export function periodKey(period: TfPeriod): string {
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
-  return `${iso(period.periodStart)}_${iso(period.periodEnd)}`;
+  return `${isoLocalDate(period.periodStart)}_${isoLocalDate(period.periodEnd)}`;
 }
