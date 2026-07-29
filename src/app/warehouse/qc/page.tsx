@@ -306,11 +306,14 @@ export default function QCPage() {
       }
     }
 
-    // 6. Vendor+Tempo: barang diantar vendor, bayar belakangan — tagihan otomatis jadi Hutang
-    // Vendor (AP Aging). Pasar+Tempo settle lewat recordReconciliationSettlement, bukan di sini
-    // (hindari double-bill). netAccrual harus sama persis dengan yang di-credit ke 2-1100 oleh
+    // 6. Tempo (lokasi ambil mana pun): bayar belakangan — tagihan otomatis jadi Hutang
+    // Vendor (AP Aging). Dulu ini dibatasi ke Vendor+Tempo dengan alasan Pasar+Tempo
+    // di-settle oleh recordReconciliationSettlement; tapi settlement itu cuma jalan di
+    // jalur `isLegacy` (purchase dengan budgetTransferDate) yang sudah mati sejak model
+    // kantong sourcing, jadi hutang belanja tempo di pasar tidak pernah tercatat sama
+    // sekali. netAccrual harus sama persis dengan yang di-credit ke 2-1100 oleh
     // recordInboundQC di atas.
-    if (activePurchaseItem.purchaseMethod === 'Vendor' && activePurchaseItem.paymentMethod === 'Tempo') {
+    if (activePurchaseItem.paymentMethod === 'Tempo') {
       if (!activePurchaseItem.vendorId) {
         toast.warning(`${activeProduct.name} (Tempo) tidak ada vendor — hutang tidak otomatis dicatat. Catat manual di AP Aging.`)
       } else {

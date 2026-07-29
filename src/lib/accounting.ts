@@ -1473,15 +1473,6 @@ export const recordVendorBillFromInbound = async (
   const billNumber = `VB-${format(now, 'yyyyMM')}-${billId.slice(0, 6).toUpperCase()}`;
   const dueDate = dueDateFor(now, vendor.paymentTermDays || 14);
 
-  const success = await createAccountingEntry(
-    `Tempo QC: ${description} - Ref: ${purchaseItemId.slice(0, 8)}`,
-    'Purchase',
-    purchaseItemId,
-    [{ accountCode: '2-1100', amount }],
-    [{ accountCode: '2-1000', amount, vendorId, vendorBillId: billId }]
-  );
-  if (!success) return false;
-
   const bill: VendorBill = {
     id: billId,
     billNumber,
@@ -1498,7 +1489,25 @@ export const recordVendorBillFromInbound = async (
     purchaseId,
     createdAt: now.toISOString(),
   };
+
+  // Tagihannya harus ada DULU: journal_lines.vendor_bill_id punya foreign key ke
+  // vendor_bills, jadi memposting jurnal lebih dulu selalu ditolak database
+  // ("violates foreign key constraint") dan hutang tempo tidak pernah terbentuk.
   await store.addVendorBill(bill);
+
+  const success = await createAccountingEntry(
+    `Tempo QC: ${description} - Ref: ${purchaseItemId.slice(0, 8)}`,
+    'Purchase',
+    purchaseItemId,
+    [{ accountCode: '2-1100', amount }],
+    [{ accountCode: '2-1000', amount, vendorId, vendorBillId: billId }]
+  );
+  if (!success) {
+    // Jurnalnya gagal — jangan tinggalkan tagihan yatim di AP Aging.
+    await store.deleteVendorBill(billId);
+    return false;
+  }
+
   return true;
 };
 
