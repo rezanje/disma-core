@@ -226,26 +226,35 @@ export async function POST(request: Request) {
     if (!supabase) return NextResponse.json({ error: 'Supabase not initialized' }, { status: 500 });
     if (!table) return NextResponse.json({ error: 'Table name required' }, { status: 400 });
 
+    // Columns that hold a verbatim snapshot of an app object rather than a set of
+    // database fields. Renaming their keys corrupts the snapshot: the reader
+    // (/api/history) deliberately does not undo it, so a rollback would feed
+    // snake_case keys back into a camelCase record and report every field as changed.
+    const OPAQUE_JSON_COLUMNS: Record<string, string[]> = {
+      record_history: ['oldData', 'newData'],
+    };
+
     // Convert camelCase to snake_case for the database
-    const toSnake = (obj: any): any => {
-        if (Array.isArray(obj)) return obj.map(toSnake);
+    const toSnake = (obj: any, opaqueKeys: string[] = []): any => {
+        if (Array.isArray(obj)) return obj.map((item) => toSnake(item, opaqueKeys));
         if (obj === null || typeof obj !== 'object') return obj;
         const n: any = {};
         Object.keys(obj).forEach((k) => {
           let sk = k.replace(/[A-Z]/g, (m) => `_${m.toLowerCase()}`);
           if (sk === 'is_q_ced') sk = 'is_qced';
-          
+
           let val = obj[k];
           if (typeof val === 'string' && val === '' && sk.endsWith('_id')) {
              val = null;
           }
-          
-          n[sk] = toSnake(val);
+
+          // Only the column name is renamed; the payload is stored as-is.
+          n[sk] = opaqueKeys.includes(k) ? val : toSnake(val, opaqueKeys);
         });
         return n;
     };
 
-    let snakeData = table === 'app_settings' ? data : toSnake(data);
+    let snakeData = table === 'app_settings' ? data : toSnake(data, OPAQUE_JSON_COLUMNS[table] || []);
 
     // Sanitization blocks are removed for local development to allow all fields to sync
 
