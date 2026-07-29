@@ -137,11 +137,11 @@ export default function ShoppingListPage() {
   })
   const [customPrices, setCustomPrices] = useState<Record<string, number>>(() => {
     if (typeof window === 'undefined') return {}
-    try { return JSON.parse(localStorage.getItem('shopping_customPrices') || '{}') } catch { return {} }
+    try { return JSON.parse(localStorage.getItem('shopping_customPrices_v2') || '{}') } catch { return {} }
   })
   const [vendorAssignments, setVendorAssignments] = useState<Record<string, string>>(() => {
     if (typeof window === 'undefined') return {}
-    try { return JSON.parse(localStorage.getItem('shopping_vendorAssignments') || '{}') } catch { return {} }
+    try { return JSON.parse(localStorage.getItem('shopping_vendorAssignments_v2') || '{}') } catch { return {} }
   })
   const [customQtys, setCustomQtys] = useState<Record<string, number>>(() => {
     if (typeof window === 'undefined') return {}
@@ -162,21 +162,21 @@ export default function ShoppingListPage() {
   const [isProductSearchOpen, setIsProductSearchOpen] = useState(false)
   const [onlineProductIds, setOnlineProductIds] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') return new Set()
-    try { return new Set(JSON.parse(localStorage.getItem('shopping_onlineProductIds') || '[]')) } catch { return new Set() }
+    try { return new Set(JSON.parse(localStorage.getItem('shopping_onlineProductIds_v2') || '[]')) } catch { return new Set() }
   })
   const [vendorProductIds, setVendorProductIds] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') return new Set()
-    try { return new Set(JSON.parse(localStorage.getItem('shopping_vendorProductIds') || '[]')) } catch { return new Set() }
+    try { return new Set(JSON.parse(localStorage.getItem('shopping_vendorProductIds_v2') || '[]')) } catch { return new Set() }
   })
-  // Metode bayar per produk — independen dari lokasi ambil barang. Default Cash bila belum di-set.
+  // Metode bayar per baris — independen dari lokasi ambil barang. Default Cash bila belum di-set.
   const [paymentByProduct, setPaymentByProduct] = useState<Record<string, 'Cash' | 'Tempo' | 'Transfer'>>(() => {
     if (typeof window === 'undefined') return {}
-    try { return JSON.parse(localStorage.getItem('shopping_paymentByProduct') || '{}') } catch { return {} }
+    try { return JSON.parse(localStorage.getItem('shopping_paymentByProduct_v2') || '{}') } catch { return {} }
   })
-  // Products fulfilled from warehouse stock (booking) — excluded from the buy list
+  // Rows fulfilled from warehouse stock (booking) — excluded from the buy list
   const [stockBookedProductIds, setStockBookedProductIds] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') return new Set()
-    try { return new Set(JSON.parse(localStorage.getItem('shopping_stockBookedProductIds') || '[]')) } catch { return new Set() }
+    try { return new Set(JSON.parse(localStorage.getItem('shopping_stockBookedProductIds_v2') || '[]')) } catch { return new Set() }
   })
   const [manualPurchaseMethod, setManualPurchaseMethod] = useState<'Pasar' | 'Online'>('Pasar')
   const [filterDeliveryDate, setFilterDeliveryDate] = useState(() => {
@@ -199,14 +199,14 @@ export default function ShoppingListPage() {
 
   // Persist state to localStorage on change
   useEffect(() => { localStorage.setItem('shopping_manualItems', JSON.stringify(manualItems)) }, [manualItems])
-  useEffect(() => { localStorage.setItem('shopping_customPrices', JSON.stringify(customPrices)) }, [customPrices])
+  useEffect(() => { localStorage.setItem('shopping_customPrices_v2', JSON.stringify(customPrices)) }, [customPrices])
   useEffect(() => { localStorage.setItem('shopping_customQtys', JSON.stringify(customQtys)) }, [customQtys])
   useEffect(() => { localStorage.setItem('shopping_compiledRejectIds', JSON.stringify(Array.from(compiledRejectIds))) }, [compiledRejectIds])
-  useEffect(() => { localStorage.setItem('shopping_vendorAssignments', JSON.stringify(vendorAssignments)) }, [vendorAssignments])
-  useEffect(() => { localStorage.setItem('shopping_onlineProductIds', JSON.stringify(Array.from(onlineProductIds))) }, [onlineProductIds])
-  useEffect(() => { localStorage.setItem('shopping_vendorProductIds', JSON.stringify(Array.from(vendorProductIds))) }, [vendorProductIds])
-  useEffect(() => { localStorage.setItem('shopping_paymentByProduct', JSON.stringify(paymentByProduct)) }, [paymentByProduct])
-  useEffect(() => { localStorage.setItem('shopping_stockBookedProductIds', JSON.stringify(Array.from(stockBookedProductIds))) }, [stockBookedProductIds])
+  useEffect(() => { localStorage.setItem('shopping_vendorAssignments_v2', JSON.stringify(vendorAssignments)) }, [vendorAssignments])
+  useEffect(() => { localStorage.setItem('shopping_onlineProductIds_v2', JSON.stringify(Array.from(onlineProductIds))) }, [onlineProductIds])
+  useEffect(() => { localStorage.setItem('shopping_vendorProductIds_v2', JSON.stringify(Array.from(vendorProductIds))) }, [vendorProductIds])
+  useEffect(() => { localStorage.setItem('shopping_paymentByProduct_v2', JSON.stringify(paymentByProduct)) }, [paymentByProduct])
+  useEffect(() => { localStorage.setItem('shopping_stockBookedProductIds_v2', JSON.stringify(Array.from(stockBookedProductIds))) }, [stockBookedProductIds])
   useEffect(() => { localStorage.setItem('shopping_filterDeliveryDate', filterDeliveryDate) }, [filterDeliveryDate])
   useEffect(() => { localStorage.setItem('shopping_lastGeneratedDoc', JSON.stringify(lastGeneratedDoc)) }, [lastGeneratedDoc])
 
@@ -275,82 +275,89 @@ export default function ShoppingListPage() {
     return () => setShoppingListUndo(null, 0)
   }, [history.length, handleUndo, setShoppingListUndo])
 
-  const selectPasar = (productId: string) => {
+  // Satu baris daftar belanja = satu SKU untuk satu PO. Vendor, harga beli, lokasi ambil
+  // dan metode bayar dulu disimpan per `productId` saja, jadi kalau dua PO memesan SKU yang
+  // sama, setelan baris kedua menimpa baris pertama diam-diam (set Tempo di PO A, lalu Cash
+  // di PO B → dua-duanya jadi Cash). Semua map itu sekarang di-key per baris.
+  const rowKey = (row: { productId: string; salesOrderId?: string }) =>
+    `${row.productId}::${row.salesOrderId || ''}`
+
+  const selectPasar = (key: string) => {
     saveToHistory()
     setStockBookedProductIds(prev => {
       const next = new Set(prev)
-      next.delete(productId)
+      next.delete(key)
       return next
     })
     setOnlineProductIds(prev => {
       const next = new Set(prev)
-      next.delete(productId)
+      next.delete(key)
       return next
     })
     setVendorProductIds(prev => {
       const next = new Set(prev)
-      next.delete(productId)
+      next.delete(key)
       return next
     })
     // Transfer bayar tidak berlaku di Pasar — turunkan ke Cash bila sebelumnya Transfer.
-    setPaymentByProduct(prev => prev[productId] === 'Transfer' ? { ...prev, [productId]: 'Cash' } : prev)
+    setPaymentByProduct(prev => prev[key] === 'Transfer' ? { ...prev, [key]: 'Cash' } : prev)
   }
 
-  const selectOnline = (productId: string) => {
+  const selectOnline = (key: string) => {
     saveToHistory()
     setStockBookedProductIds(prev => {
       const next = new Set(prev)
-      next.delete(productId)
+      next.delete(key)
       return next
     })
     setOnlineProductIds(prev => {
       const next = new Set(prev)
-      next.add(productId)
+      next.add(key)
       return next
     })
     setVendorProductIds(prev => {
       const next = new Set(prev)
-      next.delete(productId)
+      next.delete(key)
       return next
     })
   }
 
-  const selectVendor = (productId: string) => {
+  const selectVendor = (key: string) => {
     saveToHistory()
     setStockBookedProductIds(prev => {
       const next = new Set(prev)
-      next.delete(productId)
+      next.delete(key)
       return next
     })
     setVendorProductIds(prev => {
       const next = new Set(prev)
-      next.add(productId)
+      next.add(key)
       return next
     })
     setOnlineProductIds(prev => {
       const next = new Set(prev)
-      next.delete(productId)
+      next.delete(key)
       return next
     })
   }
 
-  const setPaymentMethod = (productId: string, method: 'Cash' | 'Tempo' | 'Transfer') => {
+  const setPaymentMethod = (key: string, method: 'Cash' | 'Tempo' | 'Transfer') => {
     saveToHistory()
-    setPaymentByProduct(prev => ({ ...prev, [productId]: method }))
+    setPaymentByProduct(prev => ({ ...prev, [key]: method }))
   }
 
-  const toggleStockBooked = (productId: string) => {
+  const toggleStockBooked = (key: string) => {
     saveToHistory()
     setStockBookedProductIds(prev => {
       const next = new Set(prev)
-      if (next.has(productId)) {
-        next.delete(productId)
+      if (next.has(key)) {
+        next.delete(key)
       } else {
-        next.add(productId)
+        next.add(key)
         // Clear vendor assignments when taken from warehouse
         setVendorAssignments(v => {
           const n = { ...v }
-          delete n[productId]
+          delete n[key]
           return n
         })
       }
@@ -358,11 +365,11 @@ export default function ShoppingListPage() {
     })
   }
 
-  const toggleSelectItem = (productId: string) => {
+  const toggleSelectItem = (key: string) => {
     setSelectedItemIds(prev => {
       const next = new Set(prev)
-      if (next.has(productId)) next.delete(productId)
-      else next.add(productId)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
       return next
     })
   }
@@ -374,9 +381,9 @@ export default function ShoppingListPage() {
     saveToHistory()
     setVendorAssignments(prev => {
       const next = { ...prev }
-      selectedItemIds.forEach(pid => {
-        if (stockBookedProductIds.has(pid)) return
-        next[pid] = bulkVendorId
+      selectedItemIds.forEach(key => {
+        if (stockBookedProductIds.has(key)) return
+        next[key] = bulkVendorId
       })
       return next
     })
@@ -471,8 +478,9 @@ export default function ShoppingListPage() {
     } else {
       const product = products.find(p => p.id === curr.productId)
       if (product) {
-        const customPrice = customPrices[curr.productId]
-        const vId = vendorAssignments[curr.productId] || product.defaultVendorId || undefined
+        const key = rowKey(curr)
+        const customPrice = customPrices[key]
+        const vId = vendorAssignments[key] || product.defaultVendorId || undefined
         const vName = vendors.find(v => v.id === vId)?.companyName
         acc.push({
           productId: curr.productId,
@@ -483,12 +491,12 @@ export default function ShoppingListPage() {
           totalQty: curr.qty,
           estimatedPrice: customPrice !== undefined ? customPrice : (curr.buyPrice || product.basePrice || 0),
           sellPrice: curr.sellPrice,
-          purchaseMethod: vendorProductIds.has(curr.productId) ? 'Vendor' : onlineProductIds.has(curr.productId) ? 'Online' : 'Pasar',
-          paymentMethod: paymentByProduct[curr.productId] || 'Cash',
+          purchaseMethod: vendorProductIds.has(key) ? 'Vendor' : onlineProductIds.has(key) ? 'Online' : 'Pasar',
+          paymentMethod: paymentByProduct[key] || 'Cash',
           salesOrderId: curr.salesOrderId,
           vendorId: vId,
           vendorName: vName,
-          fromStock: stockBookedProductIds.has(curr.productId)
+          fromStock: stockBookedProductIds.has(key)
         })
       }
     }
@@ -530,13 +538,14 @@ export default function ShoppingListPage() {
       { id: uuidv4(), productId: selectedProductId, qty: manualQty, price: manualPrice, source: 'manual' }
     ])
 
-    // Update global purchase method preference for this product
+    // Item manual tidak terikat PO, jadi kunci barisnya productId dengan bagian PO kosong.
+    const manualKey = rowKey({ productId: selectedProductId })
     if (manualPurchaseMethod === 'Online') {
-      setOnlineProductIds(prev => new Set(prev).add(selectedProductId))
+      setOnlineProductIds(prev => new Set(prev).add(manualKey))
     } else {
       setOnlineProductIds(prev => {
         const next = new Set(prev)
-        next.delete(selectedProductId)
+        next.delete(manualKey)
         return next
       })
     }
@@ -698,7 +707,7 @@ export default function ShoppingListPage() {
       if (stockItems.length > 0) {
         setStockBookedProductIds(prev => {
           const next = new Set(prev)
-          stockItems.forEach(it => next.delete(it.productId))
+          stockItems.forEach(it => next.delete(rowKey(it)))
           return next
         })
       }
@@ -1363,12 +1372,12 @@ export default function ShoppingListPage() {
                           saveToHistory()
                           setStockBookedProductIds(prev => {
                             const next = new Set(prev)
-                            suggestions.forEach(item => next.add(item.productId))
+                            suggestions.forEach(item => next.add(rowKey(item)))
                             return next
                           })
                           setVendorAssignments(v => {
                             const n = { ...v }
-                            suggestions.forEach(item => delete n[item.productId])
+                            suggestions.forEach(item => delete n[rowKey(item)])
                             return n
                           })
                           toast.success(`Berhasil mengalokasikan ${suggestions.length} produk dari gudang.`)
@@ -1508,21 +1517,21 @@ export default function ShoppingListPage() {
                                             <div className="flex items-center gap-1 border border-slate-200 rounded-lg p-0.5 bg-white">
                                               <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 pl-1.5 pr-0.5">Lokasi:</span>
                                               <button
-                                                onClick={() => { saveToHistory(); items.forEach(i => selectPasar(i.productId)) }}
+                                                onClick={() => { saveToHistory(); items.forEach(i => selectPasar(rowKey(i))) }}
                                                 className="px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105 bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100"
                                                 title={`Set semua ${items.length} item di ${vName} ke Pasar`}
                                               >
                                                 Pasar
                                               </button>
                                               <button
-                                                onClick={() => { saveToHistory(); items.forEach(i => selectOnline(i.productId)) }}
+                                                onClick={() => { saveToHistory(); items.forEach(i => selectOnline(rowKey(i))) }}
                                                 className="px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105 bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
                                                 title={`Set semua ${items.length} item di ${vName} ke Beli Online`}
                                               >
                                                 Beli Online
                                               </button>
                                               <button
-                                                onClick={() => { saveToHistory(); items.forEach(i => selectVendor(i.productId)) }}
+                                                onClick={() => { saveToHistory(); items.forEach(i => selectVendor(rowKey(i))) }}
                                                 className="px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105 bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100"
                                                 title={`Set semua ${items.length} item di ${vName} ke Vendor`}
                                               >
@@ -1532,21 +1541,21 @@ export default function ShoppingListPage() {
                                             <div className="flex items-center gap-1 border border-slate-200 rounded-lg p-0.5 bg-white">
                                               <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 pl-1.5 pr-0.5">Bayar:</span>
                                               <button
-                                                onClick={() => { items.forEach(i => setPaymentMethod(i.productId, 'Cash')) }}
+                                                onClick={() => { items.forEach(i => setPaymentMethod(rowKey(i), 'Cash')) }}
                                                 className="px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105 bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100"
                                                 title={`Set semua ${items.length} item di ${vName} ke Cash`}
                                               >
                                                 Cash
                                               </button>
                                               <button
-                                                onClick={() => { items.forEach(i => setPaymentMethod(i.productId, 'Tempo')) }}
+                                                onClick={() => { items.forEach(i => setPaymentMethod(rowKey(i), 'Tempo')) }}
                                                 className="px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105 bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100"
                                                 title={`Set semua ${items.length} item di ${vName} ke Tempo`}
                                               >
                                                 Tempo
                                               </button>
                                               <button
-                                                onClick={() => { items.forEach(i => setPaymentMethod(i.productId, 'Transfer')) }}
+                                                onClick={() => { items.forEach(i => setPaymentMethod(rowKey(i), 'Transfer')) }}
                                                 className="px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105 bg-violet-50 border-violet-200 text-violet-700 hover:bg-violet-100"
                                                 title={`Set semua ${items.length} item di ${vName} ke Transfer`}
                                               >
@@ -1573,14 +1582,14 @@ export default function ShoppingListPage() {
                                 {items.map((item, idx) => {
                                   const product = products.find(p => p.id === item.productId);
                                   return (
-                                    <TableRow key={idx} className={cn(selectedItemIds.has(item.productId) && "bg-emerald-50/40")}>
+                                    <TableRow key={idx} className={cn(selectedItemIds.has(rowKey(item)) && "bg-emerald-50/40")}>
                                       <TableCell className="text-xs text-slate-500 truncate">
                                         <div className="flex items-center gap-2">
                                           <input
                                             type="checkbox"
                                             className="w-4 h-4 accent-emerald-600 shrink-0"
-                                            checked={selectedItemIds.has(item.productId)}
-                                            onChange={() => toggleSelectItem(item.productId)}
+                                            checked={selectedItemIds.has(rowKey(item))}
+                                            onChange={() => toggleSelectItem(rowKey(item))}
                                           />
                                           <span className="truncate">{item.skuCode}</span>
                                         </div>
@@ -1653,13 +1662,13 @@ export default function ShoppingListPage() {
                                           <div className="flex items-center gap-1">
                                             <select
                                               className="text-[10px] flex-1 min-w-[76px] p-1 border rounded bg-slate-50 text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                                              value={vendorAssignments[item.productId] || item.vendorId || ''}
+                                              value={vendorAssignments[rowKey(item)] || item.vendorId || ''}
                                               onChange={(e) => {
                                                 saveToHistory();
                                                 setVendorAssignments(prev => {
                                                   const next = { ...prev };
-                                                  if (e.target.value) next[item.productId] = e.target.value;
-                                                  else delete next[item.productId];
+                                                  if (e.target.value) next[rowKey(item)] = e.target.value;
+                                                  else delete next[rowKey(item)];
                                                   return next;
                                                 });
                                               }}
@@ -1755,7 +1764,7 @@ export default function ShoppingListPage() {
                                                   const val = parseInt(e.target.value.replace(/\D/g, ""), 10) || 0
                                                   setCustomPrices(prev => ({
                                                      ...prev,
-                                                     [item.productId]: val
+                                                     [rowKey(item)]: val
                                                   }));
                                                }}
                                             />
@@ -1766,7 +1775,7 @@ export default function ShoppingListPage() {
                                          <div className="flex flex-wrap items-center justify-center gap-1 w-[140px]">
                                             {/* Button Pasar */}
                                             <button
-                                               onClick={() => selectPasar(item.productId)}
+                                               onClick={() => selectPasar(rowKey(item))}
                                                className={cn(
                                                   "px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105",
                                                   item.purchaseMethod === 'Pasar' && !item.fromStock
@@ -1780,7 +1789,7 @@ export default function ShoppingListPage() {
 
                                             {/* Button Online */}
                                             <button
-                                               onClick={() => selectOnline(item.productId)}
+                                               onClick={() => selectOnline(rowKey(item))}
                                                className={cn(
                                                   "px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105",
                                                   item.purchaseMethod === 'Online' && !item.fromStock
@@ -1794,7 +1803,7 @@ export default function ShoppingListPage() {
 
                                             {/* Button Vendor */}
                                             <button
-                                               onClick={() => selectVendor(item.productId)}
+                                               onClick={() => selectVendor(rowKey(item))}
                                                className={cn(
                                                   "px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105",
                                                   item.purchaseMethod === 'Vendor' && !item.fromStock
@@ -1808,7 +1817,7 @@ export default function ShoppingListPage() {
 
                                             {/* Button Gudang */}
                                             <button
-                                               onClick={() => toggleStockBooked(item.productId)}
+                                               onClick={() => toggleStockBooked(rowKey(item))}
                                                className={cn(
                                                   "px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105",
                                                   item.fromStock
@@ -1851,7 +1860,7 @@ export default function ShoppingListPage() {
                                          ) : (
                                             <div className="flex flex-wrap items-center justify-center gap-1 w-[120px]">
                                                <button
-                                                  onClick={() => setPaymentMethod(item.productId, 'Cash')}
+                                                  onClick={() => setPaymentMethod(rowKey(item), 'Cash')}
                                                   className={cn(
                                                      "px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105",
                                                      item.paymentMethod === 'Cash'
@@ -1863,7 +1872,7 @@ export default function ShoppingListPage() {
                                                   Cash
                                                </button>
                                                <button
-                                                  onClick={() => setPaymentMethod(item.productId, 'Tempo')}
+                                                  onClick={() => setPaymentMethod(rowKey(item), 'Tempo')}
                                                   className={cn(
                                                      "px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105",
                                                      item.paymentMethod === 'Tempo'
@@ -1876,7 +1885,7 @@ export default function ShoppingListPage() {
                                                </button>
                                                {item.purchaseMethod === 'Vendor' && (
                                                   <button
-                                                     onClick={() => setPaymentMethod(item.productId, 'Transfer')}
+                                                     onClick={() => setPaymentMethod(rowKey(item), 'Transfer')}
                                                      className={cn(
                                                         "px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105",
                                                         item.paymentMethod === 'Transfer'
