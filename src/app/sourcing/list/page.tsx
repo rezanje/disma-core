@@ -195,6 +195,24 @@ export default function SourcingDashboard() {
       return;
     }
 
+    // Belanja tunai hanya bisa dibukukan lewat kantong si pembelanja. Tanpa kantong,
+    // recordPocketPurchase di bawah tidak pernah jalan dan uangnya tidak pernah keluar
+    // dari kas mana pun — laporan tetap "berhasil" padahal saldo bank tidak berkurang.
+    // Blokir di depan daripada kehilangan jejak uangnya.
+    const cashSpendTotal = currentItems.reduce((sum, item) => {
+      if (!item.isChecked || item.purchaseMethod === 'Online') return sum
+      const method = activeItem?.id === item.id ? editPaymentMethod : (item.paymentMethod || 'Cash')
+      if (method !== 'Cash') return sum
+      const price = activeItem?.id === item.id ? editPrice : (item.actualUnitPrice || 0)
+      const qty = activeItem?.id === item.id ? (editQty || item.qtyTarget) : (item.qtyPurchased || 0)
+      return sum + qty * price
+    }, 0)
+
+    if (cashSpendTotal > 0 && !myPocket) {
+      toast.error("Belanja tunai tidak bisa dilaporkan tanpa kantong sourcing — uangnya tidak akan terpotong dari kas mana pun. Minta Finance membuatkan rekening kantong (purpose \"Kantong Sourcing\" + owner kamu) di Cash & Bank, atau minta orang sourcing yang menginput.")
+      return
+    }
+
     const loadingToast = toast.loading("Mengirim laporan belanja...")
     
     try {
