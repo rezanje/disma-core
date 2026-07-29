@@ -3,7 +3,7 @@
 import type { SVGProps } from "react"
 import { useState, useCallback } from "react"
 import { useAppStore } from "@/lib/store"
-import { recordShrinkage, recordStockMovement, recordInboundQC, recordVendorBillFromInbound } from "@/lib/accounting"
+import { recordShrinkage, recordStockMovement, recordInboundQC, recordVendorBillFromInbound, recordVendorTransferPurchase } from "@/lib/accounting"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -32,6 +32,8 @@ export default function QCPage() {
   const vendors = useAppStore(state => state.vendors)
   const vendorPrices = useAppStore(state => state.vendorPrices)
   const vendorReturns = useAppStore(state => state.vendorReturns)
+
+  const bankAccounts = useAppStore(state => state.bankAccounts)
 
   const updatePurchaseItem = useAppStore(state => state.updatePurchaseItem)
   const updatePendingReturn = useAppStore(state => state.updatePendingReturn)
@@ -64,6 +66,8 @@ export default function QCPage() {
   const [qcPhoto, setQcPhoto] = useState<string | null>(null)
   const [expiryDate, setExpiryDate] = useState("")
   const [batchNumber, setBatchNumber] = useState("")
+  // Harga beli untuk barang yang diantar vendor — satu-satunya tempat harga itu bisa masuk.
+  const [vendorUnitPrice, setVendorUnitPrice] = useState("")
   const [rejectAction, setRejectAction] = useState<'Return' | 'Disposal' | 'B2C'>('Disposal')
 
   // FIFO suggestion: find open SOs that need this product, oldest first
@@ -104,7 +108,14 @@ export default function QCPage() {
     }
 
     const currentUser = useAppStore.getState().currentUser
-    const unitCost = activePurchaseItem.actualUnitPrice || activePurchaseItem.estimatedUnitPrice || activeProduct.basePrice || 0;
+    const typedVendorPrice = Number(vendorUnitPrice) || 0
+    const unitCost = typedVendorPrice || activePurchaseItem.actualUnitPrice || activePurchaseItem.estimatedUnitPrice || activeProduct.basePrice || 0;
+
+    // Simpan harga vendor yang diketik supaya settlement, laporan HPP dan riwayat harga
+    // memakai angka yang sama dengan jurnal di bawah ini.
+    if (typedVendorPrice > 0 && typedVendorPrice !== activePurchaseItem.actualUnitPrice) {
+      await updatePurchaseItem(activePurchaseItem.id, { actualUnitPrice: typedVendorPrice })
+    }
 
     toast.loading("Memproses verifikasi inbound & pencatatan jurnal...", { id: "qc-process" })
 
@@ -313,22 +324,40 @@ export default function QCPage() {
     // kantong sourcing, jadi hutang belanja tempo di pasar tidak pernah tercatat sama
     // sekali. netAccrual harus sama persis dengan yang di-credit ke 2-1100 oleh
     // recordInboundQC di atas.
+    const qtyReceived = qtyPassToInventory + totalAllocatedToPos + qtyReject
+    const grossAccrual = qtyReceived * unitCost
+    const netAccrual = grossAccrual - (qtyReject > 0 && rejectAction === 'Return' ? qtyReject * unitCost : 0)
+
     if (activePurchaseItem.paymentMethod === 'Tempo') {
       if (!activePurchaseItem.vendorId) {
         toast.warning(`${activeProduct.name} (Tempo) tidak ada vendor — hutang tidak otomatis dicatat. Catat manual di AP Aging.`)
+      } else if (netAccrual > 0) {
+        await recordVendorBillFromInbound(
+          activePurchaseItem.id,
+          activePurchaseItem.vendorId,
+          netAccrual,
+          `Tempo: ${activeProduct.name} (QC ${new Date().toLocaleDateString('id-ID')})`,
+          activePurchaseItem.purchaseId
+        )
+      }
+    }
+
+    // 7. Vendor + Transfer: dibayar finance dari BCA. Satu-satunya yang memposting ini
+    // ada di submit laporan sourcing, padahal barang kiriman vendor sengaja dikeluarkan
+    // dari checklist sourcing — jadi uangnya tidak pernah keluar dari bank dan accrual
+    // 2-1100 menggantung selamanya. Barang pasar dengan Transfer tetap diposting di
+    // sourcing seperti sebelumnya, jadi tidak ada yang dobel.
+    if (activePurchaseItem.purchaseMethod === 'Vendor' && activePurchaseItem.paymentMethod === 'Transfer' && netAccrual > 0) {
+      const bca = bankAccounts.find(b => b.accountCode === '1-1200')
+      if (!bca) {
+        toast.warning(`${activeProduct.name} (Transfer): rekening BCA tidak ketemu — pembayaran tidak tercatat.`)
       } else {
-        const qtyReceived = qtyPassToInventory + totalAllocatedToPos + qtyReject
-        const grossAccrual = qtyReceived * unitCost
-        const netAccrual = grossAccrual - (qtyReject > 0 && rejectAction === 'Return' ? qtyReject * unitCost : 0)
-        if (netAccrual > 0) {
-          await recordVendorBillFromInbound(
-            activePurchaseItem.id,
-            activePurchaseItem.vendorId,
-            netAccrual,
-            `Tempo: ${activeProduct.name} (QC ${new Date().toLocaleDateString('id-ID')})`,
-            activePurchaseItem.purchaseId
-          )
-        }
+        await recordVendorTransferPurchase(
+          activePurchaseItem.purchaseId,
+          bca.id,
+          netAccrual,
+          currentUser?.name || 'Finance'
+        )
       }
     }
 
@@ -361,6 +390,7 @@ export default function QCPage() {
     setQtyReject(0)
     setRejectReason("")
     setUnbalanceReason("")
+    setVendorUnitPrice("")
     setQcPhoto(null)
     setExpiryDate("")
     setBatchNumber("")
@@ -783,6 +813,29 @@ export default function QCPage() {
                         <p className="text-[8px] font-bold text-rose-400 uppercase">Buang / Shrinkage</p>
                       </div>
                     </div>
+
+                    {/* Barang kiriman vendor tidak pernah lewat checklist sourcing, jadi tidak ada
+                        tahap mana pun yang menanyakan harga beli sebenarnya. Tanpa ini semua
+                        angkanya jatuh ke harga patokan: nilai persediaan, HPP, dan nominal
+                        tagihan tempo ke vendor. */}
+                    {activePurchaseItem?.purchaseMethod === 'Vendor' && (
+                      <div className="space-y-2">
+                        <Label className="text-slate-500 font-black uppercase text-[10px] tracking-widest">
+                          Harga Satuan dari Vendor (per {activeProduct?.uom || 'unit'})
+                        </Label>
+                        <Input
+                          inputMode="numeric"
+                          placeholder={String(activePurchaseItem.estimatedUnitPrice || activeProduct?.basePrice || 0)}
+                          className="h-14 rounded-xl border border-slate-100 bg-white"
+                          value={vendorUnitPrice}
+                          onChange={(e) => setVendorUnitPrice(e.target.value.replace(/\D/g, ''))}
+                        />
+                        <p className="text-[10px] font-bold text-slate-400">
+                          Kosongkan kalau sesuai patokan Rp{(activePurchaseItem.estimatedUnitPrice || activeProduct?.basePrice || 0).toLocaleString('id-ID')}.
+                          Angka ini dipakai untuk nilai persediaan dan tagihan vendor.
+                        </p>
+                      </div>
+                    )}
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
