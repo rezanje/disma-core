@@ -291,8 +291,38 @@ Rp21.000. Sekarang ada kolom "Harga Satuan dari Vendor" di kartu QC khusus baran
   laporan analisa kerugian, bukan jurnal.
 
 ### Belum diuji sama sekali
-Stok opname, ambil barang dari stok gudang (booking), pesanan susulan/backorder,
-reimbursement & biaya operasional sourcing, dan input piutang manual.
+Semuanya sudah ditutup di ronde 3 di bawah.
+
+---
+
+## Ronde 3 — sisa terakhir (30 Juli 2026)
+
+### Yang JALAN
+| Jalur | Hasil |
+|---|---|
+| Input piutang manual + pelunasan | Dr Piutang / Cr Pendapatan Rp2.500.000 saat dibuat, lalu Dr BRI / Cr Piutang saat dibayar. Piutang di jurnal == piutang di aplikasi |
+| Stok opname (selisih kurang) | Fisik 3 vs sistem 5 → Dr Beban Kerusakan Rp60.000 / Cr Persediaan, stok turun 2 |
+| Biaya operasional sourcing + audit finance | Rp25.000 parkir → Dr Beban Transportasi / Cr Kas Sourcing, saldo kantong turun sesuai |
+
+### Yang RUSAK — dua-duanya sudah diperbaiki
+
+**11. "Ambil dari Gudang" tidak benar-benar memesan stok.**
+Barang yang diambil dari gudang tercatat sebagai **"Booking 0 Kg"**, berapa pun kebutuhannya.
+Penyebabnya: yang dipakai angka "jumlah yang harus dibeli" — dan untuk barang yang diambil
+dari gudang angka itu memang sengaja 0, karena tidak dibeli. Akibatnya stok tidak pernah
+benar-benar dikunci, jadi barang yang sama bisa dijanjikan lagi ke PO berikutnya.
+Sekarang yang direservasi adalah kebutuhan PO-nya. Diuji: booking 3 Kg tercatat 3, bukan 0.
+
+**12. Pesanan kurang kirim tidak pernah tercatat kurang.**
+PO 80 Kg yang diterima klien cuma 65 Kg tetap berstatus "Terkirim" — sisa 15 Kg hilang dari
+sistem, tidak pernah masuk antrean susulan. Penyebabnya: saat konfirmasi BAST, aplikasi
+menyertakan satu kolom yang tidak ada di database, jadi database menolak seluruh baris dan
+perubahan statusnya ikut hilang. Baris barangnya sendiri tersimpan, makanya kelihatan seperti
+berhasil. Sekarang statusnya jadi **"Kurang Kirim"** dan sisanya masuk antrean ronde berikutnya.
+Bonus: error pengecekan kode yang sudah lama nongkrong di file itu ternyata memang menunjuk
+bug ini, sekarang ikut hilang.
+
+## Data simulasi
 
 ## Data simulasi
 
