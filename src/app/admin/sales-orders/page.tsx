@@ -270,11 +270,13 @@ export default function SalesOrdersPage() {
         updatedItems.push({ qty: item.qty, qtyDelivered: newQtyDelivered })
       }
 
+      // `deliveredAt` used to ride along here. It is not a SalesOrder field and there is
+      // no delivered_at column, so Postgres rejected the whole row ("Could not find the
+      // 'delivered_at' column") and the status never moved: an order short by 15 Kg stayed
+      // "Terkirim" instead of becoming "Kurang Kirim", and the shortfall was never queued
+      // for a follow-up round. The BAST date is already on the delivery record.
       const soStatus = nextSoStatus(updatedItems)
-      await updateSalesOrder(selectedSO.id, {
-        status: soStatus,
-        deliveredAt: new Date().toISOString()
-      })
+      await updateSalesOrder(selectedSO.id, { status: soStatus })
 
       setIsDetailOpen(false)
       toast.success(

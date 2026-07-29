@@ -649,13 +649,18 @@ export default function ShoppingListPage() {
       // until the warehouse actually pulls it for delivery.
       for (const item of stockItems) {
         const product = products.find(p => p.id === item.productId)
+        // Yang direservasi adalah kebutuhan PO-nya, bukan `totalQty`: untuk baris yang
+        // diambil dari gudang `totalQty` sengaja 0 (itu jumlah yang harus DIBELI), jadi
+        // memakainya bikin booking tercatat 0 — stok tidak pernah benar-benar dipesan dan
+        // bisa dijanjikan dua kali ke PO lain.
+        const bookedQty = item.kebutuhan
         await addStockMovement({
           id: uuidv4(),
           date: generatedAt,
           productId: item.productId,
           productName: product?.name,
           skuCode: product?.skuCode,
-          quantity: item.totalQty,
+          quantity: bookedQty,
           stockDelta: 0,
           resultingStock: product?.currentStock ?? 0,
           direction: 'Info',
@@ -665,7 +670,7 @@ export default function ShoppingListPage() {
           referenceId: documentId,
           salesOrderId: item.salesOrderId,
           createdByUserId: currentUser?.id,
-          note: `Booking ${item.totalQty} ${product?.uom || ''} dari stok gudang`,
+          note: `Booking ${bookedQty} ${product?.uom || ''} dari stok gudang`,
         })
       }
       setLastGeneratedDoc({
