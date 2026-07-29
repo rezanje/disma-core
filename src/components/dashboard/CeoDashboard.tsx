@@ -221,6 +221,12 @@ export default function CeoDashboard() {
       }, 0)
   }
 
+  // Kas & bank internal = semua kode akun yang benar-benar dipakai rekening di Cash & Bank,
+  // bukan daftar kode yang ditulis tangan (yang ketinggalan begitu ada rekening baru).
+  const totalInternalCash = Array.from(
+    new Set(bankAccounts.map(b => b.accountCode).filter(Boolean) as string[])
+  ).reduce((sum, code) => sum + getBalance(code), 0)
+
   // Macro Metrics
   const totalAssets = getBalance('1')
   const totalLiabilities = getBalance('2')
@@ -1129,7 +1135,9 @@ export default function CeoDashboard() {
                   { name: "Piutang Usaha (AR)", val: totalOutstandingAR, icon: "💰", alert: totalOutstandingAR > 50000000 },
                   { name: "Hutang Usaha (AP)", val: getBalance('2-1000'), icon: "🧾" },
                   { name: "Inventory Value", val: totalInventoryValue, icon: "📦", href: "/warehouse/catalog" },
-                  { name: "Internal Cash & Bank", val: getBalance('1-1000') + getBalance('1-1200') + getBalance('1-1300'), icon: "🏦", alert: (getBalance('1-1000') + getBalance('1-1200') + getBalance('1-1300')) < 10000000 },
+                  // Setiap rekening punya kode akun sendiri (Jago 1-1100, BRI 1-1400) sejak
+                  // baris kas dipisah dari Petty Cash — semuanya harus ikut dijumlah di sini.
+                  { name: "Internal Cash & Bank", val: totalInternalCash, icon: "🏦", alert: totalInternalCash < 10000000 },
                   { name: "Wastage & Spoilage Rate", val: wastageRate, isPercent: true, icon: "🍂", alert: wastageRate > 5, href: "/admin/loss-analytics" },
                   { name: "OTIF Rate", val: otifRate, isPercent: true, icon: "⏱️", alert: otifRate < 90 },
                 ].map((acc, i) => {

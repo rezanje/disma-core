@@ -77,6 +77,14 @@ export const COA_SEED: any[] = [
     "accountType": "Asset"
   },
   {
+    // Bank Jago dulu ikut menumpang di 1-1000 bersama BRI dan Petty Cash, jadi baris kas
+    // di Neraca menggabungkan tiga rekening yang berbeda fungsi dan tidak bisa dibaca.
+    "id": "coa-1-1",
+    "accountCode": "1-1100",
+    "accountName": "Bank Jago - Belanja",
+    "accountType": "Asset"
+  },
+  {
     "id": "coa-1-2",
     "accountCode": "1-1200",
     "accountName": "Bank BCA - Utama",

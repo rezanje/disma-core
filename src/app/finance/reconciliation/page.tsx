@@ -46,6 +46,8 @@ export default function ReconciliationPage() {
   const users = useAppStore(state => state.users)
   const updatePurchase = useAppStore(state => state.updatePurchase)
   const updateExpense = useAppStore(state => state.updateExpense)
+  const bankAccounts = useAppStore(state => state.bankAccounts)
+  const cashAccountCodes = new Set(bankAccounts.map(b => b.accountCode).filter(Boolean) as string[])
 
   // Reconciliation State
   const [bankEntries, setBankEntries] = useState<BankEntry[]>([])
@@ -115,9 +117,11 @@ export default function ReconciliationPage() {
         ? jl.creditAmount === entry.amount 
         : jl.debitAmount === entry.amount
       
-      // Also check if account is "Kas & Bank" (1-1000)
+      // Baris kas/bank = akun yang dipakai rekening mana pun di Cash & Bank. Dulu ini
+      // dipatok ke '1-1000' saja; begitu tiap rekening punya kode sendiri, mutasi BRI
+      // dan Bank Jago tidak akan pernah ketemu pasangannya.
       const acc = coas.find(a => a.id === jl.accountId)
-      const isCashAcc = acc?.accountCode === '1-1000'
+      const isCashAcc = !!acc && cashAccountCodes.has(acc.accountCode)
 
       return amountMatches && diffDays <= 7 && isCashAcc && !entry.reconciled
     })
