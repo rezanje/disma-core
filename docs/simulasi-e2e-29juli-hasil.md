@@ -216,10 +216,34 @@ saldo awal per rekening — belum dilakukan karena itu menulis ulang riwayat.
 - Ada test-nya: `src/lib/tukar-faktur.check.ts` (`npx tsx src/lib/tukar-faktur.check.ts`).
 
 ### Temuan baru saat perbaikan
-- **Tabel `record_history` tidak ada di database.** Setiap pencatatan riwayat gagal
-  (`Could not find the table 'public.record_history'`) — fitur Activity Log / rollback tidak
-  merekam apa pun. Perlu migration tersendiri, di luar batch ini.
+- **Tabel `record_history` tidak ada di database** — sudah diperbaiki, lihat bagian di bawah.
 - Cek ketik ulang: `npx tsc --noEmit` tetap di baseline 5 error lama yang tidak berhubungan.
+
+---
+
+## Susulan: Activity Log & rollback (30 Juli 2026)
+
+Dua hal, dua-duanya sudah diperbaiki dan sudah jalan di production.
+
+**Tabelnya memang tidak pernah ada.** `record_history` hanya didefinisikan di
+`supabase/dev-bootstrap.sql` (dipakai untuk menyiapkan database lokal dari nol). Database
+production dimigrasikan tabel per tabel dan tidak pernah kebagian yang ini, jadi setiap
+pencatatan riwayat gagal. Penulisnya sengaja menelan error itu — pencatatan audit tidak boleh
+menggagalkan transaksi yang sedang dicatat — jadi tidak ada yang komplain: Activity Log kosong
+melompong dan rollback tidak punya versi untuk dikembalikan. Migration
+`20260730000001_record_history.sql` dibuat dan sudah diterapkan ke production.
+
+**Isi cadangannya sempat diacak-acak.** Kolom `old_data`/`new_data` menyimpan salinan mentah
+objek aplikasi, tapi jalur sync menjalankan konversi camelCase→snake_case ke seluruh isi
+payload, ikut mengganti nama field di dalamnya. Sisi baca sengaja tidak membalikkannya, jadi
+saat rollback yang dikembalikan adalah field bernama snake_case ke record yang camelCase:
+recordnya kemasukan set field kedua, dan catatan auditnya mengaku 16 field berubah padahal cuma
+status. Sekarang nama kolomnya saja yang dikonversi, isinya dibiarkan apa adanya.
+
+Bukti: ubah status SIM-C-001 → tercatat sebagai `update` dengan 1 field (`status`), pelakunya
+Reza (Super Admin). Tekan ROLLBACK → status balik ke QC, dan aksi rollback-nya sendiri ikut
+tercatat, ditautkan ke entri yang dibatalkan. Sebelum perbaikan kedua, entri rollback yang sama
+melaporkan 16 field.
 
 ## Data simulasi
 
