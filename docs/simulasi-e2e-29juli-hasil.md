@@ -245,6 +245,55 @@ Reza (Super Admin). Tekan ROLLBACK → status balik ke QC, dan aksi rollback-nya
 tercatat, ditautkan ke entri yang dibatalkan. Sebelum perbaikan kedua, entri rollback yang sama
 melaporkan 16 field.
 
+---
+
+## Ronde 2 — jalur yang belum kesentuh (30 Juli 2026)
+
+Simulasi pertama cuma lewat belanja pasar. Ronde ini menutup jalur sisanya.
+PO uji: **SIM-E-001** (online + vendor transfer + vendor tempo), **SIM-F-001**
+(tiga tujuan barang reject), **SIM-G-001** (vendor transfer, sesudah perbaikan).
+
+### Yang JALAN
+| Jalur | Hasil |
+|---|---|
+| Belanja online (marketplace) | Dr Persediaan-accrual 180.000 + Biaya admin 2.500 + Ongkir 15.000 / Cr BCA 197.500 — biaya admin & ongkir dipisah ke akun beban sendiri, tidak dicampur ke harga barang |
+| Bayar hutang vendor (cicil) | Dr Hutang 150.000 / Cr Mandiri 150.000, tagihan jadi "PartialPaid", sisa Rp250.000 tetap di AP Aging |
+| QC reject → Disposal | Dr Beban Kerusakan 68.000 / Cr Persediaan |
+| QC reject → Peralihan B2C | Dr Persediaan B2C 64.000 / Cr Persediaan utama, stok pindah ke gudang b2c |
+| QC lebih → masuk stok gudang | Stok gudang naik 5, nilainya ikut harga beli aktual |
+| Retur customer (3 pilihan) | 2 masuk stok lagi, 1 dibuang (Dr Beban Kerusakan / Cr Persediaan), 2 jadi klaim retur ke vendor |
+| Retur vendor → ditukar | Pengganti 8 masuk, 2 pengganti rusak dihapus bukukan (Dr Beban Kerusakan 58.000 / Cr Persediaan) |
+| Transfer antar bank + gate CFO | Dari Mandiri wajib lewat CFO: Draft → Menunggu CFO → Disetujui → Ditransfer. Dr BCA 25jt / Cr Mandiri 25jt |
+
+Buku tetap seimbang (Σ debit − Σ kredit = 0) sesudah semua langkah di atas.
+
+### Yang RUSAK — dua-duanya sudah diperbaiki
+
+**9. Barang kiriman vendor dengan bayar Transfer: uangnya tidak pernah keluar bank.**
+Fungsi pembayarannya cuma dipanggil dari submit laporan sourcing, sedangkan barang
+kiriman vendor memang sengaja dikeluarkan dari checklist sourcing (vendor antar sendiri).
+Jadi tidak ada satu tombol pun di aplikasi yang memicunya: saldo BCA tidak berkurang dan
+accrual-nya menggantung selamanya. Sekarang diposting saat QC.
+
+**10. Tidak ada tempat mengisi harga beli untuk barang kiriman vendor.**
+Karena tidak lewat sourcing, tidak ada tahap yang menanyakan vendor menagih berapa.
+Semua angka jatuh ke harga patokan — nilai persediaan, HPP saat kirim, dan **nominal
+tagihan tempo yang bakal kita bayar**. Di uji coba, patokan Rp17.631 vs harga asli
+Rp21.000. Sekarang ada kolom "Harga Satuan dari Vendor" di kartu QC khusus barang vendor.
+
+### Catatan kecil (belum diperbaiki, bukan kebocoran uang)
+- Barang retur customer yang dikirim balik ke vendor **belum dikeluarkan dari nilai persediaan**
+  sampai klaimnya selesai. Kalau vendor menolak tukar, baru dihapus bukukan. Untuk sekarang
+  konsisten, tapi kalau klaimnya digantung lama, persediaan kelihatan lebih besar dari isinya.
+- Pengajuan dana untuk dokumen yang isinya cuma barang vendor/online tercatat Rp0 (memang
+  tidak butuh uang jalan), jadi nilai dokumennya tidak kelihatan di layar approval.
+- Nilai satuan di catatan pergerakan stok untuk retur customer masih 0 — hanya memengaruhi
+  laporan analisa kerugian, bukan jurnal.
+
+### Belum diuji sama sekali
+Stok opname, ambil barang dari stok gudang (booking), pesanan susulan/backorder,
+reimbursement & biaya operasional sourcing, dan input piutang manual.
+
 ## Data simulasi
 
 PO `SIM-A-001`, `SIM-B-001`, `SIM-C-001`, `SIM-D-001`; dokumen belanja `ADV-20260729-026`
