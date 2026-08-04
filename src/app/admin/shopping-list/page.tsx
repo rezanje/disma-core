@@ -702,6 +702,14 @@ export default function ShoppingListPage() {
       return
     }
 
+    // Tanpa vendor, tidak ada yang bisa dikirimi surat jalan dan tidak ada yang
+    // ditagih — baris dropship tidak boleh lolos setengah jadi.
+    const dropshipWithoutVendor = consolidatedList.filter(i => i.purchaseMethod === 'Dropship' && !i.vendorId)
+    if (dropshipWithoutVendor.length > 0) {
+      toast.error(`Pilih vendornya dulu untuk ${dropshipWithoutVendor.length} barang yang mau diantar langsung ke klien.`)
+      return
+    }
+
     let linkedPR = null
     if (selectedPRId) {
       linkedPR = purchaseRequests.find(pr => pr.id === selectedPRId)
@@ -743,8 +751,9 @@ export default function ShoppingListPage() {
         // see sourcing/list.tsx), so there's no later step to fill this in like Pasar's
         // checkbox or Online's finance confirm step. Set it here so Inbound/QC don't
         // see a permanent 0 qty; QC's pass/reject/unbalance-reason flow still catches
-        // any real delivery variance.
-        qtyPurchased: item.purchaseMethod === 'Vendor' ? item.totalQty : 0,
+        // any real delivery variance. Dropship skips even further — no warehouse step
+        // at all — and its variance is caught at the client's confirmation instead.
+        qtyPurchased: (item.purchaseMethod === 'Vendor' || item.purchaseMethod === 'Dropship') ? item.totalQty : 0,
         estimatedUnitPrice: item.estimatedPrice,
         actualUnitPrice: 0,
         isChecked: false,
@@ -823,6 +832,16 @@ export default function ShoppingListPage() {
         setStockBookedProductIds(prev => {
           const next = new Set(prev)
           stockItems.forEach(it => next.delete(rowKey(it)))
+          return next
+        })
+      }
+      // Baris dropship sudah jadi purchase item; setelannya tidak boleh menempel
+      // ke putaran belanja berikutnya.
+      const dropshipKeys = documentItems.filter(i => i.purchaseMethod === 'Dropship').map(i => rowKey(i))
+      if (dropshipKeys.length > 0) {
+        setDropshipProductIds(prev => {
+          const next = new Set(prev)
+          dropshipKeys.forEach(k => next.delete(k))
           return next
         })
       }
