@@ -62,9 +62,12 @@ export default function DocumentPreview({ isOpen, onClose, type, poNumber, soId,
         client: cls || undefined 
       }
       
-      // We pass the adjustments to the generator (or it reads from store - but since store isn't updated yet, we might need to handle this in pdf.ts or here)
-      const dataUrl = type === 'SuratJalan' 
-        ? generateSuratJalan(poNumber, sigs, 'dataurl', adjustments)
+      // Surat jalan reads qty straight from the store (qtyFinal ?? qty) — the
+      // `adjustments` it used to be handed were never forwarded to the drawer, so
+      // passing them only looked like they applied. Left as-is on purpose: wiring
+      // them in would change what every delivery note prints, which is its own change.
+      const dataUrl = type === 'SuratJalan'
+        ? generateSuratJalan(poNumber, sigs, 'dataurl')
         : generateBA(poNumber, sigs, 'dataurl', adjustments)
       
       setPdfDataUrl(dataUrl as string)
@@ -152,7 +155,7 @@ export default function DocumentPreview({ isOpen, onClose, type, poNumber, soId,
       
       // We generate both here
       // SJ might have adjustments already applied to the items in store by the caller before this or from itemAdjustments
-      const sjDataUrl = generateSuratJalan(poNumber, sigs, 'dataurl', itemAdjustments) as string
+      const sjDataUrl = generateSuratJalan(poNumber, sigs, 'dataurl') as string
       const baDataUrl = generateBA(poNumber, sigs, 'dataurl', itemAdjustments) as string
 
       onComplete(
