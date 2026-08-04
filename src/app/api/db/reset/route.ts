@@ -28,7 +28,10 @@ export async function POST(request: Request) {
       'deliveries', 'invoices', 'tukar_faktur', 'sales_orders', 'vendor_bills', 'purchases', 'purchase_requests', 'journal_entries', 'stock_movements', 'rejected_items', 'okr_objectives',
       'reimbursements', 'expenses', 'cash_transactions', 'pending_returns', 'vendor_returns', 'fixed_assets',
       'notifications', 'disma_tasks', 'employees', 'kpis',
-      'disbursement_requests', 'budget_plans'
+      'disbursement_requests', 'budget_plans',
+      // Draft rencana belanja menunjuk ke sales order & produk yang ikut terhapus,
+      // jadi ikut dibersihkan supaya tidak menyisakan rencana yatim.
+      'shopping_draft'
     ];
 
     // Master definition tables.

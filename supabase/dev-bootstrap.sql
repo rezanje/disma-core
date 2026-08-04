@@ -480,6 +480,16 @@ create index if not exists idx_record_history_created      on public.record_hist
 
 alter table public.record_history disable row level security;
 
+-- Draft rencana belanja Admin PO (satu baris, id = 'current').
+create table if not exists public.shopping_draft (
+  id         text primary key,
+  data       jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now(),
+  updated_by text
+);
+
+alter table public.shopping_draft disable row level security;
+
 create or replace function public.post_journal_entry(
   p_entry_id text,
   p_transaction_date text,

@@ -20,7 +20,7 @@ const TABLES_IN_WIPE_ORDER = [
   'deliveries', 'invoices', 'tukar_faktur', 'sales_orders', 'vendor_bills', 'purchases', 'purchase_requests', 'journal_entries',
   'stock_movements', 'rejected_items', 'okr_objectives', 'reimbursements', 
   'expenses', 'cash_transactions', 'pending_returns', 'vendor_returns', 'fixed_assets',
-  'notifications', 'disma_tasks', 'leads', 'employees', 'kpis', 'record_history',
+  'notifications', 'disma_tasks', 'leads', 'employees', 'kpis', 'record_history', 'shopping_draft',
   'vendor_prices', 'client_prices', 'bank_accounts', 'coas', 'products', 'vendors', 'clients', 'users'
 ];
 
