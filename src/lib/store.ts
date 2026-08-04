@@ -646,7 +646,7 @@ const INITIAL_BANK_ACCOUNTS: BankAccount[] = [];
 const initialRolePermissions: RolePermissionMap = {
   super_admin: [
     'admin_dashboard', 'admin_vendors', 'admin_clients', 'admin_products',
-    'admin_sales_orders', 'admin_shopping_list', 'admin_assets', 'admin_hr', 'admin_crm',
+    'admin_sales_orders', 'admin_shopping_list', 'admin_dropship', 'admin_assets', 'admin_hr', 'admin_crm',
     'admin_documents', 'admin_okr', 'admin_users', 'admin_settings', 'admin_tasks', 'admin_maintenance', 'admin_price_lists', 'admin_activity_log',
     'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets', 
     'finance_budget', 'finance_cash_bank', 'finance_expenses', 'finance_ledger', 'finance_invoices', 'finance_ar_aging', 'finance_ap_aging',
@@ -658,7 +658,7 @@ const initialRolePermissions: RolePermissionMap = {
   ],
   ceo: [
     'admin_dashboard', 'admin_vendors', 'admin_clients', 'admin_products',
-    'admin_sales_orders', 'admin_shopping_list', 'admin_assets', 'admin_hr', 'admin_crm',
+    'admin_sales_orders', 'admin_shopping_list', 'admin_dropship', 'admin_assets', 'admin_hr', 'admin_crm',
     'admin_documents', 'admin_okr', 'admin_users', 'admin_settings', 'admin_tasks', 'admin_price_lists', 'admin_activity_log',
     'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets',
     'finance_budget', 'finance_cash_bank', 'finance_expenses', 'finance_ledger', 'finance_invoices', 'finance_ar_aging', 'finance_ap_aging', 'finance_collections',
@@ -667,7 +667,7 @@ const initialRolePermissions: RolePermissionMap = {
   ],
   coo: [
     'admin_dashboard', 'admin_vendors', 'admin_clients', 'admin_products',
-    'admin_sales_orders', 'admin_shopping_list', 'admin_assets', 'admin_hr', 'admin_crm',
+    'admin_sales_orders', 'admin_shopping_list', 'admin_dropship', 'admin_assets', 'admin_hr', 'admin_crm',
     'admin_documents', 'admin_okr', 'admin_users', 'admin_settings', 'admin_tasks', 'admin_maintenance', 'admin_price_lists', 'admin_activity_log',
     'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets',
     'finance_budget', 'finance_cash_bank', 'finance_expenses', 'finance_ledger', 'finance_invoices', 'finance_ar_aging', 'finance_ap_aging', 'finance_collections',
@@ -682,7 +682,7 @@ const initialRolePermissions: RolePermissionMap = {
   gudang: ['warehouse_dashboard', 'warehouse_catalog', 'warehouse_inbound', 'warehouse_outbound', 'warehouse_qc', 'warehouse_reject_monitor', 'tasks_global'],
   sourcing: ['sourcing_dashboard', 'sourcing_list', 'sourcing_expenses', 'tasks_global'],
   kurir: ['courier_dashboard', 'courier_list', 'courier_handover', 'courier_history', 'courier_expenses', 'tasks_global'],
-  admin_po: ['admin_dashboard', 'admin_sales_orders', 'admin_shopping_list', 'admin_clients', 'admin_products', 'warehouse_catalog', 'tasks_global', 'admin_price_lists', 'finance_invoices', 'admin_tukar_faktur'],
+  admin_po: ['admin_dashboard', 'admin_sales_orders', 'admin_shopping_list', 'admin_dropship', 'admin_clients', 'admin_products', 'warehouse_catalog', 'tasks_global', 'admin_price_lists', 'finance_invoices', 'admin_tukar_faktur'],
 };
 
 export const useAppStore = create<AppState>((set, get) => ({
