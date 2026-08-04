@@ -47,3 +47,24 @@ export function groupDropship<T extends { vendorId?: string; salesOrderId?: stri
   });
   return Array.from(groups.values());
 }
+
+export type DropshipTotalsLine = {
+  qtyOrdered: number;
+  qtyReceived: number;
+  unitCost: number;
+  unitPrice: number;
+};
+
+/** Split a confirmed dropship delivery into what to bill, what to owe, what to re-buy. */
+export function splitDropshipTotals(lines: DropshipTotalsLine[]) {
+  let revenue = 0;
+  let cogs = 0;
+  const shortfalls: { index: number; qty: number }[] = [];
+  lines.forEach((line, index) => {
+    revenue += dropshipLineValue(line.qtyReceived, line.unitPrice);
+    cogs += dropshipLineValue(line.qtyReceived, line.unitCost);
+    const short = dropshipShortfall(line.qtyOrdered, line.qtyReceived);
+    if (short > 0) shortfalls.push({ index, qty: short });
+  });
+  return { revenue, cogs, shortfalls };
+}

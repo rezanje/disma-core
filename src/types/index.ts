@@ -643,7 +643,7 @@ export interface RejectedItem {
   productId: string;
   qty: number;
   reason: string;
-  source: 'QC' | 'Return' | 'Gudang';
+  source: 'QC' | 'Return' | 'Gudang' | 'Dropship';
   referenceId?: string;
   reportedBy: string;
   imageUrl?: string;
