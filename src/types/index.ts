@@ -189,7 +189,8 @@ export interface SalesOrderItem {
 }
 
 export type PurchaseStatus = 'Pending' | 'Belanja' | 'Selesai';
-export type PurchaseMethod = 'Pasar' | 'Vendor' | 'Online'; // lokasi ambil barang
+// 'Dropship' = vendor mengantar langsung ke klien, tidak lewat gudang sama sekali.
+export type PurchaseMethod = 'Pasar' | 'Vendor' | 'Online' | 'Dropship'; // lokasi ambil barang
 export type ReconciliationStatus = 'Belum Transfer' | 'Dana Ditransfer' | 'Laporan Masuk' | 'Terverifikasi' | 'Dispute';
 
 export interface Purchase {
