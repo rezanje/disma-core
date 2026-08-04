@@ -26,7 +26,7 @@ type ShoppingListDocumentItem = {
   totalQty: number
   estimatedPrice: number
   sellPrice: number
-  purchaseMethod: 'Pasar' | 'Online' | 'Vendor'
+  purchaseMethod: 'Pasar' | 'Online' | 'Vendor' | 'Dropship'
   paymentMethod?: 'Cash' | 'Tempo' | 'Transfer'
   salesOrderId?: string
   vendorId?: string
@@ -168,6 +168,11 @@ export default function ShoppingListPage() {
     if (typeof window === 'undefined') return new Set()
     try { return new Set(JSON.parse(localStorage.getItem('shopping_vendorProductIds_v2') || '[]')) } catch { return new Set() }
   })
+  // Baris yang diantar vendor langsung ke klien — tidak lewat gudang sama sekali.
+  const [dropshipProductIds, setDropshipProductIds] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set()
+    try { return new Set(JSON.parse(localStorage.getItem('shopping_dropshipProductIds_v2') || '[]')) } catch { return new Set() }
+  })
   // Metode bayar per baris — independen dari lokasi ambil barang. Default Cash bila belum di-set.
   const [paymentByProduct, setPaymentByProduct] = useState<Record<string, 'Cash' | 'Tempo' | 'Transfer'>>(() => {
     if (typeof window === 'undefined') return {}
@@ -205,6 +210,7 @@ export default function ShoppingListPage() {
   useEffect(() => { localStorage.setItem('shopping_vendorAssignments_v2', JSON.stringify(vendorAssignments)) }, [vendorAssignments])
   useEffect(() => { localStorage.setItem('shopping_onlineProductIds_v2', JSON.stringify(Array.from(onlineProductIds))) }, [onlineProductIds])
   useEffect(() => { localStorage.setItem('shopping_vendorProductIds_v2', JSON.stringify(Array.from(vendorProductIds))) }, [vendorProductIds])
+  useEffect(() => { localStorage.setItem('shopping_dropshipProductIds_v2', JSON.stringify(Array.from(dropshipProductIds))) }, [dropshipProductIds])
   useEffect(() => { localStorage.setItem('shopping_paymentByProduct_v2', JSON.stringify(paymentByProduct)) }, [paymentByProduct])
   useEffect(() => { localStorage.setItem('shopping_stockBookedProductIds_v2', JSON.stringify(Array.from(stockBookedProductIds))) }, [stockBookedProductIds])
   useEffect(() => { localStorage.setItem('shopping_filterDeliveryDate', filterDeliveryDate) }, [filterDeliveryDate])
@@ -236,6 +242,7 @@ export default function ShoppingListPage() {
           if (d.paymentByProduct) setPaymentByProduct(d.paymentByProduct)
           if (Array.isArray(d.onlineProductIds)) setOnlineProductIds(new Set(d.onlineProductIds))
           if (Array.isArray(d.vendorProductIds)) setVendorProductIds(new Set(d.vendorProductIds))
+          if (Array.isArray(d.dropshipProductIds)) setDropshipProductIds(new Set(d.dropshipProductIds))
           if (Array.isArray(d.stockBookedProductIds)) setStockBookedProductIds(new Set(d.stockBookedProductIds))
           if (Array.isArray(d.compiledRejectIds)) setCompiledRejectIds(new Set(d.compiledRejectIds))
         }
@@ -256,6 +263,7 @@ export default function ShoppingListPage() {
       paymentByProduct,
       onlineProductIds: Array.from(onlineProductIds),
       vendorProductIds: Array.from(vendorProductIds),
+      dropshipProductIds: Array.from(dropshipProductIds),
       stockBookedProductIds: Array.from(stockBookedProductIds),
       compiledRejectIds: Array.from(compiledRejectIds),
     }
@@ -271,7 +279,8 @@ export default function ShoppingListPage() {
     }, 800)
     return () => clearTimeout(timer)
   }, [draftLoaded, manualItems, customPrices, customQtys, vendorAssignments, paymentByProduct,
-      onlineProductIds, vendorProductIds, stockBookedProductIds, compiledRejectIds, currentUser?.id])
+      onlineProductIds, vendorProductIds, dropshipProductIds, stockBookedProductIds, compiledRejectIds,
+      currentUser?.id])
 
   // State Snapshot history for undoing actions
   const [history, setHistory] = useState<Array<{
@@ -362,6 +371,11 @@ export default function ShoppingListPage() {
       next.delete(key)
       return next
     })
+    setDropshipProductIds(prev => {
+      const next = new Set(prev)
+      next.delete(key)
+      return next
+    })
     // Transfer bayar tidak berlaku di Pasar — turunkan ke Cash bila sebelumnya Transfer.
     setPaymentByProduct(prev => prev[key] === 'Transfer' ? { ...prev, [key]: 'Cash' } : prev)
   }
@@ -379,6 +393,11 @@ export default function ShoppingListPage() {
       return next
     })
     setVendorProductIds(prev => {
+      const next = new Set(prev)
+      next.delete(key)
+      return next
+    })
+    setDropshipProductIds(prev => {
       const next = new Set(prev)
       next.delete(key)
       return next
@@ -402,9 +421,34 @@ export default function ShoppingListPage() {
       next.delete(key)
       return next
     })
+    setDropshipProductIds(prev => {
+      const next = new Set(prev)
+      next.delete(key)
+      return next
+    })
+  }
+
+  // Vendor mengantar langsung ke klien. Hanya untuk baris yang terikat sebuah PO —
+  // baris stok manual tidak punya tujuan pengiriman. Uang tunai tidak berlaku:
+  // tidak ada orang kita di lokasi serah terima, jadi naikkan Cash ke Transfer.
+  const selectDropship = (key: string, salesOrderId?: string) => {
+    if (!salesOrderId) {
+      toast.error("Kiriman langsung ke klien cuma bisa untuk barang yang nempel ke PO.")
+      return
+    }
+    saveToHistory()
+    setStockBookedProductIds(prev => { const next = new Set(prev); next.delete(key); return next })
+    setOnlineProductIds(prev => { const next = new Set(prev); next.delete(key); return next })
+    setVendorProductIds(prev => { const next = new Set(prev); next.delete(key); return next })
+    setDropshipProductIds(prev => { const next = new Set(prev); next.add(key); return next })
+    setPaymentByProduct(prev => (prev[key] || 'Cash') === 'Cash' ? { ...prev, [key]: 'Transfer' } : prev)
   }
 
   const setPaymentMethod = (key: string, method: 'Cash' | 'Tempo' | 'Transfer') => {
+    if (method === 'Cash' && dropshipProductIds.has(key)) {
+      toast.error("Kiriman langsung ke klien nggak bisa bayar tunai — pilih Transfer atau Tempo.")
+      return
+    }
     saveToHistory()
     setPaymentByProduct(prev => ({ ...prev, [key]: method }))
   }
@@ -554,7 +598,10 @@ export default function ShoppingListPage() {
           totalQty: curr.qty,
           estimatedPrice: customPrice !== undefined ? customPrice : (curr.buyPrice || product.basePrice || 0),
           sellPrice: curr.sellPrice,
-          purchaseMethod: vendorProductIds.has(key) ? 'Vendor' : onlineProductIds.has(key) ? 'Online' : 'Pasar',
+          purchaseMethod: dropshipProductIds.has(key) ? 'Dropship'
+            : vendorProductIds.has(key) ? 'Vendor'
+            : onlineProductIds.has(key) ? 'Online'
+            : 'Pasar',
           paymentMethod: paymentByProduct[key] || 'Cash',
           salesOrderId: curr.salesOrderId,
           vendorId: vId,
@@ -564,7 +611,7 @@ export default function ShoppingListPage() {
       }
     }
     return acc
-  }, [] as Array<{productId: string, productName: string, skuCode: string, uom?: string, kebutuhan: number, totalQty: number, estimatedPrice: number, sellPrice: number, purchaseMethod: 'Pasar' | 'Online' | 'Vendor', paymentMethod: 'Cash' | 'Tempo' | 'Transfer', salesOrderId?: string, vendorId?: string, vendorName?: string, fromStock?: boolean}>)
+  }, [] as Array<{productId: string, productName: string, skuCode: string, uom?: string, kebutuhan: number, totalQty: number, estimatedPrice: number, sellPrice: number, purchaseMethod: 'Pasar' | 'Online' | 'Vendor' | 'Dropship', paymentMethod: 'Cash' | 'Tempo' | 'Transfer', salesOrderId?: string, vendorId?: string, vendorName?: string, fromStock?: boolean}>)
 
   const consolidatedList = useMemo(() => {
     return rawConsolidatedList.map(item => {
@@ -1605,6 +1652,26 @@ export default function ShoppingListPage() {
                                               >
                                                 Vendor
                                               </button>
+                                              <button
+                                                onClick={() => {
+                                                  // Baris stok manual tidak punya tujuan kirim — lewati diam-diam
+                                                  // supaya bulk tidak memuntahkan satu toast error per baris.
+                                                  const eligible = items.filter(i => i.salesOrderId)
+                                                  if (eligible.length === 0) {
+                                                    toast.error("Nggak ada barang di grup ini yang nempel ke PO.")
+                                                    return
+                                                  }
+                                                  saveToHistory()
+                                                  eligible.forEach(i => selectDropship(rowKey(i), i.salesOrderId))
+                                                  if (eligible.length < items.length) {
+                                                    toast.info(`${items.length - eligible.length} barang stok manual dilewati.`)
+                                                  }
+                                                }}
+                                                className="px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105 bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100"
+                                                title={`Set semua ${items.length} item di ${vName} ke antar langsung ke klien`}
+                                              >
+                                                Ke Klien
+                                              </button>
                                             </div>
                                             <div className="flex items-center gap-1 border border-slate-200 rounded-lg p-0.5 bg-white">
                                               <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 pl-1.5 pr-0.5">Bayar:</span>
@@ -1881,6 +1948,23 @@ export default function ShoppingListPage() {
                                                title="Lokasi: Diantar/Diambil dari Vendor"
                                             >
                                                Vendor
+                                            </button>
+
+                                            {/* Button Vendor → Klien */}
+                                            <button
+                                               onClick={() => selectDropship(rowKey(item), item.salesOrderId)}
+                                               disabled={!item.salesOrderId}
+                                               className={cn(
+                                                  "px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105 disabled:opacity-40 disabled:hover:scale-100 disabled:cursor-not-allowed",
+                                                  item.purchaseMethod === 'Dropship' && !item.fromStock
+                                                     ? "bg-orange-100 border-orange-300 text-orange-700"
+                                                     : "bg-slate-50 border-slate-200 text-slate-400"
+                                               )}
+                                               title={item.salesOrderId
+                                                  ? "Vendor antar langsung ke klien (tidak lewat gudang)"
+                                                  : "Cuma untuk barang yang nempel ke PO"}
+                                            >
+                                               Ke Klien
                                             </button>
 
                                             {/* Button Gudang */}
