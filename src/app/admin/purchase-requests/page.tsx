@@ -15,7 +15,8 @@ import { cn } from "@/lib/utils"
 import { formatRupiah, formatNumber, parseNumber } from "@/lib/utils"
 import {
   ClipboardList, Plus, FileText, CheckCircle2,
-  XCircle, Clock, ShieldCheck, Landmark, DollarSign, Search, Sparkles, ShoppingBag
+  XCircle, Clock, ShieldCheck, Landmark, DollarSign, Search, Sparkles, ShoppingBag,
+  ChevronRight
 } from "lucide-react"
 import { recordPRExpensePayment, bankRequiresCfoApproval } from "@/lib/accounting"
 import { toast } from "sonner"
@@ -62,6 +63,7 @@ export default function PurchaseRequestsPage() {
   const [filterStatus, setFilterStatus] = useState<string>("ALL")
   const [searchQuery, setSearchQuery] = useState<string>("")
   const [selectedPRId, setSelectedPRId] = useState<string | null>(null)
+  const [expandedPurchaseId, setExpandedPurchaseId] = useState<string | null>(null)
 
   // Add PR Form States
   const [isFormOpen, setIsFormOpen] = useState(false)
@@ -73,12 +75,39 @@ export default function PurchaseRequestsPage() {
   const [filterSODate, setFilterSODate] = useState<string>("")
   const [includeManualItems, setIncludeManualItems] = useState(false)
   const [manualItemsList, setManualItemsList] = useState<any[]>([])
+  // Rencana belanja yang disusun Admin PO di Shopping List. Sumbernya database
+  // (tabel shopping_draft), localStorage cuma cadangan kalau fetch-nya gagal.
+  const [shoppingDraft, setShoppingDraft] = useState<{ onlineProductIds: Set<string>; vendorAssignments: Record<string, string> }>({
+    onlineProductIds: new Set(),
+    vendorAssignments: {}
+  })
 
   useEffect(() => {
-    try {
-      const items = JSON.parse(localStorage.getItem('shopping_manualItems') || '[]')
-      setManualItemsList(items)
-    } catch { /* ignore */ }
+    const fromLocal = () => {
+      try {
+        setManualItemsList(JSON.parse(localStorage.getItem('shopping_manualItems') || '[]'))
+        setShoppingDraft({
+          onlineProductIds: new Set(JSON.parse(localStorage.getItem('shopping_onlineProductIds_v2') || '[]')),
+          vendorAssignments: JSON.parse(localStorage.getItem('shopping_vendorAssignments_v2') || '{}')
+        })
+      } catch { /* ignore */ }
+    }
+
+    let cancelled = false
+    fetch('/api/shopping-draft', { cache: 'no-store' })
+      .then(res => res.ok ? res.json() : null)
+      .then(json => {
+        if (cancelled) return
+        const d = json?.draft
+        if (!d || typeof d !== 'object') { fromLocal(); return }
+        setManualItemsList(Array.isArray(d.manualItems) ? d.manualItems : [])
+        setShoppingDraft({
+          onlineProductIds: new Set(Array.isArray(d.onlineProductIds) ? d.onlineProductIds : []),
+          vendorAssignments: d.vendorAssignments || {}
+        })
+      })
+      .catch(() => { if (!cancelled) fromLocal() })
+    return () => { cancelled = true }
   }, [])
 
   const recalculateForm = (soIds: string[], manualChecked: boolean) => {
@@ -117,10 +146,19 @@ export default function PurchaseRequestsPage() {
         setNewTitle(`Belanja Sourcing ${titleParts.join(' & ')}`)
       }
       
-      let onlineProductIds = new Set<string>()
-      try {
-        onlineProductIds = new Set(JSON.parse(localStorage.getItem('shopping_onlineProductIds') || '[]'))
-      } catch { /* ignore */ }
+      // Kunci baris sama persis dengan Shopping List (`rowKey`): productId::salesOrderId.
+      const rowKey = (productId: string, salesOrderId?: string) => `${productId}::${salesOrderId || ''}`
+      const { onlineProductIds, vendorAssignments } = shoppingDraft
+
+      // Tempat belanja yang sudah ditentukan Admin PO di Shopping List, biar Finance
+      // lihat rencananya (mis. "di Mba Sifa") langsung dari justifikasi PR.
+      const sourceLabel = (productId: string, salesOrderId?: string) => {
+        const key = rowKey(productId, salesOrderId)
+        const vendorId = vendorAssignments[key] || products.find(p => p.id === productId)?.defaultVendorId
+        const vendorName = vendorId ? vendors.find(v => v.id === vendorId)?.companyName : undefined
+        if (vendorName) return ` (${vendorName})`
+        return onlineProductIds.has(key) ? ' (Belanja Online)' : ''
+      }
 
       if (!newDescription || newDescription.startsWith("Kebutuhan pembelian barang")) {
         const descParts = []
@@ -130,9 +168,8 @@ export default function PurchaseRequestsPage() {
             const soItems = salesOrderItems.filter(i => i.salesOrderId === so?.id)
             const itemsDesc = soItems.map(item => {
               const prod = products.find(p => p.id === item.productId)
-              const isOnline = onlineProductIds.has(item.productId)
               const estHpp = item.estimatedHpp !== undefined ? item.estimatedHpp : (prod?.basePrice || 0)
-              return `  - ${item.qty}x ${prod?.name || 'Item'} @ ${formatRupiah(estHpp)}${isOnline ? ' (Belanja Online)' : ''}`
+              return `  - ${item.qty}x ${prod?.name || 'Item'} @ ${formatRupiah(estHpp)}${sourceLabel(item.productId, item.salesOrderId)}`
             }).join('\n')
             return `- PO ${so?.poNumber} (${clientName})\n${itemsDesc}`
           }).join('\n\n')
@@ -142,8 +179,7 @@ export default function PurchaseRequestsPage() {
         if (manualChecked && manualItemsList.length > 0) {
           const manualDetails = manualItemsList.map(item => {
             const prod = products.find(p => p.id === item.productId)
-            const isOnline = onlineProductIds.has(item.productId)
-            return `  - ${item.qty}x ${prod?.name || 'Item'} @ ${formatRupiah(item.price)}${isOnline ? ' (Belanja Online)' : ''}`
+            return `  - ${item.qty}x ${prod?.name || 'Item'} @ ${formatRupiah(item.price)}${sourceLabel(item.productId)}`
           }).join('\n')
           descParts.push(`Kebutuhan Item Stok Manual:\n\n${manualDetails}`)
         }
@@ -1040,30 +1076,93 @@ export default function PurchaseRequestsPage() {
                             </div>
                           ) : (
                             <div className="space-y-2">
-                              {linkedPurchases.map((p, idx) => (
-                                <div key={p.id} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2.5">
-                                  <div>
-                                    <p className="text-xs font-black text-slate-800">
-                                      #{idx + 1} {p.advanceCode || `SL-${p.id.slice(0, 8)}`}
-                                    </p>
-                                    <p className="text-[10px] font-bold text-slate-400">
-                                      {new Date(p.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
-                                    </p>
+                              {linkedPurchases.map((p, idx) => {
+                                const isOpen = expandedPurchaseId === p.id
+                                const docItems = purchaseItems.filter(pi => pi.purchaseId === p.id)
+                                // Kelompokkan per tempat belanja: kalau vendornya sudah
+                                // ditunjuk Admin PO pakai nama vendor, kalau tidak pakai
+                                // metode belanjanya (Pasar/Online).
+                                const groups = new Map<string, typeof docItems>()
+                                docItems.forEach(pi => {
+                                  const vendorName = pi.vendorId
+                                    ? (vendors.find(v => v.id === pi.vendorId)?.companyName || 'Vendor')
+                                    : null
+                                  const label = vendorName || (pi.purchaseMethod === 'Online' ? 'Belanja Online' : 'Pasar')
+                                  groups.set(label, [...(groups.get(label) || []), pi])
+                                })
+                                return (
+                                  <div key={p.id} className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                                    <button
+                                      type="button"
+                                      onClick={() => setExpandedPurchaseId(isOpen ? null : p.id)}
+                                      className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left hover:bg-slate-50 transition-colors"
+                                    >
+                                      <div className="flex items-center gap-2 min-w-0">
+                                        <ChevronRight className={cn('w-3.5 h-3.5 shrink-0 text-slate-400 transition-transform', isOpen && 'rotate-90')} />
+                                        <div className="min-w-0">
+                                          <p className="text-xs font-black text-slate-800">
+                                            #{idx + 1} {p.advanceCode || `SL-${p.id.slice(0, 8)}`}
+                                          </p>
+                                          <p className="text-[10px] font-bold text-slate-400">
+                                            {new Date(p.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })} • {docItems.length} item
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <span className={cn(
+                                        'rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-widest shrink-0',
+                                        p.reconciliationStatus === 'Terverifikasi' ? 'bg-emerald-100 text-emerald-700' :
+                                        p.budgetTransferDate ? 'bg-blue-100 text-blue-700' :
+                                        p.reconciliationStatus === 'Belum Transfer' ? 'bg-amber-100 text-amber-700' :
+                                        'bg-slate-100 text-slate-500'
+                                      )}>
+                                        {p.reconciliationStatus === 'Terverifikasi' ? 'Selesai' :
+                                         p.budgetTransferDate ? 'Dana Ditransfer' :
+                                         p.reconciliationStatus === 'Belum Transfer' ? 'Menunggu Dana' :
+                                         'Draft'}
+                                      </span>
+                                    </button>
+
+                                    {isOpen && (
+                                      <div className="border-t border-slate-100 px-3 py-3 space-y-3 bg-slate-50/60">
+                                        {docItems.length === 0 ? (
+                                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                            Belum ada rincian barang
+                                          </p>
+                                        ) : Array.from(groups.entries()).map(([label, items]) => {
+                                          const subtotal = items.reduce((s, it) => s + (it.estimatedUnitPrice || 0) * (it.qtyTarget || 0), 0)
+                                          return (
+                                            <div key={label} className="rounded-xl border border-slate-200 bg-white p-2.5">
+                                              <div className="flex items-center justify-between gap-2 mb-1.5">
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 truncate">
+                                                  {label}
+                                                </p>
+                                                <span className="text-[10px] font-black text-emerald-600 shrink-0">
+                                                  {formatRupiah(subtotal)}
+                                                </span>
+                                              </div>
+                                              <div className="space-y-1">
+                                                {items.map(it => {
+                                                  const prod = products.find(pr => pr.id === it.productId)
+                                                  return (
+                                                    <div key={it.id} className="flex items-center justify-between gap-2 text-[10px] font-bold text-slate-600">
+                                                      <span className="truncate">
+                                                        {it.qtyTarget} {prod?.uom || ''} {prod?.name || 'Item'}
+                                                      </span>
+                                                      <span className="shrink-0 text-slate-400">
+                                                        @ {formatRupiah(it.estimatedUnitPrice || 0)}
+                                                      </span>
+                                                    </div>
+                                                  )
+                                                })}
+                                              </div>
+                                            </div>
+                                          )
+                                        })}
+                                      </div>
+                                    )}
                                   </div>
-                                  <span className={cn(
-                                    'rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-widest',
-                                    p.reconciliationStatus === 'Terverifikasi' ? 'bg-emerald-100 text-emerald-700' :
-                                    p.budgetTransferDate ? 'bg-blue-100 text-blue-700' :
-                                    p.reconciliationStatus === 'Belum Transfer' ? 'bg-amber-100 text-amber-700' :
-                                    'bg-slate-100 text-slate-500'
-                                  )}>
-                                    {p.reconciliationStatus === 'Terverifikasi' ? 'Selesai' :
-                                     p.budgetTransferDate ? 'Dana Ditransfer' :
-                                     p.reconciliationStatus === 'Belum Transfer' ? 'Menunggu Dana' :
-                                     'Draft'}
-                                  </span>
-                                </div>
-                              ))}
+                                )
+                              })}
                             </div>
                           )}
                         </div>

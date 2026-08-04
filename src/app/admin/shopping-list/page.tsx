@@ -210,6 +210,69 @@ export default function ShoppingListPage() {
   useEffect(() => { localStorage.setItem('shopping_filterDeliveryDate', filterDeliveryDate) }, [filterDeliveryDate])
   useEffect(() => { localStorage.setItem('shopping_lastGeneratedDoc', JSON.stringify(lastGeneratedDoc)) }, [lastGeneratedDoc])
 
+  // --- Draft rencana belanja: localStorage di atas cuma cache biar halaman
+  // langsung tampil; sumber kebenarannya baris `shopping_draft` di database,
+  // supaya Finance (dan Admin PO di laptop lain) lihat rencana yang sama dan
+  // rencananya tidak hilang kalau browser dibersihkan.
+  const [draftLoaded, setDraftLoaded] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/shopping-draft', { cache: 'no-store' })
+      .then(res => res.ok ? res.json() : null)
+      .then(json => {
+        if (cancelled) return
+        const d = json?.draft
+        if (d && typeof d === 'object') {
+          if (Array.isArray(d.manualItems)) {
+            setManualItems(d.manualItems.map((it: { source?: string }) => ({
+              ...it,
+              source: it.source === 'susulan' ? 'susulan' : 'manual'
+            } as { id: string, productId: string, qty: number, price: number, source: 'manual' | 'susulan' })))
+          }
+          if (d.customPrices) setCustomPrices(d.customPrices)
+          if (d.customQtys) setCustomQtys(d.customQtys)
+          if (d.vendorAssignments) setVendorAssignments(d.vendorAssignments)
+          if (d.paymentByProduct) setPaymentByProduct(d.paymentByProduct)
+          if (Array.isArray(d.onlineProductIds)) setOnlineProductIds(new Set(d.onlineProductIds))
+          if (Array.isArray(d.vendorProductIds)) setVendorProductIds(new Set(d.vendorProductIds))
+          if (Array.isArray(d.stockBookedProductIds)) setStockBookedProductIds(new Set(d.stockBookedProductIds))
+          if (Array.isArray(d.compiledRejectIds)) setCompiledRejectIds(new Set(d.compiledRejectIds))
+        }
+      })
+      .catch(() => { /* offline: jalan pakai cache localStorage */ })
+      .finally(() => { if (!cancelled) setDraftLoaded(true) })
+    return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
+    // Jangan menimpa draft server sebelum salinannya selesai dimuat.
+    if (!draftLoaded) return
+    const draft = {
+      manualItems,
+      customPrices,
+      customQtys,
+      vendorAssignments,
+      paymentByProduct,
+      onlineProductIds: Array.from(onlineProductIds),
+      vendorProductIds: Array.from(vendorProductIds),
+      stockBookedProductIds: Array.from(stockBookedProductIds),
+      compiledRejectIds: Array.from(compiledRejectIds),
+    }
+    // ponytail: debounce sederhana, last-write-wins. Kalau dua Admin PO menyusun
+    // daftar bersamaan, yang menyimpan terakhir menang — pecah drafnya per user
+    // (lihat migrasi) kalau itu jadi masalah nyata.
+    const timer = setTimeout(() => {
+      fetch('/api/shopping-draft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ draft, updatedBy: currentUser?.id })
+      }).catch(() => { /* offline: localStorage sudah menyimpan */ })
+    }, 800)
+    return () => clearTimeout(timer)
+  }, [draftLoaded, manualItems, customPrices, customQtys, vendorAssignments, paymentByProduct,
+      onlineProductIds, vendorProductIds, stockBookedProductIds, compiledRejectIds, currentUser?.id])
+
   // State Snapshot history for undoing actions
   const [history, setHistory] = useState<Array<{
     manualItems: Array<{id: string, productId: string, qty: number, price: number, source: 'manual' | 'susulan'}>;
