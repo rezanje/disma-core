@@ -3382,6 +3382,27 @@ export const useAppStore = create<AppState>((set, get) => ({
 
         toast.info("Sedang mereset data simulasi...");
 
+        // Cadangan wajib SEBELUM menghapus. takeDevSnapshot() di atas cuma hidup
+        // di memori browser dan fungsi ini me-reload halaman di akhir, jadi undo
+        // bawaannya tidak pernah bisa dipakai. Kalau cadangan gagal, hapusnya
+        // dibatalkan — lebih baik menolak daripada menghapus tanpa jaring.
+        try {
+          toast.info("Menyimpan cadangan sebelum menghapus...");
+          const backupRes = await fetch('/api/db/backup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'prewipe_save' })
+          });
+          if (!backupRes.ok) {
+            const err = await backupRes.json().catch(() => ({}));
+            throw new Error(err.error || backupRes.statusText);
+          }
+        } catch (e) {
+          const message = e instanceof Error ? e.message : String(e);
+          toast.error(`Cadangan gagal dibuat — penghapusan dibatalkan. (${message})`);
+          return;
+        }
+
         try {
           // 1. WIPE Phase
           toast.info("Menghapus data operasional...");
@@ -3421,8 +3442,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         
         clearAllOperationalCaches();
 
-        toast.success("Simulation Reset Selesai! Me-reload halaman...");
-        setTimeout(() => window.location.reload(), 800);
+        toast.success("Data transaksi dihapus. Bisa dikembalikan lewat Settings › Maintenance.", { duration: 8000 });
+        setTimeout(() => window.location.reload(), 1500);
       },
 
       resetDb: async () => {
