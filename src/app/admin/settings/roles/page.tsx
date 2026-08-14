@@ -28,6 +28,7 @@ const AVAILABLE_KEYS: { id: AccessKey, label: string, module: string }[] = [
   { id: 'admin_sales_orders', label: 'Sales Orders', module: 'Operasional' },
   { id: 'admin_shopping_list', label: 'Strategic Shopping List', module: 'Operasional' },
   { id: 'admin_dropship', label: 'Kiriman Vendor ke Klien', module: 'Operasional' },
+  { id: 'admin_delivery_routes', label: 'Rencana Rute Pengiriman', module: 'Operasional' },
   { id: 'sourcing_dashboard', label: 'Sourcing Menu', module: 'Operasional' },
   { id: 'courier_dashboard', label: 'Delivery / Kurir', module: 'Operasional' },
   { id: 'warehouse_dashboard', label: 'Gudang Dashboard', module: 'Logistik' },
