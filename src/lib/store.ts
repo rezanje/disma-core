@@ -13,6 +13,7 @@ import { COA_SEED, CLIENTS_SEED, VENDORS_SEED, MOCK_USERS, KPI_SEED } from './co
 import { PRODUCTS_SEED } from './products_seed';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
+import { loadLocalCache, saveLocalCache } from './local-cache';
 
 const LOCAL_PRODUCTS_CACHE_KEY = 'disma_local_products_cache';
 const LOCAL_CLIENTS_CACHE_KEY = 'disma_local_clients_cache';
@@ -263,21 +264,8 @@ const saveLocalBankAccountsCache = (bankAccounts: BankAccount[]) => {
 };
 
 // --- Generic localStorage cache helpers for remaining tables ---
-
-const loadLocalCache = <T>(key: string): T[] => {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = window.localStorage.getItem(key);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch { return []; }
-};
-
-const saveLocalCache = (key: string, data: any[]) => {
-  if (typeof window === 'undefined') return;
-  try { window.localStorage.setItem(key, JSON.stringify(data)); } catch {}
-};
+// Moved to ./local-cache so the "a cache write must never throw" contract can
+// be tested on its own (local-cache.check.ts).
 
 const loadLocalLeadsCache = (): Lead[] => loadLocalCache<Lead>(LOCAL_LEADS_CACHE_KEY);
 const saveLocalLeadsCache = (leads: Lead[]) => saveLocalCache(LOCAL_LEADS_CACHE_KEY, leads);
@@ -846,11 +834,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           const cachedBudgetSubCategories = loadLocalCache<BudgetSubCategory>(LOCAL_BUDGET_SUB_CATEGORIES_CACHE_KEY);
           const cachedBudgetAdjustments = loadLocalCache<BudgetAdjustment>(LOCAL_BUDGET_ADJUSTMENTS_CACHE_KEY);
           const cachedDisbursementRequests = loadLocalDisbursementRequestsCache();
-          let cachedClientPrices: any[] = [];
-          try {
-            const cpRaw = window.localStorage.getItem(LOCAL_CLIENT_PRICES_CACHE_KEY);
-            if (cpRaw) cachedClientPrices = JSON.parse(cpRaw) || [];
-          } catch {}
+          const cachedClientPrices = loadLocalCache<ClientPrice>(LOCAL_CLIENT_PRICES_CACHE_KEY);
 
           const hasCache = cachedClients.length > 0 || cachedProducts.length > 0 || cachedSalesOrders.length > 0 || cachedLeads.length > 0 || cachedPurchaseRequests.length > 0 || cachedBudgetPlans.length > 0 || cachedDisbursementRequests.length > 0;
           if (hasCache) {
@@ -943,9 +927,10 @@ export const useAppStore = create<AppState>((set, get) => ({
               return;
             }
             set({ clientPrices: g6.clientPrices });
-            try {
-              window.localStorage.setItem(LOCAL_CLIENT_PRICES_CACHE_KEY, JSON.stringify(g6.clientPrices));
-            } catch {}
+            // Best-effort: at ~5MB this is already at the per-origin quota and
+            // usually will not fit, in which case saveLocalCache drops the older
+            // copy instead of leaving a stale one to hydrate from.
+            saveLocalCache(LOCAL_CLIENT_PRICES_CACHE_KEY, g6.clientPrices);
             console.log(`[INIT] Client prices loaded in background (${g6.clientPrices.length} rows).`);
           });
 
@@ -2988,9 +2973,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       },
 
       clientPrices: [],
+      // These four deliberately do NOT write the localStorage cache. The array is
+      // ~5MB at 20k rows — the whole per-origin quota — so re-serialising it on
+      // every single price edit both cost a 5MB stringify per click and threw
+      // QuotaExceededError, and the throw landed before the syncTable below: the
+      // screen showed the new price and the database never heard about it.
+      // The cache is written once per boot from server truth (see init()).
       addClientPrice: async (cp) => {
         set((state) => ({ clientPrices: [...state.clientPrices, cp] }));
-        if (typeof window !== 'undefined') window.localStorage.setItem(LOCAL_CLIENT_PRICES_CACHE_KEY, JSON.stringify(get().clientPrices));
         await get().syncTable('client_prices', cp);
       },
       updateClientPrice: async (id, data) => {
@@ -2998,7 +2988,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         set((state) => ({
           clientPrices: state.clientPrices.map(c => c.id === id ? { ...c, ...data } : c)
         }));
-        if (typeof window !== 'undefined') window.localStorage.setItem(LOCAL_CLIENT_PRICES_CACHE_KEY, JSON.stringify(get().clientPrices));
         const updated = get().clientPrices.find(c => c.id === id);
         if (updated) {
           await get().syncTable('client_prices', updated);
@@ -3008,7 +2997,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       deleteClientPrice: async (id) => {
         const before = get().clientPrices.find(c => c.id === id);
         set((state) => ({ clientPrices: state.clientPrices.filter(c => c.id !== id) }));
-        if (typeof window !== 'undefined') window.localStorage.setItem(LOCAL_CLIENT_PRICES_CACHE_KEY, JSON.stringify(get().clientPrices));
         await fetch('/api/db', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
@@ -3020,7 +3008,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         if (!ids || ids.length === 0) return;
         const beforeMap = new Map(get().clientPrices.filter(c => ids.includes(c.id)).map(c => [c.id, { ...c }]));
         set((state) => ({ clientPrices: state.clientPrices.filter(c => !ids.includes(c.id)) }));
-        if (typeof window !== 'undefined') window.localStorage.setItem(LOCAL_CLIENT_PRICES_CACHE_KEY, JSON.stringify(get().clientPrices));
         await fetch('/api/db', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
