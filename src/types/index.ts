@@ -12,7 +12,7 @@ export type AccessKey =
   | 'admin_dashboard' | 'admin_vendors' | 'admin_clients' | 'admin_products' 
   | 'admin_sales_orders' | 'admin_shopping_list' | 'admin_assets' | 'admin_hr' | 'admin_crm' 
   | 'admin_documents' | 'admin_okr' | 'admin_users' | 'admin_settings' | 'admin_tasks' | 'admin_maintenance' | 'admin_price_lists' | 'admin_activity_log'
-  | 'admin_purchase_requests' | 'admin_loss_analytics' | 'admin_tukar_faktur'
+  | 'admin_purchase_requests' | 'admin_loss_analytics' | 'admin_tukar_faktur' | 'admin_dropship'
   // Finance
   | 'finance_dashboard' | 'finance_approvals' | 'finance_reports' | 'finance_assets' | 'finance_sku_pnl'
   | 'finance_budget' | 'finance_cash_bank' | 'finance_expenses' | 'finance_ledger' | 'finance_invoices' | 'finance_collections'
@@ -189,7 +189,8 @@ export interface SalesOrderItem {
 }
 
 export type PurchaseStatus = 'Pending' | 'Belanja' | 'Selesai';
-export type PurchaseMethod = 'Pasar' | 'Vendor' | 'Online'; // lokasi ambil barang
+// 'Dropship' = vendor mengantar langsung ke klien, tidak lewat gudang sama sekali.
+export type PurchaseMethod = 'Pasar' | 'Vendor' | 'Online' | 'Dropship'; // lokasi ambil barang
 export type ReconciliationStatus = 'Belum Transfer' | 'Dana Ditransfer' | 'Laporan Masuk' | 'Terverifikasi' | 'Dispute';
 
 export interface Purchase {
@@ -642,7 +643,7 @@ export interface RejectedItem {
   productId: string;
   qty: number;
   reason: string;
-  source: 'QC' | 'Return' | 'Gudang';
+  source: 'QC' | 'Return' | 'Gudang' | 'Dropship';
   referenceId?: string;
   reportedBy: string;
   imageUrl?: string;

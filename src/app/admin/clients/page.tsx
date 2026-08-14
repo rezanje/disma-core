@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { cn, formatRupiah } from "@/lib/utils"
+import { clientDeletionBlockers, describeBlockers } from "@/lib/client-delete"
 import { format, parseISO, differenceInDays } from "date-fns"
 import { generateInvoicePDF, generateTukarFakturBundle } from "@/lib/pdf"
 import { 
@@ -46,6 +47,9 @@ export default function ClientsPage() {
   const addClient = useAppStore(state => state.addClient)
   const updateClient = useAppStore(state => state.updateClient)
   const updateMultipleClients = useAppStore(state => state.updateMultipleClients)
+  const deleteClient = useAppStore(state => state.deleteClient)
+  const tukarFakturs = useAppStore(state => state.tukarFakturs) || []
+  const clientPrices = useAppStore(state => state.clientPrices) || []
   const salesOrders: SalesOrder[] = useAppStore(state => state.salesOrders)
   const salesOrderItems: SalesOrderItem[] = useAppStore(state => state.salesOrderItems)
   const invoices: Invoice[] = useAppStore(state => state.invoices)
@@ -93,6 +97,8 @@ export default function ClientsPage() {
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
   const [filterDebt, setFilterDebt] = useState<"all" | "has_debt">("all")
   const [isSaving, setIsSaving] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<Client | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
   const [selectedHistoryClient, setSelectedHistoryClient] = useState<Client | null>(null)
   const [selectedClientIds, setSelectedClientIds] = useState<string[]>([])
@@ -264,6 +270,20 @@ export default function ClientsPage() {
       defaultPriceTier: "Standard"
     })
     setEditingClient(null)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget || isDeleting) return
+    setIsDeleting(true)
+    try {
+      const ok = await deleteClient(deleteTarget.id)
+      if (ok) {
+        setDeleteTarget(null)
+        setSelectedClientId(null)
+      }
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   const handleEdit = (client: Client) => {
@@ -635,6 +655,25 @@ export default function ClientsPage() {
             <Button variant="outline" className="rounded-full h-10 font-bold border-slate-200" onClick={() => handleEdit(selectedClient)}>
               <Pencil className="mr-2 h-4 w-4" /> Edit Profil
             </Button>
+            {(() => {
+              const blockers = clientDeletionBlockers(selectedClient.id, {
+                salesOrders, invoices, tukarFakturs, clientPrices,
+              })
+              const blocked = blockers.length > 0
+              return (
+                <Button
+                  variant="outline"
+                  disabled={blocked}
+                  onClick={() => setDeleteTarget(selectedClient)}
+                  className="rounded-full h-10 font-bold border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-40"
+                  title={blocked
+                    ? `Sudah punya ${describeBlockers(blockers)} — tidak bisa dihapus`
+                    : 'Hapus klien ini'}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" /> Hapus Klien
+                </Button>
+              )
+            })()}
           </div>
         </div>
 
@@ -2084,6 +2123,58 @@ export default function ClientsPage() {
           isConsolidated={invoicePreview.isConsolidated}
         />
       )}
+
+      {/* Konfirmasi hapus klien. Sengaja pakai dialog aplikasi, bukan confirm()
+          bawaan browser — confirm() diblokir di sebagian browser dan tombolnya
+          jadi diam tanpa kabar. */}
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open && !isDeleting) setDeleteTarget(null) }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-black uppercase tracking-wider text-rose-600">
+              Hapus Klien
+            </DialogTitle>
+          </DialogHeader>
+          {deleteTarget && (
+            <div className="space-y-4">
+              <p className="text-sm font-bold text-slate-700">
+                Hapus <span className="font-black text-slate-950">{deleteTarget.companyName}</span> dari daftar klien?
+              </p>
+              <div className="rounded-2xl bg-slate-50 p-3 space-y-1">
+                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Yang ikut terhapus</p>
+                <p className="text-xs font-bold text-slate-600">
+                  Daftar harga khusus klien ini
+                  {clientPrices.filter(p => p.clientId === deleteTarget.id).length > 0
+                    ? ` (${clientPrices.filter(p => p.clientId === deleteTarget.id).length} baris)`
+                    : ' (belum ada)'}
+                </p>
+                <p className="text-[10px] font-bold text-slate-400 pt-1">
+                  Klien ini belum punya PO, tagihan, atau tukar faktur — jadi tidak ada riwayat yang hilang.
+                </p>
+              </div>
+              <p className="text-[10px] font-black uppercase tracking-wider text-rose-500">
+                Tindakan ini tidak bisa dibatalkan
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setDeleteTarget(null)}
+                  disabled={isDeleting}
+                  className="flex-1 rounded-xl h-11 font-extrabold text-[10px] uppercase tracking-wider"
+                >
+                  Batal
+                </Button>
+                <Button
+                  onClick={handleConfirmDelete}
+                  disabled={isDeleting}
+                  className="flex-1 bg-rose-600 hover:bg-rose-700 text-white rounded-xl h-11 font-extrabold text-[10px] uppercase tracking-wider"
+                >
+                  {isDeleting ? 'Menghapus...' : 'Ya, Hapus'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

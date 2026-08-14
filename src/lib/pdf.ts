@@ -117,16 +117,28 @@ function drawSalesOrderOnDoc(doc: jsPDF, poNumber: string) {
   drawSignatures(doc, "Kepala Admin (Gudang)", "Pemesan (Client)", y + 20)
 }
 
-function drawSuratJalanOnDoc(doc: jsPDF, poNumber: string, isFirstPage: boolean = true, signatures?: { courier?: string, client?: string }) {
+function drawSuratJalanOnDoc(
+  doc: jsPDF,
+  poNumber: string,
+  isFirstPage: boolean = true,
+  signatures?: { courier?: string, client?: string },
+  onlyProductIds?: string[],
+  subtitle?: string,
+) {
   const store = useAppStore.getState()
   const so = store.salesOrders.find(s => s.poNumber === poNumber)
   if (!so) return
 
   if (!isFirstPage) doc.addPage()
-  
+
   const client = store.clients.find(c => c.id === so.clientId)
-  const items = store.salesOrderItems.filter(i => i.salesOrderId === so.id)
-  
+  const allItems = store.salesOrderItems.filter(i => i.salesOrderId === so.id)
+  // Kiriman vendor cuma membawa sebagian isi PO; sisanya dikirim terpisah dari
+  // gudang, jadi mencetak seluruh PO akan menjanjikan barang yang tidak ikut.
+  const items = onlyProductIds
+    ? allItems.filter(i => onlyProductIds.includes(i.productId))
+    : allItems
+
   drawHeader(doc, "SURAT JALAN (DELIVERY NOTE)", `SJ-${poNumber}`, new Date(so.orderDate))
 
   // Client Info
@@ -136,6 +148,13 @@ function drawSuratJalanOnDoc(doc: jsPDF, poNumber: string, isFirstPage: boolean 
   doc.setFont("helvetica", "normal")
   doc.text(client?.companyName || 'Unknown', 130, 54)
   doc.text(client?.address || '', 130, 59, { maxWidth: 60 })
+
+  if (subtitle) {
+    doc.setFont("helvetica", "bold")
+    doc.setFontSize(10)
+    doc.text(subtitle, 14, 70)
+    doc.setFont("helvetica", "normal")
+  }
 
   let y = 80
   doc.setFillColor(240, 240, 240)
@@ -166,14 +185,35 @@ function drawSuratJalanOnDoc(doc: jsPDF, poNumber: string, isFirstPage: boolean 
   drawSignatures(doc, "Tim Gudang (Pengirim)", "Penerima (Klien)", y + 20, signatures?.courier, signatures?.client)
 }
 
-export function generateSuratJalan(poNumber: string, signatures?: { courier?: string, client?: string }, outputType: 'save' | 'dataurl' = 'save', adjustments?: Record<string, number>) {
+export function generateSuratJalan(poNumber: string, signatures?: { courier?: string, client?: string }, outputType: 'save' | 'dataurl' = 'save') {
   const doc = new jsPDF({ compress: true })
   drawSuratJalanOnDoc(doc, poNumber, true, signatures)
-  
+
   if (outputType === 'dataurl') {
     return doc.output('datauristring')
   }
   doc.save(`Surat_Jalan_${poNumber}.pdf`)
+}
+
+/**
+ * Surat jalan atas nama Disma untuk dibawa vendor ke klien. Hanya memuat baris
+ * yang diantar vendor itu — sisa isi PO dikirim terpisah dari gudang.
+ */
+export function generateDropshipSuratJalan(
+  salesOrderId: string,
+  productIds: string[],
+  vendorName: string,
+  outputType: 'save' | 'dataurl' = 'save'
+) {
+  const store = useAppStore.getState()
+  const so = store.salesOrders.find(s => s.id === salesOrderId)
+  if (!so) return
+  const doc = new jsPDF({ compress: true })
+  drawSuratJalanOnDoc(doc, so.poNumber, true, undefined, productIds, `Diantar oleh: ${vendorName}`)
+  if (outputType === 'dataurl') {
+    return doc.output('datauristring')
+  }
+  doc.save(`Surat_Jalan_${so.poNumber}_${vendorName.replace(/\s+/g, '_')}.pdf`)
 }
 
 function drawBAOnDoc(doc: jsPDF, poNumber: string, signatures?: { courier?: string, client?: string }, adjustments?: Record<string, number>) {

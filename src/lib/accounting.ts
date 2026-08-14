@@ -4,7 +4,8 @@ import { JournalEntry, JournalLine, StockMovement, VendorBill } from '@/types';
 import { format } from 'date-fns';
 import { supabase } from './supabase';
 import { dueDateFor } from './vendor-payable';
-import { roundQtyToBook } from './backorder';
+import { roundQtyToBook, nextSoStatus } from './backorder';
+import { splitDropshipTotals } from './dropship';
 
 /**
  * Double-Entry Bookkeeping Helper functions
@@ -732,6 +733,168 @@ export const finalizeSalesOrderDelivery = async (soId: string) => {
 
     const ok = await recordDeliveryAndInvoice(deliveryId, invoiceId, totalRevenue, totalCogs, stockDeductionItems, false);
     if (!ok) return false;
+    return true;
+  } finally {
+    store.endUndoableBatch();
+  }
+};
+
+export type DropshipConfirmLine = {
+  purchaseItemId: string;
+  productId: string;
+  qtyOrdered: number;
+  qtyReceived: number;
+  unitCost: number;
+  unitPrice: number;
+};
+
+/**
+ * Books a dropship delivery the client has confirmed receiving.
+ *
+ * Goods went vendor → client and never entered the warehouse, so persediaan is
+ * not involved on either side: the cost goes straight to HPP against the same
+ * GR/IR accrual (2-1100) that QC would have raised, and the vendor payment paths
+ * below clear it exactly as they do after QC. No stock movement is written —
+ * writing one here would inflate on-hand for goods nobody ever held.
+ *
+ * Idempotent: every purchase item it books is flagged isQCed, so a repeat call
+ * with the same lines returns early. This cannot lean on the invoice dup-guard
+ * inside recordDeliveryAndInvoice — each call mints a fresh invoice id, so that
+ * guard would never fire and a double press would bill the client twice.
+ */
+export const recordDropshipDelivery = async (
+  salesOrderId: string,
+  vendorId: string,
+  lines: DropshipConfirmLine[],
+  confirmedBy: string,
+  bankAccountId?: string,
+  note?: string,
+  proofUrl?: string,
+) => {
+  const store = useAppStore.getState();
+  const so = store.salesOrders.find(s => s.id === salesOrderId);
+  if (!so || lines.length === 0) return false;
+
+  // Already booked (double press, or two tabs open) — do nothing rather than
+  // issue a second invoice for goods delivered once.
+  const alreadyBooked = lines.every(l =>
+    store.purchaseItems.find(pi => pi.id === l.purchaseItemId)?.isQCed
+  );
+  if (alreadyBooked) {
+    console.warn('[Dropship] Lines already confirmed. Skipping.');
+    return true;
+  }
+
+  const { revenue, cogs, shortfalls } = splitDropshipTotals(lines);
+
+  store.beginUndoableBatch();
+  try {
+    const invoiceId = uuidv4();
+    const deliveryId = uuidv4();
+
+    if (revenue > 0) {
+      await store.addInvoice({
+        id: invoiceId,
+        salesOrderId,
+        clientId: so.clientId || '',
+        issueDate: new Date().toISOString(),
+        dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+        totalAmount: revenue,
+        amountPaid: 0,
+        status: 'Unpaid',
+      });
+      await store.addDelivery({
+        id: deliveryId,
+        salesOrderId,
+        courierId: '',
+        status: 'Terkirim',
+        deliveryDate: new Date().toISOString(),
+        invoiceId,
+        baUrl: proofUrl,
+        notes: note || 'Diantar vendor langsung ke klien',
+      });
+      await createAccountingEntry(
+        `Invoice Terbit (Kiriman Vendor) - Ref: ${invoiceId}`,
+        'Invoice',
+        invoiceId,
+        [{ accountCode: '1-2000', amount: revenue }],
+        [{ accountCode: '4-1000', amount: revenue }],
+      );
+    }
+
+    if (cogs > 0) {
+      // Dr HPP / Cr 2-1100 — persediaan dilewati, barangnya tidak pernah masuk gudang.
+      await createAccountingEntry(
+        `HPP Kiriman Vendor - Ref: ${deliveryId}`,
+        'Delivery',
+        deliveryId,
+        [{ accountCode: '5-1000', amount: cogs }],
+        [{ accountCode: '2-1100', amount: cogs }],
+      );
+    }
+
+    // Vendor obligation, on the same two paths QC uses.
+    const firstItem = store.purchaseItems.find(pi => pi.id === lines[0]?.purchaseItemId);
+    if (cogs > 0 && firstItem?.paymentMethod === 'Tempo') {
+      await recordVendorBillFromInbound(
+        firstItem.id,
+        vendorId,
+        cogs,
+        `Tempo kiriman vendor ke klien (${new Date().toLocaleDateString('id-ID')})`,
+        firstItem.purchaseId,
+      );
+    } else if (cogs > 0 && firstItem?.paymentMethod === 'Transfer') {
+      const bank = bankAccountId
+        ? store.bankAccounts.find(b => b.id === bankAccountId)
+        : store.bankAccounts.find(b => b.accountCode === '1-1200');
+      if (bank) {
+        await recordVendorTransferPurchase(firstItem.purchaseId, bank.id, cogs, confirmedBy);
+      }
+    }
+
+    // Per-line bookkeeping: mark the purchase item done, credit the client's
+    // order for what arrived, and push the shortfall into the susulan list.
+    const soItems = store.salesOrderItems.filter(i => i.salesOrderId === salesOrderId);
+    for (const line of lines) {
+      await store.updatePurchaseItem(line.purchaseItemId, {
+        isQCed: true,
+        inboundStatus: line.qtyReceived === 0 ? 'rejected'
+          : line.qtyReceived < line.qtyOrdered ? 'partial' : 'verified',
+        inboundQtyReceived: line.qtyReceived,
+        inboundVerifiedAt: new Date().toISOString(),
+        inboundVerifiedBy: confirmedBy,
+        actualUnitPrice: line.unitCost,
+        qtyPurchased: line.qtyReceived,
+      });
+
+      const soItem = soItems.find(i => i.productId === line.productId);
+      if (soItem) {
+        await store.updateSalesOrderItem(soItem.id, {
+          qtyFinal: null,
+          qtyDelivered: (soItem.qtyDelivered ?? 0) + line.qtyReceived,
+        });
+      }
+    }
+
+    for (const short of shortfalls) {
+      const line = lines[short.index];
+      await store.addRejectedItem({
+        id: uuidv4(),
+        date: new Date().toISOString(),
+        productId: line.productId,
+        qty: short.qty,
+        reason: 'Kurang dikirim vendor (kiriman langsung ke klien)',
+        source: 'Dropship',
+        referenceId: line.purchaseItemId,
+        reportedBy: confirmedBy,
+      });
+    }
+
+    // Order selesai hanya kalau tidak ada sisa di sisi mana pun — sisa barang gudang
+    // pada PO campuran tetap menahan statusnya.
+    const fresh = useAppStore.getState().salesOrderItems.filter(i => i.salesOrderId === salesOrderId);
+    await store.updateSalesOrder(salesOrderId, { status: nextSoStatus(fresh) });
+
     return true;
   } finally {
     store.endUndoableBatch();

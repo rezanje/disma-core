@@ -77,8 +77,13 @@ export default function PurchaseRequestsPage() {
   const [manualItemsList, setManualItemsList] = useState<any[]>([])
   // Rencana belanja yang disusun Admin PO di Shopping List. Sumbernya database
   // (tabel shopping_draft), localStorage cuma cadangan kalau fetch-nya gagal.
-  const [shoppingDraft, setShoppingDraft] = useState<{ onlineProductIds: Set<string>; vendorAssignments: Record<string, string> }>({
+  const [shoppingDraft, setShoppingDraft] = useState<{
+    onlineProductIds: Set<string>;
+    dropshipProductIds: Set<string>;
+    vendorAssignments: Record<string, string>
+  }>({
     onlineProductIds: new Set(),
+    dropshipProductIds: new Set(),
     vendorAssignments: {}
   })
 
@@ -88,6 +93,7 @@ export default function PurchaseRequestsPage() {
         setManualItemsList(JSON.parse(localStorage.getItem('shopping_manualItems') || '[]'))
         setShoppingDraft({
           onlineProductIds: new Set(JSON.parse(localStorage.getItem('shopping_onlineProductIds_v2') || '[]')),
+          dropshipProductIds: new Set(JSON.parse(localStorage.getItem('shopping_dropshipProductIds_v2') || '[]')),
           vendorAssignments: JSON.parse(localStorage.getItem('shopping_vendorAssignments_v2') || '{}')
         })
       } catch { /* ignore */ }
@@ -103,6 +109,7 @@ export default function PurchaseRequestsPage() {
         setManualItemsList(Array.isArray(d.manualItems) ? d.manualItems : [])
         setShoppingDraft({
           onlineProductIds: new Set(Array.isArray(d.onlineProductIds) ? d.onlineProductIds : []),
+          dropshipProductIds: new Set(Array.isArray(d.dropshipProductIds) ? d.dropshipProductIds : []),
           vendorAssignments: d.vendorAssignments || {}
         })
       })
@@ -148,7 +155,7 @@ export default function PurchaseRequestsPage() {
       
       // Kunci baris sama persis dengan Shopping List (`rowKey`): productId::salesOrderId.
       const rowKey = (productId: string, salesOrderId?: string) => `${productId}::${salesOrderId || ''}`
-      const { onlineProductIds, vendorAssignments } = shoppingDraft
+      const { onlineProductIds, dropshipProductIds, vendorAssignments } = shoppingDraft
 
       // Tempat belanja yang sudah ditentukan Admin PO di Shopping List, biar Finance
       // lihat rencananya (mis. "di Mba Sifa") langsung dari justifikasi PR.
@@ -156,6 +163,7 @@ export default function PurchaseRequestsPage() {
         const key = rowKey(productId, salesOrderId)
         const vendorId = vendorAssignments[key] || products.find(p => p.id === productId)?.defaultVendorId
         const vendorName = vendorId ? vendors.find(v => v.id === vendorId)?.companyName : undefined
+        if (dropshipProductIds.has(key)) return ` (${vendorName || 'Vendor'} → langsung ke klien)`
         if (vendorName) return ` (${vendorName})`
         return onlineProductIds.has(key) ? ' (Belanja Online)' : ''
       }

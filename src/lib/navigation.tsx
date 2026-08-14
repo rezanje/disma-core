@@ -71,6 +71,7 @@ export const APP_PAGES: NavItemConfig[] = [
   { key: 'admin_products', title: 'Produk/SKU Master', href: '/admin/products', icon: <Boxes className="h-4 w-4" />, category: 'Admin' },
   { key: 'admin_vendors', title: 'Vendor Management', href: '/admin/vendors', icon: <Truck className="h-4 w-4" />, category: 'Admin' },
   { key: 'admin_shopping_list', title: 'Shopping List', href: '/admin/shopping-list', icon: <ListChecks className="h-4 w-4" />, category: 'Admin' },
+  { key: 'admin_dropship', title: 'Kiriman Vendor', href: '/admin/dropship', icon: <Truck className="h-4 w-4 text-orange-500" />, category: 'Admin' },
   { key: 'admin_assets', title: 'Asset Management', href: '/admin/assets', icon: <Briefcase className="h-4 w-4" />, category: 'Admin' },
   { key: 'admin_hr', title: 'HR & Personalia', href: '/admin/hr', icon: <Users className="h-4 w-4" />, category: 'Admin' },
   { key: 'admin_crm', title: 'CRM & Pipeline', href: '/admin/crm', icon: <Target className="h-4 w-4" />, category: 'Admin' },
