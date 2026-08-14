@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation"
 import { useAppStore } from "@/lib/store"
 import type { Invoice, TukarFaktur } from "@/types"
 import { tfPeriodFor, generateTfNumber, periodKey, isoLocalDate, type TfPeriod } from "@/lib/tukar-faktur"
+import { daysLeftInTfWindow, isInvoiceIssued as isInvoiceIssuedShared } from "@/lib/tf-window"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -51,22 +52,17 @@ export function GenerateTfModal({ open, onOpenChange }: Props) {
   const today = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d }, [open])
 
   // Faktur baru resmi terbit setelah audit finance meloloskan SO dari 'Awaiting Audit'.
-  // Invoice draft yang SO-nya masih menunggu audit belum boleh ditarik ke Tukar Faktur —
-  // konsisten dengan badge PO 'Menunggu Terbit Faktur'.
-  const isInvoiceIssued = useCallback((inv: Invoice) => {
-    const soIds = inv.salesOrderIds?.length ? inv.salesOrderIds : (inv.salesOrderId ? [inv.salesOrderId] : [])
-    if (soIds.length === 0) return true // invoice tanpa link SO (manual) — anggap sudah terbit
-    return soIds.every(id => {
-      const so = salesOrders.find(s => s.id === id)
-      return !so || so.status !== 'Awaiting Audit'
-    })
-  }, [salesOrders])
+  // Aturannya dipakai bersama panel peringatan di halaman daftar — kalau dua-duanya
+  // punya salinan sendiri, panel bisa menjanjikan invoice yang di sini ditolak.
+  const isInvoiceIssued = useCallback(
+    (inv: Invoice) => isInvoiceIssuedShared(inv, salesOrders),
+    [salesOrders]
+  )
 
   const eligibleClients = useMemo(() => {
-    const cutoff = new Date(today); cutoff.setDate(cutoff.getDate() - 14)
     const idsWithEligibleInv = new Set(
       invoices
-        .filter(inv => !inv.tukarFakturId && new Date(inv.issueDate) >= cutoff && isInvoiceIssued(inv))
+        .filter(inv => !inv.tukarFakturId && daysLeftInTfWindow(inv.issueDate, today) >= 0 && isInvoiceIssued(inv))
         .map(inv => inv.clientId)
     )
     return clients
@@ -76,11 +72,10 @@ export function GenerateTfModal({ open, onOpenChange }: Props) {
 
   const candidateGroups = useMemo<PeriodGroup[]>(() => {
     if (!clientId) return []
-    const cutoff = new Date(today); cutoff.setDate(cutoff.getDate() - 14)
     const eligible = invoices.filter(inv =>
       inv.clientId === clientId &&
       !inv.tukarFakturId &&
-      new Date(inv.issueDate) >= cutoff &&
+      daysLeftInTfWindow(inv.issueDate, today) >= 0 &&
       isInvoiceIssued(inv)
     )
     const byKey = new Map<string, PeriodGroup>()
