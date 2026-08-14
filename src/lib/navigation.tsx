@@ -94,7 +94,6 @@ export const APP_PAGES: NavItemConfig[] = [
     ]
   },
   { key: 'admin_settings', title: 'System Settings', href: '/admin/settings', icon: <Cog className="h-4 w-4" />, category: 'Admin' },
-  { key: 'admin_tasks', title: 'Admin Tasks', href: '/admin/tasks', icon: <ListChecks className="h-4 w-4" />, category: 'Admin' },
   { key: 'admin_activity_log', title: 'Activity Log', href: '/admin/activity-log', icon: <History className="h-4 w-4" />, category: 'Admin' },
   { key: 'admin_loss_analytics', title: 'Analisa Kerugian & Stok', href: '/admin/loss-analytics', icon: <TrendingDown className="h-4 w-4 text-rose-500" />, category: 'Admin' },
 
@@ -119,7 +118,7 @@ export const APP_PAGES: NavItemConfig[] = [
     icon: <Search className="h-4 w-4 opacity-50" />, 
     category: 'Sourcing',
     children: [
-      { key: 'sourcing_list', title: 'Shopping List', href: '/sourcing/list?tab=belanja' },
+      { key: 'sourcing_list', title: 'Shopping List', href: '/sourcing/list' },
       { key: 'sourcing_expenses', title: 'Biaya Operasional', href: '/sourcing/expenses' },
     ]
   },
@@ -133,7 +132,7 @@ export const APP_PAGES: NavItemConfig[] = [
 
   // Global
   { key: 'tasks_global', title: 'My Tasks', href: '/tasks', icon: <ListChecks className="h-4 w-4" />, category: 'Global' },
-  { key: 'settings_global', title: 'Settings', href: '/settings', icon: <Cog className="h-4 w-4" />, category: 'Global' },
+  { key: 'settings_global', title: 'Settings', href: '/settings/profile', icon: <Cog className="h-4 w-4" />, category: 'Global' },
 ];
 
 export const getNavItemsForUser = (permissions: AccessKey[]) => {
