@@ -106,10 +106,10 @@ export default function SourcingDashboard() {
 
   // === DERIVED SOURCING WALLET (internal money tracker, terpisah dari buku kas perusahaan) ===
   // Modal = total budget yang sudah ditransfer finance untuk user ini (semua purchase yang sudah punya budgetTransferDate)
-  const myPurchases = purchases.filter(p =>
-    p.purchaserId === currentUser?.id ||
-    p.purchaserId === '22222222-2222-2222-2222-222222222222'
-  )
+  // Nomor pengguna Hilman dulu ditulis mati di sini. Dengan satu orang sourcing
+  // tidak terasa; dengan dua orang, keduanya melihat dompet yang sama dan bisa
+  // melaporkan belanja orang lain — uangnya terpotong dari kantong yang salah.
+  const myPurchases = purchases.filter(p => p.purchaserId === currentUser?.id)
   const fundedPurchases = myPurchases.filter(p => p.budgetTransferDate)
   const totalAdvanceReceived = fundedPurchases.reduce((sum, p) =>
     sum + (p.budgetAmount || 0) + (p.operationalSpareAmount || 0), 0
@@ -133,7 +133,9 @@ export default function SourcingDashboard() {
 
   const activePurchases = purchases.filter(p =>
     (p.status === 'Pending' || p.status === 'Belanja') && 
-    (!p.purchaserId || p.purchaserId === currentUser?.id || p.purchaserId === 'pending' || p.purchaserId === '22222222-2222-2222-2222-222222222222')
+    // Dokumen yang belum dipegang siapa pun tetap terlihat semua orang sourcing —
+    // kalau tidak, belanja yang belum ditugaskan tidak terlihat siapa pun.
+    (!p.purchaserId || p.purchaserId === 'pending' || p.purchaserId === currentUser?.id)
   )
   
   // Vendor items skip sourcing entirely — vendor delivers direct, warehouse accepts via Inbound.
@@ -242,7 +244,7 @@ export default function SourcingDashboard() {
 
         await updatePurchase(p.id, {
           status: 'Selesai',
-          purchaserId: currentUser?.id || '22222222-2222-2222-2222-222222222222',
+          purchaserId: currentUser?.id,
           actualSpent: pTotalCost,
           changeReturned: pBudget > pCashCost ? pBudget - pCashCost : 0,
           reconciliationNote: reconciliationNote || 'Sesuai budget (Auto-Consolidated)',
@@ -300,6 +302,9 @@ export default function SourcingDashboard() {
     if (opsFormData.amount <= 0) return toast.error("Nominal gak boleh nol!")
     if (!opsFormData.description) return toast.error("Isi keterangan singkat!")
     if (opsFormData.transactionType === 'Kasbon' && !opsFormData.receiptUrl) return toast.error("Foto bukti wajib untuk reimbursement!")
+    // Biaya harus punya pemilik. Dulu ada nomor pengguna cadangan yang ditulis
+    // mati di sini, jadi biaya tanpa sesi tercatat atas nama orang lain.
+    if (!currentUser?.id) return toast.error("Sesi habis. Masuk ulang dulu sebelum mencatat biaya.")
 
     setOpsLoading(true)
     const id = uuidv4()
@@ -334,7 +339,7 @@ export default function SourcingDashboard() {
         addExpense({
           id,
           date: new Date().toISOString(),
-          reporterId: currentUser?.id || '22222222-2222-2222-2222-222222222222',
+          reporterId: currentUser?.id,
           purchaseId: activePurchaseId,
           category: (opsFormData.category || 'Lainnya') as OperationalExpense['category'],
           amount: kasAmount,

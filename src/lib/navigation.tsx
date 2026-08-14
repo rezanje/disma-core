@@ -38,14 +38,18 @@ export const APP_PAGES: NavItemConfig[] = [
     icon: <ShieldCheck className="h-4 w-4 text-emerald-500" />, 
     category: 'Finance',
     children: [
+      // Nama tab harus persis sama dengan value TabsTrigger di halaman approvals
+      // (settlement / audit_online / audit_ops_lain / delivery). Tab yang tidak
+      // dikenali membuat isi halaman kosong tanpa pesan apa pun.
       { key: 'finance_settlement', title: 'Sourcing Settlement', href: '/finance/approvals?tab=settlement' },
       { key: 'finance_settlement_dash', title: 'Dashboard Settlement', href: '/finance/approvals/sourcing-settlement' },
-      { key: 'finance_audit', title: 'Audit Ops', href: '/finance/approvals?tab=audit' },
-      { key: 'finance_reimburse', title: 'Reimbursement', href: '/finance/approvals?tab=reimburse' },
-      { key: 'finance_rekon', title: 'Rekonsiliasi', href: '/finance/approvals?tab=rekon' },
+      { key: 'finance_audit', title: 'Audit Ops', href: '/finance/approvals?tab=audit_ops_lain' },
+      { key: 'finance_online_audit', title: 'Audit Belanja Online', href: '/finance/approvals?tab=audit_online' },
       { key: 'finance_delivery', title: 'Audit Delivery', href: '/finance/approvals?tab=delivery' },
     ]
   },
+  { key: 'finance_rekon', title: 'Rekonsiliasi', href: '/finance/reconciliation', icon: <RefreshCw className="h-4 w-4 text-amber-500" />, category: 'Finance' },
+  { key: 'finance_reimbursements', title: 'Reimbursement', href: '/finance/reimbursements', icon: <Receipt className="h-4 w-4 text-blue-500" />, category: 'Finance' },
   { key: 'finance_cash_bank', title: 'Cash & Bank', href: '/finance/cash-bank', icon: <Bank className="h-4 w-4" />, category: 'Finance' },
   { key: 'finance_budget', title: 'Perencanaan Budget', href: '/finance/budget', icon: <Target className="h-4 w-4 text-rose-500" />, category: 'Finance' },
   { key: 'finance_tukar_faktur', title: 'Tukar Faktur (Lihat Saja)', href: '/finance/tukar-faktur', icon: <FileSpreadsheet className="h-4 w-4" />, category: 'Finance' },
@@ -116,10 +120,9 @@ export const APP_PAGES: NavItemConfig[] = [
     category: 'Sourcing',
     children: [
       { key: 'sourcing_list', title: 'Shopping List', href: '/sourcing/list?tab=belanja' },
-      { key: 'sourcing_ops', title: 'Biaya Ops', href: '/sourcing/list?tab=ops' },
+      { key: 'sourcing_expenses', title: 'Biaya Operasional', href: '/sourcing/expenses' },
     ]
   },
-  { key: 'sourcing_list_legacy', title: 'Archived Tasks', href: '/sourcing/list', icon: <ListChecks className="h-4 w-4 opacity-50" />, category: 'Sourcing' },
 
   // Courier
   { key: 'courier_dashboard', title: 'Logistics Home', href: '/courier', icon: <Truck className="h-4 w-4 opacity-50" />, category: 'Courier' },

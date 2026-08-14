@@ -29,6 +29,7 @@ dikirim. Kamu **tidak** membeli, tidak mengantar, dan tidak menagih.
 | QC | pemeriksaan mutu dan keputusan |
 | Outbound | menyiapkan barang keluar |
 | Reject Monitor | pantauan barang tolakan |
+| Stock Opname | mencocokkan stok layar dengan stok rak |
 | Tasks | tugas |
 
 ### Yang perlu kamu paham sebelum mulai
@@ -139,17 +140,18 @@ dikirim. Kamu **tidak** membeli, tidak mengantar, dan tidak menagih.
 - Ada cara untuk mencocokkan stok di layar dengan stok di rak.
 
 **Periksa**
-- **Menu ini kemungkinan besar tidak ada di daftarmu.** Halamannya ada di dalam
-  aplikasi, tapi peran Gudang tampaknya tidak diberi izin membukanya. Coba buka
-  `/warehouse/opname` langsung lewat alamat dan laporkan apa yang terjadi.
-  Kalau memang tidak bisa, itu bolong: tim gudang tidak punya cara membetulkan
-  selisih stok, padahal itu pekerjaan gudang.
+- Menu **Stock Opname** dulu tidak diberikan ke peran Gudang sama sekali;
+  izinnya baru ditambahkan. Pastikan sekarang benar-benar muncul dan bisa
+  dibuka.
+- Setelah menyesuaikan stok, apakah selisihnya tercatat sebagai penyesuaian yang
+  bisa ditelusuri, atau angkanya berubah begitu saja tanpa jejak?
 
 ---
 
 ## 4. Hal yang sudah diketahui — periksa dampaknya
 
-1. **Stok opname mungkin tidak bisa kamu buka** (lihat G5).
+1. **Menu Stock Opname baru saja ditambahkan** ke peran Gudang — sebelumnya
+   tidak ada peran mana pun yang bisa membukanya. Pastikan sudah muncul.
 2. **Barang kiriman vendor langsung ke klien tidak lewat gudang** — disengaja.
    Pastikan tidak ada yang nyasar ke antreanmu, dan stok tidak ikut bergerak
    untuk barang itu.

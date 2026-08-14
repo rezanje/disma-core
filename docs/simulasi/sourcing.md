@@ -26,7 +26,7 @@ gudang, dan tidak mengantar.
 |---|---|
 | Dashboard Sourcing | ringkasan dan saldo kantong |
 | Daftar Belanja | barang yang harus dibeli hari ini |
-| Biaya Operasional | bensin, parkir, kuli, dan sejenisnya |
+| Biaya Operasional | bensin, parkir, kuli, dan sejenisnya — menunya baru saja diperbaiki, sebelumnya tidak pernah muncul |
 | Tasks | tugas |
 
 Hanya empat. Kalau kamu butuh sesuatu yang tidak ada di sini untuk
@@ -170,13 +170,12 @@ Sengaja menguji penolakan. Semua langkah di bawah **harus ditolak**.
 
 ## 4. Hal yang sudah diketahui — periksa dampaknya
 
-1. **Ada nomor pengguna yang ditulis mati di dalam kode penyaring daftar
-   belanja.** Praktisnya, siapa pun yang masuk sebagai Sourcing akan melihat
-   dokumen belanja milik Hilman. Selama cuma ada satu orang sourcing, ini tidak
-   terasa. **Kalau nanti ada dua orang sourcing, mereka akan saling melihat dan
-   bisa saling mengirim laporan atas belanja orang lain** — dan uangnya terpotong
-   dari kantong yang salah. Kalau kamu bisa membuat pengguna sourcing kedua,
-   ujilah. Kalau tidak, cukup laporkan sebagai risiko.
+1. **Nomor pengguna yang dulu ditulis mati di penyaring daftar belanja sudah
+   dihapus.** Sebelumnya siapa pun yang masuk sebagai Sourcing melihat dokumen
+   milik Hilman, dan bisa mengirim laporan atas belanja orang lain — uangnya
+   terpotong dari kantong yang salah. Sekarang kamu hanya melihat dokumen
+   milikmu sendiri, ditambah dokumen yang belum dipegang siapa pun. Kalau kamu
+   bisa membuat pengguna sourcing kedua, pastikan kalian tidak saling melihat.
 2. **Tanpa kantong, belanja tunai diblokir.** Ini disengaja — tanpa kantong,
    uangnya tidak terpotong dari kas mana pun dan jejaknya hilang. Pastikan
    pesannya jelas dan menyebutkan jalan keluarnya.
