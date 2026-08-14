@@ -11,6 +11,7 @@ dipakai dengan data sungguhan.
 | Sourcing | [sourcing.md](sourcing.md) | uang tunai belanja di lapangan |
 | Gudang | [gudang.md](gudang.md) | stok dan mutu barang |
 | Kurir | [kurir.md](kurir.md) | serah terima ke klien |
+| CEO / Super Admin | [ceo-super-admin.md](ceo-super-admin.md) | persetujuan pengeluaran besar, izin peran, cadangan data |
 
 ## Sebelum menjalankan
 
@@ -41,6 +42,11 @@ teruji bukan berarti bagian yang aman.
 
 Jalankan **Admin PO** lebih dulu. Peran itu yang menciptakan pesanan dan
 dokumen belanja yang dibutuhkan peran lain untuk punya pekerjaan. Setelah itu
-Sourcing dan Gudang, lalu Kurir, dan Finance terakhir — Finance memeriksa
-akibat dari semua yang dikerjakan peran lain, jadi paling berguna dijalankan
-saat sudah ada jejaknya.
+Sourcing dan Gudang, lalu Kurir, dan Finance — Finance memeriksa akibat dari
+semua yang dikerjakan peran lain, jadi paling berguna dijalankan saat sudah ada
+jejaknya.
+
+**CEO / Super Admin dijalankan paling akhir**, karena skenarionya menelusuri
+seluruh rantai dari pesanan sampai tagihan, dan itu baru ada isinya setelah
+kelima peran lain selesai. Berkas itu juga satu-satunya yang menyentuh tombol
+berbahaya — baca kotak peringatan di dalamnya sebelum menjalankannya.
