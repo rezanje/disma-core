@@ -16,7 +16,9 @@ export type AccessKey =
   // Finance
   | 'finance_dashboard' | 'finance_approvals' | 'finance_reports' | 'finance_assets' | 'finance_sku_pnl'
   | 'finance_budget' | 'finance_cash_bank' | 'finance_expenses' | 'finance_ledger' | 'finance_invoices' | 'finance_collections'
-  | 'finance_tukar_faktur' | 'finance_disbursements' | 'finance_sourcing_monitor'
+  | 'finance_tukar_faktur' | 'finance_disbursements' | 'finance_sourcing_monitor' | 'finance_rekon'
+  // Pintasan tab di dalam Finance Hub — dipakai sebagai kunci izin anak menu.
+  | 'finance_settlement' | 'finance_settlement_dash' | 'finance_online_audit' | 'finance_delivery'
   | 'finance_ar_aging' | 'finance_ap_aging'
   | 'finance_reconciliation' | 'finance_reimbursements' | 'finance_online_purchase' | 'finance_audit' | 'finance_documents'
   // Warehouse
@@ -26,6 +28,8 @@ export type AccessKey =
   // Courier
   | 'courier_dashboard' | 'courier_list' | 'courier_handover' | 'courier_history' | 'courier_expenses'
   // Global
+  // Anak menu User Management.
+  | 'users_list' | 'users_perms'
   | 'tasks_global' | 'settings_global';
 
 export interface RolePermissionMap {
