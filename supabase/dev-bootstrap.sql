@@ -18,7 +18,11 @@ create table if not exists public.clients (
   total_order_jan_may numeric not null default 0,
   parent_id text,
   is_brand boolean not null default false,
-  created_at text not null
+  created_at text not null,
+  -- Titik peta untuk perencanaan rute; diisi bertahap, jadi boleh kosong.
+  latitude double precision,
+  longitude double precision,
+  location_note text
 );
 
 create table if not exists public.vendors (
@@ -81,7 +85,10 @@ create table if not exists public.sales_orders (
   client_signature text,
   shopping_list_document_id text,
   shopping_list_compiled_at text,
-  shopping_list_compiled_by text
+  shopping_list_compiled_by text,
+  -- Rencana rute harian dari Admin PO.
+  assigned_courier_id text,
+  route_order integer
 );
 
 create table if not exists public.sales_order_items (
