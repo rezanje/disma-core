@@ -14,6 +14,7 @@ import { PRODUCTS_SEED } from './products_seed';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 import { loadLocalCache, saveLocalCache } from './local-cache';
+import { clientDeletionBlockers, describeBlockers, clientPriceIdsToRemove } from './client-delete';
 
 const LOCAL_PRODUCTS_CACHE_KEY = 'disma_local_products_cache';
 const LOCAL_CLIENTS_CACHE_KEY = 'disma_local_clients_cache';
@@ -362,6 +363,7 @@ interface AppState {
   addClients: (clients: Client[]) => void;
   clearClients: () => Promise<void>;
   updateClient: (id: string, data: Partial<Client>) => void;
+  deleteClient: (id: string) => Promise<boolean>;
   updateMultipleClients: (updates: { id: string, data: Partial<Client> }[]) => Promise<void>;
 
   clientPrices: ClientPrice[];
@@ -1460,6 +1462,52 @@ export const useAppStore = create<AppState>((set, get) => ({
           toast.error("Gagal menghapus klien: " + error.message);
         } finally {
           set({ isResetting: false });
+        }
+      },
+      // Untuk klien yang salah diinput dan belum pernah dipakai. Menolak kalau
+      // klien sudah punya PO, tagihan, atau tukar faktur — lihat client-delete.ts
+      // untuk alasannya. Daftar harganya ikut terhapus supaya tidak jadi yatim.
+      deleteClient: async (id) => {
+        const state = get();
+        const before = state.clients.find(c => c.id === id);
+        if (!before) return false;
+
+        const blockers = clientDeletionBlockers(id, {
+          salesOrders: state.salesOrders || [],
+          invoices: state.invoices || [],
+          tukarFakturs: state.tukarFakturs || [],
+          clientPrices: state.clientPrices || [],
+        });
+        if (blockers.length > 0) {
+          toast.error(`${before.companyName} sudah punya ${describeBlockers(blockers)} — tidak bisa dihapus.`);
+          return false;
+        }
+
+        const priceIds = clientPriceIdsToRemove(id, state.clientPrices || []);
+
+        try {
+          if (priceIds.length > 0) await state.deleteMultipleClientPrices(priceIds);
+
+          const res = await fetch('/api/db', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ table: 'clients', id })
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || 'Gagal menghapus klien');
+          }
+
+          const remaining = get().clients.filter(c => c.id !== id);
+          set({ clients: remaining });
+          saveLocalClientsCache(remaining);
+          await get().logHistory({ table: 'clients', recordId: id, action: 'delete', oldData: before, newData: null });
+          toast.success(`Klien ${before.companyName} dihapus.`);
+          return true;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          toast.error(`Gagal menghapus klien: ${message}`);
+          return false;
         }
       },
       updateClient: async (id, data) => {
