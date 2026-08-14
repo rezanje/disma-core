@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Plus, FileSpreadsheet, Eye } from "lucide-react"
 import { GenerateTfModal } from "@/components/tukar-faktur/GenerateTfModal"
+import { TfWindowWarning } from "@/components/tukar-faktur/TfWindowWarning"
 
 const STATUS_TONE: Record<TukarFakturStatus, string> = {
   Draft: "bg-slate-100 text-slate-700",
@@ -74,6 +75,8 @@ export default function TukarFakturListPage() {
           <Plus className="w-4 h-4 mr-2" /> Generate TF
         </Button>
       </header>
+
+      <TfWindowWarning />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="p-5 rounded-2xl border-slate-100">
