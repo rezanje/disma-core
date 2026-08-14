@@ -12,7 +12,7 @@ export type AccessKey =
   | 'admin_dashboard' | 'admin_vendors' | 'admin_clients' | 'admin_products' 
   | 'admin_sales_orders' | 'admin_shopping_list' | 'admin_assets' | 'admin_hr' | 'admin_crm' 
   | 'admin_documents' | 'admin_okr' | 'admin_users' | 'admin_settings' | 'admin_tasks' | 'admin_maintenance' | 'admin_price_lists' | 'admin_activity_log'
-  | 'admin_purchase_requests' | 'admin_loss_analytics' | 'admin_tukar_faktur' | 'admin_dropship'
+  | 'admin_purchase_requests' | 'admin_loss_analytics' | 'admin_tukar_faktur' | 'admin_dropship' | 'admin_delivery_routes'
   // Finance
   | 'finance_dashboard' | 'finance_approvals' | 'finance_reports' | 'finance_assets' | 'finance_sku_pnl'
   | 'finance_budget' | 'finance_cash_bank' | 'finance_expenses' | 'finance_ledger' | 'finance_invoices' | 'finance_collections'
@@ -46,6 +46,11 @@ export interface Client {
   parentId?: string | null;
   isBrand?: boolean;
   defaultPriceTier?: ClientPriceTier;
+  // Titik peta untuk perencanaan rute. Diisi bertahap: kurir merekam GPS di
+  // lokasi, atau Admin PO memasang pin dari peta.
+  latitude?: number;
+  longitude?: number;
+  locationNote?: string; // patokan, mis. "gang sebelah Indomaret, pagar hijau"
 }
 
 export type ClientPriceTier = 'Standard' | 'Tier 1' | 'Tier 2' | 'Tier 3' | 'Tier 4' | 'Tier 5' | 'Custom';
@@ -168,6 +173,11 @@ export interface SalesOrder {
   receivedBy?: string; // User ID from Kurir
   courierSignature?: string; // Base64 signature image
   clientSignature?: string;  // Base64 signature image
+  // Rencana rute harian dari Admin PO. Disimpan di sini, bukan di Delivery,
+  // karena baris Delivery baru dibuat saat gudang merilis barang — bisa setelah
+  // rencananya disusun.
+  assignedCourierId?: string;
+  routeOrder?: number;
 }
 
 export interface SalesOrderItem {

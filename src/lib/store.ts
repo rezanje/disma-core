@@ -364,6 +364,8 @@ interface AppState {
   clearClients: () => Promise<void>;
   updateClient: (id: string, data: Partial<Client>) => void;
   deleteClient: (id: string) => Promise<boolean>;
+  setClientLocation: (clientId: string, lat: number, lng: number, note?: string) => Promise<void>;
+  assignRoute: (updates: { salesOrderId: string; courierId: string | null; routeOrder: number }[]) => Promise<void>;
   updateMultipleClients: (updates: { id: string, data: Partial<Client> }[]) => Promise<void>;
 
   clientPrices: ClientPrice[];
@@ -636,7 +638,7 @@ const INITIAL_BANK_ACCOUNTS: BankAccount[] = [];
 const initialRolePermissions: RolePermissionMap = {
   super_admin: [
     'admin_dashboard', 'admin_vendors', 'admin_clients', 'admin_products',
-    'admin_sales_orders', 'admin_shopping_list', 'admin_dropship', 'admin_assets', 'admin_hr', 'admin_crm',
+    'admin_sales_orders', 'admin_shopping_list', 'admin_dropship', 'admin_delivery_routes', 'admin_assets', 'admin_hr', 'admin_crm',
     'admin_documents', 'admin_okr', 'admin_users', 'admin_settings', 'admin_tasks', 'admin_maintenance', 'admin_price_lists', 'admin_activity_log',
     'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets', 
     'finance_budget', 'finance_cash_bank', 'finance_expenses', 'finance_ledger', 'finance_invoices', 'finance_ar_aging', 'finance_ap_aging',
@@ -648,7 +650,7 @@ const initialRolePermissions: RolePermissionMap = {
   ],
   ceo: [
     'admin_dashboard', 'admin_vendors', 'admin_clients', 'admin_products',
-    'admin_sales_orders', 'admin_shopping_list', 'admin_dropship', 'admin_assets', 'admin_hr', 'admin_crm',
+    'admin_sales_orders', 'admin_shopping_list', 'admin_dropship', 'admin_delivery_routes', 'admin_assets', 'admin_hr', 'admin_crm',
     'admin_documents', 'admin_okr', 'admin_users', 'admin_settings', 'admin_tasks', 'admin_price_lists', 'admin_activity_log',
     'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets',
     'finance_budget', 'finance_cash_bank', 'finance_expenses', 'finance_ledger', 'finance_invoices', 'finance_ar_aging', 'finance_ap_aging', 'finance_collections',
@@ -657,7 +659,7 @@ const initialRolePermissions: RolePermissionMap = {
   ],
   coo: [
     'admin_dashboard', 'admin_vendors', 'admin_clients', 'admin_products',
-    'admin_sales_orders', 'admin_shopping_list', 'admin_dropship', 'admin_assets', 'admin_hr', 'admin_crm',
+    'admin_sales_orders', 'admin_shopping_list', 'admin_dropship', 'admin_delivery_routes', 'admin_assets', 'admin_hr', 'admin_crm',
     'admin_documents', 'admin_okr', 'admin_users', 'admin_settings', 'admin_tasks', 'admin_maintenance', 'admin_price_lists', 'admin_activity_log',
     'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets',
     'finance_budget', 'finance_cash_bank', 'finance_expenses', 'finance_ledger', 'finance_invoices', 'finance_ar_aging', 'finance_ap_aging', 'finance_collections',
@@ -672,7 +674,7 @@ const initialRolePermissions: RolePermissionMap = {
   gudang: ['warehouse_dashboard', 'warehouse_catalog', 'warehouse_inbound', 'warehouse_outbound', 'warehouse_qc', 'warehouse_reject_monitor', 'tasks_global'],
   sourcing: ['sourcing_dashboard', 'sourcing_list', 'sourcing_expenses', 'tasks_global'],
   kurir: ['courier_dashboard', 'courier_list', 'courier_handover', 'courier_history', 'courier_expenses', 'tasks_global'],
-  admin_po: ['admin_dashboard', 'admin_sales_orders', 'admin_shopping_list', 'admin_dropship', 'admin_clients', 'admin_products', 'warehouse_catalog', 'tasks_global', 'admin_price_lists', 'finance_invoices', 'admin_tukar_faktur'],
+  admin_po: ['admin_dashboard', 'admin_sales_orders', 'admin_shopping_list', 'admin_dropship', 'admin_delivery_routes', 'admin_clients', 'admin_products', 'warehouse_catalog', 'tasks_global', 'admin_price_lists', 'finance_invoices', 'admin_tukar_faktur'],
 };
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -1510,6 +1512,47 @@ export const useAppStore = create<AppState>((set, get) => ({
           return false;
         }
       },
+      setClientLocation: async (clientId, lat, lng, note) => {
+        const before = get().clients.find(c => c.id === clientId);
+        if (!before) return;
+        const patch: Partial<Client> = { latitude: lat, longitude: lng };
+        // Catatan patokan hanya ditimpa kalau memang diisi — kurir yang merekam
+        // GPS tidak boleh menghapus patokan yang sudah ditulis Admin PO.
+        if (note !== undefined) patch.locationNote = note;
+        const updated = get().clients.map(c => c.id === clientId ? { ...c, ...patch } : c);
+        set({ clients: updated });
+        saveLocalClientsCache(updated);
+        const after = updated.find(c => c.id === clientId);
+        if (after) {
+          await get().syncTable('clients', after);
+          await get().logHistory({ table: 'clients', recordId: clientId, action: 'update', oldData: before, newData: after });
+        }
+      },
+
+      // Satu simpanan untuk seluruh papan rencana. Menyimpan per baris berarti
+      // puluhan permintaan tiap kali Admin PO menggeser satu perhentian.
+      assignRoute: async (updates) => {
+        if (updates.length === 0) return;
+        const map = new Map(updates.map(u => [u.salesOrderId, u]));
+        const updated = get().salesOrders.map(so => {
+          const u = map.get(so.id);
+          if (!u) return so;
+          return { ...so, assignedCourierId: u.courierId || undefined, routeOrder: u.routeOrder };
+        });
+        set({ salesOrders: updated });
+        saveLocalSalesOrdersCache(updated);
+        const changed = updated.filter(so => map.has(so.id));
+        const res = await fetch('/api/db', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ table: 'sales_orders', data: changed })
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || 'Gagal menyimpan rencana rute');
+        }
+      },
+
       updateClient: async (id, data) => {
         const before = get().clients.find(c => c.id === id);
         const updatedClients = get().clients.map(c => c.id === id ? { ...c, ...data } : c);

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useAppStore } from "@/lib/store"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -9,6 +9,7 @@ import { toast } from "sonner"
 import { v4 as uuidv4 } from "uuid"
 import DocumentPreview from "@/components/delivery/DocumentPreview"
 import { roundQtyToBook } from "@/lib/backorder"
+import { hasLocation, googleMapsUrl, sortStops } from "@/lib/delivery-route"
 import { cn } from "@/lib/utils"
 
 export default function CourierDashboard() {
@@ -22,6 +23,7 @@ export default function CourierDashboard() {
   const updateSalesOrder = useAppStore(state => state.updateSalesOrder)
   const addInvoice = useAppStore(state => state.addInvoice)
   const addPendingReturn = useAppStore(state => state.addPendingReturn)
+  const setClientLocation = useAppStore(state => state.setClientLocation)
 
   const [activeDeliveryId, setActiveDeliveryId] = useState<string | null>(null)
   
@@ -32,10 +34,54 @@ export default function CourierDashboard() {
   const [selectedSoId, setSelectedSoId] = useState<string | null>(null)
   const [finalizingDeliveryId, setFinalizingDeliveryId] = useState<string | null>(null)
 
-  // Get all active deliveries (Menunggu & Dikirim & Tunggu Konfirmasi)
-  const pendingDeliveries = deliveries.filter(d => ['Menunggu', 'Dikirim', 'Tunggu Konfirmasi'].includes(d.status))
+  // Jatah kurir ini saja, dalam urutan yang disusun Admin PO.
+  const pendingDeliveries = useMemo(() => {
+    const active = deliveries.filter(d => ['Menunggu', 'Dikirim', 'Tunggu Konfirmasi'].includes(d.status))
+    // Pengiriman yang belum direncanakan tetap terlihat semua kurir — kalau
+    // tidak, pengiriman tanpa rencana jadi tidak terlihat siapa pun.
+    const mine = active.filter(d => {
+      const so = salesOrders.find(s => s.id === d.salesOrderId)
+      const planned = so?.assignedCourierId
+      return !planned || planned === currentUser?.id
+    })
+    return sortStops(mine.map(d => ({
+      ...d,
+      routeOrder: salesOrders.find(s => s.id === d.salesOrderId)?.routeOrder,
+    })))
+  }, [deliveries, salesOrders, currentUser?.id])
 
   const [deliveryNotes, setDeliveryNotes] = useState<Record<string, string>>({})
+  const [savingLocationFor, setSavingLocationFor] = useState<string | null>(null)
+
+  const handleSaveLocation = (clientId: string) => {
+    if (!navigator.geolocation) {
+      toast.error("HP ini tidak mendukung penyimpanan lokasi.")
+      return
+    }
+    setSavingLocationFor(clientId)
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          await setClientLocation(clientId, pos.coords.latitude, pos.coords.longitude)
+          toast.success("Titik lokasi klien tersimpan.")
+        } catch {
+          toast.error("Gagal menyimpan titik lokasi.")
+        } finally {
+          setSavingLocationFor(null)
+        }
+      },
+      (err) => {
+        setSavingLocationFor(null)
+        // Diam saat izin ditolak membuat tombolnya terasa rusak — sebutkan sebabnya.
+        toast.error(
+          err.code === err.PERMISSION_DENIED
+            ? "Izin lokasi ditolak. Aktifkan dulu di pengaturan browser."
+            : "Tidak bisa membaca lokasi. Pastikan GPS menyala."
+        )
+      },
+      { enableHighAccuracy: true, timeout: 15000 }
+    )
+  }
 
   const handleStartDelivery = (id: string, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -264,6 +310,41 @@ export default function CourierDashboard() {
                         </a>
                       </div>
                     </div>
+
+                    {/* Navigasi & perekaman titik. Link Maps biasa — tanpa layanan berbayar. */}
+                    <div className="grid grid-cols-2 gap-4">
+                      {hasLocation(client) ? (
+                        <a
+                          href={googleMapsUrl(client.latitude!, client.longitude!)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={e => e.stopPropagation()}
+                          className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex items-center justify-center gap-2 font-black text-sky-600 text-xs uppercase tracking-widest"
+                        >
+                          <Navigation className="w-4 h-4" /> Buka di Maps
+                        </a>
+                      ) : (
+                        <div className="bg-white p-4 rounded-3xl shadow-sm border border-dashed border-slate-200 flex items-center justify-center text-[9px] font-black uppercase tracking-widest text-slate-400 text-center">
+                          Lokasi belum tersimpan
+                        </div>
+                      )}
+                      <Button
+                        variant="outline"
+                        onClick={(e) => { e.stopPropagation(); handleSaveLocation(client.id) }}
+                        disabled={savingLocationFor === client.id}
+                        className="h-auto p-4 rounded-3xl border border-slate-100 bg-white font-black text-[10px] uppercase tracking-widest text-emerald-600"
+                      >
+                        <MapPin className="w-4 h-4 mr-2" />
+                        {savingLocationFor === client.id ? 'Menyimpan...' : 'Simpan Titik Ini'}
+                      </Button>
+                    </div>
+
+                    {client.locationNote && (
+                      <div className="bg-amber-50 border border-amber-100 p-3 rounded-2xl">
+                        <span className="text-amber-600 font-black uppercase text-[9px] tracking-widest block mb-0.5">Patokan</span>
+                        <span className="font-bold text-slate-700 text-xs">{client.locationNote}</span>
+                      </div>
+                    )}
 
                     {!isOngoing ? (
                       <Button 

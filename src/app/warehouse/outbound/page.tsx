@@ -67,10 +67,13 @@ export default function OutboundPage() {
     const alreadyHasDelivery = existingDeliveries.some(d => d.salesOrderId === soId && d.status !== 'Terkirim');
 
     if (!alreadyHasDelivery) {
+      const so = salesOrders.find(s => s.id === soId);
       addDelivery({
         id: uuidv4(),
         salesOrderId: soId,
-        courierId: 'pending', 
+        // Rencana Admin PO menang atas 'pending'; kalau belum direncanakan,
+        // perilakunya sama seperti sebelumnya.
+        courierId: so?.assignedCourierId || 'pending',
         status: 'Menunggu',
       });
     }
