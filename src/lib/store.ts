@@ -364,6 +364,8 @@ interface AppState {
   clearClients: () => Promise<void>;
   updateClient: (id: string, data: Partial<Client>) => void;
   deleteClient: (id: string) => Promise<boolean>;
+  setClientLocation: (clientId: string, lat: number, lng: number, note?: string) => Promise<void>;
+  assignRoute: (updates: { salesOrderId: string; courierId: string | null; routeOrder: number }[]) => Promise<void>;
   updateMultipleClients: (updates: { id: string, data: Partial<Client> }[]) => Promise<void>;
 
   clientPrices: ClientPrice[];
@@ -1510,6 +1512,47 @@ export const useAppStore = create<AppState>((set, get) => ({
           return false;
         }
       },
+      setClientLocation: async (clientId, lat, lng, note) => {
+        const before = get().clients.find(c => c.id === clientId);
+        if (!before) return;
+        const patch: Partial<Client> = { latitude: lat, longitude: lng };
+        // Catatan patokan hanya ditimpa kalau memang diisi — kurir yang merekam
+        // GPS tidak boleh menghapus patokan yang sudah ditulis Admin PO.
+        if (note !== undefined) patch.locationNote = note;
+        const updated = get().clients.map(c => c.id === clientId ? { ...c, ...patch } : c);
+        set({ clients: updated });
+        saveLocalClientsCache(updated);
+        const after = updated.find(c => c.id === clientId);
+        if (after) {
+          await get().syncTable('clients', after);
+          await get().logHistory({ table: 'clients', recordId: clientId, action: 'update', oldData: before, newData: after });
+        }
+      },
+
+      // Satu simpanan untuk seluruh papan rencana. Menyimpan per baris berarti
+      // puluhan permintaan tiap kali Admin PO menggeser satu perhentian.
+      assignRoute: async (updates) => {
+        if (updates.length === 0) return;
+        const map = new Map(updates.map(u => [u.salesOrderId, u]));
+        const updated = get().salesOrders.map(so => {
+          const u = map.get(so.id);
+          if (!u) return so;
+          return { ...so, assignedCourierId: u.courierId || undefined, routeOrder: u.routeOrder };
+        });
+        set({ salesOrders: updated });
+        saveLocalSalesOrdersCache(updated);
+        const changed = updated.filter(so => map.has(so.id));
+        const res = await fetch('/api/db', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ table: 'sales_orders', data: changed })
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || 'Gagal menyimpan rencana rute');
+        }
+      },
+
       updateClient: async (id, data) => {
         const before = get().clients.find(c => c.id === id);
         const updatedClients = get().clients.map(c => c.id === id ? { ...c, ...data } : c);
