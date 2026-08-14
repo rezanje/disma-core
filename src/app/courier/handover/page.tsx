@@ -36,6 +36,14 @@ export default function HandoverPage() {
       return
     }
 
+    // Kenyataan di lapangan menang atas rencana — serah terima tetap jalan —
+    // tapi jangan diam-diam, supaya Admin PO tahu rencananya meleset.
+    const so = salesOrders.find(s => s.id === soId)
+    if (so?.assignedCourierId && so.assignedCourierId !== currentUser?.id) {
+      const planned = useAppStore.getState().users.find(u => u.id === so.assignedCourierId)
+      toast.warning(`PO ini direncanakan untuk ${planned?.name || 'kurir lain'}.`)
+    }
+
     // Sync all checks to store before finalizing
     const items = salesOrderItems.filter(i => i.salesOrderId === soId)
     items.forEach(item => {
