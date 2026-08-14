@@ -89,6 +89,7 @@ export default function MaintenancePage() {
 
   const [checkpoint, setCheckpoint] = useState<CheckpointMeta>(null)
   const [preRestore, setPreRestore] = useState<CheckpointMeta>(null)
+  const [preWipe, setPreWipe] = useState<CheckpointMeta>(null)
   const [isSavingCp, setIsSavingCp] = useState(false)
   const [isRestoringCp, setIsRestoringCp] = useState(false)
   const [cpConfirm, setCpConfirm] = useState("")
@@ -99,6 +100,7 @@ export default function MaintenancePage() {
       const d = await res.json()
       setCheckpoint(d.checkpoint ?? null)
       setPreRestore(d.preRestore ?? null)
+      setPreWipe(d.preWipe ?? null)
     } catch { /* tombolnya tetap bisa dipakai walau info gagal dimuat */ }
   }
 
@@ -128,7 +130,7 @@ export default function MaintenancePage() {
     }
   }
 
-  const handleRestoreCheckpoint = async (action: 'checkpoint_restore' | 'checkpoint_undo') => {
+  const handleRestoreCheckpoint = async (action: 'checkpoint_restore' | 'checkpoint_undo' | 'prewipe_restore') => {
     setIsRestoringCp(true)
     try {
       await callCheckpoint(action)
@@ -419,6 +421,31 @@ export default function MaintenancePage() {
                   </Button>
                 )}
               </div>
+
+              {/* Cadangan otomatis yang diambil tepat sebelum "Bersihkan Data
+                  Transaksi". Slotnya terpisah dari checkpoint manual supaya
+                  penghapusan tidak menimpa checkpoint yang sengaja disimpan. */}
+              {preWipe && (
+                <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-amber-600">
+                      Cadangan sebelum penghapusan terakhir
+                    </p>
+                    <p className="text-xs font-bold text-slate-600 mt-0.5">
+                      {fmtWaktu(preWipe.savedAt)} {fmtMB(preWipe.bytes)}
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => handleRestoreCheckpoint('prewipe_restore')}
+                    disabled={isRestoringCp || isSavingCp}
+                    className="h-12 px-4 rounded-2xl font-black uppercase text-[10px] tracking-widest border-amber-300 bg-white text-amber-700 hover:bg-amber-100 shrink-0"
+                    title="Kembalikan data transaksi ke kondisi sebelum tombol bersihkan ditekan"
+                  >
+                    <Undo2 className="w-4 h-4 mr-2" /> Batalkan penghapusan
+                  </Button>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

@@ -14,6 +14,10 @@ const BACKUP_FILE_PATH = path.join(process.cwd(), 'data', 'safety_lock_backup.js
 const CHECKPOINT_BUCKET = 'checkpoints';
 const CHECKPOINT_FILE = 'checkpoint.json';
 const PRE_RESTORE_FILE = 'pre-restore.json';   // one-step undo for a mistaken restore
+// Taken automatically right before a transaction wipe. Its own slot on purpose:
+// writing the wipe's safety net into CHECKPOINT_FILE would destroy whatever
+// checkpoint someone had deliberately saved.
+const PRE_WIPE_FILE = 'pre-wipe.json';
 
 const TABLES_IN_WIPE_ORDER = [
   'sales_order_items', 'purchase_items', 'journal_lines', 'okr_key_results',
@@ -146,6 +150,7 @@ export async function GET(request: Request) {
       return NextResponse.json({
         checkpoint: meta(find(CHECKPOINT_FILE)),
         preRestore: meta(find(PRE_RESTORE_FILE)),
+        preWipe: meta(find(PRE_WIPE_FILE)),
       }, { headers: { 'Cache-Control': 'no-store' } });
     }
 
@@ -196,6 +201,24 @@ export async function POST(request: Request) {
       const stats = await writeCheckpoint(CHECKPOINT_FILE, await dumpAllTables());
       console.log(`[Checkpoint] saved ${stats.rows} rows / ${stats.bytes} bytes`);
       return NextResponse.json({ success: true, ...stats, savedAt: new Date().toISOString() });
+    }
+
+    // --- Pre-wipe net: taken automatically before a transaction wipe ----------
+    // The wipe's in-app undo lives in browser memory and the wipe reloads the
+    // page, so it never survived. This one does.
+    if (action === 'prewipe_save') {
+      const stats = await writeCheckpoint(PRE_WIPE_FILE, await dumpAllTables());
+      console.log(`[Pre-wipe] saved ${stats.rows} rows / ${stats.bytes} bytes`);
+      return NextResponse.json({ success: true, ...stats, savedAt: new Date().toISOString() });
+    }
+
+    if (action === 'prewipe_restore') {
+      const snapshot = await readCheckpoint(PRE_WIPE_FILE);
+      if (!snapshot) {
+        return NextResponse.json({ error: 'Belum ada cadangan sebelum-hapus.' }, { status: 404 });
+      }
+      await restoreFromData(snapshot);
+      return NextResponse.json({ success: true, message: 'Data dikembalikan ke kondisi sebelum dihapus.' });
     }
 
     if (action === 'checkpoint_restore' || action === 'checkpoint_undo') {
