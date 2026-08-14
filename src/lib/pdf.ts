@@ -3,6 +3,7 @@ import { format } from "date-fns"
 import { useAppStore } from "./store"
 import { formatRupiah, formatRupiahValue, getEffectiveBasePrice } from "./utils"
 import { DISMA_LOGO_BASE64 } from "./logo"
+import { printedQty } from "./delivery-qty"
 import { Product } from "@/types"
 
 // Basic standardized branding
@@ -124,6 +125,7 @@ function drawSuratJalanOnDoc(
   signatures?: { courier?: string, client?: string },
   onlyProductIds?: string[],
   subtitle?: string,
+  adjustments?: Record<string, number>,
 ) {
   const store = useAppStore.getState()
   const so = store.salesOrders.find(s => s.poNumber === poNumber)
@@ -169,7 +171,7 @@ function drawSuratJalanOnDoc(
   y += 18
   items.forEach((item, index) => {
     const product = store.products.find(p => p.id === item.productId)
-    const finalQty = item.qtyFinal ?? item.qty
+    const finalQty = printedQty(item, adjustments)
     doc.text(`${index + 1}`, 16, y)
     doc.text(product?.skuCode || '-', 30, y)
     doc.text(product?.name || '-', 70, y)
@@ -185,9 +187,14 @@ function drawSuratJalanOnDoc(
   drawSignatures(doc, "Tim Gudang (Pengirim)", "Penerima (Klien)", y + 20, signatures?.courier, signatures?.client)
 }
 
-export function generateSuratJalan(poNumber: string, signatures?: { courier?: string, client?: string }, outputType: 'save' | 'dataurl' = 'save') {
+export function generateSuratJalan(
+  poNumber: string,
+  signatures?: { courier?: string, client?: string },
+  outputType: 'save' | 'dataurl' = 'save',
+  adjustments?: Record<string, number>,
+) {
   const doc = new jsPDF({ compress: true })
-  drawSuratJalanOnDoc(doc, poNumber, true, signatures)
+  drawSuratJalanOnDoc(doc, poNumber, true, signatures, undefined, undefined, adjustments)
 
   if (outputType === 'dataurl') {
     return doc.output('datauristring')
@@ -252,8 +259,7 @@ function drawBAOnDoc(doc: jsPDF, poNumber: string, signatures?: { courier?: stri
   y += 18
   items.forEach((item, index) => {
     const product = store.products.find(p => p.id === item.productId)
-    // Use manual adjustments passed to the fn if present
-    const finalQty = (adjustments && adjustments[item.id] !== undefined) ? adjustments[item.id] : (item.qtyFinal ?? item.qty)
+    const finalQty = printedQty(item, adjustments)
     doc.text(`${index + 1}`, 16, y)
     doc.text(product?.skuCode || '-', 30, y)
     doc.text(product?.name || '-', 70, y)

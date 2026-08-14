@@ -62,12 +62,10 @@ export default function DocumentPreview({ isOpen, onClose, type, poNumber, soId,
         client: cls || undefined 
       }
       
-      // Surat jalan reads qty straight from the store (qtyFinal ?? qty) — the
-      // `adjustments` it used to be handed were never forwarded to the drawer, so
-      // passing them only looked like they applied. Left as-is on purpose: wiring
-      // them in would change what every delivery note prints, which is its own change.
+      // Both documents are signed at the same handover, so both print the same
+      // corrected quantities.
       const dataUrl = type === 'SuratJalan'
-        ? generateSuratJalan(poNumber, sigs, 'dataurl')
+        ? generateSuratJalan(poNumber, sigs, 'dataurl', adjustments)
         : generateBA(poNumber, sigs, 'dataurl', adjustments)
       
       setPdfDataUrl(dataUrl as string)
@@ -155,7 +153,7 @@ export default function DocumentPreview({ isOpen, onClose, type, poNumber, soId,
       
       // We generate both here
       // SJ might have adjustments already applied to the items in store by the caller before this or from itemAdjustments
-      const sjDataUrl = generateSuratJalan(poNumber, sigs, 'dataurl') as string
+      const sjDataUrl = generateSuratJalan(poNumber, sigs, 'dataurl', itemAdjustments) as string
       const baDataUrl = generateBA(poNumber, sigs, 'dataurl', itemAdjustments) as string
 
       onComplete(
