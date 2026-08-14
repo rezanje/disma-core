@@ -410,6 +410,14 @@ export default function PurchaseRequestsPage() {
     if (amount <= 0) { toast.error('Nominal harus lebih dari 0.'); return }
     if (!disburseBankId) { toast.error('Pilih rekening sumber.'); return }
 
+    // Layar Pencairan Dana dan pembayaran vendor sama-sama menolak kalau saldo
+    // kurang; jalur ini satu-satunya yang tidak, sehingga saldo bisa jadi minus.
+    const sourceBank = bankAccounts.find(b => b.id === disburseBankId)
+    if (sourceBank && sourceBank.balance < amount) {
+      toast.error(`Saldo ${sourceBank.name} tidak mencukupi (tersedia ${formatRupiah(sourceBank.balance)}).`)
+      return
+    }
+
     // Rekening strategis (BRI/Mandiri) butuh approval CFO dulu sebelum bisa
     // dicairkan — jarang terjadi (mayoritas pencairan dari BCA/Jago, bebas).
     if (bankRequiresCfoApproval(disburseBankId)) {

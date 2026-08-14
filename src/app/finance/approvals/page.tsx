@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo } from "react"
 import { useAppStore } from "@/lib/store"
 import { computeBankBalances } from "@/lib/bank-balance"
 import { roundQtyToBook } from "@/lib/backorder"
+import { cogsFallbackItems } from "@/lib/cogs-source"
 import { formatRupiah, cn } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -1116,6 +1117,12 @@ export default function FinanceHubPage() {
                      const courier = users.find(u => u.id === delivery.courierId)
                      const soItems = salesOrderItems.filter(i => i.salesOrderId === so?.id)
                      const totalRev = soItems.reduce((sum, item) => sum + (roundQtyToBook(item) * item.unitPrice), 0)
+                     // Baris tanpa catatan pembelian akan memakai harga dasar produk
+                     // sebagai HPP. Jurnalnya tetap seimbang dan laporannya tetap
+                     // tercetak, jadi tanpa peringatan ini biayanya tertebak diam-diam.
+                     const guessed = so
+                       ? cogsFallbackItems(so.id, soItems.filter(i => roundQtyToBook(i) > 0), purchaseItems)
+                       : []
                      return (
                         <Card key={delivery.id} className="border-none shadow-xl rounded-[2.5rem] bg-white group overflow-hidden">
                            <CardHeader className="p-6 pb-2">
@@ -1132,7 +1139,24 @@ export default function FinanceHubPage() {
                                  <span className="text-[9px] font-black text-slate-400 uppercase">Invoice Value</span>
                                  <span className="text-xl font-black text-slate-900">{formatRupiah(totalRev)}</span>
                               </div>
-                              <Button className="w-full rounded-2xl h-12 bg-blue-600 text-white font-black uppercase text-[10px]" onClick={() => handleVerifyDelivery(delivery.id)}>Approve & Record Revenue</Button>
+                              {guessed.length > 0 && (
+                                 <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl">
+                                    <p className="text-[9px] font-black text-amber-700 uppercase tracking-widest flex items-center gap-1.5">
+                                       <AlertTriangle className="w-3.5 h-3.5" /> HPP Ditebak ({guessed.length} barang)
+                                    </p>
+                                    <p className="text-[10px] font-bold text-slate-600 mt-1 leading-snug">
+                                       Tidak ada catatan pembelian, jadi biayanya memakai harga dasar produk. Laba yang tercatat bisa meleset.
+                                    </p>
+                                    <ul className="mt-2 space-y-0.5">
+                                       {guessed.map(pid => (
+                                          <li key={pid} className="text-[10px] font-bold text-amber-800 truncate">
+                                             • {products.find(p => p.id === pid)?.name || pid}
+                                          </li>
+                                       ))}
+                                    </ul>
+                                 </div>
+                              )}
+                              <Button className="w-full rounded-2xl h-12 bg-blue-600 text-white font-black uppercase text-[10px]" onClick={() => handleVerifyDelivery(delivery.id)}>Approve &amp; Record Revenue</Button>
                            </CardContent>
                         </Card>
                      )

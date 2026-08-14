@@ -670,7 +670,11 @@ const initialRolePermissions: RolePermissionMap = {
     'tasks_global', 'settings_global'
   ],
   cmo: [], // Archived for Phase 1
-  finance: ['finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets', 'finance_budget', 'finance_cash_bank', 'finance_expenses', 'finance_ledger', 'finance_invoices', 'finance_ar_aging', 'finance_ap_aging', 'finance_reconciliation', 'finance_reimbursements', 'finance_online_purchase', 'finance_audit', 'finance_documents', 'tasks_global', 'admin_price_lists', 'finance_disbursements', 'finance_sourcing_monitor'],
+  // 'admin_purchase_requests' ada di sini karena halaman itu punya tombol
+  // Setujui/Tolak khusus Finance. Tanpa izin ini, orang yang tombolnya dibuat
+  // untuk dia tidak pernah bisa membuka halamannya. AuthGuard meloloskan siapa
+  // pun yang punya kunci izin halamannya, jadi tidak perlu ubah penjaga rute.
+  finance: ['admin_purchase_requests', 'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets', 'finance_budget', 'finance_cash_bank', 'finance_expenses', 'finance_ledger', 'finance_invoices', 'finance_ar_aging', 'finance_ap_aging', 'finance_reconciliation', 'finance_reimbursements', 'finance_online_purchase', 'finance_audit', 'finance_documents', 'tasks_global', 'admin_price_lists', 'finance_disbursements', 'finance_sourcing_monitor'],
   gudang: ['warehouse_dashboard', 'warehouse_catalog', 'warehouse_inbound', 'warehouse_outbound', 'warehouse_qc', 'warehouse_reject_monitor', 'tasks_global'],
   sourcing: ['sourcing_dashboard', 'sourcing_list', 'sourcing_expenses', 'tasks_global'],
   kurir: ['courier_dashboard', 'courier_list', 'courier_handover', 'courier_history', 'courier_expenses', 'tasks_global'],
