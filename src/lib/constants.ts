@@ -121,6 +121,12 @@ export const COA_SEED: any[] = [
     "accountType": "Asset"
   },
   {
+    "id": "coa-vendor-return-claim",
+    "accountCode": "1-2100",
+    "accountName": "Piutang Retur ke Vendor",
+    "accountType": "Asset"
+  },
+  {
     "id": "coa-3",
     "accountCode": "1-3000",
     "accountName": "Persediaan Barang Dagang",

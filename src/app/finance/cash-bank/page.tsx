@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { v4 as uuidv4 } from "uuid"
-import { createAccountingEntry } from "@/lib/accounting"
+import { createAccountingEntry, bankRequiresCfoApproval } from "@/lib/accounting"
 import type { BankAccountPurpose } from "@/types"
 import { computeBankBalances } from "@/lib/bank-balance"
 import ReceiptUpload from "@/components/ui/receipt-upload"
@@ -321,6 +321,15 @@ export default function CashAndBankPage() {
       }
       if (bankId === targetBankId) {
         toast.error("Akun sumber dan tujuan tidak boleh sama.")
+        return
+      }
+      // Rekening yang ditandai "butuh approval CFO" (Mandiri, BRI) hanya boleh
+      // dikeluarkan lewat alur Disbursement yang ada persetujuannya. Halaman ini
+      // sebelumnya tidak memeriksanya sama sekali, jadi Pindah Buku jadi pintu
+      // belakang untuk memindahkan berapa pun tanpa satu pun persetujuan.
+      if (bankRequiresCfoApproval(bankId)) {
+        const src = bankAccounts.find(b => b.id === bankId)
+        toast.error(`${src?.name || 'Rekening ini'} butuh persetujuan CFO. Ajukan lewat Finance › Disbursement (Kas Pindah), bukan Pindah Buku.`)
         return
       }
 

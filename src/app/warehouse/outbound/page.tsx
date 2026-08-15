@@ -26,8 +26,29 @@ export default function OutboundPage() {
 
   const handleRelease = async (soId: string) => {
     const items = salesOrderItems.filter(i => i.salesOrderId === soId)
-    
-    // 1. Reduce Inventory Stock (use qtyFinal if available, fallback to qty)
+
+    // 1. Misi pengirimannya dibuat DULU supaya baris stok di bawah bisa memakai
+    //    id-nya. Itu yang dipakai audit Finance untuk tahu barangnya sudah dipotong
+    //    di sini dan tidak memotongnya untuk kedua kali.
+    const existingDeliveries = useAppStore.getState().deliveries
+    // A completed (Terkirim) delivery from a previous round must NOT block a new
+    // round's delivery — only an in-flight delivery should.
+    const openDelivery = existingDeliveries.find(d => d.salesOrderId === soId && d.status !== 'Terkirim')
+    let deliveryId = openDelivery?.id
+    if (!deliveryId) {
+      const so = salesOrders.find(s => s.id === soId)
+      deliveryId = uuidv4()
+      await addDelivery({
+        id: deliveryId,
+        salesOrderId: soId,
+        // Rencana Admin PO menang atas 'pending'; kalau belum direncanakan,
+        // perilakunya sama seperti sebelumnya.
+        courierId: so?.assignedCourierId || 'pending',
+        status: 'Menunggu',
+      })
+    }
+
+    // 2. Reduce Inventory Stock (use qtyFinal if available, fallback to qty)
     for (const item of items) {
       const product = products.find(p => p.id === item.productId)
       if (product) {
@@ -45,7 +66,7 @@ export default function OutboundPage() {
           source: 'Inventory',
           destination: 'Client Delivery',
           referenceType: 'Delivery',
-          referenceId: soId,
+          referenceId: deliveryId,
           salesOrderId: soId,
           note: `Barang keluar untuk pengiriman SO ${soId}`,
           createdByUserId: currentUser?.id || 'system',
@@ -53,30 +74,12 @@ export default function OutboundPage() {
       }
     }
 
-    // 2. Update SO Status to 'Siap Kirim' (READY FOR HANDOVER)
-    updateSalesOrder(soId, { 
+    // 3. Update SO Status to 'Siap Kirim' (READY FOR HANDOVER)
+    updateSalesOrder(soId, {
       status: 'Siap Kirim',
       handoverDate: new Date().toISOString(),
       handoverBy: currentUser?.id || 'system'
     })
-
-    // 3. Create Delivery Mission (Wait for Handover)
-    const existingDeliveries = useAppStore.getState().deliveries;
-    // A completed (Terkirim) delivery from a previous round must NOT block a new
-    // round's delivery — only an in-flight delivery should.
-    const alreadyHasDelivery = existingDeliveries.some(d => d.salesOrderId === soId && d.status !== 'Terkirim');
-
-    if (!alreadyHasDelivery) {
-      const so = salesOrders.find(s => s.id === soId);
-      addDelivery({
-        id: uuidv4(),
-        salesOrderId: soId,
-        // Rencana Admin PO menang atas 'pending'; kalau belum direncanakan,
-        // perilakunya sama seperti sebelumnya.
-        courierId: so?.assignedCourierId || 'pending',
-        status: 'Menunggu',
-      });
-    }
 
     toast.success("Barang siap untuk serah terima (Handover) ke Kurir.")
   }

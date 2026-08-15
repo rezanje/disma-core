@@ -90,10 +90,14 @@ const calculateDynamicStockForProducts = (products: Product[], stockMovements: S
     }
   });
 
+  // Angka minus TIDAK dipaksa jadi 0. Stok minus artinya catatannya salah — barang
+  // keluar tanpa pernah tercatat masuk, atau terpotong dua kali — dan itu justru yang
+  // harus kelihatan. Dipaksa jadi 0, gudang cuma lihat "kosong" dan tidak ada yang
+  // pernah memperbaikinya.
   return (products || []).map(p => ({
     ...p,
-    currentStock: Math.max(0, mainStockMap[p.id] || 0),
-    b2cStock: Math.max(0, b2cStockMap[p.id] || 0)
+    currentStock: mainStockMap[p.id] || 0,
+    b2cStock: b2cStockMap[p.id] || 0
   }));
 };
 
@@ -669,16 +673,22 @@ const initialRolePermissions: RolePermissionMap = {
     'courier_dashboard', 'courier_list', 'courier_handover', 'courier_history', 'courier_expenses',
     'tasks_global', 'settings_global'
   ],
-  cmo: [], // Archived for Phase 1
+  // CMO dulu sengaja dikosongkan ("archived for Phase 1"), tapi akunnya tetap aktif
+  // dan PIN-nya tetap bisa dipakai — hasilnya login yang berhasil ke layar kosong
+  // tanpa penjelasan. Diberi menu sisi penjualan supaya akunnya masuk akal.
+  cmo: ['admin_dashboard', 'admin_crm', 'admin_clients', 'admin_sales_orders', 'admin_price_lists', 'tasks_global', 'settings_global'],
   // 'admin_purchase_requests' ada di sini karena halaman itu punya tombol
   // Setujui/Tolak khusus Finance. Tanpa izin ini, orang yang tombolnya dibuat
   // untuk dia tidak pernah bisa membuka halamannya. AuthGuard meloloskan siapa
   // pun yang punya kunci izin halamannya, jadi tidak perlu ubah penjaga rute.
-  finance: ['admin_purchase_requests', 'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets', 'finance_budget', 'finance_cash_bank', 'finance_expenses', 'finance_ledger', 'finance_invoices', 'finance_ar_aging', 'finance_ap_aging', 'finance_reconciliation', 'finance_rekon', 'finance_reimbursements', 'finance_online_purchase', 'finance_audit', 'finance_documents', 'finance_tukar_faktur', 'finance_collections', 'finance_sku_pnl', 'finance_settlement', 'finance_settlement_dash', 'finance_online_audit', 'finance_delivery', 'tasks_global', 'admin_price_lists', 'finance_disbursements', 'finance_sourcing_monitor'],
-  gudang: ['warehouse_dashboard', 'warehouse_catalog', 'warehouse_inbound', 'warehouse_outbound', 'warehouse_qc', 'warehouse_reject_monitor', 'warehouse_opname', 'tasks_global'],
-  sourcing: ['sourcing_dashboard', 'sourcing_list', 'sourcing_expenses', 'tasks_global'],
-  kurir: ['courier_dashboard', 'courier_list', 'courier_handover', 'courier_history', 'courier_expenses', 'tasks_global'],
-  admin_po: ['admin_dashboard', 'admin_sales_orders', 'admin_shopping_list', 'admin_dropship', 'admin_delivery_routes', 'admin_clients', 'admin_products', 'warehouse_catalog', 'tasks_global', 'admin_price_lists', 'finance_invoices', 'admin_tukar_faktur'],
+  finance: ['admin_purchase_requests', 'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets', 'finance_budget', 'finance_cash_bank', 'finance_expenses', 'finance_ledger', 'finance_invoices', 'finance_ar_aging', 'finance_ap_aging', 'finance_reconciliation', 'finance_rekon', 'finance_reimbursements', 'finance_online_purchase', 'finance_audit', 'finance_documents', 'finance_tukar_faktur', 'finance_collections', 'finance_sku_pnl', 'finance_settlement', 'finance_settlement_dash', 'finance_online_audit', 'finance_delivery', 'tasks_global', 'settings_global', 'admin_price_lists', 'finance_disbursements', 'finance_sourcing_monitor'],
+  gudang: ['warehouse_dashboard', 'warehouse_catalog', 'warehouse_inbound', 'warehouse_outbound', 'warehouse_qc', 'warehouse_reject_monitor', 'warehouse_opname', 'tasks_global', 'settings_global'],
+  sourcing: ['sourcing_dashboard', 'sourcing_list', 'sourcing_expenses', 'tasks_global', 'settings_global'],
+  kurir: ['courier_dashboard', 'courier_list', 'courier_handover', 'courier_history', 'courier_expenses', 'tasks_global', 'settings_global'],
+  // 'admin_purchase_requests': Admin PO yang membuat pengajuan dananya (otomatis dari
+  // dokumen belanja), tapi dulu tidak punya menunya — jadi dia tidak pernah bisa
+  // melihat pengajuannya sudah disetujui Finance atau belum.
+  admin_po: ['admin_dashboard', 'admin_sales_orders', 'admin_shopping_list', 'admin_purchase_requests', 'admin_dropship', 'admin_delivery_routes', 'admin_clients', 'admin_products', 'warehouse_catalog', 'tasks_global', 'settings_global', 'admin_price_lists', 'finance_invoices', 'admin_tukar_faktur'],
 };
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -740,6 +750,16 @@ export const useAppStore = create<AppState>((set, get) => ({
               console.warn(`[Sync] ${table} table not available yet, skipping.`);
               return true; // Not a real failure, table just doesn't exist yet
             }
+            // Kolom yang tidak ada = bug kode, bukan gangguan jaringan. Postgres
+            // menolak SELURUH baris, jadi datanya HILANG — dan menunggu 2 detik lalu
+            // mengulang tidak akan pernah menolongnya. Ini persis yang dulu bikin PO
+            // kurang kirim tidak pernah tercatat: layar bilang berhasil, database
+            // tidak pernah menerimanya. Gagalkan langsung supaya pemanggilnya tahu.
+            if (/could not find the '.*' column/i.test(errMessage)) {
+              const err = new Error(`Sync failed for ${table}: ${errMessage}`);
+              (err as Error & { fatalSchema?: boolean }).fatalSchema = true;
+              throw err;
+            }
             throw new Error(`Sync failed for ${table}: ${errMessage}`);
           }
           return true;
@@ -756,6 +776,15 @@ export const useAppStore = create<AppState>((set, get) => ({
             bc.close();
           }
         } catch (firstError) {
+          // Beda kolom tidak akan sembuh dengan diulang — teriakkan sekarang.
+          if ((firstError as Error & { fatalSchema?: boolean })?.fatalSchema) {
+            set({ isSyncing: false });
+            if (!silent && typeof window !== 'undefined') {
+              const { toast } = await import('sonner');
+              toast.error(`⚠️ ${table} TIDAK tersimpan — struktur datanya tidak cocok. Lapor ke developer, jangan diulang.`, { duration: 12000 });
+            }
+            throw firstError;
+          }
           // RETRY ONCE after 2s — Supabase may be waking from hibernation
           console.warn(`[Sync] First attempt failed for ${table}, retrying in 2s...`, firstError);
           try {
@@ -884,6 +913,11 @@ export const useAppStore = create<AppState>((set, get) => ({
           // applying it would flicker the just-changed values back to old.
           const fetchStartedAt = Date.now();
           
+          // Grup yang gagal dimuat bikin sebagian layar tampil KOSONG padahal datanya
+          // ada di server. Dulu hanya dicatat di konsol, jadi dari sisi pemakai
+          // bedanya tidak kelihatan dengan "memang belum ada datanya".
+          const failedGroups: number[] = [];
+
           const fetchGroup = async (group: number): Promise<Record<string, any>> => {
             try {
               const controller = new AbortController();
@@ -900,12 +934,14 @@ export const useAppStore = create<AppState>((set, get) => ({
               clearTimeout(timeoutId);
               if (!res.ok) {
                 console.warn(`[INIT] Group ${group} returned ${res.status}`);
+                failedGroups.push(group);
                 return {};
               }
               const json = await res.json();
               return (json && !json.error) ? json : {};
             } catch (e) {
               console.warn(`[INIT] Group ${group} failed:`, e);
+              failedGroups.push(group);
               return {};
             }
           };
@@ -917,6 +953,14 @@ export const useAppStore = create<AppState>((set, get) => ({
           const [g1, g2, g3, g4, g5] = await Promise.all([
             fetchGroup(1), fetchGroup(2), fetchGroup(3), fetchGroup(4), fetchGroup(5),
           ]);
+
+          if (failedGroups.length > 0 && typeof window !== 'undefined') {
+            const { toast } = await import('sonner');
+            toast.error(
+              `⚠️ Sebagian data gagal dimuat (grup ${failedGroups.join(', ')}). Layar tertentu bisa tampil kosong — muat ulang halaman.`,
+              { duration: 10000 }
+            );
+          }
 
           // client_prices (group 6) is ~20k rows / 5.7MB — bigger than every
           // other group combined, and it used to dominate boot from inside
