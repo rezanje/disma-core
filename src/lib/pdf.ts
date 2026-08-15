@@ -149,7 +149,13 @@ function drawSuratJalanOnDoc(
   doc.text("Dikirim Kepada:", 130, 48)
   doc.setFont("helvetica", "normal")
   doc.text(client?.companyName || 'Unknown', 130, 54)
-  doc.text(client?.address || '', 130, 59, { maxWidth: 60 })
+  // Alamat dan telepon kosong di hampir semua klien. Baris yang hilang total
+  // membuat dokumennya terlihat lengkap, jadi tidak ada yang terpicu mengisi —
+  // dan kurir tetap harus menelepon. Cetak garis isian supaya kekurangannya
+  // terlihat dan bisa ditulis tangan.
+  doc.text(client?.address?.trim() || '..........................................', 130, 59, { maxWidth: 60 })
+  doc.text(`Telp: ${client?.phone?.trim() || '.............................'}`, 130, 70)
+  doc.text(`PIC : ${client?.picName?.trim() || '.............................'}`, 130, 75)
 
   if (subtitle) {
     doc.setFont("helvetica", "bold")

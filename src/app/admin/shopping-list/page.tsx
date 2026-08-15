@@ -2054,7 +2054,11 @@ export default function ShoppingListPage() {
                                                >
                                                   Tempo
                                                </button>
-                                               {item.purchaseMethod === 'Vendor' && (
+                                               {/* Dropship menolak Tunai, jadi tombolnya wajib ada di sini —
+                                                   tanpa ini pesan "pilih Transfer atau Tempo" menyuruh memilih
+                                                   sesuatu yang tidak ada di layar, dan semua kiriman langsung
+                                                   ke klien terpaksa dicatat Tempo. */}
+                                               {(item.purchaseMethod === 'Vendor' || item.purchaseMethod === 'Dropship') && (
                                                   <button
                                                      onClick={() => setPaymentMethod(rowKey(item), 'Transfer')}
                                                      className={cn(
