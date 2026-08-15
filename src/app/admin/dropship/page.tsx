@@ -15,6 +15,7 @@ import { cn, formatRupiah } from "@/lib/utils"
 import { isDropship, groupDropship } from "@/lib/dropship"
 import { recordDropshipDelivery, type DropshipConfirmLine } from "@/lib/accounting"
 import { generateDropshipSuratJalan } from "@/lib/pdf"
+import { PdfCanvasPreview } from "@/components/pdf-canvas-preview"
 import { Truck, FileText, CheckCircle2, PackageCheck, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
 
@@ -35,6 +36,7 @@ export default function DropshipPage() {
   const [proofUrl, setProofUrl] = useState("")
   const [transferBankId, setTransferBankId] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [pdfPreview, setPdfPreview] = useState<{ url: string; title: string } | null>(null)
 
   const outstanding = useMemo(
     () => purchaseItems.filter(pi => isDropship(pi) && !pi.isQCed),
@@ -74,14 +76,30 @@ export default function DropshipPage() {
     setTransferBankId(bankAccounts.find(b => b.accountCode === '1-1200')?.id || "")
   }
 
+  // Tampilkan di layar, bukan langsung diunduh. Unduhan diam-diam tidak
+  // memberi tanda apa pun kalau gagal — tombolnya terasa mati.
   const handleSuratJalan = (key: string) => {
     const group = groups.find(g => g.key === key)
-    if (!group?.salesOrderId) return
-    generateDropshipSuratJalan(
-      group.salesOrderId,
-      group.items.map(i => i.productId),
-      vendorNameOf(group.vendorId)
-    )
+    if (!group?.salesOrderId) {
+      toast.error("Kiriman ini belum terkait PO — surat jalan tidak bisa dibuat.")
+      return
+    }
+    try {
+      const url = generateDropshipSuratJalan(
+        group.salesOrderId,
+        group.items.map(i => i.productId),
+        vendorNameOf(group.vendorId),
+        'dataurl',
+      )
+      if (!url) {
+        toast.error("Gagal membuat surat jalan — PO-nya tidak ketemu.")
+        return
+      }
+      setPdfPreview({ url, title: `Surat Jalan — ${vendorNameOf(group.vendorId)}` })
+    } catch (e) {
+      console.error('[dropship] surat jalan gagal:', e)
+      toast.error("Gagal membuat surat jalan.")
+    }
   }
 
   const handleConfirm = async () => {
@@ -288,6 +306,27 @@ export default function DropshipPage() {
           </div>
         </div>
       )}
+
+      {/* Pratinjau surat jalan */}
+      <Dialog open={!!pdfPreview} onOpenChange={(open) => { if (!open) setPdfPreview(null) }}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-black uppercase tracking-wider">
+              {pdfPreview?.title}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[70vh] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-2">
+            {pdfPreview && <PdfCanvasPreview url={pdfPreview.url} />}
+          </div>
+          <a
+            href={pdfPreview?.url}
+            download={`${pdfPreview?.title || 'surat-jalan'}.pdf`}
+            className="w-full h-12 rounded-xl bg-slate-900 text-white font-extrabold text-[10px] uppercase tracking-wider flex items-center justify-center"
+          >
+            Unduh PDF
+          </a>
+        </DialogContent>
+      </Dialog>
 
       {/* Confirm dialog */}
       <Dialog open={!!activeGroup} onOpenChange={(open) => { if (!open) setActiveKey(null) }}>

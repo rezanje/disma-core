@@ -837,6 +837,20 @@ export default function SalesOrdersPage() {
       toast.error("Please add at least one item")
       return
     }
+    // Harga 0 di daftar harga klien lolos tanpa suara sampai sekarang: PO terbit
+    // senilai Rp0, barang keluar gudang gratis, dan baru ketahuan saat rekap.
+    const zeroPriced = lineItems.filter(i => !(i.unitPrice > 0))
+    if (zeroPriced.length > 0) {
+      const names = zeroPriced
+        .map(i => products.find(p => p.id === i.productId)?.name || 'Barang')
+        .slice(0, 5)
+      toast.error(
+        `Harga masih Rp0 untuk ${zeroPriced.length} barang: ${names.join(', ')}${zeroPriced.length > 5 ? ', dll' : ''}. ` +
+        `Perbaiki dulu di Price Lists klien ini, atau isi harganya manual.`,
+        { duration: 10000 },
+      )
+      return
+    }
 
     setIsSavingOrder(true)
     try {
