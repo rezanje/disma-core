@@ -20,6 +20,8 @@ type JournalPostResponse = {
 };
 
 export const HPP_ACCOUNT_CODE = '5-1000';
+/** Tagihan ke vendor atas barang yang diretur — pengganti belum datang, uang belum balik. */
+export const VENDOR_RETURN_CLAIM_ACCOUNT = '1-2100';
 export const ADVANCE_WALLETS = {
   sourcing: {
     role: 'sourcing',
@@ -590,12 +592,16 @@ export const recordOperationalAdvanceTransfer = async (
 };
 
 export const recordDeliveryAndInvoice = async (
-  deliveryId: string, 
-  invoiceId: string, 
-  invoiceTotal: number, 
-  cogsTotal: number, 
+  deliveryId: string,
+  invoiceId: string,
+  invoiceTotal: number,
+  cogsTotal: number,
   items: { productId: string, qty: number }[] = [],
-  isFastTrack: boolean = false
+  isFastTrack: boolean = false,
+  // Tanggal kejadiannya, bukan tanggal tombolnya ditekan. Tanpa ini omzet dan HPP
+  // selalu jatuh di hari Finance mengaudit: kiriman Sabtu yang baru diaudit Senin
+  // bikin laba Sabtu nol dan laba Senin dobel.
+  postingDate?: string
 ) => {
   const store = useAppStore.getState();
 
@@ -622,7 +628,8 @@ export const recordDeliveryAndInvoice = async (
     'Invoice',
     invoiceId,
     [{ accountCode: '1-2000', amount: invoiceTotal }],
-    [{ accountCode: '4-1000', amount: invoiceTotal }]
+    [{ accountCode: '4-1000', amount: invoiceTotal }],
+    postingDate
   );
 
   if (!revSuccess) return false;
@@ -636,12 +643,24 @@ export const recordDeliveryAndInvoice = async (
       'Delivery',
       deliveryId,
       [{ accountCode: '5-1000', amount: cogsTotal }],
-      [{ accountCode: inventoryAccount, amount: cogsTotal }]
+      [{ accountCode: inventoryAccount, amount: cogsTotal }],
+      postingDate
     );
   }
 
   // 4. Physical Inventory Sync (Deduction)
-  for (const item of items) {
+  //
+  // Barang yang sudah dirilis Gudang (Goods Outbound) SUDAH dipotong di sana, dengan
+  // referenceId = deliveryId ronde ini. Memotong lagi di sini bikin setiap kiriman
+  // terpotong dua kali — 50 Kg keluar tercatat 100 Kg — dan karena barang cross-dock
+  // tidak pernah ditambahkan ke stok, hasilnya minus yang makin dalam tiap kiriman.
+  // Potongan di bawah ini tinggal untuk jalur yang MELEWATI gudang (mis. tombol
+  // "Dikirim → Terkirim" manual di halaman PO), yang tidak punya langkah rilis.
+  const alreadyReleased = store.stockMovements.some(
+    m => m.kind === 'DELIVERY_OUTBOUND' && m.referenceId === deliveryId
+  );
+
+  for (const item of alreadyReleased ? [] : items) {
     const product = store.products.find(p => p.id === item.productId);
     if (product) {
       // Find unit cost for this item to log in stock_movements
@@ -1579,12 +1598,16 @@ export const recordInboundQC = async (
   if (qtyRejected > 0 && rejectAction) {
     const rejectValue = qtyRejected * unitCost;
     if (rejectAction === 'Return') {
-      // Return: reverse receipt by debiting AP Accrual 2-1100 and crediting Persediaan
+      // Return: barangnya balik ke vendor, jadi keluar dari Persediaan. Lawannya
+      // BUKAN 2-1100: kalau barangnya dibeli tunai, uangnya sudah keluar dan yang
+      // tersisa adalah tagihan ke vendor (barang pengganti atau uang kembali).
+      // Ditaruh di 2-1100 nilainya tetap benar tapi nyangkut sebagai saldo debit di
+      // akun hutang — tidak pernah kelihatan sebagai "vendor masih utang ke kita".
       await createAccountingEntry(
         `QC Reject Retur Supplier - ${product.name} - Ref: ${purchaseItemId.slice(0,8)}`,
         'QC',
         purchaseItemId,
-        [{ accountCode: '2-1100', amount: rejectValue }],
+        [{ accountCode: VENDOR_RETURN_CLAIM_ACCOUNT, amount: rejectValue }],
         [{ accountCode: inventoryAccount, amount: rejectValue }]
       );
     } else if (rejectAction === 'Disposal') {

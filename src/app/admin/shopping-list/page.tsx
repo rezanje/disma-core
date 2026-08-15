@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn, formatRupiah } from "@/lib/utils"
+import { qtyOwed } from "@/lib/backorder"
 import GlobalUndoButton from "@/components/global-undo-button"
 import { PdfCanvasPreview } from "@/components/pdf-canvas-preview"
 
@@ -526,7 +527,17 @@ export default function ShoppingListPage() {
     return salesOrders
       // Draft = belum diapprove; Belanja = sudah "Go to Sourcing", siap dibelanjakan.
       // Keduanya valid untuk dikompilasi selama belum masuk dokumen belanja.
-      .filter(so => (so.status === 'Draft' || so.status === 'Belanja') && !so.shoppingListCompiledAt)
+      //
+      // "Kurang Kirim" = PO yang sudah dikirim sebagian dan sisanya masih terutang ke
+      // klien. Dulu dua syarat di bawah sama-sama menolaknya (statusnya bukan
+      // Draft/Belanja, DAN dia sudah pernah masuk dokumen belanja ronde pertama), jadi
+      // sisa pesanan tidak pernah muncul di layar belanja siapa pun — pesan "masuk
+      // antrean susulan" di serah terima tidak menuju ke mana-mana. Gudang sudah siap
+      // menerimanya (QC mengizinkan alokasi ke PO berstatus ini); yang ketutup cuma
+      // pintu belanjanya.
+      .filter(so =>
+        so.status === 'Kurang Kirim' ||
+        ((so.status === 'Draft' || so.status === 'Belanja') && !so.shoppingListCompiledAt))
       .filter(so => !filterDeliveryDate || toDateInputValue(so.targetDeliveryDate) === filterDeliveryDate)
       .sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime())
   }, [salesOrders, filterDeliveryDate])
@@ -545,16 +556,19 @@ export default function ShoppingListPage() {
   )
 
   const allRequirementItems = [
+    // Yang dibelanjakan adalah sisa yang masih terutang ke klien, bukan jumlah pesanan
+    // awal. Untuk PO baru keduanya sama (belum ada yang dikirim); untuk PO Kurang Kirim
+    // inilah yang membuat ronde susulan membeli 15 Kg, bukan mengulang 80 Kg.
     ...activeSOItemIds.map(item => {
       const product = products.find(p => p.id === item.productId);
-      return { 
-        productId: item.productId, 
-        qty: item.qty, 
+      return {
+        productId: item.productId,
+        qty: qtyOwed(item),
         buyPrice: item.estimatedHpp !== undefined ? item.estimatedHpp : (product?.basePrice || 0),
         sellPrice: item.unitPrice,
         salesOrderId: item.salesOrderId // Extract the SO ID
       }
-    }),
+    }).filter(r => r.qty > 0),
     ...manualItems.map(item => ({ 
       productId: item.productId, 
       qty: item.qty, 
@@ -569,6 +583,11 @@ export default function ShoppingListPage() {
     const selectedSOIdSet = new Set(selectedSOs.map(so => so.id))
     purchaseItems.forEach(pi => {
       if (!pi.salesOrderId || !selectedSOIdSet.has(pi.salesOrderId)) return
+      // Hanya baris belanja yang MASIH berjalan yang boleh mengurangi kebutuhan.
+      // Baris yang sudah lewat QC barangnya sudah diterima dan sudah dikirim — untuk
+      // ronde susulan, menghitungnya lagi bikin kebutuhan sisa jadi nol dan tombol
+      // belanjanya tidak pernah muncul.
+      if (pi.isQCed) return
       map[pi.productId] = (map[pi.productId] || 0) + Number(pi.qtyTarget || 0)
     })
     return map
@@ -616,7 +635,9 @@ export default function ShoppingListPage() {
   const consolidatedList = useMemo(() => {
     return rawConsolidatedList.map(item => {
       const product = products.find(p => p.id === item.productId)
-      const currentStock = product?.currentStock || 0
+      // Stok minus tidak bisa dipakai memenuhi pesanan — kalau catatannya minus,
+      // anggap kosong di sini (angka minusnya tetap kelihatan di layar gudang).
+      const currentStock = Math.max(0, product?.currentStock || 0)
       const alreadyBought = rekapPOByProduct[item.productId] || 0
       const kebutuhan = item.kebutuhan
 
@@ -872,7 +893,11 @@ export default function ShoppingListPage() {
     const loadingId = toast.loading("Mengirim ke Finance...")
     try {
       useAppStore.getState().takeDevSnapshot()
-      const items = purchaseItems.filter(pi => pi.purchaseId === purchaseId && pi.purchaseMethod === 'Pasar')
+      // Yang diajukan adalah UANG TUNAI yang perlu ditarik. Barang tempo dibayar
+      // belakangan lewat tagihan vendor, jadi ikut menghitungnya bikin sourcing
+      // membawa uang lebih banyak dari yang dia butuhkan.
+      const items = purchaseItems.filter(pi =>
+        pi.purchaseId === purchaseId && pi.purchaseMethod === 'Pasar' && pi.paymentMethod !== 'Tempo')
       const totalBudget = items.reduce((sum, item) => sum + (item.estimatedUnitPrice * item.qtyTarget), 0)
 
       let prId = purchase.purchaseRequestId

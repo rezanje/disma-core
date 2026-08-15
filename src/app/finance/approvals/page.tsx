@@ -621,12 +621,17 @@ export default function FinanceHubPage() {
     if (!invoiceId || bookedInvoiceIds.has(invoiceId)) {
       const so = salesOrders.find(s => s.id === soId)
       invoiceId = uuidv4()
+      // Tanggal terbit = tanggal barang diterima klien, jadi jatuh temponya juga
+      // dihitung dari sana. Kalau dipatok "hari ini", audit yang telat tiga hari
+      // memberi klien tiga hari ekstra tanpa ada yang menyadarinya.
+      const issuedAt = delivery.deliveryDate ? new Date(delivery.deliveryDate) : new Date()
+      const termDays = clients.find(c => c.id === so?.clientId)?.paymentTermDays ?? 14
       await useAppStore.getState().addInvoice({
         id: invoiceId,
         salesOrderId: soId,
         clientId: so?.clientId || '',
-        issueDate: new Date().toISOString(),
-        dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+        issueDate: issuedAt.toISOString(),
+        dueDate: new Date(issuedAt.getTime() + termDays * 24 * 60 * 60 * 1000).toISOString(),
         totalAmount: totalRevenue,
         amountPaid: 0,
         status: 'Unpaid' as const
@@ -650,7 +655,11 @@ export default function FinanceHubPage() {
 
     const isFastTrack = delivery?.notes?.toLowerCase().includes('fast-track') || false
     toast.loading("Finalisasi pengiriman & invoice...", { id: "delivery" })
-    const success = await recordDeliveryAndInvoice(deliveryId, invoiceId, totalRevenue, totalCogs, stockDeductionItems, isFastTrack)
+    // Omzet & HPP dibukukan pada tanggal barang diterima klien, bukan tanggal
+    // auditnya dikerjakan — kalau tidak, laba harian pindah hari setiap kali
+    // auditnya telat.
+    const postingDate = delivery.deliveryDate || undefined
+    const success = await recordDeliveryAndInvoice(deliveryId, invoiceId, totalRevenue, totalCogs, stockDeductionItems, isFastTrack, postingDate)
     if (success) {
       await updateDelivery(deliveryId, { status: 'Terkirim' })
       await updateSalesOrder(soId, { status: 'Terkirim' })

@@ -222,11 +222,22 @@ export default function InvoicesPage() {
             note: "Pembayaran diterima"
           }
 
-          updateInvoice(activeInvoice.id, {
-            amountPaid: newAmountPaid,
-            status: status,
-            payments: [...(activeInvoice.payments || []), paymentRecord]
-          })
+          // Jurnal + kas sudah tercatat di atas. Kalau penandaan invoice ini gagal,
+          // pembukuan bilang lunas sementara AR Aging masih menagih klien yang sama —
+          // jadi kegagalannya harus diteriakkan, bukan ditelan lalu dilaporkan sukses.
+          try {
+            await updateInvoice(activeInvoice.id, {
+              amountPaid: newAmountPaid,
+              status: status,
+              payments: [...(activeInvoice.payments || []), paymentRecord]
+            })
+          } catch (e) {
+            toast.error(
+              `Uang sudah masuk pembukuan, tapi status invoice GAGAL diperbarui. Piutang klien ini masih terbuka — perbaiki manual sebelum menagih lagi.`,
+              { duration: 15000 }
+            )
+            throw e
+          }
         }
 
         toast.success(`Pembayaran ${formatRupiah(paymentAmount)} berhasil dicatat ke rekening tujuan.`)

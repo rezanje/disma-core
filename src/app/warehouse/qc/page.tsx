@@ -3,7 +3,7 @@
 import type { SVGProps } from "react"
 import { useState, useCallback } from "react"
 import { useAppStore } from "@/lib/store"
-import { recordShrinkage, recordStockMovement, recordInboundQC, recordVendorBillFromInbound, recordVendorTransferPurchase } from "@/lib/accounting"
+import { recordShrinkage, recordStockMovement, recordInboundQC, recordVendorBillFromInbound, recordVendorTransferPurchase, createAccountingEntry, VENDOR_RETURN_CLAIM_ACCOUNT } from "@/lib/accounting"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -195,11 +195,15 @@ export default function QCPage() {
           subtotalFinal: newQtyFinal * (matchingSOItem.unitPrice || 0)
         })
       }
+      // Barangnya BENAR-BENAR ada di gudang sejak lolos QC sampai dirilis ke kurir,
+      // jadi harus masuk hitungan stok. Dulu delta-nya 0 ("cross-dock"), padahal
+      // Goods Outbound tetap memotongnya waktu keluar — stok jadi minus sebesar
+      // setiap barang yang pernah dikirim, dan angka minusnya disembunyikan layar.
       await recordStockMovement({
         productId: activeProduct.id,
         quantity: alloc.qty,
-        stockDelta: 0,
-        direction: 'Transfer',
+        stockDelta: alloc.qty,
+        direction: 'In',
         kind: 'QC_CLIENT_ALLOCATION',
         source: 'QC',
         destination: 'Transit (Reserved for Delivery)',
@@ -516,12 +520,31 @@ export default function QCPage() {
     const currentUser = useAppStore.getState().currentUser
     const prod = activeVendorReturnProduct
 
+    // Dua asal retur vendor, dua tempat nilainya sekarang berada:
+    //  - dari QC barang masuk  → nilainya sudah pindah ke 1-2100 (tagihan ke vendor)
+    //  - dari retur customer   → barangnya masih tercatat di Persediaan
+    // Salah pilih lawan jurnal bikin salah satu akun itu nyangkut selamanya.
+    const originPurchaseItem = purchaseItems.find(pi => pi.id === activeVendorReturn.originalReturnId)
+    const claimAccount = originPurchaseItem ? VENDOR_RETURN_CLAIM_ACCOUNT : '1-3000'
+    const unitCost = originPurchaseItem?.actualUnitPrice || originPurchaseItem?.estimatedUnitPrice || prod.basePrice || 0
+
     if (mode === 'swap') {
       if (!isSwapSplitValid({ pass: swapPassQty, reject: swapRejectQty }, activeVendorReturn.qty)) {
         toast.error(`Total QC pengganti harus match dengan jumlah retur (${activeVendorReturn.qty})`)
         return
       }
       if (swapPassQty > 0) {
+        // Barang pengganti datang: nilainya balik ke Persediaan dan tagihan ke vendor lunas.
+        // Dulu cuma stoknya yang nambah — nilainya tidak pernah ikut kembali.
+        if (claimAccount !== '1-3000' && swapPassQty * unitCost > 0) {
+          await createAccountingEntry(
+            `Pengganti Retur Vendor - ${prod.name}`,
+            'QC',
+            activeVendorReturn.id,
+            [{ accountCode: '1-3000', amount: swapPassQty * unitCost }],
+            [{ accountCode: claimAccount, amount: swapPassQty * unitCost }]
+          )
+        }
         await recordStockMovement({
           productId: prod.id,
           quantity: swapPassQty,
@@ -538,7 +561,7 @@ export default function QCPage() {
       }
       if (swapRejectQty > 0) {
         const rejectId = uuidv4()
-        await recordShrinkage(rejectId, swapRejectQty * (prod.basePrice || 0), `Vendor Swap Reject - ${prod.name}`)
+        await recordShrinkage(rejectId, swapRejectQty * unitCost, `Vendor Swap Reject - ${prod.name}`, claimAccount)
         await useAppStore.getState().addRejectedItem({
           id: rejectId,
           date: new Date().toISOString(),
@@ -560,7 +583,7 @@ export default function QCPage() {
     } else {
       // Vendor refused — the full quantity becomes a loss now.
       const rejectId = uuidv4()
-      await recordShrinkage(rejectId, activeVendorReturn.qty * (prod.basePrice || 0), `Vendor Tolak Retur - ${prod.name}`)
+      await recordShrinkage(rejectId, activeVendorReturn.qty * unitCost, `Vendor Tolak Retur - ${prod.name}`, claimAccount)
       await useAppStore.getState().addRejectedItem({
         id: rejectId,
         date: new Date().toISOString(),
