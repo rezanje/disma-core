@@ -644,6 +644,13 @@ export interface PendingReturn {
   reason: string;
   date: string;
   status: 'Pending QC' | 'Processed';
+  /** DI-YYMMDD-NNN. Tanpa nomor tidak ada yang bisa dirujuk saat menagih penyelesaiannya. */
+  diNumber?: string;
+  /** Siapa yang bertanggung jawab menyelesaikannya. */
+  ownerUserId?: string;
+  /** YYYY-MM-DD. Lewat tenggat, retur ini muncul sebagai selisih di Tutup Hari. */
+  dueDate?: string;
+  rootCause?: string;
 }
 
 export interface VendorReturn {
