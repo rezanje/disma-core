@@ -79,6 +79,8 @@ export interface Vendor {
   paymentTermDays?: number;
   isTempo?: boolean;
   kind?: 'vendor' | 'toko' | 'perorangan';
+  /** Approved Vendor List. Absent = approved, so existing rows keep working. */
+  status?: 'approved' | 'suspended' | 'blocked';
 }
 
 export interface Product {

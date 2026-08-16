@@ -6,6 +6,7 @@ import { computeBankBalances } from "@/lib/bank-balance"
 import { roundQtyToBook } from "@/lib/backorder"
 import { cogsFallbackItems } from "@/lib/cogs-source"
 import { formatRupiah, cn } from "@/lib/utils"
+import { selectableVendors } from "@/lib/vendor-status"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
@@ -1248,7 +1249,7 @@ export default function FinanceHubPage() {
                                            </SelectValue>
                                         </SelectTrigger>
                                         <SelectContent>
-                                           {vendors.map(v => (
+                                           {selectableVendors(vendors).map(v => (
                                               <SelectItem key={v.id} value={v.id} className="text-xs font-bold">
                                                  {v.companyName} {v.isTempo ? `(tempo ${v.paymentTermDays || 14}d)` : '(cash)'}
                                               </SelectItem>

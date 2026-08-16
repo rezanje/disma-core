@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select"
 import { useAppStore } from "@/lib/store"
 import { MOCK_USERS } from "@/lib/constants"
+import { findActiveUserByPin } from "@/lib/auth-pin"
 import { PENDING_WELCOME_KEY } from "@/lib/onboarding/state"
 import { toast } from "sonner"
 
@@ -50,7 +51,7 @@ export default function LoginForm() {
     await new Promise((resolve) => setTimeout(resolve, 800))
     
     // Authenticate based on the latest MOCK_USERS, not the cached ones.
-    const matchedUser = MOCK_USERS.find(u => u.pin === values.pin)
+    const matchedUser = findActiveUserByPin(MOCK_USERS, values.pin)
     
     if (matchedUser) {
       // Force update the users list in store to the latest one so storage syncs back to normal

@@ -15,6 +15,8 @@ import { v4 as uuidv4 } from "uuid"
 import { cn } from "@/lib/utils"
 import { qtyOwed } from "@/lib/backorder"
 import { isReturnSplitValid, isSwapSplitValid } from "@/lib/vendor-return"
+import { PelakuPicker } from "@/components/pelaku-picker"
+import { resolveActor, transcriptionNote } from "@/lib/actor"
 
 type PoAllocation = { soId: string; qty: number }
 
@@ -68,6 +70,9 @@ export default function QCPage() {
   const [batchNumber, setBatchNumber] = useState("")
   // Harga beli untuk barang yang diantar vendor — satu-satunya tempat harga itu bisa masuk.
   const [vendorUnitPrice, setVendorUnitPrice] = useState("")
+  // Mode Salin: siapa yang benar-benar memeriksa barangnya di gudang, terpisah dari
+  // siapa yang mengetikkan hasilnya.
+  const [qcPerformedBy, setQcPerformedBy] = useState("")
   const [rejectAction, setRejectAction] = useState<'Return' | 'Disposal' | 'B2C'>('Disposal')
 
   // FIFO suggestion: find open SOs that need this product, oldest first
@@ -370,8 +375,17 @@ export default function QCPage() {
       inboundStatus: qtyReject === totalIncoming ? 'rejected' : (totalProcessed === totalIncoming ? 'verified' : 'partial'),
       inboundQtyReceived: qtyPassToInventory + totalAllocatedToPos,
       inboundVerifiedAt: new Date().toISOString(),
-      inboundVerifiedBy: currentUser?.name || currentUser?.id || 'system',
-      inboundNote: [unbalanceReason, rejectReason].filter(Boolean).join(' | '),
+      // Nama orang yang MEMERIKSA barangnya, bukan yang mengetiknya. Di mode salin
+      // keduanya orang berbeda, dan riwayat aktivitas sudah mencatat si pengetik.
+      inboundVerifiedBy: resolveActor(
+        useAppStore.getState().users.find(u => u.id === qcPerformedBy)?.name,
+        currentUser?.name || currentUser?.id),
+      inboundNote: [
+        transcriptionNote(
+          useAppStore.getState().users.find(u => u.id === qcPerformedBy)?.name,
+          currentUser?.name),
+        unbalanceReason, rejectReason,
+      ].filter(Boolean).join(' | '),
       expiryDate: expiryDate || undefined
     })
 
@@ -395,6 +409,7 @@ export default function QCPage() {
     setRejectReason("")
     setUnbalanceReason("")
     setVendorUnitPrice("")
+    setQcPerformedBy("")
     setQcPhoto(null)
     setExpiryDate("")
     setBatchNumber("")
@@ -971,7 +986,14 @@ export default function QCPage() {
                           </div>
                         )}
 
-                    <Button 
+                    <PelakuPicker
+                      value={qcPerformedBy}
+                      onChange={setQcPerformedBy}
+                      roles={['gudang']}
+                      label="Diperiksa oleh"
+                    />
+
+                    <Button
                       className="w-full h-20 bg-emerald-600 hover:bg-emerald-700 text-white rounded-[2rem] font-black uppercase tracking-[0.2em] shadow-2xl active:scale-95 transition-all text-lg"
                       onClick={handleProcessQC}
                     >

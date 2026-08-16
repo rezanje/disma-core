@@ -1,3 +1,4 @@
+import { worksheetColumns, columnOffsets } from "./worksheet-columns"
 import { jsPDF } from "jspdf"
 import { format } from "date-fns"
 import { useAppStore } from "./store"
@@ -33,7 +34,8 @@ function drawHeader(doc: jsPDF, title: string, docNumber: string, date: Date) {
   doc.text(`Phone: ${BRANDING.phone} | Email: ${BRANDING.email}`, 42, 28)
 
   doc.setDrawColor(200, 200, 200)
-  doc.line(14, 38, 196, 38)
+  // Lebar halaman, bukan angka mati — lembar belanja dicetak landscape.
+  doc.line(14, 38, doc.internal.pageSize.getWidth() - 14, 38)
 
   doc.setFontSize(16)
   doc.setFont("helvetica", "bold")
@@ -443,19 +445,26 @@ function buildShoppingListPDF(
   items: Array<{productId: string, productName: string, skuCode: string, uom?: string, totalQty: number, estimatedPrice: number, purchaseMethod?: string, paymentMethod?: string, vendorName?: string}>,
   titleOverride?: string
 ) {
+  // Landscape: this is a worksheet, not a report. Four handwriting columns do not fit
+  // beside the printed ones on portrait, and cramming them produces a sheet nobody can
+  // write on at a market stall at 4am.
   // OPTIMIZATION: Enable compression
-  const doc = new jsPDF({ compress: true })
-  drawHeader(doc, titleOverride || "MASTER SHOPPING LIST (DAFTAR BELANJA)", `SL-${format(new Date(), 'yyyyMMdd-HHmm')}`, new Date())
+  const doc = new jsPDF({ compress: true, orientation: 'landscape' })
+  const pageRight = doc.internal.pageSize.getWidth() - 14
+  drawHeader(doc, titleOverride || "LEMBAR BELANJA HARIAN", `SL-${format(new Date(), 'yyyyMMdd-HHmm')}`, new Date())
+
+  // Urutan kolom dikunci di worksheet-columns.ts dan sama persis dengan urutan
+  // pengisian di layar penyalinan. Kalau keduanya bergeser, menyalin berubah jadi
+  // menafsirkan dan salah ketik jadi rutin.
+  const cols = worksheetColumns('belanja')
+  const colX = columnOffsets(cols, 16)
 
   let y = 70
   doc.setFillColor(240, 240, 240)
-  doc.rect(14, y, 182, 10, 'F')
+  doc.rect(14, y, pageRight - 14, 10, 'F')
   doc.setFont("helvetica", "bold")
-  doc.text("SKU", 16, y + 7)
-  doc.text("Nama Barang", 40, y + 7)
-  doc.text("Harga Acuan", 120, y + 7)
-  doc.text("Target Qty", 160, y + 7)
-  doc.text("Cek", 185, y + 7)
+  doc.setFontSize(9)
+  cols.forEach((c, i) => doc.text(c.header, colX[i], y + 7))
 
   doc.setFont("helvetica", "normal")
   
@@ -474,7 +483,7 @@ function buildShoppingListPDF(
   doc.setTextColor(10, 100, 70) // emerald-ish
   const budgetText = `Estimasi Uang Tunai/Cash: ${formatRupiah(totalBudget)}`
   const budgetWidth = doc.getTextWidth(budgetText)
-  doc.text(budgetText, 196 - budgetWidth, 60)
+  doc.text(budgetText, pageRight - budgetWidth, 60)
   doc.setTextColor(0, 0, 0)
   doc.setFont("helvetica", "normal")
 
@@ -506,7 +515,7 @@ function buildShoppingListPDF(
 
     // Draw Vendor Header
     doc.setFillColor(230, 245, 240) // soft emerald-like
-    doc.rect(14, y - 6, 182, 9, 'F')
+    doc.rect(14, y - 6, pageRight - 14, 9, "F")
     doc.setFont("helvetica", "bold")
     doc.setTextColor(10, 100, 70) // dark emerald text
     doc.text(`[VENDOR] ${vName}`, 16, y)
@@ -521,20 +530,30 @@ function buildShoppingListPDF(
         y = 20
       }
 
-      doc.text(item.skuCode, 16, y)
-      
+      doc.text(item.skuCode, colX[0], y)
+
       // Wrap product name if too long
-      const nameLines = doc.splitTextToSize(item.productName, 75);
-      doc.text(nameLines, 40, y)
-      
+      const nameLines = doc.splitTextToSize(item.productName, cols[1].width - 4);
+      doc.text(nameLines, colX[1], y)
+
+      doc.text(`${item.totalQty}${item.uom ? ' ' + item.uom : ''}`, colX[2], y)
+
       const priceText = item.paymentMethod === 'Transfer' ? '(Dibayar Kantor)' : formatRupiah(item.estimatedPrice)
-      doc.text(priceText, 120, y)
-      
-      doc.text(`${item.totalQty}${item.uom ? ' ' + item.uom : ''}`, 160, y)
-      doc.rect(185, y - 4, 6, 6) // Checkbox box
-      
+      doc.text(priceText, colX[3], y)
+
       // Adjust y based on number of lines in product name
       const rowHeight = Math.max(nameLines.length * 5, 8);
+
+      // Kolom tulis tangan: garis kosong, bukan kotak centang. Yang dibutuhkan dari
+      // lapangan bukan "sudah dibeli ya/tidak" tapi angkanya — harga dan qty yang
+      // benar-benar terjadi, plus vendor mana. Itu yang disalin nanti.
+      doc.setDrawColor(190, 190, 190)
+      cols.forEach((c, i) => {
+        if (!c.handwritten) return
+        doc.line(colX[i], y + 1, colX[i] + c.width - 4, y + 1)
+      })
+      doc.setDrawColor(0, 0, 0)
+
       y += rowHeight + 2;
     })
     y += 4; // Add a small gap between vendor groups
@@ -735,7 +754,8 @@ export function generatePriceListPDF(clientId: string, outputType: 'save' | 'dat
   doc.text(`Phone: ${BRANDING.phone} | Email: ${BRANDING.email}`, 42, 28)
 
   doc.setDrawColor(200, 200, 200)
-  doc.line(14, 38, 196, 38)
+  // Lebar halaman, bukan angka mati — lembar belanja dicetak landscape.
+  doc.line(14, 38, doc.internal.pageSize.getWidth() - 14, 38)
 
   doc.setFontSize(18)
   doc.setFont("helvetica", "bold")

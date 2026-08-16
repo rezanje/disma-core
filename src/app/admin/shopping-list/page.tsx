@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn, formatRupiah } from "@/lib/utils"
+import { selectableVendors } from "@/lib/vendor-status"
 import { qtyOwed } from "@/lib/backorder"
 import GlobalUndoButton from "@/components/global-undo-button"
 import { PdfCanvasPreview } from "@/components/pdf-canvas-preview"
@@ -1572,7 +1573,7 @@ export default function ShoppingListPage() {
                       onChange={(e) => setBulkVendorId(e.target.value)}
                     >
                       <option value="">-- Pilih Vendor --</option>
-                      {vendors.map(v => (
+                      {selectableVendors(vendors).map(v => (
                         <option key={v.id} value={v.id}>{v.companyName}</option>
                       ))}
                     </select>
@@ -1853,7 +1854,7 @@ export default function ShoppingListPage() {
                                               }}
                                             >
                                               <option value="">-- Pilih --</option>
-                                              {vendors.map(v => (
+                                              {selectableVendors(vendors).map(v => (
                                                 <option key={v.id} value={v.id}>{v.companyName}</option>
                                               ))}
                                             </select>
