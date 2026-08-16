@@ -30,7 +30,6 @@ export default function GlobalUndoButton({ inline = false }: GlobalUndoButtonPro
                           pathname?.startsWith("/courier")
 
     if (!isAllowedPath) return null
-    if (pathname?.startsWith("/tri-chess")) return null
 
     // Hide floating version on pages that render it inline in the header
     const pathsWithInlineUndo = [
@@ -38,7 +37,6 @@ export default function GlobalUndoButton({ inline = false }: GlobalUndoButtonPro
       "/admin/purchase-requests",
       "/admin/vendors",
       "/admin/products",
-      "/admin/assets",
       "/admin/crm",
       "/admin/clients",
       "/admin/hr",

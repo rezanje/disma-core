@@ -11,7 +11,6 @@ export default function StoreSync() {
   const timerRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
-    if (pathname?.startsWith("/tri-chess")) return
 
     // 1. Initial load from Supabase
     init()

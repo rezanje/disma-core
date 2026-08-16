@@ -19,7 +19,6 @@ export default function DevOverlay() {
 
   const resetSimulation = useAppStore(state => state.resetSimulation)
 
-  if (pathname?.startsWith("/tri-chess")) return null
 
   if (!isDev) return null
 

@@ -19,7 +19,6 @@ export default function GlobalAnnouncement() {
     }
   }, [announcement])
 
-  if (pathname?.startsWith("/tri-chess")) return null
 
   if (!announcement?.active || !isVisible) return null
 
