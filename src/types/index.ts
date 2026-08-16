@@ -16,7 +16,7 @@ export type AccessKey =
   // Finance
   | 'finance_dashboard' | 'finance_approvals' | 'finance_reports' | 'finance_assets' | 'finance_sku_pnl'
   | 'finance_budget' | 'finance_cash_bank' | 'finance_expenses' | 'finance_ledger' | 'finance_invoices' | 'finance_collections'
-  | 'finance_tukar_faktur' | 'finance_purchase_plan' | 'finance_disbursements' | 'finance_sourcing_monitor' | 'finance_rekon'
+  | 'finance_tukar_faktur' | 'finance_purchase_plan' | 'finance_daily_close' | 'finance_disbursements' | 'finance_sourcing_monitor' | 'finance_rekon'
   // Pintasan tab di dalam Finance Hub — dipakai sebagai kunci izin anak menu.
   | 'finance_settlement' | 'finance_settlement_dash' | 'finance_online_audit' | 'finance_delivery'
   | 'finance_ar_aging' | 'finance_ap_aging'
@@ -778,4 +778,27 @@ export interface PriceBaseline {
   label: string;        // e.g. "Pricelist DISMA 20–26 Juli 2026"
   date: string;         // ISO date, e.g. "2026-07-26"
   productCount: number; // products carrying a baseline price at load time
+}
+
+/** Catatan penutupan satu hari kerja. Satu baris per tanggal. */
+export interface DailyClose {
+  id: string;
+  /** YYYY-MM-DD, zona setempat. */
+  day: string;
+  closedAt: string;
+  closedBy?: string;
+  grossProfit?: number;
+  /** Null kalau setelan biaya tetap belum diisi saat hari itu ditutup. */
+  netProfit?: number | null;
+  /** Penjelasan per selisih, dikunci nama selisihnya. */
+  varianceReasons: Record<string, string>;
+  note?: string;
+}
+
+/** Biaya tetap bulanan yang dibagi rata ke laba harian. */
+export interface DailyCostConfig {
+  monthlyTotal: number;
+  workingDays: number;
+  updatedAt?: string;
+  updatedBy?: string;
 }
