@@ -15,6 +15,7 @@ import { toast } from "sonner"
 import { v4 as uuidv4 } from "uuid"
 import { OperationalExpense, PurchaseItem } from "@/types"
 import { formatNumber, parseNumber, formatRupiah, cn } from "@/lib/utils"
+import { selectableVendors } from "@/lib/vendor-status"
 // Price history update moved to finance approval step
 import ReceiptUpload from "@/components/ui/receipt-upload"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -665,7 +666,7 @@ export default function SourcingDashboard() {
                                       <SelectValue placeholder="— Pilih Vendor —" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                      {vendors.map(v => (
+                                      {selectableVendors(vendors).map(v => (
                                         <SelectItem key={v.id} value={v.id}>
                                           {v.companyName} {v.isTempo ? `(tempo ${v.paymentTermDays || 14}d)` : '(cash)'}
                                         </SelectItem>
