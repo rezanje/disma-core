@@ -58,6 +58,7 @@ import { toast } from "sonner"
 import { generateDocumentNumber, updateProductPriceHistory, finalizeSalesOrderDelivery } from "@/lib/accounting"
 import { generateSuratJalan, generateBA } from "@/lib/pdf"
 import { roundQtyToBook, nextSoStatus } from "@/lib/backorder"
+import { pendingEdits } from "@/lib/order-edits"
 import {
   Popover,
   PopoverContent,
@@ -525,16 +526,8 @@ export default function SalesOrdersPage() {
     }))
   }
 
-  const saveOrderEdits = () => {
-    Object.entries(editingItems).forEach(([itemId, data]) => {
-      updateSalesOrderItem(itemId, {
-        qty: data.qty,
-        unitPrice: data.price,
-        subtotal: data.qty * data.price
-      })
-    })
-    toast.success("Perubahan pesanan berhasil disimpan")
-  }
+  // saveOrderEdits, dirtyItemIds dan closeDetailModal ada di bawah, setelah
+  // selectedItems didefinisikan — semuanya membacanya.
 
   // Add a new line item to the order currently open in the detail modal (Draft / Pending only)
   const handleAddItemToOrder = () => {
@@ -1055,6 +1048,38 @@ export default function SalesOrdersPage() {
   const selectedClient = clients.find(c => c.id === selectedSO?.clientId)
   const selectedItems = salesOrderItems.filter(item => item.salesOrderId === detailSOId)
   const selectedTotal = selectedItems.reduce((sum, item) => sum + item.subtotal, 0)
+
+  // Baris yang benar-benar berubah. Modal mengisi editingItems untuk SEMUA baris saat
+  // dibuka, jadi "ada isinya" bukan berarti "ada yang diubah" — tanpa ini tombol
+  // simpannya tidak bisa membedakan keduanya dan terlihat sama terus.
+  const dirtyItemIds = pendingEdits(selectedItems, editingItems)
+
+  const saveOrderEdits = () => {
+    if (dirtyItemIds.length === 0) {
+      toast.info("Tidak ada perubahan untuk disimpan.")
+      return
+    }
+    // Hanya baris yang berubah yang ditulis ulang — sebelumnya seluruh baris ditulis
+    // setiap kali, jadi riwayat perubahan penuh baris yang sebenarnya sama.
+    dirtyItemIds.forEach(itemId => {
+      const data = editingItems[itemId]
+      updateSalesOrderItem(itemId, {
+        qty: data.qty,
+        unitPrice: data.price,
+        subtotal: data.qty * data.price
+      })
+    })
+    toast.success(`${dirtyItemIds.length} baris pesanan berhasil disimpan`)
+  }
+
+  // Menutup modal dengan perubahan yang belum disimpan dulu membuangnya tanpa suara.
+  const closeDetailModal = () => {
+    if (dirtyItemIds.length > 0 &&
+        !window.confirm(`Ada ${dirtyItemIds.length} baris yang diubah dan belum disimpan. Tutup dan buang perubahannya?`)) {
+      return
+    }
+    setIsDetailOpen(false)
+  }
 
   return (
     <div className="space-y-6">
@@ -2170,7 +2195,9 @@ export default function SalesOrdersPage() {
       </Dialog>
 
       {/* Sales Order Detail Dialog */}
-      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+      {/* Menutup lewat tombol X, klik di luar, atau Esc semuanya lewat sini — jadi
+          perubahan yang belum disimpan tidak bisa hilang lewat jalur mana pun. */}
+      <Dialog open={isDetailOpen} onOpenChange={(open) => { if (open) setIsDetailOpen(true); else closeDetailModal() }}>
         <DialogContent className="sm:max-w-[95vw] w-[95vw] h-[90vh] flex flex-col p-0 overflow-hidden rounded-[2rem]">
           <DialogHeader className="p-6 pb-0">
             <div className="flex justify-between items-start pr-8">
@@ -2281,13 +2308,21 @@ export default function SalesOrdersPage() {
                      <ShoppingCart className="w-4 h-4" /> Rincian Barang Pesanan
                   </h4>
                   {(selectedSO?.status === 'Pending Approval' || selectedSO?.status === 'Draft') && (
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="h-7 text-[10px] font-black uppercase border-emerald-200 text-emerald-600 hover:bg-emerald-50"
+                    <Button
+                      variant={dirtyItemIds.length > 0 ? "default" : "outline"}
+                      size="sm"
+                      disabled={dirtyItemIds.length === 0}
+                      className={cn(
+                        "h-8 text-[10px] font-black uppercase",
+                        dirtyItemIds.length > 0
+                          ? "bg-emerald-600 hover:bg-emerald-700 text-white animate-pulse shadow-lg shadow-emerald-500/30"
+                          : "border-slate-200 text-slate-400"
+                      )}
                       onClick={saveOrderEdits}
                     >
-                      Simpan Perubahan
+                      {dirtyItemIds.length > 0
+                        ? `Simpan ${dirtyItemIds.length} Perubahan`
+                        : "Tersimpan"}
                     </Button>
                   )}
                </div>
@@ -2560,7 +2595,29 @@ export default function SalesOrdersPage() {
                      <h3 className="text-2xl font-black text-emerald-400">
                         {formatRupiah(Object.values(editingItems).reduce((sum, item) => sum + (item.qty * item.price), 0))}
                      </h3>
+                     {dirtyItemIds.length > 0 && (
+                       <p className="text-[10px] font-black uppercase tracking-widest text-amber-400">
+                         {dirtyItemIds.length} baris belum disimpan
+                       </p>
+                     )}
                   </div>
+                  {/* PO berstatus Draft dulu tidak punya tombol apa pun di sini — satu-satunya
+                      tombol simpan ada di atas tabel, kecil dan mudah dikira label. Mata orang
+                      berhenti di angka total, jadi tombolnya ditaruh di sini juga. */}
+                  {selectedSO?.status === 'Draft' && (
+                    <Button
+                      disabled={dirtyItemIds.length === 0}
+                      className={cn(
+                        "transition-all text-white font-black h-12 px-8 rounded-xl",
+                        dirtyItemIds.length > 0
+                          ? "bg-emerald-500 hover:bg-emerald-600 hover:scale-105 shadow-lg shadow-emerald-900/40"
+                          : "bg-slate-700 text-slate-400"
+                      )}
+                      onClick={saveOrderEdits}
+                    >
+                      {dirtyItemIds.length > 0 ? `Simpan ${dirtyItemIds.length} Perubahan` : "Tidak Ada Perubahan"}
+                    </Button>
+                  )}
                   {selectedSO?.status === 'Pending Approval' && (
                     <Button 
                       className="bg-emerald-500 hover:bg-emerald-600 hover:scale-105 transition-all text-white font-black h-12 px-8 rounded-xl shadow-lg shadow-emerald-900/40"
@@ -2588,7 +2645,7 @@ export default function SalesOrdersPage() {
             </div>
 
             <div className="flex justify-center pt-2">
-               <Button variant="link" onClick={() => setIsDetailOpen(false)} className="text-slate-400 text-[10px] font-black uppercase">
+               <Button variant="link" onClick={closeDetailModal} className="text-slate-400 text-[10px] font-black uppercase">
                   Tutup Tanpa Approve
                </Button>
             </div>
