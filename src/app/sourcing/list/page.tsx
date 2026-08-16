@@ -4,6 +4,7 @@ import { useState, useMemo } from "react"
 import { useAppStore } from "@/lib/store"
 import { getAdvanceWalletByUserId, recordPocketPurchase, recordPocketWithdrawal, recordPocketReturn, recordVendorTransferPurchase } from "@/lib/accounting"
 import { computeBankBalances } from "@/lib/bank-balance"
+import { pocketOwners, resolvePocket } from "@/lib/sourcing-pocket"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -55,6 +56,8 @@ export default function SourcingDashboard() {
   const [newVendorTermDays, setNewVendorTermDays] = useState(14)
   const [reconciliationNote, setReconciliationNote] = useState('')
   const [proofImage, setProofImage] = useState<string | null>(null)
+  // Mode Salin: kalau yang mengetik bukan yang belanja, dia memilih atas nama siapa.
+  const [onBehalfOfUserId, setOnBehalfOfUserId] = useState<string>("")
 
   const handleExpandItem = (item: PurchaseItem | null) => {
     setActiveItem(item)
@@ -101,7 +104,12 @@ export default function SourcingDashboard() {
   const cashTransactions = useAppStore(state => state.cashTransactions)
 
   const derivedBanks = useMemo(() => computeBankBalances(bankAccounts, cashTransactions), [bankAccounts, cashTransactions])
-  const myPocket = derivedBanks.find(b => b.purpose === 'sourcing_pocket' && b.ownerUserId === currentUser?.id)
+  // Mode Salin: Finance/Admin PO menyalin belanja orang lapangan, jadi kantong yang
+  // dipotong adalah kantong si pembelanja — bukan kantong si pengetik, dan bukan
+  // tidak ada kantong sama sekali seperti sebelumnya.
+  const pocketChoices = pocketOwners(derivedBanks)
+  const ownPocket = resolvePocket(derivedBanks, currentUser?.id)
+  const myPocket = resolvePocket(derivedBanks, currentUser?.id, onBehalfOfUserId || undefined)
   const pool = derivedBanks.find(b => b.purpose === 'sourcing')
   const pocketBalance = myPocket?.balance ?? 0
 
@@ -212,7 +220,7 @@ export default function SourcingDashboard() {
     }, 0)
 
     if (cashSpendTotal > 0 && !myPocket) {
-      toast.error("Belanja tunai tidak bisa dilaporkan tanpa kantong sourcing — uangnya tidak akan terpotong dari kas mana pun. Minta Finance membuatkan rekening kantong (purpose \"Kantong Sourcing\" + owner kamu) di Cash & Bank, atau minta orang sourcing yang menginput.")
+      toast.error("Pilih dulu belanja ini atas nama siapa — uangnya harus dipotong dari kantong orang yang belanja. Kalau kantongnya belum ada, minta Finance membuatkan di Cash & Bank (purpose \"Kantong Sourcing\" + owner orangnya).")
       return
     }
 
@@ -478,7 +486,8 @@ export default function SourcingDashboard() {
               const ok = await recordPocketReturn(myPocket.id, pool.id, pocketBalance, currentUser?.name || 'Sourcing')
               if (!ok) return toast.error('Gagal setor sisa.')
               await useAppStore.getState().addTutupHariKantong({
-                id: uuidv4(), sourcerId: currentUser?.id || 'unknown', pocketBankAccountId: myPocket.id,
+                // Kantong siapa yang ditutup, bukan siapa yang menekan tombolnya.
+                id: uuidv4(), sourcerId: myPocket.ownerUserId || currentUser?.id || 'unknown', pocketBankAccountId: myPocket.id,
                 date: todayStr, ditarik: ditarikHariIni, belanja: belanjaHariIni,
                 disetor: pocketBalance, defisit: pocketBalance < 0 ? Math.abs(pocketBalance) : 0,
                 closedAt: new Date().toISOString(), closedBy: currentUser?.name || currentUser?.id || 'Sourcing',
@@ -774,6 +783,30 @@ export default function SourcingDashboard() {
 
         return (
           <div className="mt-8 pb-8 animate-in slide-in-from-bottom-5">
+            {/* Mode Salin: yang mengetik bukan yang belanja, jadi dia harus menunjuk
+                kantong siapa yang dipotong. Tanpa pilihan ini laporannya ditolak. */}
+            {!ownPocket && pocketChoices.length > 0 && (
+              <div className="mb-4 p-4 rounded-2xl border border-amber-200 bg-amber-50/60 dark:bg-amber-950/20 dark:border-amber-900">
+                <label className="text-xs font-black text-amber-800 dark:text-amber-500 uppercase tracking-wider">
+                  Belanja atas nama
+                </label>
+                <select
+                  className="mt-2 w-full h-11 rounded-xl border border-amber-200 bg-white dark:bg-slate-900 px-3 text-sm font-bold"
+                  value={onBehalfOfUserId}
+                  onChange={(e) => setOnBehalfOfUserId(e.target.value)}
+                >
+                  <option value="">— Pilih orang yang belanja —</option>
+                  {pocketChoices.map(p => (
+                    <option key={p.id} value={p.ownerUserId as string}>
+                      {useAppStore.getState().users.find(u => u.id === p.ownerUserId)?.name || p.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-amber-700 dark:text-amber-600 mt-2 font-semibold">
+                  Uangnya dipotong dari kantong orang yang dipilih, bukan kantong kamu.
+                </p>
+              </div>
+            )}
             <Button
               className="w-full h-14 text-lg font-bold shadow-lg shadow-emerald-500/25 bg-emerald-600 hover:bg-emerald-700"
               onClick={handleSubmitLaporan}
