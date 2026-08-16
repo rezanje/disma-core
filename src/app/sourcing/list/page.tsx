@@ -6,6 +6,7 @@ import { getAdvanceWalletByUserId, recordPocketPurchase, recordPocketWithdrawal,
 import { computeBankBalances } from "@/lib/bank-balance"
 import { pocketOwners, resolvePocket } from "@/lib/sourcing-pocket"
 import { resolveActor } from "@/lib/actor"
+import { buildMarketPriceRows } from "@/lib/market-price"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -286,6 +287,30 @@ export default function SourcingDashboard() {
 
       // Cash belanja dibukukan real ke kantong via recordPocketPurchase; sisa derived dari saldo pocket
       // Harga rekomendasi produk baru di-update setelah finance approve rekon (bukan di sini)
+
+      // Harga pasar hari ini ikut tercatat dari angka yang barusan diketik — tidak ada
+      // ketikan tambahan, dan ini bahan untuk batas harga beli nanti. Kegagalan di sini
+      // tidak boleh menggagalkan laporan belanjanya: yang dicatat cuma data pendukung.
+      try {
+        const today = new Date().toISOString().slice(0, 10)
+        const addVendorPrice = useAppStore.getState().addVendorPrice
+        for (const row of buildMarketPriceRows(currentItems, today, 'salin-belanja')) {
+          await addVendorPrice({
+            id: uuidv4(),
+            vendorId: row.vendorId,
+            productId: row.productId,
+            price: row.price,
+            uom: products.find(p => p.id === row.productId)?.uom || 'Kg',
+            validFrom: row.validFrom,
+            validTo: row.validTo,
+            status: row.status,
+            source: row.source,
+            lastUpdated: new Date().toISOString(),
+          } as never)
+        }
+      } catch (e) {
+        console.warn('[market-price] gagal mencatat harga pasar harian:', e)
+      }
 
       // Ambil semua salesOrderId unik dari items yang baru saja disubmit
       const purchaseIds = activePurchases.map(p => p.id)
