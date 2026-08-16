@@ -83,12 +83,21 @@ tabbed.forEach(e => {
 // --- 4. Nobody is left without the tools their job needs -------------------
 // Not exhaustive — a floor, so a permission list cannot silently lose the one
 // screen that makes a role able to work at all.
+// Mode Salin: tim lapangan mencatat di kertas dan Admin PO/Finance yang menyalinnya,
+// jadi keduanya harus bisa membuka setiap layar lapangan. Tanpa ini satu-satunya jalan
+// adalah meminjam PIN orang lapangan — dan seluruh jejak audit jadi menunjuk orang
+// yang salah.
+const FIELD_SCREENS = [
+  'sourcing_list', 'sourcing_expenses',
+  'warehouse_inbound', 'warehouse_qc', 'warehouse_outbound', 'warehouse_opname',
+  'courier_list', 'courier_handover', 'courier_expenses',
+];
 const mustHave: Record<string, string[]> = {
-  finance: ['finance_approvals', 'finance_invoices', 'finance_cash_bank', 'admin_purchase_requests'],
+  finance: ['finance_approvals', 'finance_invoices', 'finance_cash_bank', 'admin_purchase_requests', ...FIELD_SCREENS],
   gudang: ['warehouse_inbound', 'warehouse_qc', 'warehouse_outbound', 'warehouse_opname'],
   sourcing: ['sourcing_list', 'sourcing_expenses'],
   kurir: ['courier_list', 'courier_handover'],
-  admin_po: ['admin_sales_orders', 'admin_shopping_list', 'admin_tukar_faktur'],
+  admin_po: ['admin_sales_orders', 'admin_shopping_list', 'admin_tukar_faktur', ...FIELD_SCREENS],
 };
 Object.entries(mustHave).forEach(([role, keys]) => {
   keys.forEach(k => assert.ok(roles[role]?.includes(k), `peran ${role} kehilangan izin wajib: ${k}`));

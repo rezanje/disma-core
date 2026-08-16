@@ -681,14 +681,26 @@ const initialRolePermissions: RolePermissionMap = {
   // Setujui/Tolak khusus Finance. Tanpa izin ini, orang yang tombolnya dibuat
   // untuk dia tidak pernah bisa membuka halamannya. AuthGuard meloloskan siapa
   // pun yang punya kunci izin halamannya, jadi tidak perlu ubah penjaga rute.
-  finance: ['admin_purchase_requests', 'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets', 'finance_cash_bank', 'finance_expenses', 'finance_ledger', 'finance_invoices', 'finance_ar_aging', 'finance_ap_aging', 'finance_reconciliation', 'finance_rekon', 'finance_reimbursements', 'finance_online_purchase', 'finance_audit', 'finance_documents', 'finance_collections', 'finance_sku_pnl', 'finance_settlement', 'finance_settlement_dash', 'finance_online_audit', 'finance_delivery', 'tasks_global', 'settings_global', 'admin_price_lists', 'finance_disbursements', 'finance_sourcing_monitor'],
+  finance: ['admin_purchase_requests', 'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets', 'finance_cash_bank', 'finance_expenses', 'finance_ledger', 'finance_invoices', 'finance_ar_aging', 'finance_ap_aging', 'finance_reconciliation', 'finance_rekon', 'finance_reimbursements', 'finance_online_purchase', 'finance_audit', 'finance_documents', 'finance_collections', 'finance_sku_pnl', 'finance_settlement', 'finance_settlement_dash', 'finance_online_audit', 'finance_delivery', 'tasks_global', 'settings_global', 'admin_price_lists', 'finance_disbursements', 'finance_sourcing_monitor',
+    // Mode Salin (16 Agu 2026): tim lapangan mencatat di kertas, Admin PO dan Finance
+    // yang menyalin. Tanpa izin ini satu-satunya jalan adalah meminjam PIN mereka, dan
+    // itu membuat seluruh jejak audit menunjuk orang yang salah. Ditulis penuh, bukan
+    // lewat konstanta bersama, karena nav-permissions.check.ts membaca berkas ini
+    // sebagai teks dan tidak melihat spread.
+    'sourcing_list', 'sourcing_expenses',
+    'warehouse_inbound', 'warehouse_qc', 'warehouse_outbound', 'warehouse_opname',
+    'courier_list', 'courier_handover', 'courier_expenses'],
   gudang: ['warehouse_dashboard', 'warehouse_catalog', 'warehouse_inbound', 'warehouse_outbound', 'warehouse_qc', 'warehouse_reject_monitor', 'warehouse_opname', 'tasks_global', 'settings_global'],
   sourcing: ['sourcing_dashboard', 'sourcing_list', 'sourcing_expenses', 'tasks_global', 'settings_global'],
   kurir: ['courier_dashboard', 'courier_list', 'courier_handover', 'courier_history', 'courier_expenses', 'tasks_global', 'settings_global'],
   // 'admin_purchase_requests': Admin PO yang membuat pengajuan dananya (otomatis dari
   // dokumen belanja), tapi dulu tidak punya menunya — jadi dia tidak pernah bisa
   // melihat pengajuannya sudah disetujui Finance atau belum.
-  admin_po: ['admin_dashboard', 'admin_sales_orders', 'admin_shopping_list', 'admin_purchase_requests', 'admin_dropship', 'admin_delivery_routes', 'admin_clients', 'admin_products', 'warehouse_catalog', 'tasks_global', 'settings_global', 'admin_price_lists', 'finance_invoices', 'admin_tukar_faktur'],
+  admin_po: ['admin_dashboard', 'admin_sales_orders', 'admin_shopping_list', 'admin_purchase_requests', 'admin_dropship', 'admin_delivery_routes', 'admin_clients', 'admin_products', 'warehouse_catalog', 'tasks_global', 'settings_global', 'admin_price_lists', 'finance_invoices', 'admin_tukar_faktur',
+    // Mode Salin — lihat catatan di daftar izin finance di atas.
+    'sourcing_list', 'sourcing_expenses',
+    'warehouse_inbound', 'warehouse_qc', 'warehouse_outbound', 'warehouse_opname',
+    'courier_list', 'courier_handover', 'courier_expenses'],
 };
 
 export const useAppStore = create<AppState>((set, get) => ({
