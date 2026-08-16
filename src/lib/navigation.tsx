@@ -29,6 +29,7 @@ export const APP_PAGES: NavItemConfig[] = [
   
   // Finance Section
   { key: 'finance_dashboard', title: 'Finance Dashboard', href: '/finance', icon: <BarChart3 className="h-4 w-4" />, category: 'Finance' },
+  { key: 'finance_daily_close', title: 'Tutup Hari', href: '/finance/daily-close', icon: <CheckCircle2 className="h-4 w-4 text-emerald-500" />, category: 'Finance' },
   { key: 'finance_purchase_plan', title: 'Rencana Pembelian', href: '/finance/purchase-plan', icon: <ClipboardList className="h-4 w-4 text-amber-500" />, category: 'Finance' },
   { key: 'finance_disbursements', title: 'Disbursement (Kas Pindah)', href: '/finance/disbursements', icon: <ArrowRightLeft className="h-4 w-4 text-blue-500" />, category: 'Finance' },
   { key: 'finance_sourcing_monitor', title: 'Pantau Harian Sourcing', href: '/finance/sourcing-monitor', icon: <Banknote className="h-4 w-4 text-violet-500" />, category: 'Finance' },

@@ -103,6 +103,7 @@ export async function GET(request: Request) {
         products: toCamel(products),
         navConfigs: globalSettings?.nav_configs || {},
         rolePermissions: globalSettings?.role_permissions || {},
+        dailyCostConfig: globalSettings?.daily_cost_config || null,
         tierMargins: globalSettings?.nav_configs?.tier_margins || {},
         priceBaseline: globalSettings?.nav_configs?.price_baseline || null,
       }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
@@ -126,7 +127,7 @@ export async function GET(request: Request) {
 
     // --- GROUP 3: Finance ---
     if (group === '3') {
-      const [coas, bankAccounts, cashTransactions, journalEntries, journalLines, invoices, expenses, reimbursements, vendorBills, tukarFakturs, budgetPlans, budgetCategories, budgetSubCategories, budgetAdjustments, disbursementRequests, tutupHariKantong] = await Promise.all([
+      const [coas, bankAccounts, cashTransactions, journalEntries, journalLines, invoices, expenses, reimbursements, vendorBills, tukarFakturs, budgetPlans, budgetCategories, budgetSubCategories, budgetAdjustments, disbursementRequests, tutupHariKantong, dailyCloses] = await Promise.all([
         fetchTable('coas'), fetchTable('bank_accounts'),
         fetchTable('cash_transactions'), fetchTable('journal_entries'),
         fetchTable('journal_lines'), fetchTable('invoices'),
@@ -134,7 +135,7 @@ export async function GET(request: Request) {
         fetchTable('vendor_bills'), fetchTable('tukar_faktur'),
         fetchTable('budget_plans'), fetchTable('budget_categories'),
         fetchTable('budget_sub_categories'), fetchTable('budget_adjustments'),
-        fetchTable('disbursement_requests'), fetchTable('tutup_hari_kantong')
+        fetchTable('disbursement_requests'), fetchTable('tutup_hari_kantong'), fetchTable('daily_close')
       ]);
       return NextResponse.json({
         coas: toCamel(coas),
@@ -153,6 +154,7 @@ export async function GET(request: Request) {
         budgetAdjustments: toCamel(budgetAdjustments),
         disbursementRequests: toCamel(disbursementRequests),
         tutupHariKantong: toCamel(tutupHariKantong),
+        dailyCloses: toCamel(dailyCloses),
       }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
     }
 

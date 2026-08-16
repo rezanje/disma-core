@@ -7,7 +7,8 @@ import {
   BankAccount, CashTransaction, Reimbursement, FixedAsset,
   Employee, SmartKpi, OkrObjective, OkrKeyResult, RolePermissionMap, AccessKey, PendingReturn, VendorReturn, RejectedItem, StockMovement, ClientPrice, ClientPriceTier, PriceBaseline,
   VendorBill, VendorBillPayment, TukarFaktur, PurchaseRequest, VendorPrice,
-  BudgetPlan, BudgetCategory, BudgetSubCategory, BudgetAdjustment, DisbursementRequest, TutupHariKantong
+  BudgetPlan, BudgetCategory, BudgetSubCategory, BudgetAdjustment, DisbursementRequest, TutupHariKantong,
+  DailyClose, DailyCostConfig
 } from '@/types';
 import { COA_SEED, CLIENTS_SEED, VENDORS_SEED, MOCK_USERS, KPI_SEED } from './constants';
 import { PRODUCTS_SEED } from './products_seed';
@@ -433,6 +434,10 @@ interface AppState {
   deleteDisbursementRequest: (id: string) => Promise<void>;
 
   tutupHariKantong: TutupHariKantong[];
+  dailyCloses: DailyClose[];
+  addDailyClose: (rec: DailyClose) => Promise<void>;
+  dailyCostConfig: DailyCostConfig | null;
+  saveDailyCostConfig: (cfg: DailyCostConfig) => Promise<void>;
   addTutupHariKantong: (rec: TutupHariKantong) => Promise<void>;
 
   deliveries: Delivery[];
@@ -646,7 +651,7 @@ const initialRolePermissions: RolePermissionMap = {
     'admin_users', 'users_perms', 'admin_settings', 'admin_tasks', 'admin_maintenance', 'admin_price_lists', 'admin_activity_log',
     'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets', 
     'finance_cash_bank', 'finance_expenses', 'finance_ledger', 'finance_invoices', 'finance_ar_aging', 'finance_ap_aging',
-    'finance_reconciliation', 'finance_reimbursements', 'finance_online_purchase', 'finance_audit', 'finance_documents', 'finance_disbursements', 'finance_sourcing_monitor', 'finance_purchase_plan',
+    'finance_reconciliation', 'finance_reimbursements', 'finance_online_purchase', 'finance_audit', 'finance_documents', 'finance_disbursements', 'finance_sourcing_monitor', 'finance_purchase_plan', 'finance_daily_close',
     'warehouse_dashboard', 'warehouse_catalog', 'warehouse_inbound', 'warehouse_outbound', 'warehouse_qc', 'warehouse_reject_monitor',
     'sourcing_dashboard', 'sourcing_list', 'sourcing_expenses',
     'courier_dashboard', 'courier_list', 'courier_handover', 'courier_history', 'courier_expenses',
@@ -658,7 +663,7 @@ const initialRolePermissions: RolePermissionMap = {
     'admin_users', 'users_perms', 'admin_settings', 'admin_tasks', 'admin_price_lists', 'admin_activity_log',
     'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets',
     'finance_cash_bank', 'finance_expenses', 'finance_ledger', 'finance_invoices', 'finance_ar_aging', 'finance_ap_aging', 'finance_collections',
-    'finance_audit', 'finance_documents', 'finance_disbursements', 'finance_sourcing_monitor', 'finance_purchase_plan',
+    'finance_audit', 'finance_documents', 'finance_disbursements', 'finance_sourcing_monitor', 'finance_purchase_plan', 'finance_daily_close',
     'warehouse_dashboard', 'warehouse_catalog', 'tasks_global', 'settings_global', 'admin_loss_analytics'
   ],
   coo: [
@@ -681,7 +686,7 @@ const initialRolePermissions: RolePermissionMap = {
   // Setujui/Tolak khusus Finance. Tanpa izin ini, orang yang tombolnya dibuat
   // untuk dia tidak pernah bisa membuka halamannya. AuthGuard meloloskan siapa
   // pun yang punya kunci izin halamannya, jadi tidak perlu ubah penjaga rute.
-  finance: ['admin_purchase_requests', 'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets', 'finance_cash_bank', 'finance_expenses', 'finance_ledger', 'finance_invoices', 'finance_ar_aging', 'finance_ap_aging', 'finance_reconciliation', 'finance_rekon', 'finance_reimbursements', 'finance_online_purchase', 'finance_audit', 'finance_documents', 'finance_collections', 'finance_sku_pnl', 'finance_settlement', 'finance_settlement_dash', 'finance_online_audit', 'finance_delivery', 'tasks_global', 'settings_global', 'admin_price_lists', 'finance_disbursements', 'finance_sourcing_monitor', 'finance_purchase_plan',
+  finance: ['admin_purchase_requests', 'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets', 'finance_cash_bank', 'finance_expenses', 'finance_ledger', 'finance_invoices', 'finance_ar_aging', 'finance_ap_aging', 'finance_reconciliation', 'finance_rekon', 'finance_reimbursements', 'finance_online_purchase', 'finance_audit', 'finance_documents', 'finance_collections', 'finance_sku_pnl', 'finance_settlement', 'finance_settlement_dash', 'finance_online_audit', 'finance_delivery', 'tasks_global', 'settings_global', 'admin_price_lists', 'finance_disbursements', 'finance_sourcing_monitor', 'finance_purchase_plan', 'finance_daily_close',
     // Mode Salin (16 Agu 2026): tim lapangan mencatat di kertas, Admin PO dan Finance
     // yang menyalin. Tanpa izin ini satu-satunya jalan adalah meminjam PIN mereka, dan
     // itu membuat seluruh jejak audit menunjuk orang yang salah. Ditulis penuh, bukan
@@ -1187,6 +1192,8 @@ export const useAppStore = create<AppState>((set, get) => ({
             setIfDefined('purchaseRequests', data.purchaseRequests);
             setIfDefined('disbursementRequests', data.disbursementRequests);
             setIfDefined('tutupHariKantong', data.tutupHariKantong);
+            setIfDefined('dailyCloses', data.dailyCloses);
+            setIfDefined('dailyCostConfig', data.dailyCostConfig);
             setIfDefined('cashTransactions', data.cashTransactions);
             setIfDefined('journalEntries', data.journalEntries);
             setIfDefined('journalLines', data.journalLines);
@@ -2099,6 +2106,30 @@ export const useAppStore = create<AppState>((set, get) => ({
       addTutupHariKantong: async (rec) => {
         set({ tutupHariKantong: [...get().tutupHariKantong, rec] });
         await get().syncTable('tutup_hari_kantong', rec);
+      },
+
+      dailyCloses: [],
+      addDailyClose: async (rec) => {
+        // Satu baris per tanggal. Menutup ulang hari yang sama menimpa catatannya,
+        // bukan menumpuk baris kedua yang bertentangan dengan yang pertama.
+        set({ dailyCloses: [...get().dailyCloses.filter(d => d.day !== rec.day), rec] });
+        await get().syncTable('daily_close', rec);
+      },
+
+      dailyCostConfig: null,
+      saveDailyCostConfig: async (cfg) => {
+        set({ dailyCostConfig: cfg });
+        // Baris app_settings ditulis utuh, memakai nama kolom apa adanya — sama seperti
+        // updateRolePermissions. Mengirim satu kolom saja lewat jalur camelCase tidak
+        // tersimpan, dan mengirim baris tanpa kolom lain berisiko mengosongkan izin
+        // peran dan susunan menu yang menumpang di baris yang sama.
+        const state = get();
+        await state.syncTable('app_settings', {
+          id: 'global-settings',
+          nav_configs: { ...state.navConfigs, tier_margins: state.tierMargins },
+          role_permissions: state.rolePermissions,
+          daily_cost_config: cfg,
+        }, true);
       },
 
 
