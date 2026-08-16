@@ -724,13 +724,9 @@ export default function ShoppingListPage() {
       return
     }
 
-    // Tanpa vendor, tidak ada yang bisa dikirimi surat jalan dan tidak ada yang
-    // ditagih — baris dropship tidak boleh lolos setengah jadi.
-    const dropshipWithoutVendor = consolidatedList.filter(i => i.purchaseMethod === 'Dropship' && !i.vendorId)
-    if (dropshipWithoutVendor.length > 0) {
-      toast.error(`Pilih vendornya dulu untuk ${dropshipWithoutVendor.length} barang yang mau diantar langsung ke klien.`)
-      return
-    }
+    // Penjaga "dropship wajib punya vendor" pindah ke layar Rencana Pembelian, karena
+    // di situlah jalur beli dan vendornya sekarang diputuskan. Di sini belum ada yang
+    // bisa dicek — dokumennya memang belum punya rencana.
 
     let linkedPR = null
     if (selectedPRId) {
@@ -757,7 +753,11 @@ export default function ShoppingListPage() {
         id: documentId,
         date: generatedAt,
         purchaserId: 'pending',
-        status: 'Pending',
+        // Dokumen belum bisa dibelanjakan sampai Finance memutuskan vendor, jalur beli
+        // dan cara bayarnya (playbook §3.2: memilih supplier bukan wewenang Admin PO).
+        // Layar sourcing hanya menampilkan 'Pending' dan 'Belanja', jadi status ini
+        // sudah cukup jadi gerbangnya — tidak perlu penjaga tambahan.
+        status: 'Menunggu Rencana',
         advanceCode,
         shoppingListDocumentId: documentId,
         shoppingListCompiledBy: currentUser?.id,
@@ -769,19 +769,16 @@ export default function ShoppingListPage() {
         productId: item.productId,
         salesOrderId: item.salesOrderId,
         qtyTarget: item.totalQty,
-        // Vendor items skip sourcing's checklist entirely (vendor delivers direct —
-        // see sourcing/list.tsx), so there's no later step to fill this in like Pasar's
-        // checkbox or Online's finance confirm step. Set it here so Inbound/QC don't
-        // see a permanent 0 qty; QC's pass/reject/unbalance-reason flow still catches
-        // any real delivery variance. Dropship skips even further — no warehouse step
-        // at all — and its variance is caught at the client's confirmation instead.
-        qtyPurchased: (item.purchaseMethod === 'Vendor' || item.purchaseMethod === 'Dropship') ? item.totalQty : 0,
+        // qtyPurchased untuk kiriman vendor/dropship dulu diisi di sini karena jalur itu
+        // melewati checklist sourcing. Sekarang jalurnya baru diputuskan Finance, jadi
+        // pengisiannya ikut pindah ke sana — di titik ini belum diketahui.
+        qtyPurchased: 0,
         estimatedUnitPrice: item.estimatedPrice,
         actualUnitPrice: 0,
         isChecked: false,
-        purchaseMethod: item.purchaseMethod,
-        paymentMethod: item.paymentMethod,
-        vendorId: item.vendorId
+        // Vendor, jalur beli dan cara bayar SENGAJA dikosongkan. Playbook §3.2:
+        // memilih supplier bukan wewenang Admin PO. Finance mengisinya di layar
+        // Rencana Pembelian, dan sampai itu terjadi dokumennya tidak terlihat sourcing.
       })))
 
       // Reserve (book) warehouse stock for items fulfilled from inventory. These were

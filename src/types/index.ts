@@ -16,7 +16,7 @@ export type AccessKey =
   // Finance
   | 'finance_dashboard' | 'finance_approvals' | 'finance_reports' | 'finance_assets' | 'finance_sku_pnl'
   | 'finance_budget' | 'finance_cash_bank' | 'finance_expenses' | 'finance_ledger' | 'finance_invoices' | 'finance_collections'
-  | 'finance_tukar_faktur' | 'finance_disbursements' | 'finance_sourcing_monitor' | 'finance_rekon'
+  | 'finance_tukar_faktur' | 'finance_purchase_plan' | 'finance_disbursements' | 'finance_sourcing_monitor' | 'finance_rekon'
   // Pintasan tab di dalam Finance Hub — dipakai sebagai kunci izin anak menu.
   | 'finance_settlement' | 'finance_settlement_dash' | 'finance_online_audit' | 'finance_delivery'
   | 'finance_ar_aging' | 'finance_ap_aging'
@@ -204,7 +204,10 @@ export interface SalesOrderItem {
   dispatchNote?: string;  // Catatan QC per item at dispatch
 }
 
-export type PurchaseStatus = 'Pending' | 'Belanja' | 'Selesai';
+// 'Menunggu Rencana': dokumen sudah dikompilasi Admin PO tapi Finance belum memutuskan
+// vendor, jalur beli dan cara bayarnya. Layar sourcing hanya menampilkan 'Pending' dan
+// 'Belanja', jadi barang yang belum direncanakan otomatis belum terlihat oleh sourcing.
+export type PurchaseStatus = 'Menunggu Rencana' | 'Pending' | 'Belanja' | 'Selesai';
 // 'Dropship' = vendor mengantar langsung ke klien, tidak lewat gudang sama sekali.
 export type PurchaseMethod = 'Pasar' | 'Vendor' | 'Online' | 'Dropship'; // lokasi ambil barang
 export type ReconciliationStatus = 'Belum Transfer' | 'Dana Ditransfer' | 'Laporan Masuk' | 'Terverifikasi' | 'Dispute';
@@ -252,6 +255,8 @@ export interface PurchaseItem {
   isOnlineOrdered?: boolean;
   isOnlineAudited?: boolean;
   vendorId?: string;
+  /** Vendor pilihan Finance saat merencanakan. Tidak ditimpa oleh vendor asli. */
+  plannedVendorId?: string;
   paymentMethod?: 'Cash' | 'Tempo' | 'Transfer'; // metode bayar
   inboundStatus?: 'pra_inbound' | 'verified' | 'rejected' | 'partial';
   inboundQtyReceived?: number;
