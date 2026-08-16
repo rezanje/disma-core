@@ -23,19 +23,34 @@ export const MOCK_USERS: any[] = [
     "id": "22222222-2222-2222-2222-222222222222",
     "pin": "2222",
     "name": "Hilman (Sourcing)",
-    "role": "sourcing"
+    "role": "sourcing",
+    // Mode Salin (16 Agu 2026): tim lapangan mencatat di kertas dan tidak memakai
+    // aplikasi. Selama PIN-nya hidup, satu-satunya kegunaannya adalah dipinjam
+    // penyalin — dan itu membuat setiap jejak audit menunjuk orang yang salah.
+    // Hidupkan lagi saat mereka mulai memakai aplikasi sendiri.
+    "isActive": false
   },
   {
     "id": "33333333-3333-3333-3333-333333333333",
     "pin": "3333",
     "name": "Sandi (Inventory)",
-    "role": "gudang"
+    "role": "gudang",
+    // Mode Salin (16 Agu 2026): tim lapangan mencatat di kertas dan tidak memakai
+    // aplikasi. Selama PIN-nya hidup, satu-satunya kegunaannya adalah dipinjam
+    // penyalin — dan itu membuat setiap jejak audit menunjuk orang yang salah.
+    // Hidupkan lagi saat mereka mulai memakai aplikasi sendiri.
+    "isActive": false
   },
   {
     "id": "44444444-4444-4444-4444-444444444444",
     "pin": "4444",
     "name": "Rivai (Logistik)",
-    "role": "kurir"
+    "role": "kurir",
+    // Mode Salin (16 Agu 2026): tim lapangan mencatat di kertas dan tidak memakai
+    // aplikasi. Selama PIN-nya hidup, satu-satunya kegunaannya adalah dipinjam
+    // penyalin — dan itu membuat setiap jejak audit menunjuk orang yang salah.
+    // Hidupkan lagi saat mereka mulai memakai aplikasi sendiri.
+    "isActive": false
   },
   {
     "id": "55555555-5555-5555-5555-555555555555",
