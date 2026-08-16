@@ -7,6 +7,7 @@ import { computeBankBalances } from "@/lib/bank-balance"
 import { pocketOwners, resolvePocket } from "@/lib/sourcing-pocket"
 import { resolveActor } from "@/lib/actor"
 import { buildMarketPriceRows } from "@/lib/market-price"
+import { proofBlocker } from "@/lib/transcription-proof"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -223,6 +224,14 @@ export default function SourcingDashboard() {
 
     if (cashSpendTotal > 0 && !myPocket) {
       toast.error("Pilih dulu belanja ini atas nama siapa — uangnya harus dipotong dari kantong orang yang belanja. Kalau kantongnya belum ada, minta Finance membuatkan di Cash & Bank (purpose \"Kantong Sourcing\" + owner orangnya).")
+      return
+    }
+
+    // Laporan salinan wajib membawa foto kertasnya. Kertas itu satu-satunya asli,
+    // dan begitu hilang angka di sistem tidak punya bukti apa pun di belakangnya.
+    const proofProblem = proofBlocker(onBehalfOfUserId, currentUser?.id, proofImage)
+    if (proofProblem) {
+      toast.error(proofProblem)
       return
     }
 
