@@ -127,7 +127,7 @@ export async function GET(request: Request) {
 
     // --- GROUP 3: Finance ---
     if (group === '3') {
-      const [coas, bankAccounts, cashTransactions, journalEntries, journalLines, invoices, expenses, reimbursements, vendorBills, tukarFakturs, budgetPlans, budgetCategories, budgetSubCategories, budgetAdjustments, disbursementRequests, tutupHariKantong, dailyCloses] = await Promise.all([
+      const [coas, bankAccounts, cashTransactions, journalEntries, journalLines, invoices, expenses, reimbursements, vendorBills, tukarFakturs, budgetPlans, budgetCategories, budgetSubCategories, budgetAdjustments, disbursementRequests, tutupHariKantong, dailyCloses, creditNotes] = await Promise.all([
         fetchTable('coas'), fetchTable('bank_accounts'),
         fetchTable('cash_transactions'), fetchTable('journal_entries'),
         fetchTable('journal_lines'), fetchTable('invoices'),
@@ -135,7 +135,7 @@ export async function GET(request: Request) {
         fetchTable('vendor_bills'), fetchTable('tukar_faktur'),
         fetchTable('budget_plans'), fetchTable('budget_categories'),
         fetchTable('budget_sub_categories'), fetchTable('budget_adjustments'),
-        fetchTable('disbursement_requests'), fetchTable('tutup_hari_kantong'), fetchTable('daily_close')
+        fetchTable('disbursement_requests'), fetchTable('tutup_hari_kantong'), fetchTable('daily_close'), fetchTable('credit_notes')
       ]);
       return NextResponse.json({
         coas: toCamel(coas),
@@ -155,6 +155,7 @@ export async function GET(request: Request) {
         disbursementRequests: toCamel(disbursementRequests),
         tutupHariKantong: toCamel(tutupHariKantong),
         dailyCloses: toCamel(dailyCloses),
+        creditNotes: toCamel(creditNotes),
       }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
     }
 

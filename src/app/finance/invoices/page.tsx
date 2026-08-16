@@ -3,7 +3,8 @@
 import { useState, Fragment, useEffect } from "react"
 import Link from "next/link"
 import { useAppStore } from "@/lib/store"
-import { recordManualReceivable, recordPaymentReceived } from "@/lib/accounting"
+import { recordManualReceivable, recordPaymentReceived, recordCreditNote } from "@/lib/accounting"
+import { creditLimit, validateCreditNote, applyCreditNote, buildCreditNoteNumber } from "@/lib/credit-note"
 import { cn, formatRupiah } from "@/lib/utils"
 import { Invoice } from "@/types"
 import { Card, CardContent } from "@/components/ui/card"
@@ -13,7 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Receipt, Search, History, Calendar as CalendarIcon, ChevronDown, ChevronRight, FileText, Share2, Mail, CheckCircle2, Eye, Plus, Loader2, FilePlus2 } from "lucide-react"
+import { Receipt, Search, History, Calendar as CalendarIcon, ChevronDown, ChevronRight, FileText, Share2, Mail, CheckCircle2, Eye, Plus, Loader2, FilePlus2, FileMinus } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { generateTukarFakturBundle } from "@/lib/pdf"
@@ -28,6 +29,9 @@ export default function InvoicesPage() {
   const clients = useAppStore(state => state.clients)
   const tukarFakturs = useAppStore(state => state.tukarFakturs)
   const updateInvoice = useAppStore(state => state.updateInvoice)
+  const creditNotes = useAppStore(state => state.creditNotes)
+  const addCreditNote = useAppStore(state => state.addCreditNote)
+  const currentUser = useAppStore(state => state.currentUser)
   const recordTukarFakturPayment = useAppStore(state => state.recordTukarFakturPayment)
 
   const [activeInvoice, setActiveInvoice] = useState<Invoice | null>(null)
@@ -50,6 +54,11 @@ export default function InvoicesPage() {
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0])
   const [paymentBankAccountId, setPaymentBankAccountId] = useState("")
   const [allocations, setAllocations] = useState<Record<string, number>>({})
+  // Credit note — koreksi invoice yang sudah terbit.
+  const [cnInvoice, setCnInvoice] = useState<Invoice | null>(null)
+  const [cnAmount, setCnAmount] = useState(0)
+  const [cnReason, setCnReason] = useState("")
+  const [cnBusy, setCnBusy] = useState(false)
   const [isManualReceivableOpen, setIsManualReceivableOpen] = useState(false)
   const [manualClientId, setManualClientId] = useState("")
   const [manualInvoiceRef, setManualInvoiceRef] = useState("")
@@ -145,6 +154,44 @@ export default function InvoicesPage() {
   const childInvoices = activeInvoice && activeInvoice.isConsolidated
     ? childrenOfBatch(activeInvoice.id)
     : []
+
+  const handleCreateCreditNote = async () => {
+    const salah = validateCreditNote(cnInvoice, cnAmount, cnReason)
+    if (salah) { toast.error(salah); return }
+    if (!cnInvoice) return
+
+    setCnBusy(true)
+    try {
+      const cnId = uuidv4()
+      const nomor = buildCreditNoteNumber(new Date(), creditNotes.map(c => c.cnNumber))
+      const klien = clients.find(c => c.id === cnInvoice.clientId)?.companyName || ''
+
+      // Jurnal dulu. Kalau jurnalnya gagal, invoice-nya tidak boleh berubah — nilai
+      // tagihan yang turun tanpa jurnal membuat piutang di Neraca dan di AR Aging
+      // berbeda, dan itu tepat yang paling sulit ditelusuri belakangan.
+      const ok = await recordCreditNote(cnId, cnAmount, `${nomor} — ${klien}: ${cnReason}`)
+      if (!ok) { toast.error("Gagal mencatat jurnal credit note. Tidak ada yang diubah."); return }
+
+      await addCreditNote({
+        id: cnId,
+        cnNumber: nomor,
+        invoiceId: cnInvoice.id,
+        clientId: cnInvoice.clientId,
+        date: new Date().toISOString(),
+        amount: cnAmount,
+        invoiceTotalBefore: cnInvoice.totalAmount,
+        reason: cnReason,
+        createdBy: currentUser?.name || currentUser?.id,
+        createdAt: new Date().toISOString(),
+      })
+
+      await updateInvoice(cnInvoice.id, applyCreditNote(cnInvoice, cnAmount))
+      toast.success(`${nomor} dibuat. Tagihan turun ${formatRupiah(cnAmount)}.`)
+      setCnInvoice(null)
+    } catch (e) {
+      toast.error("Gagal membuat credit note: " + (e instanceof Error ? e.message : String(e)))
+    } finally { setCnBusy(false) }
+  }
 
   const handleAutoDistribute = () => {
     if (!activeInvoice) return
@@ -773,6 +820,19 @@ export default function InvoicesPage() {
                                       }}
                                     >
                                       <Receipt className="w-3.5 h-3.5 mr-2" /> Catat Bayar
+                                    </Button>
+                                  )}
+                                  {/* Satu-satunya cara membetulkan tagihan yang sudah terbit tanpa
+                                      mengubah angkanya diam-diam. */}
+                                  {inv.status !== 'Paid' && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="border-amber-200 bg-amber-50/50 hover:bg-amber-50 text-amber-700 font-bold h-8"
+                                      onClick={() => { setCnInvoice(inv); setCnAmount(0); setCnReason("") }}
+                                      title="Koreksi tagihan yang sudah terbit"
+                                    >
+                                      <FileMinus className="w-3.5 h-3.5 mr-2" /> Credit Note
                                     </Button>
                                   )}
                                 </div>
@@ -1496,6 +1556,40 @@ export default function InvoicesPage() {
           invoiceId={selectedInvoiceForPreview.id}
           isConsolidated={selectedInvoiceForPreview.isConsolidated}
         />
+      )}
+      {cnInvoice && (
+        <Dialog open onOpenChange={(o) => { if (!o) setCnInvoice(null) }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="font-black">Credit Note</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs font-bold space-y-1">
+                <p>{clients.find(c => c.id === cnInvoice.clientId)?.companyName}</p>
+                <p className="text-slate-500">Tagihan sekarang {formatRupiah(cnInvoice.totalAmount)}</p>
+                <p className="text-slate-500">Sisa yang bisa dikoreksi {formatRupiah(creditLimit(cnInvoice))}</p>
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-500">Nilai koreksi</label>
+                <Input type="number" value={cnAmount || ''} onChange={e => setCnAmount(Number(e.target.value))}
+                  className="h-11 font-bold" placeholder="0" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-500">Alasan</label>
+                <Input value={cnReason} onChange={e => setCnReason(e.target.value)}
+                  className="h-11 font-bold" placeholder="Contoh: 5 kg ditolak klien, salah harga tier" />
+              </div>
+              <p className="text-[10px] text-slate-400 font-bold">
+                Tagihan klien turun sebesar ini dan pendapatan ikut dikoreksi. Stok tidak
+                tersentuh — barang yang benar-benar kembali diproses lewat retur customer.
+              </p>
+              <Button disabled={cnBusy} onClick={handleCreateCreditNote}
+                className="w-full h-12 font-black bg-amber-600 hover:bg-amber-700">
+                {cnBusy ? "Memproses..." : "Terbitkan Credit Note"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   )

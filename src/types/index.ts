@@ -279,7 +279,9 @@ export interface Delivery {
   notes?: string; // Additional documentation for the delivery
 }
 
-export type InvoiceStatus = 'Unpaid' | 'Partial' | 'Paid';
+// 'Cancelled': tagihan dikoreksi habis lewat credit note. Bukan 'Paid' — tidak ada
+// uang yang masuk, dan menyebutnya lunas membuat laporan penerimaan berbohong.
+export type InvoiceStatus = 'Unpaid' | 'Partial' | 'Paid' | 'Cancelled';
 
 export interface PaymentRecord {
   id: string;
@@ -801,4 +803,19 @@ export interface DailyCostConfig {
   workingDays: number;
   updatedAt?: string;
   updatedBy?: string;
+}
+
+/** Koreksi resmi atas invoice yang sudah diposting. */
+export interface CreditNote {
+  id: string;
+  cnNumber: string;
+  invoiceId: string;
+  clientId?: string;
+  date: string;
+  amount: number;
+  /** Nilai invoice sebelum dikoreksi — invoice-nya sendiri ikut turun. */
+  invoiceTotalBefore?: number;
+  reason: string;
+  createdBy?: string;
+  createdAt: string;
 }

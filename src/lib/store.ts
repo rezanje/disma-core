@@ -8,7 +8,7 @@ import {
   Employee, SmartKpi, OkrObjective, OkrKeyResult, RolePermissionMap, AccessKey, PendingReturn, VendorReturn, RejectedItem, StockMovement, ClientPrice, ClientPriceTier, PriceBaseline,
   VendorBill, VendorBillPayment, TukarFaktur, PurchaseRequest, VendorPrice,
   BudgetPlan, BudgetCategory, BudgetSubCategory, BudgetAdjustment, DisbursementRequest, TutupHariKantong,
-  DailyClose, DailyCostConfig
+  DailyClose, DailyCostConfig, CreditNote
 } from '@/types';
 import { COA_SEED, CLIENTS_SEED, VENDORS_SEED, MOCK_USERS, KPI_SEED } from './constants';
 import { PRODUCTS_SEED } from './products_seed';
@@ -434,6 +434,8 @@ interface AppState {
   deleteDisbursementRequest: (id: string) => Promise<void>;
 
   tutupHariKantong: TutupHariKantong[];
+  creditNotes: CreditNote[];
+  addCreditNote: (cn: CreditNote) => Promise<void>;
   dailyCloses: DailyClose[];
   addDailyClose: (rec: DailyClose) => Promise<void>;
   dailyCostConfig: DailyCostConfig | null;
@@ -1193,6 +1195,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             setIfDefined('disbursementRequests', data.disbursementRequests);
             setIfDefined('tutupHariKantong', data.tutupHariKantong);
             setIfDefined('dailyCloses', data.dailyCloses);
+            setIfDefined('creditNotes', data.creditNotes);
             setIfDefined('dailyCostConfig', data.dailyCostConfig);
             setIfDefined('cashTransactions', data.cashTransactions);
             setIfDefined('journalEntries', data.journalEntries);
@@ -2106,6 +2109,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       addTutupHariKantong: async (rec) => {
         set({ tutupHariKantong: [...get().tutupHariKantong, rec] });
         await get().syncTable('tutup_hari_kantong', rec);
+      },
+
+      creditNotes: [],
+      addCreditNote: async (cn) => {
+        set({ creditNotes: [...get().creditNotes, cn] });
+        await get().syncTable('credit_notes', cn);
       },
 
       dailyCloses: [],

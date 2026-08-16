@@ -1839,3 +1839,30 @@ export const recordPRExpensePayment = async (
   return success;
 };
 
+
+/**
+ * Credit note: membalik sebagian pendapatan dan piutang atas invoice yang sudah
+ * diposting. Dr Pendapatan / Cr Piutang — kebalikan persis dari jurnal terbit invoice,
+ * sebesar nilai yang dikoreksi saja.
+ *
+ * Tidak menyentuh HPP maupun persediaan. Koreksi harga atau salah tagih tidak
+ * mengembalikan barang; kalau barangnya memang kembali, itu jalur retur customer yang
+ * punya pergerakan stoknya sendiri. Menggabungkan keduanya di sini akan mengembalikan
+ * stok untuk barang yang masih ada di dapur klien.
+ */
+export const recordCreditNote = async (
+  creditNoteId: string,
+  amount: number,
+  description: string,
+  date?: string,
+) => {
+  if (!(amount > 0)) return false;
+  return await createAccountingEntry(
+    `Credit Note: ${description}`,
+    'Adjustment',
+    creditNoteId,
+    [{ accountCode: '4-1000', amount }],
+    [{ accountCode: '1-2000', amount }],
+    date,
+  );
+};
