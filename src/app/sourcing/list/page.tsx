@@ -5,6 +5,7 @@ import { useAppStore } from "@/lib/store"
 import { getAdvanceWalletByUserId, recordPocketPurchase, recordPocketWithdrawal, recordPocketReturn, recordVendorTransferPurchase } from "@/lib/accounting"
 import { computeBankBalances } from "@/lib/bank-balance"
 import { pocketOwners, resolvePocket } from "@/lib/sourcing-pocket"
+import { resolveActor } from "@/lib/actor"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -253,7 +254,8 @@ export default function SourcingDashboard() {
 
         await updatePurchase(p.id, {
           status: 'Selesai',
-          purchaserId: currentUser?.id,
+          // Yang belanja di lapangan, bukan yang mengetik laporannya.
+          purchaserId: resolveActor(onBehalfOfUserId, currentUser?.id),
           actualSpent: pTotalCost,
           changeReturned: pBudget > pCashCost ? pBudget - pCashCost : 0,
           reconciliationNote: reconciliationNote || 'Sesuai budget (Auto-Consolidated)',
