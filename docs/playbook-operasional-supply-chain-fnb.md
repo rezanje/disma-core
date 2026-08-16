@@ -2555,3 +2555,67 @@ Client demand
 ```
 
 Jika setiap tahap memakai owner, status, dokumen, dual handover, dan audit log yang ditetapkan di playbook ini, masalah dapat ditelusuri berdasarkan fakta: siapa menyerahkan, siapa menerima, berapa qty, kondisi apa, kapan, dokumen apa, dan dampak uang berapa.
+
+---
+
+## Lampiran A — Mode Transisi (berlaku mulai 16 Agustus 2026)
+
+Ditambahkan setelah playbook dibandingkan dengan sistem yang berjalan. Lampiran ini
+**tidak mengubah** isi playbook di atas; ia menetapkan bagaimana playbook dijalankan
+selama tim belum lengkap memakai aplikasi. Rinciannya di
+`docs/playbook-vs-aplikasi-gap.md`.
+
+### A.1 Siapa yang memakai aplikasi
+
+Sourcing, QC/Warehouse, dan Logistics **belum memakai aplikasi.** Mereka mencatat di
+kertas kerja yang dicetak dari sistem. **Order Admin dan Finance Admin yang menyalin**
+seluruhnya ke aplikasi.
+
+Konsekuensinya, §15.4 dibaca ulang selama mode transisi:
+
+| Aturan asli §15.4 | Selama mode transisi |
+|---|---|
+| Finance dilarang melakukan actual receiving/QC | Finance **mengetikkan** hasil receiving/QC yang **diputuskan** QC Controller di kertas. Keputusan tetap milik QC Controller |
+| Sourcing dilarang posting stock | Tetap berlaku — sourcing tidak menyentuh aplikasi sama sekali |
+| Driver mencatat fakta lapangan | Driver mencatat di kertas POD; Order Admin menyalinnya |
+
+### A.2 Empat kontrol kompensasi (wajib, bukan opsional)
+
+Diminta oleh §1.1 playbook ini sendiri. Tanpa keempatnya, penggabungan fungsi di atas
+tidak boleh dijalankan.
+
+1. **Dua nama pada setiap baris** — *dikerjakan oleh* (pelaku di lapangan) terpisah dari
+   *diinput oleh* (penyalin). Jejak audit menunjuk pelaku, bukan pengetik.
+2. **Foto kertas wajib** dilampirkan pada baris yang disalin. Kertas hilang, foto tidak.
+3. **Tutup Hari menahan penutupan** selama masih ada selisih uang atau barang yang
+   belum diberi nama dan sebab.
+4. **Dua penyalin, bukan satu** — Order Admin dan Finance Admin sama-sama punya akses,
+   sehingga tidak ada satu orang yang menjadi satu-satunya jalur data.
+
+### A.3 Kertas kerja resmi
+
+Dicetak dari aplikasi, urutan kolomnya sama persis dengan urutan kolom di layar
+penyalinan. Kertas buatan sendiri tidak dipakai — menyalin dari format bebas berubah
+menjadi menafsirkan.
+
+| Kertas kerja | Diisi oleh | Kolom tulis tangan |
+|---|---|---|
+| Lembar Belanja Harian | Sourcing | harga beli asli, qty asli, vendor, catatan |
+| Lembar QC Barang Masuk | QC Controller | qty lolos, qty reject, alasan, tujuan reject |
+| Lembar Serah Terima Klien | Driver | qty diterima, qty ditolak, alasan, tanda tangan klien |
+
+### A.4 Akun yang diparkir
+
+PIN Sourcing, QC/Warehouse, dan Logistics dinonaktifkan selama mode transisi. Akunnya
+tidak dihapus agar riwayat lama tetap menunjuk nama yang benar, dan tinggal diaktifkan
+kembali saat mereka mulai memakai aplikasi.
+
+Alasannya kontrol, bukan efisiensi: selama PIN-nya hidup, satu-satunya kegunaannya
+adalah dipinjam penyalin — dan meminjam PIN membuat seluruh jejak audit berbohong,
+yang justru menghapus manfaat playbook ini.
+
+### A.5 Kapan mode transisi berakhir
+
+Saat salah satu tim lapangan mulai memakai aplikasi sendiri. Yang berubah hanya siapa
+yang mengetik; §15.4 asli berlaku kembali per role, satu per satu, tanpa perlu mengubah
+sistem.

@@ -118,6 +118,27 @@ penanda aktif/non-aktif. Jadi butuh satu kolom baru `is_active` (standar: aktif)
 layar login menolak PIN milik akun non-aktif. Mengosongkan PIN-nya saja bukan pilihan:
 PIN-nya hilang dan tidak bisa dipulihkan waktu mereka mulai dipakai nanti.
 
+### 3g. Status vendor
+
+Tabel `vendors` belum punya penanda status. Tambahkan `status`
+(**approved / suspended / blocked**, standar: approved). Vendor berstatus blocked
+tidak muncul di pilihan vendor saat menyalin belanja.
+
+Diminta playbook §5.4 (Approved Vendor List). Satu kolom, dan langsung memberi cara
+memblokir vendor bermasalah — yang sekarang tidak ada sama sekali.
+
+### 3h. Harga pasar harian, gratis dari penyalinan
+
+Playbook §5.2 meminta harga pasar harian dicatat: supplier, SKU, harga, tanggal,
+sumber bukti. Tabelnya **sudah ada** (`vendor_prices`) dan **tidak pernah terisi**.
+
+Kuncinya: saat menyalin belanja, harga beli asli per vendor per barang **sudah
+diketik**. Jadi setiap baris belanja yang disalin otomatis menulis satu baris harga
+pasar — tanpa satu ketikan tambahan.
+
+Ini fondasi batas harga beli yang ditunda di §6. Tanpa mulai mengumpulkan sekarang,
+tiga bulan lagi tetap tidak ada datanya.
+
 ---
 
 ## 4. Bagian 2 — Layar Tutup Hari
@@ -148,6 +169,12 @@ Laba kotor dikurangi:
 Setelan baru yang harus diisi sekali oleh Finance: daftar biaya tetap bulanan dan
 jumlah hari kerja per bulan (standar 26). Disimpan di `app_settings` pada kolom baru
 `daily_cost_config`.
+
+**Lapis ini tidak memblokir peluncuran.** Selama setelannya belum diisi, layar
+menampilkan lapis 1 dan 3 seperti biasa, dan lapis 2 muncul sebagai ajakan mengisi
+setelan — bukan angka nol yang menyesatkan. Begitu diisi, seluruh hari yang sudah
+lewat ikut terhitung ulang, karena biayanya dihitung saat ditampilkan, bukan
+dibekukan ke dalam catatan harian.
 
 Kolom baru, bukan dititip ke `nav_configs`. Setelan tarif tier dan harga patokan
 sudah terlanjur dititipkan ke sana, dan itu laci yang salah untuk angka yang
@@ -192,7 +219,50 @@ belanja. Yang belum ada: penutupan tingkat perusahaan, bukan cuma per kantong or
 
 ---
 
-## 5. Yang sengaja TIDAK dibangun
+## 5. Bagian 3 — Tiga lubang dari playbook
+
+Dipetik dari `docs/playbook-vs-aplikasi-gap.md` §5. Tidak memblokir Bagian 1 dan 2,
+dikerjakan sesudahnya.
+
+### 5.1 Pengajuan dana berisi baris barang
+
+Sekarang `purchase_requests` cuma menyimpan **satu angka rupiah**. Playbook §4.3 minta
+PR memuat SKU, spesifikasi, total kebutuhan, stok tersedia, buffer, need purchase, dan
+referensi order.
+
+Ini bukan soal kerapian dokumen. Karena PR tidak punya baris barang, nilainya dihitung
+ulang dari baris belanja setiap kali — dan itu yang membuat PR sempat meminta
+Rp7.140.000 padahal kas yang dibutuhkan Rp5.940.000. Yang sudah diperbaiki 15 Agustus
+baru gejalanya (item tempo dikeluarkan dari perhitungan); penyebabnya masih ada.
+
+Tambahan: rumus kebutuhan playbook memasukkan **safety buffer**
+(`need = demand + buffer − stok tersedia`). Buffer per SKU disimpan di master produk,
+standar nol supaya perilakunya tidak berubah sampai diisi.
+
+### 5.2 Credit Note
+
+Belum ada sama sekali. Kalau invoice sudah terbit lalu ternyata salah — klien
+mengembalikan barang setelah ditagih, salah harga, salah qty — satu-satunya jalan
+sekarang adalah mengubah invoice yang sudah diposting. Itu melanggar prinsip playbook
+§2.2 #13: tidak ada penghapusan transaksi final, gunakan reversal atau credit note.
+
+Bentuknya: dokumen bernomor `CN-...`, menunjuk invoice asal, punya alasan wajib,
+memposting jurnal balik (Dr Pendapatan / Cr Piutang), dan mengurangi piutang klien
+tanpa menyentuh invoice aslinya.
+
+### 5.3 Delivery Issue yang bisa dikejar
+
+`pending_returns` menyimpan barang yang ditolak klien, tapi tanpa nomor, tanpa pemilik,
+tanpa tenggat. Akibatnya tidak ada yang mengejarnya — persis kelemahan yang sama dengan
+klaim retur ke vendor sebelum akun 1-2100 dibuat.
+
+Tambahkan: nomor `DI-...`, pemilik, tenggat penyelesaian, sebab akar, dan status
+terbuka/selesai. Yang lewat tenggat muncul di Tutup Hari sebagai selisih yang belum
+diberi nama.
+
+---
+
+## 6. Yang sengaja TIDAK dibangun
 
 - **Layar input harian baru.** Volume di bawah 40 baris sehari; layar yang ada cukup.
   Dibangun kalau volume naik ke ratusan baris.
@@ -203,7 +273,7 @@ belanja. Yang belum ada: penutupan tingkat perusahaan, bukan cuma per kantong or
   Hari jalan sebulan.
 - **Tanda tangan digital untuk serah terima.** Tanda tangannya ada di kertas.
 
-## 6. Risiko dan penanganannya
+## 7. Risiko dan penanganannya
 
 | Risiko | Penanganan |
 |---|---|
@@ -213,12 +283,19 @@ belanja. Yang belum ada: penutupan tingkat perusahaan, bukan cuma per kantong or
 | Ritual tutup hari tidak dijalankan | Layar terisi 90% otomatis; manusia cuma memberi nama ke selisih |
 | Angka lapis 2 meleset karena biaya tetap ditebak | Setelan bisa diubah kapan saja dan laporan lama ikut terhitung ulang |
 
-## 7. Urutan pengerjaan
+## 8. Urutan pengerjaan
 
-**Bagian 1 dulu, Bagian 2 menyusul.** Tanpa Bagian 1 tidak ada data yang masuk, dan
-Tutup Hari cuma akan menampilkan angka nol.
+**Bagian 1 → Bagian 2 → Bagian 3.**
 
-## 8. Kriteria selesai
+Tanpa Bagian 1 tidak ada data yang masuk, dan Tutup Hari cuma akan menampilkan angka
+nol. Bagian 3 menutup lubang yang nyata tapi tidak menghalangi keduanya — dan dua
+bulan data dari Bagian 1 akan memberi tahu buffer serta batas harga yang masuk akal,
+yang sekarang cuma bisa ditebak.
+
+Yang juga berubah di luar kode: **§15.4 playbook** sudah ditambahi Lampiran A (Mode
+Transisi) supaya playbook dan sistem tidak saling bertentangan sejak hari pertama.
+
+## 9. Kriteria selesai
 
 Bagian 1:
 - Sifa bisa menyalin satu hari penuh — belanja, QC, kirim, biaya — tanpa berpindah
@@ -228,8 +305,20 @@ Bagian 1:
 - Belanja tunai atas nama Hilman memotong saldo kantong Hilman.
 - PIN tiga akun lapangan ditolak di layar login.
 
+- Vendor berstatus blocked tidak bisa dipilih saat menyalin belanja.
+- Setiap baris belanja yang disalin menghasilkan satu baris harga pasar harian.
+
 Bagian 2:
-- Untuk satu tanggal, layar menampilkan laba kotor, laba bersih, bedah per klien dan
-  per SKU, semuanya cocok dengan jurnal.
+- Untuk satu tanggal, layar menampilkan laba kotor, bedah per klien dan per SKU,
+  semuanya cocok dengan jurnal.
+- Laba bersih muncul begitu setelan biaya tetap diisi, dan hari-hari yang sudah lewat
+  ikut terhitung ulang.
 - Selisih yang tidak diberi nama menahan tombol "Tutup Hari".
 - Sekali ditutup, hari itu terkunci dan tercatat siapa yang menutupnya.
+
+Bagian 3:
+- Pengajuan dana menampilkan baris barang, dan nilainya sama dengan jumlah barisnya.
+- Invoice yang sudah diposting bisa dikoreksi lewat credit note tanpa mengubah invoice
+  aslinya, dan piutang klien turun sesuai.
+- Retur klien punya nomor, pemilik, dan tenggat; yang lewat tenggat muncul di Tutup
+  Hari.
