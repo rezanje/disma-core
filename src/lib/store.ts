@@ -687,7 +687,7 @@ const initialRolePermissions: RolePermissionMap = {
     // itu membuat seluruh jejak audit menunjuk orang yang salah. Ditulis penuh, bukan
     // lewat konstanta bersama, karena nav-permissions.check.ts membaca berkas ini
     // sebagai teks dan tidak melihat spread.
-    'sourcing_list', 'sourcing_expenses',
+    'sourcing_dashboard', 'sourcing_list', 'sourcing_expenses',
     'warehouse_inbound', 'warehouse_qc', 'warehouse_outbound', 'warehouse_opname',
     'courier_list', 'courier_handover', 'courier_expenses'],
   gudang: ['warehouse_dashboard', 'warehouse_catalog', 'warehouse_inbound', 'warehouse_outbound', 'warehouse_qc', 'warehouse_reject_monitor', 'warehouse_opname', 'tasks_global', 'settings_global'],
@@ -698,7 +698,7 @@ const initialRolePermissions: RolePermissionMap = {
   // melihat pengajuannya sudah disetujui Finance atau belum.
   admin_po: ['admin_dashboard', 'admin_sales_orders', 'admin_shopping_list', 'admin_purchase_requests', 'admin_dropship', 'admin_delivery_routes', 'admin_clients', 'admin_products', 'warehouse_catalog', 'tasks_global', 'settings_global', 'admin_price_lists', 'finance_invoices', 'admin_tukar_faktur',
     // Mode Salin — lihat catatan di daftar izin finance di atas.
-    'sourcing_list', 'sourcing_expenses',
+    'sourcing_dashboard', 'sourcing_list', 'sourcing_expenses',
     'warehouse_inbound', 'warehouse_qc', 'warehouse_outbound', 'warehouse_opname',
     'courier_list', 'courier_handover', 'courier_expenses'],
 };
