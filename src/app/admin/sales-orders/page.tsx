@@ -330,6 +330,8 @@ export default function SalesOrdersPage() {
   const [newClientData, setNewClientData] = useState({ companyName: "", picName: "", email: "", phone: "", address: "", parentId: "" })
   const [newProductData, setNewProductData] = useState({ skuCode: "", name: "", uom: "kg", basePrice: 0, sellingPrice: 0 })
   const [editingItems, setEditingItems] = useState<{ [id: string]: { qty: number, price: number } }>({})
+  // Konfirmasi buang perubahan, ditampilkan di dalam halaman (bukan window.confirm).
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false)
 
   // Add-item-to-existing-order (detail modal) state
   const [addItemProductId, setAddItemProductId] = useState("")
@@ -485,6 +487,8 @@ export default function SalesOrdersPage() {
         editingObj[item.id] = { qty: item.qty, price: item.unitPrice }
       })
       setEditingItems(editingObj)
+      // Peringatan buang-perubahan dari PO sebelumnya tidak boleh ikut terbawa.
+      setConfirmingDiscard(false)
     }
   }, [detailSOId])
 
@@ -1073,11 +1077,18 @@ export default function SalesOrdersPage() {
   }
 
   // Menutup modal dengan perubahan yang belum disimpan dulu membuangnya tanpa suara.
+  //
+  // Peringatannya SENGAJA tidak memakai window.confirm. Browser bawaan aplikasi
+  // mengembalikan "batal" dalam 3 milidetik tanpa menampilkan kotak apa pun, jadi
+  // confirm() di sini membuat jendelanya mustahil ditutup begitu ada satu angka diubah —
+  // lebih buruk daripada masalah yang mau diperbaiki. Peringatannya dibuat di dalam
+  // halaman supaya perilakunya sama di mana pun.
   const closeDetailModal = () => {
-    if (dirtyItemIds.length > 0 &&
-        !window.confirm(`Ada ${dirtyItemIds.length} baris yang diubah dan belum disimpan. Tutup dan buang perubahannya?`)) {
+    if (dirtyItemIds.length > 0 && !confirmingDiscard) {
+      setConfirmingDiscard(true)
       return
     }
+    setConfirmingDiscard(false)
     setIsDetailOpen(false)
   }
 
@@ -2643,6 +2654,31 @@ export default function SalesOrdersPage() {
                   )}
                </div>
             </div>
+
+            {confirmingDiscard && dirtyItemIds.length > 0 && (
+              <div className="p-4 rounded-2xl border-2 border-rose-200 bg-rose-50 dark:bg-rose-950/20 flex items-center justify-between gap-4">
+                <p className="text-xs font-black text-rose-700 dark:text-rose-400">
+                  {dirtyItemIds.length} baris diubah dan belum disimpan. Tutup sekarang, perubahannya hilang.
+                </p>
+                <div className="flex gap-2 shrink-0">
+                  <Button
+                    size="sm"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] uppercase"
+                    onClick={() => { saveOrderEdits(); setConfirmingDiscard(false) }}
+                  >
+                    Simpan Dulu
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-rose-300 text-rose-700 font-black text-[10px] uppercase"
+                    onClick={closeDetailModal}
+                  >
+                    Buang &amp; Tutup
+                  </Button>
+                </div>
+              </div>
+            )}
 
             <div className="flex justify-center pt-2">
                <Button variant="link" onClick={closeDetailModal} className="text-slate-400 text-[10px] font-black uppercase">
