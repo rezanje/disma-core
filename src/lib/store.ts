@@ -646,7 +646,7 @@ const initialRolePermissions: RolePermissionMap = {
     'admin_users', 'users_perms', 'admin_settings', 'admin_tasks', 'admin_maintenance', 'admin_price_lists', 'admin_activity_log',
     'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets', 
     'finance_cash_bank', 'finance_expenses', 'finance_ledger', 'finance_invoices', 'finance_ar_aging', 'finance_ap_aging',
-    'finance_reconciliation', 'finance_reimbursements', 'finance_online_purchase', 'finance_audit', 'finance_documents', 'finance_disbursements', 'finance_sourcing_monitor',
+    'finance_reconciliation', 'finance_reimbursements', 'finance_online_purchase', 'finance_audit', 'finance_documents', 'finance_disbursements', 'finance_sourcing_monitor', 'finance_purchase_plan',
     'warehouse_dashboard', 'warehouse_catalog', 'warehouse_inbound', 'warehouse_outbound', 'warehouse_qc', 'warehouse_reject_monitor',
     'sourcing_dashboard', 'sourcing_list', 'sourcing_expenses',
     'courier_dashboard', 'courier_list', 'courier_handover', 'courier_history', 'courier_expenses',
@@ -658,7 +658,7 @@ const initialRolePermissions: RolePermissionMap = {
     'admin_users', 'users_perms', 'admin_settings', 'admin_tasks', 'admin_price_lists', 'admin_activity_log',
     'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets',
     'finance_cash_bank', 'finance_expenses', 'finance_ledger', 'finance_invoices', 'finance_ar_aging', 'finance_ap_aging', 'finance_collections',
-    'finance_audit', 'finance_documents', 'finance_disbursements', 'finance_sourcing_monitor',
+    'finance_audit', 'finance_documents', 'finance_disbursements', 'finance_sourcing_monitor', 'finance_purchase_plan',
     'warehouse_dashboard', 'warehouse_catalog', 'tasks_global', 'settings_global', 'admin_loss_analytics'
   ],
   coo: [
@@ -681,7 +681,7 @@ const initialRolePermissions: RolePermissionMap = {
   // Setujui/Tolak khusus Finance. Tanpa izin ini, orang yang tombolnya dibuat
   // untuk dia tidak pernah bisa membuka halamannya. AuthGuard meloloskan siapa
   // pun yang punya kunci izin halamannya, jadi tidak perlu ubah penjaga rute.
-  finance: ['admin_purchase_requests', 'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets', 'finance_cash_bank', 'finance_expenses', 'finance_ledger', 'finance_invoices', 'finance_ar_aging', 'finance_ap_aging', 'finance_reconciliation', 'finance_rekon', 'finance_reimbursements', 'finance_online_purchase', 'finance_audit', 'finance_documents', 'finance_collections', 'finance_sku_pnl', 'finance_settlement', 'finance_settlement_dash', 'finance_online_audit', 'finance_delivery', 'tasks_global', 'settings_global', 'admin_price_lists', 'finance_disbursements', 'finance_sourcing_monitor',
+  finance: ['admin_purchase_requests', 'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets', 'finance_cash_bank', 'finance_expenses', 'finance_ledger', 'finance_invoices', 'finance_ar_aging', 'finance_ap_aging', 'finance_reconciliation', 'finance_rekon', 'finance_reimbursements', 'finance_online_purchase', 'finance_audit', 'finance_documents', 'finance_collections', 'finance_sku_pnl', 'finance_settlement', 'finance_settlement_dash', 'finance_online_audit', 'finance_delivery', 'tasks_global', 'settings_global', 'admin_price_lists', 'finance_disbursements', 'finance_sourcing_monitor', 'finance_purchase_plan',
     // Mode Salin (16 Agu 2026): tim lapangan mencatat di kertas, Admin PO dan Finance
     // yang menyalin. Tanpa izin ini satu-satunya jalan adalah meminjam PIN mereka, dan
     // itu membuat seluruh jejak audit menunjuk orang yang salah. Ditulis penuh, bukan

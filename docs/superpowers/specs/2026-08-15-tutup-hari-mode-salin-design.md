@@ -230,6 +230,60 @@ belanja. Yang belum ada: penutupan tingkat perusahaan, bukan cuma per kantong or
 Dipetik dari `docs/playbook-vs-aplikasi-gap.md` §5. Tidak memblokir Bagian 1 dan 2,
 dikerjakan sesudahnya.
 
+### 5.0 Rencana pembelian pindah ke Finance
+
+Playbook §3.2 menutup ini rapat: **bukan wewenang Admin PO "memilih supplier atau
+menyetujui pembayaran"**. §3.3 memberikannya ke Finance sebagai Purchasing Admin —
+menerima Purchase Requirement, membuat Supplier PO, menjaga vendor master dan payment
+term.
+
+Aplikasi sekarang melanggarnya: di layar Shopping List, Admin PO yang menentukan
+vendor, jalur beli, cara bayar, **dan** harga patokan. Finance hanya menyetujui uangnya
+di belakang.
+
+Yang memperburuk: ketiga setelan itu disimpan di **localStorage browser Admin PO**
+(`shopping_vendorAssignments_v2`, `shopping_paymentByProduct_v2`,
+`shopping_customPrices_v2`), baru ditulis ke database saat dokumen belanja dibuat.
+Selama itu keputusannya hidup di satu laptop dan tidak terlihat siapa pun.
+
+**Pembagian barunya:**
+
+| Keputusan | Pemilik |
+|---|---|
+| PO mana yang digabung, barang apa, berapa banyak | Admin PO |
+| Ambil dari stok gudang atau beli | Admin PO |
+| Beli online atau tidak | **Finance** |
+| Barang diambil sendiri / diantar vendor ke gudang / diantar langsung ke klien | **Finance** |
+| Vendor mana | **Finance** |
+| Cara bayar (cash / tempo / transfer) | **Finance** |
+| Harga patokan per barang | **Finance** |
+
+**Kolom `purchaseMethod` tidak dipecah.** Kolom itu dibaca 44 kali di 14 berkas dan
+menentukan barang muncul di layar siapa serta jurnalnya lewat jalur mana. Yang berubah
+hanya cara bertanyanya di layar — dua pertanyaan, satu nilai tersimpan:
+
+1. "Dibeli online?" → ya = `Online`
+2. kalau tidak, "Barangnya gimana?" → kita ambil = `Pasar` · vendor antar ke gudang =
+   `Vendor` · vendor antar langsung ke klien = `Dropship`
+
+Dikonfirmasi ke Reza: belanja online **selalu** masuk gudang dulu, tidak pernah dikirim
+langsung ke klien dan tidak pernah diambil sendiri. Jadi empat nilai yang ada memuat
+seluruh kasus nyata dan tidak ada kombinasi yang hilang.
+
+**Vendor incaran vs vendor asli.** Untuk baris pasar, vendornya baru diketahui di
+lapangan. Pilihan Finance disimpan sebagai **rencana** (`planned_vendor_id`) dan tidak
+ditimpa; vendor asli tetap masuk ke `vendor_id` saat laporan belanja disalin. Kalau
+keduanya dijadikan satu kolom, pertanyaan "seberapa sering rencana meleset" tidak bisa
+dijawab — dan itu justru angka yang berguna untuk menilai vendor.
+
+**Gerbangnya lewat status dokumen belanja.** Dokumen yang dibuat Admin PO berstatus
+`Menunggu Rencana`; layar sourcing hanya menampilkan `Pending` dan `Belanja`, jadi
+barang yang belum direncanakan otomatis tidak terlihat oleh sourcing tanpa penjaga
+tambahan. Finance melepasnya ke `Pending` setelah semua baris punya rencana.
+
+Kalau Finance berhalangan, Super Admin bisa melepas — dan itu tercatat di riwayat
+aktivitas, jadi pengecualiannya terlihat, bukan diam-diam.
+
 ### 5.1 Pengajuan dana berisi baris barang
 
 Sekarang `purchase_requests` cuma menyimpan **satu angka rupiah**. Playbook §4.3 minta
