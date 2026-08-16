@@ -18,10 +18,6 @@ export default function HydrationGate({ children }: { children: React.ReactNode 
     }
   }, [isHydrated, isSyncing])
 
-  if (pathname?.startsWith("/tri-chess")) {
-    return <>{children}</>
-  }
-
   // init() flips isHydrated and isSyncing in the same synchronous tick, so the
   // effect above never observes the gap between them — on a cold boot the
   // splash used to stay up for the whole Phase 2 fetch and the localStorage

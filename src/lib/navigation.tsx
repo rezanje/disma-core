@@ -51,8 +51,6 @@ export const APP_PAGES: NavItemConfig[] = [
   { key: 'finance_rekon', title: 'Rekonsiliasi', href: '/finance/reconciliation', icon: <RefreshCw className="h-4 w-4 text-amber-500" />, category: 'Finance' },
   { key: 'finance_reimbursements', title: 'Reimbursement', href: '/finance/reimbursements', icon: <Receipt className="h-4 w-4 text-blue-500" />, category: 'Finance' },
   { key: 'finance_cash_bank', title: 'Cash & Bank', href: '/finance/cash-bank', icon: <Bank className="h-4 w-4" />, category: 'Finance' },
-  { key: 'finance_budget', title: 'Perencanaan Budget', href: '/finance/budget', icon: <Target className="h-4 w-4 text-rose-500" />, category: 'Finance' },
-  { key: 'finance_tukar_faktur', title: 'Tukar Faktur (Lihat Saja)', href: '/finance/tukar-faktur', icon: <FileSpreadsheet className="h-4 w-4" />, category: 'Finance' },
   { key: 'finance_expenses', title: 'Pengeluaran Umum', href: '/finance/expenses', icon: <TrendingDown className="h-4 w-4" />, category: 'Finance' },
   { key: 'finance_reports', title: 'Financial Reports', href: '/finance/reports', icon: <FileSpreadsheet className="h-4 w-4" />, category: 'Finance' },
   { key: 'finance_sku_pnl', title: 'Untung Rugi per SKU', href: '/finance/sku-pnl', icon: <BarChart3 className="h-4 w-4 text-emerald-500" />, category: 'Finance' },
@@ -77,11 +75,7 @@ export const APP_PAGES: NavItemConfig[] = [
   { key: 'admin_shopping_list', title: 'Shopping List', href: '/admin/shopping-list', icon: <ListChecks className="h-4 w-4" />, category: 'Admin' },
   { key: 'admin_dropship', title: 'Kiriman Vendor', href: '/admin/dropship', icon: <Truck className="h-4 w-4 text-orange-500" />, category: 'Admin' },
   { key: 'admin_delivery_routes', title: 'Rencana Rute', href: '/admin/delivery-routes', icon: <MapPin className="h-4 w-4 text-sky-500" />, category: 'Admin' },
-  { key: 'admin_assets', title: 'Asset Management', href: '/admin/assets', icon: <Briefcase className="h-4 w-4" />, category: 'Admin' },
-  { key: 'admin_hr', title: 'HR & Personalia', href: '/admin/hr', icon: <Users className="h-4 w-4" />, category: 'Admin' },
   { key: 'admin_crm', title: 'CRM & Pipeline', href: '/admin/crm', icon: <Target className="h-4 w-4" />, category: 'Admin' },
-  { key: 'admin_documents', title: 'Document Vault', href: '/admin/documents', icon: <FileText className="h-4 w-4" />, category: 'Admin' },
-  { key: 'admin_okr', title: 'OKR Manager', href: '/admin/okr', icon: <Target className="h-4 w-4" />, category: 'Admin' },
   { 
     key: 'admin_users', 
     title: 'User Management', 
@@ -89,7 +83,6 @@ export const APP_PAGES: NavItemConfig[] = [
     icon: <Shield className="h-4 w-4" />, 
     category: 'Admin',
     children: [
-      { key: 'users_list', title: 'Daftar Pengguna', href: '/admin/users' },
       { key: 'users_perms', title: 'Izin & Otoritas', href: '/admin/users?tab=roles' },
     ]
   },
@@ -112,9 +105,13 @@ export const APP_PAGES: NavItemConfig[] = [
 
   // Sourcing
   { 
-    key: 'sourcing_dashboard', 
-    title: 'Sourcing Home', 
-    href: '/sourcing/list', 
+    key: 'sourcing_dashboard',
+    title: 'Sourcing Home',
+    // Menunjuk ke /sourcing, bukan ke /sourcing/list. Dulu induk dan anaknya
+    // membuka halaman yang sama persis — dua menu satu layar — sementara ringkasan
+    // sourcing di /sourcing (tempat orang sourcing mendarat setelah login) tidak
+    // punya menu sama sekali.
+    href: '/sourcing',
     icon: <Search className="h-4 w-4 opacity-50" />, 
     category: 'Sourcing',
     children: [
