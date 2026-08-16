@@ -113,10 +113,16 @@ Tandai ketiganya non-aktif sehingga PIN-nya ditolak di layar login, tanpa mengha
 akunnya (riwayat lama tetap menunjuk ke nama yang benar, dan tinggal dihidupkan lagi
 kalau nanti mereka mulai memakai aplikasi).
 
-Tabel `users` sekarang cuma punya empat kolom (`id, name, role, pin`) — belum ada
-penanda aktif/non-aktif. Jadi butuh satu kolom baru `is_active` (standar: aktif) dan
-layar login menolak PIN milik akun non-aktif. Mengosongkan PIN-nya saja bukan pilihan:
-PIN-nya hilang dan tidak bisa dipulihkan waktu mereka mulai dipakai nanti.
+Belum ada penanda aktif/non-aktif di mana pun. Perlu ditambahkan, beserta penolakan
+PIN-nya di layar login. Mengosongkan PIN-nya saja bukan pilihan: PIN-nya hilang dan
+tidak bisa dipulihkan waktu mereka mulai dipakai nanti.
+
+**Penandanya ditaruh di kode, bukan di database.** Layar login memverifikasi PIN
+terhadap daftar pengguna yang ditulis di `src/lib/constants.ts` (`MOCK_USERS`) —
+tabel `users` di database tidak pernah dibaca saat login, malah ditimpa oleh daftar
+kode itu setiap kali halaman login dibuka. Menambah kolom `is_active` di database
+akan jadi jebakan: orang berikutnya mematikannya di sana, tidak terjadi apa-apa, dan
+tidak ada yang tahu kenapa.
 
 ### 3g. Status vendor
 
