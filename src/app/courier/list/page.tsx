@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { useAppStore } from "@/lib/store"
+import { buildIssueNumber, defaultDueDate } from "@/lib/delivery-issue"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { MapPin, Navigation, PackageCheck, Truck, Camera, ExternalLink } from "lucide-react"
@@ -122,14 +123,23 @@ export default function CourierDashboard() {
           // "Inspeksi Retur Customer" di QC tidak pernah terisi.
           const rejectedQty = shipped - finalQty
           if (rejectedQty > 0) {
+            // Bernomor, ada pemiliknya, ada tenggatnya. Tanpa ketiganya baris ini cuma
+            // catatan yang tidak pernah dikejar — dan barang segar yang digantung dua
+            // hari sudah tidak layak apa pun.
+            const now = new Date()
             addPendingReturn({
               id: uuidv4(),
               productId: item.productId,
               originalSoId: selectedSoId,
               qty: rejectedQty,
               reason: 'Ditolak klien saat serah terima',
-              date: new Date().toISOString(),
+              date: now.toISOString(),
               status: 'Pending QC',
+              diNumber: buildIssueNumber(now, useAppStore.getState().pendingReturns.map(r => r.diNumber || '')),
+              // Pemiliknya Admin PO — playbook §3.2 menaruh Delivery Issue di sana,
+              // bukan pada kurir yang cuma mencatat fakta di lapangan.
+              ownerUserId: useAppStore.getState().users.find(u => u.role === 'admin_po')?.id,
+              dueDate: defaultDueDate(now),
             })
           }
         })

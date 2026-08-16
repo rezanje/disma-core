@@ -13,6 +13,7 @@ import {
   grossProfit, netProfit, variances, canClose,
   type LedgerLine, type DayExpense, type PocketClose,
 } from "@/lib/daily-close"
+import { overdueIssues } from "@/lib/delivery-issue"
 
 /** YYYY-MM-DD di zona setempat — bukan toISOString(), yang menggeser tengah malam WIB ke hari sebelumnya. */
 const localDay = (d: Date | string) => {
@@ -33,6 +34,7 @@ export default function DailyClosePage() {
   const products = useAppStore(s => s.products)
   const purchaseItems = useAppStore(s => s.purchaseItems)
   const salesOrderItems = useAppStore(s => s.salesOrderItems)
+  const pendingReturns = useAppStore(s => s.pendingReturns)
   const dailyCloses = useAppStore(s => s.dailyCloses)
   const dailyCostConfig = useAppStore(s => s.dailyCostConfig)
   const currentUser = useAppStore(s => s.currentUser)
@@ -84,6 +86,7 @@ export default function DailyClosePage() {
   const angka = netProfit(ledger, day, dayExpenses, dailyCostConfig)
   const vs = variances(ledger, day, pockets, auditedToday, invoicesToday)
   const sudahDitutup = dailyCloses.find(d => d.day === day)
+  const lewatTenggat = overdueIssues(pendingReturns, day)
   const boleh = canClose(vs, reasons)
 
   // --- Lapis 3: bedah per klien dan per SKU ---
@@ -235,6 +238,22 @@ export default function DailyClosePage() {
             {vs.length > 0 ? <AlertTriangle className="w-4 h-4 text-amber-500" /> : <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
             Rekonsiliasi Hari Ini
           </h3>
+
+          {/* Retur klien yang lewat tenggat ikut ditampilkan di sini. Bukan selisih uang,
+              jadi tidak menahan penutupan — tapi kalau tidak pernah muncul di layar
+              yang dibuka tiap sore, tidak ada yang mengejarnya. */}
+          {lewatTenggat.length > 0 && (
+            <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/20 border border-rose-200 space-y-1">
+              <p className="font-black text-sm text-rose-800 dark:text-rose-400">
+                {lewatTenggat.length} retur klien lewat tenggat
+              </p>
+              {lewatTenggat.slice(0, 5).map(r => (
+                <p key={r.id} className="text-[11px] font-bold text-rose-700 dark:text-rose-500">
+                  {r.diNumber || r.id.slice(0, 8)} — {products.find(p => p.id === r.productId)?.name || r.productId} {r.qty}, jatuh tempo {r.dueDate}
+                </p>
+              ))}
+            </div>
+          )}
 
           {vs.length === 0 ? (
             <p className="text-sm font-bold text-emerald-700 dark:text-emerald-500">
