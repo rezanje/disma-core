@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from "react"
 import { useAppStore } from "@/lib/store"
+import { clientUnitPrice } from "@/lib/client-price"
 import { formatRupiah, parseNumber, formatNumber, getEffectiveBasePrice } from "@/lib/utils"
 import { v4 as uuidv4 } from "uuid"
 import { Product, ClientPriceTier, ClientPrice } from "@/types"
@@ -155,34 +156,12 @@ export function ClientPriceList({ clientId }: ClientPriceListProps) {
   const calculateEffectivePrice = (product: Product, record?: ClientPrice) => {
     const { price: basePrice, source: baseSource } = getEffectiveBasePrice(product)
     const activeTierMargins = tierMargins || { 'Tier 1': 30, 'Tier 2': 25, 'Tier 3': 20, 'Tier 4': 10, 'Tier 5': 15 }
-
-    if (!record) {
-      const defaultTier = activeClient?.defaultPriceTier
-      if (defaultTier && defaultTier !== 'Standard') {
-        const marginPct = activeTierMargins[defaultTier] || 0
-        const price = (product[`tier${defaultTier.replace('Tier ', '')}Price` as keyof Product] as number) || Math.round(basePrice * (1 + marginPct / 100)) || product.sellingPrice
-        const margin = price - basePrice
-        const marginPctReal = (margin / (basePrice || 1)) * 100
-        return { price, isCustom: false, margin, marginPct: marginPctReal, basePrice, baseSource }
-      }
-
-      const margin = product.sellingPrice - basePrice
-      const marginPct = (margin / (basePrice || 1)) * 100
-      return { price: product.sellingPrice, isCustom: false, margin, marginPct, basePrice, baseSource }
-    }
-
-    let price = product.sellingPrice
-    if (record.tier === 'Custom') {
-      price = record.agreedPrice
-    } else {
-      const marginPct = activeTierMargins[record.tier] || 0
-      price = (product[`tier${record.tier.replace('Tier ', '')}Price` as keyof Product] as number) || Math.round(basePrice * (1 + marginPct / 100)) || product.sellingPrice
-    }
-
+    // Rumusnya di src/lib/client-price.ts supaya PDF daftar harga untuk klien memakai
+    // angka yang sama persis dengan layar ini.
+    const price = clientUnitPrice(product, basePrice, activeTierMargins, record, activeClient?.defaultPriceTier)
     const margin = price - basePrice
     const marginPct = (margin / (basePrice || 1)) * 100
-
-    return { price, isCustom: true, margin, marginPct, basePrice, baseSource }
+    return { price, isCustom: !!record, margin, marginPct, basePrice, baseSource }
   }
 
   const handleAddProduct = async (productId: string, initialTier: ClientPriceTier = 'Standard') => {

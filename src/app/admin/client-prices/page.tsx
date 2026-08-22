@@ -2,7 +2,7 @@
 
 import React, { useState } from "react"
 import { useAppStore } from "@/lib/store"
-import { Search, Calculator, Check, ChevronsUpDown, Info } from "lucide-react"
+import { Search, Calculator, Check, ChevronsUpDown, Info, Download, Link as LinkIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -14,6 +14,7 @@ import { cn, getEffectiveBasePrice } from "@/lib/utils"
 import { rescaleTiers } from "@/lib/tier-rescale"
 import { toast } from "sonner"
 import { ClientPriceList } from "@/components/client-prices/ClientPriceList"
+import { generateClientPricelistPDF } from "@/lib/pdf"
 
 export default function ClientPricesPage() {
   const clients = useAppStore(state => state.clients)
@@ -204,6 +205,37 @@ export default function ClientPricesPage() {
             </PopoverContent>
           </Popover>
         </div>
+
+        {/* Daftar harga cuma berguna kalau bisa sampai ke tangan klien. Sebelum ini
+            harganya cuma bisa dilihat di dalam aplikasi, jadi orang balik ke Excel. */}
+        {activeClient && (
+          <div className="flex flex-wrap gap-2 w-full md:w-auto">
+            <Button
+              variant="outline"
+              className="h-12 font-bold"
+              onClick={() => generateClientPricelistPDF(activeClient.id)}
+            >
+              <Download className="mr-2 h-4 w-4" /> Daftar Harga PDF
+            </Button>
+            <Button
+              variant="outline"
+              className="h-12 font-bold"
+              onClick={async () => {
+                const url = `${window.location.origin}/order/${activeClient.id}`
+                try {
+                  await navigator.clipboard.writeText(url)
+                  toast.success("Link pesanan tersalin — tinggal kirim ke klien.")
+                } catch {
+                  // Clipboard diblokir (biasanya karena bukan HTTPS): tampilkan linknya
+                  // supaya tetap bisa disalin manual, jangan diam-diam gagal.
+                  toast.info(url, { duration: 15000 })
+                }
+              }}
+            >
+              <LinkIcon className="mr-2 h-4 w-4" /> Salin Link Pesanan
+            </Button>
+          </div>
+        )}
       </div>
 
       {!activeClient ? (

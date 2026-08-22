@@ -56,6 +56,7 @@ import { format } from "date-fns"
 import { Printer } from "lucide-react"
 import { toast } from "sonner"
 import { generateDocumentNumber, updateProductPriceHistory, finalizeSalesOrderDelivery } from "@/lib/accounting"
+import ReceiptUpload from "@/components/ui/receipt-upload"
 import { generateSuratJalan, generateBA } from "@/lib/pdf"
 import { roundQtyToBook, nextSoStatus } from "@/lib/backorder"
 import { pendingEdits } from "@/lib/order-edits"
@@ -2510,8 +2511,14 @@ export default function SalesOrdersPage() {
                )}
             </div>
 
-            {/* SECTION: ARCHIVED DOCUMENTS (FOR TUKAR FAKTUR) */}
-            {(selectedSO?.archivedSuratJalanUrl || selectedSO?.archivedBaUrl) && (
+            {/* SECTION: ARCHIVED DOCUMENTS (FOR TUKAR FAKTUR)
+                Tanda tangan klien hanya bisa masuk lewat layar kurir, dan kurir kita
+                tidak memakai aplikasi — jadi kertas bertanda tangan yang dibawa pulang
+                tidak punya pintu masuk, dan Tukar Faktur mencetak surat jalan kosong.
+                Section ini karena itu selalu tampil begitu pesanannya sudah dikirim:
+                kalau dokumennya belum ada, yang muncul tempat unggahnya. */}
+            {(selectedSO?.archivedSuratJalanUrl || selectedSO?.archivedBaUrl ||
+              ['Dikirim', 'Awaiting Audit', 'Terkirim', 'Kurang Kirim', 'Selesai'].includes(selectedSO?.status || '')) && (
               <div className="space-y-3 pt-4 border-t border-slate-100">
                 <h4 className="text-xs font-black uppercase tracking-widest text-emerald-600 flex items-center gap-2">
                    <FileText className="w-4 h-4" /> Arsip Dokumen Digital (Tukar Faktur)
@@ -2591,9 +2598,27 @@ export default function SalesOrdersPage() {
                       </div>
                     </div>
                   )}
+                  {selectedSO && !selectedSO.archivedSuratJalanUrl && (
+                    <div className="p-4 rounded-[2rem] bg-slate-50 border border-dashed border-slate-200">
+                      <ReceiptUpload
+                        label="Surat Jalan bertanda tangan"
+                        currentFile={undefined}
+                        onFileSelect={(url) => updateSalesOrder(selectedSO.id, { archivedSuratJalanUrl: url })}
+                      />
+                    </div>
+                  )}
+                  {selectedSO && !selectedSO.archivedBaUrl && (
+                    <div className="p-4 rounded-[2rem] bg-slate-50 border border-dashed border-slate-200">
+                      <ReceiptUpload
+                        label="Berita Acara bertanda tangan"
+                        currentFile={undefined}
+                        onFileSelect={(url) => updateSalesOrder(selectedSO.id, { archivedBaUrl: url })}
+                      />
+                    </div>
+                  )}
                 </div>
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest text-center italic mt-2">
-                  * Dokumen di atas adalah salinan digital resmi yang sudah ditanda tangani oleh Kurir & Klien.
+                  * Foto kertas bertanda tangan ikut terbawa ke Tukar Faktur sebagai bukti penagihan.
                 </p>
               </div>
             )}
