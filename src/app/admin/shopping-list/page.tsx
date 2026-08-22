@@ -886,11 +886,15 @@ export default function ShoppingListPage() {
     const loadingId = toast.loading("Mengirim ke Finance...")
     try {
       useAppStore.getState().takeDevSnapshot()
-      // Yang diajukan adalah UANG TUNAI yang perlu ditarik. Barang tempo dibayar
-      // belakangan lewat tagihan vendor, jadi ikut menghitungnya bikin sourcing
-      // membawa uang lebih banyak dari yang dia butuhkan.
-      const items = purchaseItems.filter(pi =>
-        pi.purchaseId === purchaseId && pi.purchaseMethod === 'Pasar' && pi.paymentMethod !== 'Tempo')
+      // Angka SEMENTARA: seluruh isi dokumen, seolah semuanya dibayar tunai.
+      //
+      // Uang tunai yang sebenarnya baru bisa dihitung setelah Finance menentukan cara
+      // bayar tiap barang (tempo dan transfer tidak perlu dibawa ke pasar), dan itu
+      // terjadi setelah langkah ini. Menyaring pakai purchaseMethod/paymentMethod di
+      // sini — seperti sebelumnya — selalu menghasilkan nol, karena kedua kolom itu
+      // memang belum diisi. Finance memperbaikinya jadi angka pasti saat melepas
+      // rencana di /finance/purchase-plan.
+      const items = purchaseItems.filter(pi => pi.purchaseId === purchaseId)
       const totalBudget = items.reduce((sum, item) => sum + (item.estimatedUnitPrice * item.qtyTarget), 0)
 
       let prId = purchase.purchaseRequestId
