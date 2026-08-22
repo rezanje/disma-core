@@ -106,6 +106,7 @@ export async function GET(request: Request) {
         dailyCostConfig: globalSettings?.daily_cost_config || null,
         tierMargins: globalSettings?.nav_configs?.tier_margins || {},
         priceBaseline: globalSettings?.nav_configs?.price_baseline || null,
+        minMarginPct: globalSettings?.nav_configs?.min_margin_pct ?? null,
       }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
     }
 
@@ -127,14 +128,12 @@ export async function GET(request: Request) {
 
     // --- GROUP 3: Finance ---
     if (group === '3') {
-      const [coas, bankAccounts, cashTransactions, journalEntries, journalLines, invoices, expenses, reimbursements, vendorBills, tukarFakturs, budgetPlans, budgetCategories, budgetSubCategories, budgetAdjustments, disbursementRequests, tutupHariKantong, dailyCloses, creditNotes] = await Promise.all([
+      const [coas, bankAccounts, cashTransactions, journalEntries, journalLines, invoices, expenses, reimbursements, vendorBills, tukarFakturs, disbursementRequests, tutupHariKantong, dailyCloses, creditNotes] = await Promise.all([
         fetchTable('coas'), fetchTable('bank_accounts'),
         fetchTable('cash_transactions'), fetchTable('journal_entries'),
         fetchTable('journal_lines'), fetchTable('invoices'),
         fetchTable('expenses'), fetchTable('reimbursements'),
         fetchTable('vendor_bills'), fetchTable('tukar_faktur'),
-        fetchTable('budget_plans'), fetchTable('budget_categories'),
-        fetchTable('budget_sub_categories'), fetchTable('budget_adjustments'),
         fetchTable('disbursement_requests'), fetchTable('tutup_hari_kantong'), fetchTable('daily_close'), fetchTable('credit_notes')
       ]);
       return NextResponse.json({
@@ -148,10 +147,6 @@ export async function GET(request: Request) {
         reimbursements: toCamel(reimbursements),
         vendorBills: toCamel(vendorBills),
         tukarFakturs: toCamel(tukarFakturs),
-        budgetPlans: toCamel(budgetPlans),
-        budgetCategories: toCamel(budgetCategories),
-        budgetSubCategories: toCamel(budgetSubCategories),
-        budgetAdjustments: toCamel(budgetAdjustments),
         disbursementRequests: toCamel(disbursementRequests),
         tutupHariKantong: toCamel(tutupHariKantong),
         dailyCloses: toCamel(dailyCloses),
@@ -178,26 +173,17 @@ export async function GET(request: Request) {
       }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
     }
 
-    // --- GROUP 5: Misc (HR, CRM, Tasks, OKR, Assets) ---
+    // --- GROUP 5: Misc (CRM, Tasks, Assets) ---
     if (group === '5') {
-      const [leads, dismaTasks, notifications, employees, kpis, okrObjectives, okrKeyResults, fixedAssets] = await Promise.all([
+      const [leads, dismaTasks, notifications, fixedAssets] = await Promise.all([
         fetchTable('leads'), fetchTable('disma_tasks'), fetchTable('notifications'),
-        fetchTable('employees'), fetchTable('kpis'), fetchTable('okr_objectives'),
-        fetchTable('okr_key_results'), fetchTable('fixed_assets')
+        fetchTable('fixed_assets')
       ]);
-      const objectives = toCamel(okrObjectives);
-      const krs = toCamel(okrKeyResults);
       return NextResponse.json({
         leads: toCamel(leads),
         tasks: toCamel(dismaTasks),
         notifications: toCamel(notifications),
-        employees: toCamel(employees),
-        kpiObjectives: toCamel(kpis),
         fixedAssets: toCamel(fixedAssets),
-        okrObjectives: objectives.map((o: any) => ({
-          ...o,
-          keyResults: krs.filter((kr: any) => kr.objectiveId === o.id)
-        })),
       }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
     }
 

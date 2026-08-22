@@ -3,7 +3,7 @@
 import { ReactNode } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { User, Settings as SettingsIcon, Bell, Shield, ChevronRight, LayoutGrid, Target, Cog } from "lucide-react"
+import { User, Settings as SettingsIcon, Bell, Shield, ChevronRight, LayoutGrid, Cog } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Sidebar from "@/components/layout/sidebar"
 import AuthGuard from "@/components/auth/auth-guard"
@@ -32,12 +32,6 @@ const SETTINGS_NAV = [
     description: "Re-arrange your navbar items",
     href: "/settings/navigation",
     icon: <LayoutGrid className="w-4 h-4" />
-  },
-  {
-    title: "My KPI",
-    description: "Lihat target & performa kamu",
-    href: "/settings/kpi",
-    icon: <Target className="w-4 h-4" />
   },
   {
     title: "Notifications",

@@ -48,16 +48,10 @@ const DATA_CATEGORIES = [
     severity: 'medium' as const
   },
   {
-    title: "CRM & OKRs",
-    description: "Leads, pipeline data, and OKR objectives.",
-    keys: ['leads', 'okrObjectives'],
+    title: "CRM",
+    description: "Leads and pipeline data.",
+    keys: ['leads'],
     severity: 'low' as const
-  },
-  {
-    title: "Performance & HR",
-    description: "KPI evaluations and employee records.",
-    keys: ['kpiObjectives', 'employees'],
-    severity: 'medium' as const
   },
   {
     title: "Tasks & Notifications",
@@ -278,8 +272,7 @@ export default function MaintenancePage() {
       const categoryMap: Record<string, string[]> = {
         "Transactional Data": ['sales_order_items', 'purchase_items', 'journal_lines', 'deliveries', 'invoices', 'tukar_faktur', 'sales_orders', 'purchases', 'purchase_requests', 'journal_entries', 'stock_movements', 'rejected_items'],
         "Operational Expenses": ['expenses', 'reimbursements', 'cash_transactions'],
-        "CRM & OKRs": ['leads', 'okr_objectives', 'okr_key_results'],
-        "Performance & HR": ['kpis', 'employees'],
+        "CRM": ['leads'],
         "Tasks & Notifications": ['disma_tasks', 'notifications'],
         "Fixed Assets": ['fixed_assets'],
         "MASTER DATA (WARNING)": ['clients', 'products', 'vendors', 'client_prices']

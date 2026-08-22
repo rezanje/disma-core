@@ -7,6 +7,7 @@ import { computeBankBalances } from "@/lib/bank-balance"
 import { pocketOwners, resolvePocket } from "@/lib/sourcing-pocket"
 import { resolveActor } from "@/lib/actor"
 import { buildMarketPriceRows } from "@/lib/market-price"
+import { ceilingByLine, isOverCeiling, overByPct, linesNeedingReason } from "@/lib/price-ceiling"
 import { proofBlocker } from "@/lib/transcription-proof"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -38,6 +39,8 @@ export default function SourcingDashboard() {
   const addReimbursement = useAppStore(state => state.addReimbursement)
   const vendors = useAppStore(state => state.vendors)
   const addVendor = useAppStore(state => state.addVendor)
+  const salesOrderItems = useAppStore(state => state.salesOrderItems)
+  const minMarginPct = useAppStore(state => state.minMarginPct)
 
   const [opsFormData, setOpsFormData] = useState<{
     transactionType: 'Biaya Operasional' | 'Kasbon'
@@ -51,6 +54,8 @@ export default function SourcingDashboard() {
   const [editPrice, setEditPrice] = useState<number>(0)
   const [editQty, setEditQty] = useState<number>(0)
   const [editNote, setEditNote] = useState<string>('')
+  // Alasan kalau harga belinya lewat batas. Tidak menahan belanjanya, cuma wajib ditulis.
+  const [editOverReason, setEditOverReason] = useState<string>('')
   const [editVendorId, setEditVendorId] = useState<string>('')
   const [editPaymentMethod, setEditPaymentMethod] = useState<'Cash' | 'Tempo' | 'Transfer'>('Cash')
   const [isNewVendorOpen, setIsNewVendorOpen] = useState(false)
@@ -68,6 +73,7 @@ export default function SourcingDashboard() {
       setEditPrice(item.actualUnitPrice || 0)
       setEditQty(item.qtyPurchased || item.qtyTarget)
       setEditNote(item.notes || '')
+      setEditOverReason(item.overCeilingReason || '')
       setEditVendorId(item.vendorId || '')
       const v = vendors.find(vd => vd.id === item.vendorId)
       setEditPaymentMethod(item.paymentMethod || (v?.isTempo ? 'Tempo' : 'Cash'))
@@ -156,6 +162,14 @@ export default function SourcingDashboard() {
     pi.purchaseMethod === 'Pasar'
   )
 
+  // Batas harga beli per baris: harga jual yang sudah dijanjikan ke klien, dibalik
+  // pakai margin minimum. Harga jual sudah dikunci di pesanan, harga pasar bergerak
+  // tiap hari — di sinilah untungnya ditentukan.
+  const ceilings = useMemo(
+    () => ceilingByLine(currentItems, salesOrderItems, minMarginPct),
+    [currentItems, salesOrderItems, minMarginPct],
+  )
+
   const itemsByVendor = useMemo(() => {
     const groups: Record<string, typeof currentItems> = {}
     currentItems.forEach(item => {
@@ -209,6 +223,24 @@ export default function SourcingDashboard() {
       return;
     }
 
+    // Belanja di atas batas tidak pernah ditolak — pasar tidak bisa menunggu approval.
+    // Yang ditahan cuma laporan tanpa keterangan, supaya harga mahal meninggalkan jejak
+    // dan muncul di Tutup Hari, bukan cuma di ingatan orang.
+    const pendingReason = linesNeedingReason(
+      currentItems.map(item => item.id === activeItem?.id
+        ? { ...item, actualUnitPrice: editPrice, overCeilingReason: editOverReason }
+        : item),
+      ceilings,
+    );
+    if (pendingReason.length > 0) {
+      const names = pendingReason.map(id => {
+        const it = currentItems.find(i => i.id === id);
+        return products.find(p => p.id === it?.productId)?.name || `Item ${id}`;
+      });
+      toast.error(`Harga beli di atas batas dan belum ada alasannya: ${names.join(', ')}. Buka itemnya, tulis alasannya, baru kirim laporan.`);
+      return;
+    }
+
     // Belanja tunai hanya bisa dibukukan lewat kantong si pembelanja. Tanpa kantong,
     // recordPocketPurchase di bawah tidak pernah jalan dan uangnya tidak pernah keluar
     // dari kas mana pun — laporan tetap "berhasil" padahal saldo bank tidak berkurang.
@@ -246,6 +278,7 @@ export default function SourcingDashboard() {
           notes: editNote,
           vendorId: editVendorId,
           paymentMethod: editPaymentMethod,
+          overCeilingReason: isOverCeiling(editPrice, ceilings.get(activeItem.id) || 0) ? editOverReason.trim() : '',
         })
       }
 
@@ -695,6 +728,39 @@ export default function SourcingDashboard() {
                                   </div>
                                 </div>
 
+                                {(() => {
+                                  const ceiling = ceilings.get(item.id) || 0
+                                  if (!ceiling) return null
+                                  const over = isOverCeiling(editPrice, ceiling)
+                                  return (
+                                    <div className={cn("rounded-xl border p-3", over ? "border-rose-300 bg-rose-50 dark:bg-rose-950/20" : "border-slate-200 bg-slate-50 dark:bg-slate-800/50")}>
+                                      <div className="flex justify-between items-center">
+                                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Batas Harga Beli</span>
+                                        <span className={cn("text-sm font-black", over ? "text-rose-600" : "text-emerald-600")}>
+                                          {formatRupiah(ceiling)} / {product.uom}
+                                        </span>
+                                      </div>
+                                      <p className="mt-1 text-[11px] text-slate-500">
+                                        Dihitung dari harga jual yang sudah dijanjikan ke klien, sisa untung minimal {minMarginPct}%.
+                                      </p>
+                                      {over && (
+                                        <div className="mt-3 space-y-2">
+                                          <p className="text-xs font-bold text-rose-600">
+                                            Lewat batas {overByPct(editPrice, ceiling)}%. Belanjanya tetap boleh — alasannya wajib ditulis.
+                                          </p>
+                                          <Input
+                                            type="text"
+                                            className="h-11 bg-white/70 border-2 border-rose-200 transition-all focus:border-rose-500"
+                                            placeholder="Misal: cuma vendor ini yang punya, sisanya busuk"
+                                            value={editOverReason}
+                                            onChange={(e) => setEditOverReason(e.target.value)}
+                                          />
+                                        </div>
+                                      )}
+                                    </div>
+                                  )
+                                })()}
+
                                 <div className="space-y-2">
                                   <div className="flex justify-between items-center">
                                     <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Vendor</Label>
@@ -760,6 +826,12 @@ export default function SourcingDashboard() {
                                         toast.error("Wajib memilih Vendor.");
                                         return;
                                       }
+                                      const ceiling = ceilings.get(item.id) || 0
+                                      const over = isOverCeiling(editPrice, ceiling)
+                                      if (over && !editOverReason.trim()) {
+                                        toast.error("Harganya di atas batas. Tulis dulu alasannya — belanjanya tetap dicatat, tapi harus ada keterangannya.");
+                                        return;
+                                      }
                                       handleExpandItem(null);
                                       setTimeout(() => {
                                         updatePurchaseItem(item.id, {
@@ -768,6 +840,7 @@ export default function SourcingDashboard() {
                                           notes: editNote,
                                           vendorId: editVendorId,
                                           paymentMethod: editPaymentMethod,
+                                          overCeilingReason: over ? editOverReason.trim() : '',
                                           isChecked: true
                                         })
                                       }, 10);

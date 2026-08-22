@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import { useState, useEffect } from "react"
-import { TrendingUp, Save, ArrowLeft } from "lucide-react"
+import { TrendingUp, Save, ArrowLeft, ShieldAlert } from "lucide-react"
 import Link from "next/link"
 import { ClientPriceTier } from "@/types"
 
@@ -23,6 +23,9 @@ export default function PricingSettingsPage() {
     'Custom': 0
   }
   const updateTierMargins = useAppStore(state => state.updateTierMargins)
+  const minMarginPct = useAppStore(state => state.minMarginPct)
+  const updateMinMarginPct = useAppStore(state => state.updateMinMarginPct)
+  const [minMargin, setMinMargin] = useState<number>(minMarginPct)
 
   const [margins, setMargins] = useState<Record<string, number>>({
     'Tier 1': 30,
@@ -43,6 +46,21 @@ export default function PricingSettingsPage() {
       })
     }
   }, [tierMargins])
+
+  useEffect(() => { setMinMargin(minMarginPct) }, [minMarginPct])
+
+  const handleSaveMinMargin = async () => {
+    if (minMargin < 0) {
+      toast.error("Margin minimum tidak bisa minus.")
+      return
+    }
+    try {
+      await updateMinMarginPct(minMargin)
+      toast.success("Batas harga beli diperbarui.")
+    } catch (err: any) {
+      toast.error("Gagal menyimpan: " + err.message)
+    }
+  }
 
   const handleSave = async () => {
     try {
@@ -129,6 +147,49 @@ export default function PricingSettingsPage() {
             <div className="pt-6 border-t border-slate-100 flex justify-end">
               <Button onClick={handleSave} className="bg-slate-900 border-none rounded-xl h-11 px-6 shadow-xl text-white font-bold hover:bg-slate-800">
                 <Save className="w-4 h-4 mr-2" /> Simpan Margin
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-white">
+          <CardHeader className="p-8 border-b border-slate-50">
+            <CardTitle className="text-xl font-black text-slate-900 flex items-center gap-2">
+              <ShieldAlert className="w-5 h-5 text-rose-500" /> Batas Harga Beli
+            </CardTitle>
+            <CardDescription className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
+              Untung minimum yang harus tersisa saat sourcing belanja
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-8 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+              <div>
+                <Label htmlFor="min-margin" className="text-xs font-black uppercase text-slate-700 tracking-wider">
+                  Margin Minimum Belanja
+                </Label>
+                <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                  Batas harga beli dihitung mundur dari harga jual yang sudah dijanjikan ke klien.
+                  Contoh: harga jual Rp12.000 dengan margin minimum 20% berarti belanja tidak boleh lewat Rp10.000.
+                  Belanja di atas batas tetap boleh dicatat, tapi wajib ada alasannya dan muncul di Tutup Hari.
+                </p>
+              </div>
+              <div className="relative">
+                <Input
+                  id="min-margin"
+                  type="number"
+                  min="0"
+                  max="1000"
+                  value={minMargin}
+                  onChange={(e) => setMinMargin(parseFloat(e.target.value) || 0)}
+                  className="h-11 rounded-xl border-slate-200 pr-12 font-bold font-mono text-slate-700"
+                />
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">%</span>
+              </div>
+            </div>
+
+            <div className="pt-6 border-t border-slate-100 flex justify-end">
+              <Button onClick={handleSaveMinMargin} className="bg-slate-900 border-none rounded-xl h-11 px-6 shadow-xl text-white font-bold hover:bg-slate-800">
+                <Save className="w-4 h-4 mr-2" /> Simpan Batas
               </Button>
             </div>
           </CardContent>

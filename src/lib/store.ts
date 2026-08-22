@@ -5,16 +5,17 @@ import {
   PurchaseItem, Delivery, Invoice, InvoiceStatus, ChartOfAccount, JournalEntry, 
   JournalLine, OperationalExpense, User, Vendor, Role, Lead, Announcement, AppTask, AppNotification,
   BankAccount, CashTransaction, Reimbursement, FixedAsset,
-  Employee, SmartKpi, OkrObjective, OkrKeyResult, RolePermissionMap, AccessKey, PendingReturn, VendorReturn, RejectedItem, StockMovement, ClientPrice, ClientPriceTier, PriceBaseline,
+  RolePermissionMap, AccessKey, PendingReturn, VendorReturn, RejectedItem, StockMovement, ClientPrice, ClientPriceTier, PriceBaseline,
   VendorBill, VendorBillPayment, TukarFaktur, PurchaseRequest, VendorPrice,
-  BudgetPlan, BudgetCategory, BudgetSubCategory, BudgetAdjustment, DisbursementRequest, TutupHariKantong,
+  DisbursementRequest, TutupHariKantong,
   DailyClose, DailyCostConfig, CreditNote
 } from '@/types';
-import { COA_SEED, CLIENTS_SEED, VENDORS_SEED, MOCK_USERS, KPI_SEED } from './constants';
+import { COA_SEED, CLIENTS_SEED, VENDORS_SEED, MOCK_USERS } from './constants';
 import { PRODUCTS_SEED } from './products_seed';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 import { loadLocalCache, saveLocalCache } from './local-cache';
+import { DEFAULT_MIN_MARGIN_PCT } from './price-ceiling';
 import { clientDeletionBlockers, describeBlockers, clientPriceIdsToRemove } from './client-delete';
 
 const LOCAL_PRODUCTS_CACHE_KEY = 'disma_local_products_cache';
@@ -33,10 +34,6 @@ const LOCAL_DELIVERIES_CACHE_KEY = 'disma_local_deliveries_cache';
 const LOCAL_LEADS_CACHE_KEY = 'disma_local_leads_cache';
 const LOCAL_CURRENT_USER_KEY = 'disma_core_current_user';
 const LOCAL_PURCHASE_REQUESTS_CACHE_KEY = 'disma_local_purchase_requests_cache';
-const LOCAL_BUDGET_PLANS_CACHE_KEY = 'disma_local_budget_plans_cache';
-const LOCAL_BUDGET_CATEGORIES_CACHE_KEY = 'disma_local_budget_categories_cache';
-const LOCAL_BUDGET_SUB_CATEGORIES_CACHE_KEY = 'disma_local_budget_sub_categories_cache';
-const LOCAL_BUDGET_ADJUSTMENTS_CACHE_KEY = 'disma_local_budget_adjustments_cache';
 const LOCAL_DISBURSEMENT_REQUESTS_CACHE_KEY = 'disma_local_disbursement_requests_cache';
 
 const loadLocalDisbursementRequestsCache = (): DisbursementRequest[] => {
@@ -361,6 +358,9 @@ interface AppState {
 
   tierMargins: Record<ClientPriceTier, number>;
   updateTierMargins: (margins: Record<ClientPriceTier, number>) => Promise<void>;
+  /** Margin minimum yang harus tersisa saat belanja. Dipakai menghitung batas harga beli. */
+  minMarginPct: number;
+  updateMinMarginPct: (pct: number) => Promise<void>;
   priceBaseline: PriceBaseline | null;
 
   clients: Client[];
@@ -504,23 +504,6 @@ interface AppState {
   markNotificationRead: (id: string) => void;
   clearAllNotifications: () => void;
   
-  // HR & KPI
-  employees: Employee[];
-  addEmployee: (emp: Employee) => void;
-  updateEmployee: (id: string, data: Partial<Employee>) => void;
-  
-  kpiObjectives: SmartKpi[];
-  addKpi: (kpi: SmartKpi) => void;
-  updateKpi: (id: string, data: Partial<SmartKpi>) => void;
-  deleteKpi: (id: string) => Promise<void>;
-  
-  // OKR Framework
-  okrObjectives: OkrObjective[];
-  addOkr: (okr: OkrObjective) => void;
-  updateOkr: (id: string, data: Partial<OkrObjective>) => void;
-  deleteOkr: (id: string) => Promise<void>;
-  deleteKeyResult: (objectiveId: string, krId: string) => Promise<void>;
-  
   fixedAssets: FixedAsset[];
   addFixedAsset: (asset: FixedAsset) => void;
   updateFixedAsset: (id: string, updates: Partial<FixedAsset>) => void;
@@ -580,16 +563,6 @@ interface AppState {
   shoppingListHistoryLength: number;
   setShoppingListUndo: (cb: (() => void) | null, length: number) => void;
 
-  // Budget Planning
-  budgetPlans: BudgetPlan[];
-  budgetCategories: BudgetCategory[];
-  budgetSubCategories: BudgetSubCategory[];
-  budgetAdjustments: BudgetAdjustment[];
-  upsertBudgetPlan: (plan: BudgetPlan) => Promise<void>;
-  deleteBudgetPlan: (id: string) => Promise<void>;
-  upsertBudgetCategory: (category: BudgetCategory) => Promise<void>;
-  upsertBudgetSubCategory: (subCategory: BudgetSubCategory) => Promise<void>;
-  upsertBudgetAdjustment: (adjustment: BudgetAdjustment) => Promise<void>;
 }
 
 
@@ -719,10 +692,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       users: MOCK_USERS,
       rolePermissions: initialRolePermissions,
       navConfigs: {},
-      budgetPlans: [],
-      budgetCategories: [],
-      budgetSubCategories: [],
-      budgetAdjustments: [],
       addUser: async (user) => {
         set((state) => ({ users: [...state.users, user] }));
         await get().syncTable('users', user);
@@ -885,14 +854,10 @@ export const useAppStore = create<AppState>((set, get) => ({
           const cachedDeliveries = loadLocalCache<Delivery>(LOCAL_DELIVERIES_CACHE_KEY);
           const cachedLeads = loadLocalLeadsCache();
           const cachedPurchaseRequests = loadLocalPurchaseRequestsCache();
-          const cachedBudgetPlans = loadLocalCache<BudgetPlan>(LOCAL_BUDGET_PLANS_CACHE_KEY);
-          const cachedBudgetCategories = loadLocalCache<BudgetCategory>(LOCAL_BUDGET_CATEGORIES_CACHE_KEY);
-          const cachedBudgetSubCategories = loadLocalCache<BudgetSubCategory>(LOCAL_BUDGET_SUB_CATEGORIES_CACHE_KEY);
-          const cachedBudgetAdjustments = loadLocalCache<BudgetAdjustment>(LOCAL_BUDGET_ADJUSTMENTS_CACHE_KEY);
           const cachedDisbursementRequests = loadLocalDisbursementRequestsCache();
           const cachedClientPrices = loadLocalCache<ClientPrice>(LOCAL_CLIENT_PRICES_CACHE_KEY);
 
-          const hasCache = cachedClients.length > 0 || cachedProducts.length > 0 || cachedSalesOrders.length > 0 || cachedLeads.length > 0 || cachedPurchaseRequests.length > 0 || cachedBudgetPlans.length > 0 || cachedDisbursementRequests.length > 0;
+          const hasCache = cachedClients.length > 0 || cachedProducts.length > 0 || cachedSalesOrders.length > 0 || cachedLeads.length > 0 || cachedPurchaseRequests.length > 0 || cachedDisbursementRequests.length > 0;
           if (hasCache) {
             console.log('[INIT] Phase 1: Hydrating from localStorage cache...');
             set({
@@ -911,10 +876,6 @@ export const useAppStore = create<AppState>((set, get) => ({
               deliveries: cachedDeliveries.length > 0 ? cachedDeliveries : get().deliveries,
               leads: cachedLeads.length > 0 ? cachedLeads : get().leads,
               purchaseRequests: cachedPurchaseRequests.length > 0 ? cachedPurchaseRequests : get().purchaseRequests,
-              budgetPlans: cachedBudgetPlans.length > 0 ? cachedBudgetPlans : get().budgetPlans,
-              budgetCategories: cachedBudgetCategories.length > 0 ? cachedBudgetCategories : get().budgetCategories,
-              budgetSubCategories: cachedBudgetSubCategories.length > 0 ? cachedBudgetSubCategories : get().budgetSubCategories,
-              budgetAdjustments: cachedBudgetAdjustments.length > 0 ? cachedBudgetAdjustments : get().budgetAdjustments,
               disbursementRequests: cachedDisbursementRequests.length > 0 ? cachedDisbursementRequests : get().disbursementRequests,
             });
           }
@@ -1197,6 +1158,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             setIfDefined('dailyCloses', data.dailyCloses);
             setIfDefined('creditNotes', data.creditNotes);
             setIfDefined('dailyCostConfig', data.dailyCostConfig);
+            if (typeof data.minMarginPct === 'number') updatedState.minMarginPct = data.minMarginPct;
             setIfDefined('cashTransactions', data.cashTransactions);
             setIfDefined('journalEntries', data.journalEntries);
             setIfDefined('journalLines', data.journalLines);
@@ -1213,20 +1175,11 @@ export const useAppStore = create<AppState>((set, get) => ({
             setIfDefined('vendorPrices', data.vendorPrices);
             setIfDefined('vendors', data.vendors);
             setIfDefined('notifications', data.notifications);
-            setIfDefined('employees', data.employees);
             setIfDefined('fixedAssets', data.fixedAssets);
             setIfDefined('pendingReturns', data.pendingReturns);
             setIfDefined('vendorReturns', data.vendorReturns);
             setIfDefined('priceBaseline', data.priceBaseline);
             setIfDefined('rejectedItems', data.rejectedItems);
-            setIfDefined('okrObjectives', data.okrObjectives);
-            setIfDefined('budgetPlans', data.budgetPlans);
-            setIfDefined('budgetCategories', data.budgetCategories);
-            setIfDefined('budgetSubCategories', data.budgetSubCategories);
-            setIfDefined('budgetAdjustments', data.budgetAdjustments);
-            if (data.kpiObjectives !== undefined) {
-              updatedState.kpiObjectives = data.kpiObjectives.length > 0 ? data.kpiObjectives : KPI_SEED;
-            }
 
             // STALE-SNAPSHOT GUARD: a local mutation (transfer, cash tx, any write)
             // committed while this fetch was in flight. The data we just fetched
@@ -1256,10 +1209,6 @@ export const useAppStore = create<AppState>((set, get) => ({
             if (data.invoices !== undefined) saveLocalCache(LOCAL_INVOICES_CACHE_KEY, data.invoices);
             if (data.deliveries !== undefined) saveLocalCache(LOCAL_DELIVERIES_CACHE_KEY, data.deliveries);
             if (data.leads !== undefined) saveLocalLeadsCache(data.leads);
-            if (data.budgetPlans !== undefined) saveLocalCache(LOCAL_BUDGET_PLANS_CACHE_KEY, data.budgetPlans);
-            if (data.budgetCategories !== undefined) saveLocalCache(LOCAL_BUDGET_CATEGORIES_CACHE_KEY, data.budgetCategories);
-            if (data.budgetSubCategories !== undefined) saveLocalCache(LOCAL_BUDGET_SUB_CATEGORIES_CACHE_KEY, data.budgetSubCategories);
-            if (data.budgetAdjustments !== undefined) saveLocalCache(LOCAL_BUDGET_ADJUSTMENTS_CACHE_KEY, data.budgetAdjustments);
 
             // --- LEGACY HPP BACKFILL ---
             // Before the HPP mapping fix, market sourcing settlements were posted to inventory (1-3000).
@@ -1470,7 +1419,8 @@ export const useAppStore = create<AppState>((set, get) => ({
           id: 'global-settings',
           nav_configs: {
             ...state.navConfigs,
-            tier_margins: state.tierMargins
+            tier_margins: state.tierMargins,
+            min_margin_pct: state.minMarginPct
           },
           role_permissions: state.rolePermissions
         }, true);
@@ -1496,6 +1446,21 @@ export const useAppStore = create<AppState>((set, get) => ({
           nav_configs: {
             ...state.navConfigs,
             tier_margins: margins
+          },
+          role_permissions: state.rolePermissions
+        }, true);
+      },
+
+      minMarginPct: DEFAULT_MIN_MARGIN_PCT,
+      updateMinMarginPct: async (pct) => {
+        set({ minMarginPct: pct });
+        const state = get();
+        await state.syncTable('app_settings', {
+          id: 'global-settings',
+          nav_configs: {
+            ...state.navConfigs,
+            tier_margins: state.tierMargins,
+            min_margin_pct: pct
           },
           role_permissions: state.rolePermissions
         }, true);
@@ -2135,7 +2100,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         const state = get();
         await state.syncTable('app_settings', {
           id: 'global-settings',
-          nav_configs: { ...state.navConfigs, tier_margins: state.tierMargins },
+          nav_configs: { ...state.navConfigs, tier_margins: state.tierMargins, min_margin_pct: state.minMarginPct },
           role_permissions: state.rolePermissions,
           daily_cost_config: cfg,
         }, true);
@@ -2645,240 +2610,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       },
       clearAllNotifications: () => set({ notifications: [] }),
 
-      employees: [],
-      addEmployee: async (emp) => {
-        set((state) => ({ employees: [...state.employees, emp] }));
-        await get().syncTable('employees', emp);
-      },
-      updateEmployee: async (id, data) => {
-        const before = get().employees.find(e => e.id === id);
-        set((state) => ({
-          employees: state.employees.map(e => e.id === id ? { ...e, ...data } : e)
-        }));
-        const updated = get().employees.find(e => e.id === id);
-        if (updated) {
-          await get().syncTable('employees', updated);
-          if (before) await get().logHistory({ table: 'employees', recordId: id, action: 'update', oldData: before, newData: updated });
-        }
-      },
-      
-      kpiObjectives: KPI_SEED,
-      addKpi: async (kpi) => {
-        set((state) => ({ kpiObjectives: [...state.kpiObjectives, kpi] }));
-        await get().syncTable('kpis', kpi);
-      },
-      updateKpi: async (id, data) => {
-        const before = get().kpiObjectives.find(k => k.id === id);
-        set((state) => ({
-          kpiObjectives: state.kpiObjectives.map(k => k.id === id ? { ...k, ...data } : k)
-        }));
-        const updated = get().kpiObjectives.find(k => k.id === id);
-        if (updated) {
-          await get().syncTable('kpis', updated);
-          if (before) await get().logHistory({ table: 'kpis', recordId: id, action: 'update', oldData: before, newData: updated });
-
-          // Propagate KPI updates to linked OKR Key Results
-          const updatedObjectives: OkrObjective[] = [];
-          const updatedKRsToSync: OkrKeyResult[] = [];
-          const currentOkrs = get().okrObjectives;
-          let okrsChanged = false;
-
-          const newOkrs = currentOkrs.map(okr => {
-            let krChanged = false;
-            const newKrs = okr.keyResults.map(kr => {
-              if (kr.linkedKpiId === id) {
-                krChanged = true;
-                const updatedKr: OkrKeyResult = {
-                  ...kr,
-                  currentValue: updated.actualValue !== undefined ? updated.actualValue : kr.currentValue,
-                  targetValue: updated.targetValue !== undefined ? updated.targetValue : kr.targetValue,
-                  unit: updated.unit !== undefined ? updated.unit : kr.unit,
-                };
-                updatedKRsToSync.push(updatedKr);
-                return updatedKr;
-              }
-              return kr;
-            });
-
-            if (krChanged) {
-              okrsChanged = true;
-              let totalProgress = 0;
-              newKrs.forEach(k => {
-                const target = k.targetValue || 1;
-                const prog = (k.currentValue / target) * 100;
-                totalProgress += Math.max(0, Math.min(prog, 100));
-              });
-              const newParentProgress = newKrs.length > 0 ? (totalProgress / newKrs.length) : 0;
-
-              const updatedOkr = {
-                ...okr,
-                keyResults: newKrs,
-                progress: newParentProgress
-              };
-              updatedObjectives.push(updatedOkr);
-              return updatedOkr;
-            }
-            return okr;
-          });
-
-          if (okrsChanged) {
-            set({ okrObjectives: newOkrs });
-            if (updatedKRsToSync.length > 0) {
-              await fetch('/api/db', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ table: 'okr_key_results', data: updatedKRsToSync })
-              });
-            }
-            for (const okr of updatedObjectives) {
-              const { keyResults, ...objectiveData } = okr;
-              await get().syncTable('okr_objectives', objectiveData);
-            }
-          }
-        }
-      },
-      deleteKpi: async (id) => {
-        const before = get().kpiObjectives.find(k => k.id === id);
-        set((state) => ({ kpiObjectives: state.kpiObjectives.filter(k => k.id !== id) }));
-        
-        await fetch('/api/db', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ table: 'kpis', id })
-        });
-        
-        if (before) {
-          await get().logHistory({ table: 'kpis', recordId: id, action: 'delete', oldData: before, newData: null });
-        }
-
-        // Unlink any OKR Key Results referencing this KPI
-        const updatedKRsToSync: any[] = [];
-        const currentOkrs = get().okrObjectives;
-        let okrsChanged = false;
-
-        const newOkrs = currentOkrs.map(okr => {
-          let krChanged = false;
-          const newKrs = okr.keyResults.map(kr => {
-            if (kr.linkedKpiId === id) {
-              krChanged = true;
-              const updatedKr = {
-                ...kr,
-                linkedKpiId: null as any
-              };
-              updatedKRsToSync.push(updatedKr);
-              return updatedKr;
-            }
-            return kr;
-          });
-
-          if (krChanged) {
-            okrsChanged = true;
-            return {
-              ...okr,
-              keyResults: newKrs
-            };
-          }
-          return okr;
-        });
-
-        if (okrsChanged) {
-          set({ okrObjectives: newOkrs });
-          if (updatedKRsToSync.length > 0) {
-            await fetch('/api/db', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ table: 'okr_key_results', data: updatedKRsToSync })
-            });
-          }
-        }
-      },
-      
-      okrObjectives: [],
-      addOkr: async (okr) => {
-        set((state) => ({ okrObjectives: [...state.okrObjectives, okr] }));
-        const { keyResults, ...objectiveData } = okr;
-        await get().syncTable('okr_objectives', objectiveData);
-      },
-      updateOkr: async (id, data) => {
-        const before = get().okrObjectives.find(o => o.id === id);
-        set((state) => ({
-          okrObjectives: state.okrObjectives.map(o => o.id === id ? { ...o, ...data } : o)
-        }));
-        const updated = get().okrObjectives.find(o => o.id === id);
-        if (updated) {
-          const { keyResults, ...objectiveData } = updated;
-          await get().syncTable('okr_objectives', objectiveData);
-          if (data.keyResults && data.keyResults.length > 0) {
-              await fetch('/api/db', {
-                  method: 'POST',
-                  body: JSON.stringify({ table: 'okr_key_results', data: data.keyResults })
-              });
-          }
-          if (before) await get().logHistory({ table: 'okr_objectives', recordId: id, action: 'update', oldData: before, newData: updated });
-        }
-      },
-      deleteOkr: async (id) => {
-        const before = get().okrObjectives.find(o => o.id === id);
-        if (!before) return;
-        
-        set((state) => ({ okrObjectives: state.okrObjectives.filter(o => o.id !== id) }));
-        
-        const krIds = before.keyResults.map(kr => kr.id);
-        if (krIds.length > 0) {
-          await fetch('/api/db', {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ table: 'okr_key_results', id: krIds })
-          });
-        }
-        
-        await fetch('/api/db', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ table: 'okr_objectives', id })
-        });
-        
-        await get().logHistory({ table: 'okr_objectives', recordId: id, action: 'delete', oldData: before, newData: null });
-      },
-      deleteKeyResult: async (objectiveId, krId) => {
-        const parentObjective = get().okrObjectives.find(o => o.id === objectiveId);
-        if (!parentObjective) return;
-        
-        const beforeKr = parentObjective.keyResults.find(k => k.id === krId);
-        if (!beforeKr) return;
-        
-        const updatedKRs = parentObjective.keyResults.filter(k => k.id !== krId);
-        
-        let totalProgress = 0;
-        updatedKRs.forEach(kr => {
-          const target = kr.targetValue || 1;
-          const prog = (kr.currentValue / target) * 100;
-          totalProgress += Math.max(0, Math.min(prog, 100));
-        });
-        const newProgress = updatedKRs.length > 0 ? (totalProgress / updatedKRs.length) : 0;
-        
-        set((state) => ({
-          okrObjectives: state.okrObjectives.map(o => 
-            o.id === objectiveId 
-              ? { ...o, keyResults: updatedKRs, progress: newProgress } 
-              : o
-          )
-        }));
-        
-        await fetch('/api/db', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ table: 'okr_key_results', id: krId })
-        });
-        
-        const updatedOkr = get().okrObjectives.find(o => o.id === objectiveId);
-        if (updatedOkr) {
-          const { keyResults, ...objectiveData } = updatedOkr;
-          await get().syncTable('okr_objectives', objectiveData);
-          await get().logHistory({ table: 'okr_key_results', recordId: krId, action: 'delete', oldData: beforeKr, newData: null });
-        }
-      },
-
       fixedAssets: [],
       addFixedAsset: async (asset: FixedAsset) => {
         set((state) => ({ fixedAssets: [...state.fixedAssets, asset] }));
@@ -3290,7 +3021,8 @@ export const useAppStore = create<AppState>((set, get) => ({
           id: 'global-settings',
           nav_configs: {
             ...state.navConfigs,
-            tier_margins: state.tierMargins
+            tier_margins: state.tierMargins,
+            min_margin_pct: state.minMarginPct
           },
           role_permissions: state.rolePermissions
         }, true);
@@ -3459,66 +3191,6 @@ export const useAppStore = create<AppState>((set, get) => ({
           set({ isUndoing: false });
         }
       },
-      upsertBudgetPlan: async (plan) => {
-        const plans = get().budgetPlans;
-        const exists = plans.some(p => p.id === plan.id);
-        const updatedPlans = exists ? plans.map(p => p.id === plan.id ? plan : p) : [...plans, plan];
-        set({ budgetPlans: updatedPlans });
-        saveLocalCache(LOCAL_BUDGET_PLANS_CACHE_KEY, updatedPlans);
-        await get().syncTable('budget_plans', plan);
-      },
-      deleteBudgetPlan: async (id) => {
-        const updatedPlans = get().budgetPlans.filter(p => p.id !== id);
-        set({ budgetPlans: updatedPlans });
-        saveLocalCache(LOCAL_BUDGET_PLANS_CACHE_KEY, updatedPlans);
-        
-        // Cascade delete local sub states to prevent sync issues
-        const categoriesToDelete = get().budgetCategories.filter(c => c.planId === id);
-        const categoryIds = categoriesToDelete.map(c => c.id);
-        const updatedCategories = get().budgetCategories.filter(c => c.planId !== id);
-        set({ budgetCategories: updatedCategories });
-        saveLocalCache(LOCAL_BUDGET_CATEGORIES_CACHE_KEY, updatedCategories);
-
-        const updatedSubCategories = get().budgetSubCategories.filter(sc => !categoryIds.includes(sc.categoryId));
-        set({ budgetSubCategories: updatedSubCategories });
-        saveLocalCache(LOCAL_BUDGET_SUB_CATEGORIES_CACHE_KEY, updatedSubCategories);
-
-        const updatedAdjustments = get().budgetAdjustments.filter(a => a.planId !== id);
-        set({ budgetAdjustments: updatedAdjustments });
-        saveLocalCache(LOCAL_BUDGET_ADJUSTMENTS_CACHE_KEY, updatedAdjustments);
-
-        // Delete remotely
-        await fetch('/api/db', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ table: 'budget_plans', id })
-        });
-      },
-      upsertBudgetCategory: async (category) => {
-        const categories = get().budgetCategories;
-        const exists = categories.some(c => c.id === category.id);
-        const updatedCategories = exists ? categories.map(c => c.id === category.id ? category : c) : [...categories, category];
-        set({ budgetCategories: updatedCategories });
-        saveLocalCache(LOCAL_BUDGET_CATEGORIES_CACHE_KEY, updatedCategories);
-        await get().syncTable('budget_categories', category);
-      },
-      upsertBudgetSubCategory: async (subCategory) => {
-        const subCategories = get().budgetSubCategories;
-        const exists = subCategories.some(sc => sc.id === subCategory.id);
-        const updatedSubCategories = exists ? subCategories.map(sc => sc.id === subCategory.id ? subCategory : sc) : [...subCategories, subCategory];
-        set({ budgetSubCategories: updatedSubCategories });
-        saveLocalCache(LOCAL_BUDGET_SUB_CATEGORIES_CACHE_KEY, updatedSubCategories);
-        await get().syncTable('budget_sub_categories', subCategory);
-      },
-      upsertBudgetAdjustment: async (adjustment) => {
-        const adjustments = get().budgetAdjustments;
-        const exists = adjustments.some(a => a.id === adjustment.id);
-        const updatedAdjustments = exists ? adjustments.map(a => a.id === adjustment.id ? adjustment : a) : [...adjustments, adjustment];
-        set({ budgetAdjustments: updatedAdjustments });
-        saveLocalCache(LOCAL_BUDGET_ADJUSTMENTS_CACHE_KEY, updatedAdjustments);
-        await get().syncTable('budget_adjustments', adjustment);
-      },
-
       resetSimulation: async () => {
         const state = get();
         state.takeDevSnapshot();
