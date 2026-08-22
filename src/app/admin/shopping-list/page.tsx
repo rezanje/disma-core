@@ -746,7 +746,6 @@ export default function ShoppingListPage() {
     const advanceCode = `ADV-${toDateInputValue(generatedAt).replaceAll('-', '')}-${String(purchases.length + 1).padStart(3, '0')}`
     setIsLoading(true)
     const loadingId = toast.loading("Membuat dokumen list belanja...")
-    const title = `Daftar_Belanja_${new Date().toISOString().slice(0, 10)}`
     try {
       useAppStore.getState().takeDevSnapshot()
       await addPurchase({
@@ -864,14 +863,10 @@ export default function ShoppingListPage() {
           return next
         })
       }
-      setPdfPreview({
-        title,
-        url: generateShoppingListPDFDataUrl(documentItems.filter(item => item.purchaseMethod === 'Pasar'))
-      })
       toast.success(
         stockItems.length > 0
-          ? `Dokumen dibuat. ${buyItems.length} item dibeli, ${stockItems.length} item dibooking dari gudang.`
-          : "Dokumen list belanja berhasil dibuat.",
+          ? `Dokumen dibuat. ${buyItems.length} item dibeli, ${stockItems.length} item dibooking dari gudang. Kirim ke Finance dulu — daftar belanjanya bisa dicetak setelah vendornya ditentukan.`
+          : "Dokumen dibuat. Kirim ke Finance dulu — daftar belanjanya bisa dicetak setelah vendornya ditentukan.",
         { id: loadingId }
       )
     } catch (e) {
@@ -955,6 +950,37 @@ export default function ShoppingListPage() {
       setIsDeletingPurchase(null)
     }
   }
+
+  /**
+   * Daftar belanja yang dicetak selalu dibaca dari dokumen yang TERSIMPAN, bukan dari
+   * pilihan lokal di layar ini. Sejak rencana pembelian pindah ke Finance, vendor dan
+   * cara bayar baru ada setelah Sifa melepas dokumennya — lembar yang dicetak sebelum
+   * itu isinya tebakan Admin PO, dan itu yang dibawa orang ke pasar.
+   */
+  const printSavedDocument = (purchaseId: string, titleOverride?: string) => {
+    const saved = purchaseItems.filter(pi => pi.purchaseId === purchaseId)
+    const docItems: ShoppingListDocumentItem[] = saved.map(i => {
+      const product = products.find(p => p.id === i.productId)
+      return {
+        productId: i.productId,
+        productName: product?.name || i.productId,
+        skuCode: product?.skuCode || '',
+        uom: product?.uom,
+        totalQty: i.qtyTarget,
+        estimatedPrice: i.estimatedUnitPrice,
+        sellPrice: product?.sellingPrice || 0,
+        purchaseMethod: i.purchaseMethod as 'Pasar' | 'Online' | 'Vendor',
+        paymentMethod: i.paymentMethod,
+        vendorId: i.vendorId,
+        vendorName: vendors.find(v => v.id === i.vendorId)?.companyName,
+      }
+    })
+    handleOpenPdfPreview(docItems.filter(item => item.purchaseMethod === 'Pasar'), titleOverride)
+  }
+
+  /** Dokumen yang rencananya belum diisi Finance belum boleh dicetak. */
+  const belumDirencanakan = (purchaseId?: string | null) =>
+    !purchaseId || purchases.find(p => p.id === purchaseId)?.status === 'Menunggu Rencana'
 
   const handleOpenPdfPreview = (items: ShoppingListDocumentItem[], titleOverride?: string) => {
     const title = titleOverride || `Daftar_Belanja_${new Date().toISOString().slice(0, 10)}`
@@ -1399,9 +1425,14 @@ export default function ShoppingListPage() {
                       <Button
                         variant="outline"
                         className="h-11 rounded-xl bg-white font-black uppercase tracking-widest text-[10px]"
-                        onClick={() => handleOpenPdfPreview(lastGeneratedDoc.items.filter(item => item.purchaseMethod === 'Pasar'))}
+                        disabled={belumDirencanakan(lastGeneratedDoc.purchaseId)}
+                        title={belumDirencanakan(lastGeneratedDoc.purchaseId)
+                          ? 'Vendor dan cara bayarnya belum ditentukan Finance — lembar ini belum final.'
+                          : undefined}
+                        onClick={() => printSavedDocument(lastGeneratedDoc.purchaseId)}
                       >
-                        <Printer className="mr-2 h-4 w-4" /> Print / PDF
+                        <Printer className="mr-2 h-4 w-4" />
+                        {belumDirencanakan(lastGeneratedDoc.purchaseId) ? 'Menunggu Rencana Finance' : 'Print / PDF'}
                       </Button>
                       <Button
                         variant="ghost"
@@ -2186,9 +2217,6 @@ export default function ShoppingListPage() {
                 </div>
 
                 <div className="flex justify-end pt-2 gap-3">
-                  <Button variant="outline" onClick={() => handleOpenPdfPreview(consolidatedList.filter(item => item.purchaseMethod === 'Pasar'))}>
-                    <Printer className="mr-2 h-4 w-4" /> Print PDF
-                  </Button>
                   <Button data-tour="sl-generate" onClick={handleGenerateDocument} disabled={isLoading} className="bg-emerald-600 hover:bg-emerald-700 shadow-md shadow-emerald-500/20">
                     {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShoppingBasket className="mr-2 h-4 w-4" />}
                     {isLoading ? "Generating..." : "Buat Dokumen List"}
@@ -2450,21 +2478,12 @@ export default function ShoppingListPage() {
                 {histPurchase && (
                   <Button
                     className="bg-slate-800 hover:bg-slate-900 text-white font-black text-[10px] uppercase tracking-widest"
+                    disabled={belumDirencanakan(histPurchase.id)}
+                    title={belumDirencanakan(histPurchase.id)
+                      ? 'Vendor dan cara bayarnya belum ditentukan Finance — lembar ini belum final.'
+                      : undefined}
                     onClick={() => {
-                      const docItems: ShoppingListDocumentItem[] = histItems.map(i => ({
-                        productId: i.productId,
-                        productName: products.find(p => p.id === i.productId)?.name || i.productId,
-                        skuCode: products.find(p => p.id === i.productId)?.skuCode || '',
-                        uom: products.find(p => p.id === i.productId)?.uom,
-                        totalQty: i.qtyTarget,
-                        estimatedPrice: i.estimatedUnitPrice,
-                        sellPrice: products.find(p => p.id === i.productId)?.sellingPrice || 0,
-                        purchaseMethod: i.purchaseMethod as 'Pasar' | 'Online' | 'Vendor',
-                        paymentMethod: i.paymentMethod,
-                        vendorId: i.vendorId,
-                        vendorName: vendors.find(v => v.id === i.vendorId)?.companyName,
-                      }))
-                      handleOpenPdfPreview(docItems.filter(item => item.purchaseMethod === 'Pasar'), `DAFTAR BELANJA #${histPurchase.advanceCode || histPurchase.id.slice(0, 8)}`)
+                      printSavedDocument(histPurchase.id, `DAFTAR BELANJA #${histPurchase.advanceCode || histPurchase.id.slice(0, 8)}`)
                       setSelectedHistoryPurchaseId(null)
                     }}
                   >
