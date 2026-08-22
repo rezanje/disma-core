@@ -31,10 +31,15 @@ export default function OnlinePurchasePage() {
     ref: string
   }>>({})
 
-  // Only show Online items belonging to a purchase that has been sent to Finance ("Belum Transfer" or further).
+  // Barang online baru boleh dipesan setelah rencananya dilepas Finance — di situlah
+  // sebuah barang ditetapkan jalur "Online". Dulu gerbangnya status rekonsiliasi
+  // 'Belum Transfer', yang dipasang tombol "Kirim ke Finance"; tombol itu sudah tidak
+  // ada sejak rencana dan pencairan digabung ke satu dokumen, jadi gerbangnya pindah
+  // ke status dokumen. Dokumen lama tetap lolos lewat cek status rekonsiliasi di bawah.
   const sentPurchaseIds = new Set(
     purchases
-      .filter(p => p.reconciliationStatus === 'Belum Transfer' || !!p.budgetTransferDate || p.reconciliationStatus === 'Laporan Masuk' || p.reconciliationStatus === 'Terverifikasi')
+      .filter(p => p.status !== 'Menunggu Rencana' || !!p.budgetTransferDate ||
+        p.reconciliationStatus === 'Belum Transfer' || p.reconciliationStatus === 'Laporan Masuk' || p.reconciliationStatus === 'Terverifikasi')
       .map(p => p.id)
   )
 

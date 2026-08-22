@@ -14,6 +14,11 @@ import {
   toPurchaseMethod, fromPurchaseMethod, unplannedLines, lineIsPlanned, cashNeeded,
   HANDLING_LABEL, type Handling, type PaymentMethod,
 } from "@/lib/purchase-plan"
+import { disbursementProblem } from "@/lib/shopping-money"
+import { pocketOwners } from "@/lib/sourcing-pocket"
+import { recordPocketWithdrawal, bankRequiresCfoApproval } from "@/lib/accounting"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 
 /**
  * Rencana Pembelian — milik Finance.
@@ -36,10 +41,27 @@ export default function PurchasePlanPage() {
   const purchaseRequests = useAppStore(s => s.purchaseRequests)
   const updatePurchaseRequest = useAppStore(s => s.updatePurchaseRequest)
 
+  const bankAccounts = useAppStore(s => s.bankAccounts)
+  const currentUser = useAppStore(s => s.currentUser)
+
   const [openId, setOpenId] = useState<string | null>(null)
   const [releasing, setReleasing] = useState(false)
 
+  // Pencairan ke kantong, dari layar yang sama dengan rencananya.
+  const [cairId, setCairId] = useState<string | null>(null)
+  const [cairAmount, setCairAmount] = useState<number>(0)
+  const [cairPocket, setCairPocket] = useState<string>('')
+  const [cairSource, setCairSource] = useState<string>('')
+  const [cairNote, setCairNote] = useState<string>('')
+  const [cairing, setCairing] = useState(false)
+
   const waiting = purchases.filter(p => p.status === 'Menunggu Rencana')
+  // Sudah direncanakan tapi uangnya belum keluar. Dulu ini antrean di layar lain
+  // (pengajuan dana + disbursement); sekarang lanjutannya ada di dokumen yang sama.
+  const belumCair = purchases.filter(p => p.status === 'Pending' && !p.disbursedAt)
+  const pockets = pocketOwners(bankAccounts)
+  const pools = bankAccounts.filter(b => b.id !== cairPocket)
+  const cairDoc = cairId ? purchases.find(p => p.id === cairId) : null
   const active = openId ? purchases.find(p => p.id === openId) : waiting[0]
   const lines = purchaseItems.filter(pi => pi.purchaseId === active?.id)
   const belum = unplannedLines(lines)
@@ -70,7 +92,12 @@ export default function PurchasePlanPage() {
       // Nilai pengajuan dana = uang tunai yang benar-benar perlu dibawa. Tempo ditagih
       // belakangan dan Transfer dibayar dari rekening kantor.
       const tunai = cashNeeded(lines)
-      await updatePurchase(active.id, { status: 'Pending', budgetAmount: tunai })
+      await updatePurchase(active.id, {
+        status: 'Pending',
+        budgetAmount: tunai,
+        plannedBy: currentUser?.name || currentUser?.id,
+        plannedAt: new Date().toISOString(),
+      })
 
       // Pengajuan dananya dibuat Admin PO SEBELUM rencana ini ada, jadi angkanya waktu
       // itu belum bisa diketahui. Kalau tidak diperbarui di sini, Finance menyetujui dan
@@ -89,6 +116,56 @@ export default function PurchasePlanPage() {
     }
   }
 
+  const bukaPencairan = (purchaseId: string) => {
+    const doc = purchases.find(p => p.id === purchaseId)
+    setCairId(purchaseId)
+    setCairAmount(Number(doc?.budgetAmount || 0))
+    setCairPocket('')
+    setCairSource('')
+    setCairNote('')
+  }
+
+  const cairkan = async () => {
+    if (!cairDoc) return
+    const masalah = disbursementProblem(cairAmount, Number(cairDoc.budgetAmount || 0), cairNote, cairPocket, cairSource)
+    if (masalah) { toast.error(masalah); return }
+
+    // Gerbang persetujuan menempel di REKENING sumbernya, bukan di dokumen terpisah —
+    // jadi persetujuan kedua terjadi tepat waktu uangnya pindah, bukan sebagai ritual
+    // yang bisa disetujui hari sebelumnya untuk angka yang belum diketahui.
+    if (bankRequiresCfoApproval(cairSource)) {
+      toast.error("Rekening ini butuh approval CFO. Pakai layar Disbursement untuk pengajuannya.")
+      return
+    }
+
+    setCairing(true)
+    try {
+      const pocket = bankAccounts.find(b => b.id === cairPocket)
+      const ok = await recordPocketWithdrawal(cairSource, cairPocket, cairAmount, pocket?.name || 'Sourcing')
+      if (!ok) { toast.error("Pencairan gagal dibukukan. Cek saldo dan rekeningnya."); return }
+
+      await updatePurchase(cairDoc.id, {
+        disbursedAmount: cairAmount,
+        disbursedAt: new Date().toISOString(),
+        disbursedBy: currentUser?.name || currentUser?.id,
+        disbursedToBankAccountId: cairPocket,
+        disbursementNote: cairNote.trim() || undefined,
+        // Status rekonsiliasi lama tetap ditulis supaya layar Belanja Online dan
+        // Rekonsiliasi yang membacanya tidak kehilangan dokumen ini.
+        reconciliationStatus: 'Dana Ditransfer',
+        budgetTransferDate: new Date().toISOString(),
+        budgetBankAccountId: cairSource,
+        budgetDestBankAccountId: cairPocket,
+      })
+      toast.success(`${formatRupiah(cairAmount)} sudah masuk kantong ${pocket?.name || ''}.`)
+      setCairId(null)
+    } catch (e) {
+      toast.error("Gagal mencairkan: " + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setCairing(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -97,6 +174,104 @@ export default function PurchasePlanPage() {
           Tentukan beli ke siapa, lewat jalur apa, dan dibayar bagaimana — sebelum sourcing jalan
         </p>
       </div>
+
+      {/* --- Sudah direncanakan, uangnya belum keluar --- */}
+      {belumCair.length > 0 && (
+        <Card className="border-emerald-200 bg-emerald-50/40">
+          <CardContent className="p-5 space-y-4">
+            <div>
+              <p className="text-sm font-black text-emerald-800">Siap dicairkan</p>
+              <p className="text-[11px] font-bold text-emerald-700/70">
+                Rencananya sudah dilepas. Serahkan uangnya ke kantong yang belanja — tidak ada pengajuan terpisah lagi.
+              </p>
+            </div>
+
+            {belumCair.map(p => (
+              <div key={p.id} className="rounded-2xl bg-white border border-emerald-100 p-4 space-y-3">
+                <div className="flex justify-between items-center gap-4">
+                  <div>
+                    <p className="font-black text-slate-800">{p.advanceCode || p.id.slice(0, 8)}</p>
+                    <p className="text-[11px] font-bold text-slate-400">
+                      Direncanakan {p.plannedBy || '—'}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Perlu tunai</p>
+                    <p className="text-xl font-black text-emerald-600">{formatRupiah(p.budgetAmount || 0)}</p>
+                  </div>
+                </div>
+
+                {cairId === p.id ? (
+                  <div className="space-y-3 border-t border-slate-100 pt-3">
+                    <div className="grid md:grid-cols-3 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-black uppercase text-slate-500">Nominal</Label>
+                        <Input
+                          type="number" min="0"
+                          className="h-11 font-bold"
+                          value={cairAmount || ''}
+                          onChange={e => setCairAmount(parseFloat(e.target.value) || 0)}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-black uppercase text-slate-500">Dari rekening</Label>
+                        <select
+                          className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-bold bg-white"
+                          value={cairSource}
+                          onChange={e => setCairSource(e.target.value)}
+                        >
+                          <option value="">— Pilih —</option>
+                          {pools.map(b => (
+                            <option key={b.id} value={b.id}>{b.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-black uppercase text-slate-500">Ke kantong</Label>
+                        <select
+                          className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-bold bg-white"
+                          value={cairPocket}
+                          onChange={e => setCairPocket(e.target.value)}
+                        >
+                          <option value="">— Pilih —</option>
+                          {pockets.map(b => (
+                            <option key={b.id} value={b.id}>{b.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {cairAmount !== Number(p.budgetAmount || 0) && (
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-black uppercase text-amber-700">
+                          Beda {formatRupiah(Math.abs(cairAmount - Number(p.budgetAmount || 0)))} dari rencana — alasannya?
+                        </Label>
+                        <Input
+                          className="h-11 font-bold border-amber-200"
+                          placeholder="Misal: harga cabe lagi naik, dilebihin buat jaga-jaga"
+                          value={cairNote}
+                          onChange={e => setCairNote(e.target.value)}
+                        />
+                      </div>
+                    )}
+
+                    <div className="flex gap-2">
+                      <Button className="h-11 bg-emerald-600 hover:bg-emerald-700 font-black" disabled={cairing} onClick={cairkan}>
+                        {cairing ? 'Mencairkan…' : 'Serahkan uangnya'}
+                      </Button>
+                      <Button variant="ghost" className="h-11 font-bold" onClick={() => setCairId(null)}>Batal</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button variant="outline" className="h-11 font-black w-full" onClick={() => bukaPencairan(p.id)}>
+                    Cairkan ke kantong
+                  </Button>
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {waiting.length === 0 && (
         <Card className="py-20 text-center border-dashed">

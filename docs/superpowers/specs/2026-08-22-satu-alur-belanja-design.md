@@ -1,7 +1,7 @@
 # Satu Alur Belanja — Rancangan
 
 Tanggal: 22 Agustus 2026
-Status: **menunggu keputusan Reza** (belum dibangun)
+Status: **dibangun 22 Agustus 2026** — Reza menjawab "gas", ketiga keputusan diambil sesuai saran
 
 ---
 
@@ -59,15 +59,16 @@ keputusan yang sama cuma menambah tempat untuk lupa.
 - **`disbursement_requests`** tetap ditulis sebagai jejak mutasi kas untuk buku besar,
   tapi tidak lagi jadi antrean yang harus dibuka manusia untuk belanja pasar.
 
-## 4. Keputusan yang perlu Reza jawab
+## 4. Keputusan yang diambil
 
-1. **PR sourcing dihapus atau disembunyikan?** Dihapus = alurnya benar-benar pendek.
-   Disembunyikan (tetap dicatat otomatis di belakang layar) = laporan lama masih bisa
-   dibaca, tapi ada objek yang tidak pernah dilihat siapa pun.
-2. **Kalau uang yang dicairkan beda dari rencana** (Sifa kasih lebih/kurang) — boleh
-   langsung, wajib alasan, atau tidak boleh sama sekali?
-3. **Dokumen belanja yang sudah jalan sekarang** (ADV-20260822-001 beserta PR-nya) —
-   dibiarkan selesai dengan cara lama, atau ikut dipindah ke alur baru?
+1. **PR sourcing dihapus.** Tombol "Kirim ke Finance" beserta pembuatan PR-nya
+   dihilangkan. Dokumen yang sudah dibuat otomatis muncul di Rencana Pembelian.
+   PR umum (bayar vendor, aset, biaya lain) tidak disentuh.
+2. **Cair boleh beda dari rencana, wajib alasan.** Harga pasar bergerak; yang dipaksa
+   cuma keterangannya, supaya selisihnya bisa ditanyakan dan bukan berubah diam-diam.
+3. **Dokumen yang sedang jalan dibiarkan selesai dengan cara lama.** ADV-20260822-001
+   sudah punya PR; layar Rencana Pembelian tetap memperbarui nilai PR lama saat rencana
+   dilepas, jadi tidak ada yang menggantung di tengah.
 
 ## 5. Risiko
 
