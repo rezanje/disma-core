@@ -5,7 +5,7 @@ import {
   ArrowUpToLine, ShieldCheck, ShoppingCart, Users, 
   Boxes, FileDigit, Briefcase, Target, Shield, 
   Search, ScrollText, CheckCircle2, History, Archive,
-  Receipt, Landmark as Bank, UserPlus, Cog, ListChecks, RefreshCw, TrendingDown, AlertTriangle, ClipboardList, MapPin
+  Receipt, Landmark as Bank, UserPlus, Cog, ListChecks, RefreshCw, TrendingDown, AlertTriangle, ClipboardList, MapPin, PackageCheck
 } from "lucide-react"
 import { AccessKey } from "@/types"
 
@@ -66,6 +66,8 @@ export const APP_PAGES: NavItemConfig[] = [
   { key: 'finance_documents', title: 'Dokumen & Arsip', href: '/finance/documents', icon: <Archive className="h-4 w-4 text-emerald-500" />, category: 'Finance' },
  
   // Admin & CEO Section
+  // Paling atas dengan sengaja: ini satu-satunya layar yang dibuka tiap hari.
+  { key: 'admin_hari_ini', title: 'Hari Ini', href: '/admin/hari-ini', icon: <PackageCheck className="h-4 w-4 text-emerald-500" />, category: 'Admin' },
   { key: 'admin_dashboard', title: 'Dashboard Admin', href: '/admin', icon: <LayoutDashboard className="h-4 w-4" />, category: 'Admin' },
   { key: 'admin_sales_orders', title: 'Sales orders (PO)', href: '/admin/sales-orders', icon: <ShoppingCart className="h-4 w-4" />, category: 'Admin' },
   { key: 'admin_tukar_faktur', title: 'Tukar Faktur', href: '/admin/tukar-faktur', icon: <FileSpreadsheet className="h-4 w-4" />, category: 'Admin' },

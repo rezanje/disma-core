@@ -3,7 +3,9 @@
 import type { SVGProps } from "react"
 import { useState, useCallback } from "react"
 import { useAppStore } from "@/lib/store"
-import { recordShrinkage, recordStockMovement, recordInboundQC, recordVendorBillFromInbound, recordVendorTransferPurchase, createAccountingEntry, VENDOR_RETURN_CLAIM_ACCOUNT } from "@/lib/accounting"
+import { processInboundQC } from "@/lib/qc-process"
+import { awaitingQc, buildFifoAllocations } from "@/lib/daily-flow"
+import { recordShrinkage, recordStockMovement, createAccountingEntry, VENDOR_RETURN_CLAIM_ACCOUNT } from "@/lib/accounting"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -16,7 +18,6 @@ import { cn } from "@/lib/utils"
 import { qtyOwed } from "@/lib/backorder"
 import { isReturnSplitValid, isSwapSplitValid } from "@/lib/vendor-return"
 import { PelakuPicker } from "@/components/pelaku-picker"
-import { resolveActor, transcriptionNote } from "@/lib/actor"
 
 type PoAllocation = { soId: string; qty: number }
 
@@ -35,30 +36,17 @@ export default function QCPage() {
   const vendorPrices = useAppStore(state => state.vendorPrices)
   const vendorReturns = useAppStore(state => state.vendorReturns)
 
-  const bankAccounts = useAppStore(state => state.bankAccounts)
 
   const updatePurchaseItem = useAppStore(state => state.updatePurchaseItem)
   const updatePendingReturn = useAppStore(state => state.updatePendingReturn)
   const updateSalesOrder = useAppStore(state => state.updateSalesOrder)
 
-  const pendingQCItems = purchaseItems
-    .filter(pi => {
-       if (pi.isQCed) return false;
-       if (pi.inboundStatus === 'verified' || pi.inboundStatus === 'rejected') return false;
-       if (pi.inboundStatus === 'pra_inbound') return true;
-
-       const parentP = purchases.find(p => p.id === pi.purchaseId);
-       if (!parentP) return false;
-       if ((pi.purchaseMethod === 'Pasar' || !pi.purchaseMethod) && parentP.status === 'Selesai') return true;
-       if (pi.purchaseMethod === 'Online' && pi.isOnlineOrdered) return true;
-       return false;
-    })
-    .map(item => ({
-      ...item,
-      product: products.find(p => p.id === item.productId)
-    }))
+  // Antreannya dihitung di src/lib/daily-flow.ts supaya layar harian gabungan
+  // melihat daftar yang persis sama.
+  const pendingQCItems = awaitingQc(purchaseItems, purchases)
+    .map(item => ({ ...item, product: products.find(p => p.id === item.productId) }))
     .filter(item => item.product)
-  
+
   const [selectedPurchaseItemId, setSelectedPurchaseItemId] = useState("")
   const [qtyPassToInventory, setQtyPassToInventory] = useState(0)
   const [poAllocations, setPoAllocations] = useState<PoAllocation[]>([])
@@ -75,329 +63,41 @@ export default function QCPage() {
   const [qcPerformedBy, setQcPerformedBy] = useState("")
   const [rejectAction, setRejectAction] = useState<'Return' | 'Disposal' | 'B2C'>('Disposal')
 
-  // FIFO suggestion: find open SOs that need this product, oldest first
-  const buildFifoAllocations = useCallback((productId: string, totalPassed: number): { allocations: PoAllocation[], inventoryRemainder: number } => {
-    const eligibleSos = salesOrders
-      .filter(so => !['Batal', 'Selesai', 'Terkirim', 'Packing', 'Siap Kirim', 'Dikirim', 'Awaiting Audit'].includes(so.status))
-      .filter(so => salesOrderItems.some(i =>
-        i.salesOrderId === so.id &&
-        i.productId === productId &&
-        Math.max(0, i.qty - (i.qtyDelivered ?? 0) - (i.qtyFinal ?? 0)) > 0
-      ))
-      .sort((a, b) => a.orderDate.localeCompare(b.orderDate))
-
-    let remaining = totalPassed
-    const allocations: PoAllocation[] = eligibleSos.map(so => {
-      const soItem = salesOrderItems.find(i => i.salesOrderId === so.id && i.productId === productId)
-      const needed = soItem ? Math.max(0, soItem.qty - (soItem.qtyDelivered ?? 0) - (soItem.qtyFinal ?? 0)) : 0
-      const alloc = Math.min(needed, remaining)
-      remaining -= alloc
-      return { soId: so.id, qty: alloc }
-    })
-
-    return { allocations, inventoryRemainder: remaining }
-  }, [salesOrders, salesOrderItems])
+  // Usulan pembagian ke pesanan: pesanan tertua dapat duluan (src/lib/daily-flow.ts).
+  const buildFifo = useCallback(
+    (productId: string, totalPassed: number) => buildFifoAllocations(productId, totalPassed, salesOrders, salesOrderItems),
+    [salesOrders, salesOrderItems])
 
   const activePurchaseItem = pendingQCItems.find(i => i.id === selectedPurchaseItemId)
   const activeProduct = products.find(p => p.id === activePurchaseItem?.productId)
 
   const handleProcessQC = async () => {
     if (!activeProduct || !activePurchaseItem) return
-    const totalIncoming = activePurchaseItem.qtyPurchased
-    const totalAllocatedToPos = poAllocations.reduce((s, a) => s + a.qty, 0)
-    const totalProcessed = qtyPassToInventory + totalAllocatedToPos + qtyReject
-
-    if (totalProcessed !== totalIncoming && !unbalanceReason) {
-      toast.error(`Jumlah tidak balance! Harap masukkan alasan ketidakteraturan.`)
-      return
-    }
-
-    const currentUser = useAppStore.getState().currentUser
-    const typedVendorPrice = Number(vendorUnitPrice) || 0
-    const unitCost = typedVendorPrice || activePurchaseItem.actualUnitPrice || activePurchaseItem.estimatedUnitPrice || activeProduct.basePrice || 0;
-
-    // Simpan harga vendor yang diketik supaya settlement, laporan HPP dan riwayat harga
-    // memakai angka yang sama dengan jurnal di bawah ini.
-    if (typedVendorPrice > 0 && typedVendorPrice !== activePurchaseItem.actualUnitPrice) {
-      await updatePurchaseItem(activePurchaseItem.id, { actualUnitPrice: typedVendorPrice })
-    }
 
     toast.loading("Memproses verifikasi inbound & pencatatan jurnal...", { id: "qc-process" })
-
-    // 1. Record double entry journal for receiving and reject routing
-    const inboundSuccess = await recordInboundQC(
-      activePurchaseItem.id,
-      activeProduct.id,
-      qtyPassToInventory + totalAllocatedToPos,
-      qtyReject,
-      qtyReject > 0 ? rejectAction : undefined,
-      unitCost,
-      'main',
-      batchNumber || undefined,
-      expiryDate || undefined,
-      currentUser?.id || 'system'
-    );
-
-    if (!inboundSuccess) {
-      toast.error("Gagal memproses jurnal akuntansi untuk QC.", { id: "qc-process" });
-      return;
-    }
-
-    // 2. Info receipt movement
-    await recordStockMovement({
-      productId: activeProduct.id,
-      quantity: totalIncoming,
-      stockDelta: 0,
-      direction: 'Info',
-      kind: 'QC_RECEIPT',
-      source: 'Sourcing',
-      destination: 'QC Inspection',
-      referenceType: 'QC',
-      referenceId: activePurchaseItem.id,
+    // Isinya pindah ke src/lib/qc-process.ts supaya layar harian gabungan memanggil
+    // alur yang sama persis, bukan salinannya.
+    const res = await processInboundQC(useAppStore.getState, {
       purchaseItemId: activePurchaseItem.id,
-      note: `Barang masuk QC dari sourcing untuk ${activeProduct.name}`,
-      createdByUserId: currentUser?.id || 'system',
-      warehouseId: 'main',
-      batchNumber: batchNumber || undefined,
-      expiryDate: expiryDate || undefined,
-      unitCost: unitCost
+      qtyPassToInventory,
+      allocations: poAllocations.map(a => ({ soId: a.soId, qty: a.qty })),
+      qtyReject,
+      rejectAction,
+      rejectReason,
+      vendorUnitPrice: Number(vendorUnitPrice) || 0,
+      unbalanceReason,
+      batchNumber,
+      expiryDate,
+      qcPhoto,
+      qcPerformedByUserId: qcPerformedBy,
     })
 
-    // 3. Process Passed items to Inventory
-    if (qtyPassToInventory > 0) {
-      await recordStockMovement({
-        productId: activeProduct.id,
-        quantity: qtyPassToInventory,
-        stockDelta: qtyPassToInventory,
-        direction: 'In',
-        kind: 'QC_INVENTORY',
-        source: 'QC',
-        destination: 'Inventory',
-        referenceType: 'QC',
-        referenceId: activePurchaseItem.id,
-        purchaseItemId: activePurchaseItem.id,
-        note: `Lolos QC dan masuk inventory`,
-        createdByUserId: currentUser?.id || 'system',
-        warehouseId: 'main',
-        batchNumber: batchNumber || undefined,
-        expiryDate: expiryDate || undefined,
-        unitCost: unitCost
-      })
+    if (!res.ok) {
+      toast.error(res.error, { id: "qc-process" })
+      return
     }
-
-    // 4. Process allocations to each PO (cumulative qtyFinal for multi-session support)
-    for (const alloc of poAllocations) {
-      if (alloc.qty <= 0) continue
-      const storeState = useAppStore.getState()
-      const matchingSOItem = storeState.salesOrderItems.find(
-        i => i.salesOrderId === alloc.soId && i.productId === activePurchaseItem.productId
-      )
-      if (matchingSOItem) {
-        const prevQtyFinal = matchingSOItem.qtyFinal ?? 0
-        const newQtyFinal = prevQtyFinal + alloc.qty
-        await storeState.updateSalesOrderItem(matchingSOItem.id, {
-          qtyFinal: newQtyFinal,
-          subtotalFinal: newQtyFinal * (matchingSOItem.unitPrice || 0)
-        })
-      }
-      // Barangnya BENAR-BENAR ada di gudang sejak lolos QC sampai dirilis ke kurir,
-      // jadi harus masuk hitungan stok. Dulu delta-nya 0 ("cross-dock"), padahal
-      // Goods Outbound tetap memotongnya waktu keluar — stok jadi minus sebesar
-      // setiap barang yang pernah dikirim, dan angka minusnya disembunyikan layar.
-      await recordStockMovement({
-        productId: activeProduct.id,
-        quantity: alloc.qty,
-        stockDelta: alloc.qty,
-        direction: 'In',
-        kind: 'QC_CLIENT_ALLOCATION',
-        source: 'QC',
-        destination: 'Transit (Reserved for Delivery)',
-        referenceType: 'QC',
-        referenceId: activePurchaseItem.id,
-        purchaseItemId: activePurchaseItem.id,
-        salesOrderId: alloc.soId,
-        note: `Lolos QC → reserved untuk PO ${salesOrders.find(s => s.id === alloc.soId)?.poNumber ?? alloc.soId}`,
-        createdByUserId: currentUser?.id || 'system',
-        warehouseId: 'main',
-        batchNumber: batchNumber || undefined,
-        expiryDate: expiryDate || undefined,
-        unitCost: unitCost
-      })
-    }
-
-    // 5. Process Reject routing
-    if (qtyReject > 0) {
-      const rejectId = uuidv4()
-      if (rejectAction === 'B2C') {
-        // Physical movement to B2C warehouse
-        await recordStockMovement({
-          productId: activeProduct.id,
-          quantity: qtyReject,
-          stockDelta: qtyReject,
-          direction: 'In',
-          kind: 'QC_INVENTORY',
-          source: 'QC Reject',
-          destination: 'B2C Warehouse',
-          referenceType: 'QC',
-          referenceId: activePurchaseItem.id,
-          purchaseItemId: activePurchaseItem.id,
-          note: `Barang reject dipindahkan ke B2C Peralihan`,
-          createdByUserId: currentUser?.id || 'system',
-          warehouseId: 'b2c',
-          batchNumber: batchNumber || undefined,
-          expiryDate: expiryDate || undefined,
-          unitCost: unitCost
-        });
-      } else {
-        // Return or Disposal: just record stock movement log with 0 delta
-        await recordStockMovement({
-          productId: activeProduct.id,
-          quantity: qtyReject,
-          stockDelta: 0,
-          direction: 'Info',
-          kind: 'ADJUSTMENT',
-          source: 'QC',
-          destination: rejectAction === 'Return' ? 'Return to Supplier' : 'Reject/Write-off',
-          referenceType: 'QC',
-          referenceId: activePurchaseItem.id,
-          purchaseItemId: activePurchaseItem.id,
-          note: `Reject QC (${rejectAction}): ${rejectReason || 'Tanpa alasan'}`,
-          createdByUserId: currentUser?.id || 'system',
-          warehouseId: 'main',
-          unitCost: unitCost
-        });
-      }
-      
-      // Log to Rejection Monitor
-      await useAppStore.getState().addRejectedItem({
-        id: rejectId,
-        date: new Date().toISOString(),
-        productId: activeProduct.id,
-        qty: qtyReject,
-        reason: `${rejectAction === 'B2C' ? 'Peralihan B2C' : rejectAction === 'Return' ? 'Retur Supplier' : 'Disposal'}: ${rejectReason || 'Tanpa alasan'}`,
-        source: 'QC',
-        referenceId: activePurchaseItem.id,
-        reportedBy: currentUser?.id || 'system',
-        imageUrl: qcPhoto || undefined
-      })
-
-      // "Retur ke Supplier" used to be a log line and nothing else: no document to
-      // chase, no status, nobody told. Raise the same VendorReturn the customer-return
-      // path raises, so the swap can be tracked to Ditukar/Ditolak in the tab below.
-      const returnVendorId = rejectAction === 'Return'
-        ? (activePurchaseItem.vendorId || activeProduct.defaultVendorId)
-        : undefined
-
-      if (rejectAction === 'Return' && returnVendorId) {
-        await useAppStore.getState().addVendorReturn({
-          id: uuidv4(),
-          productId: activeProduct.id,
-          vendorId: returnVendorId,
-          qty: qtyReject,
-          reason: rejectReason || 'Gagal QC barang masuk',
-          date: new Date().toISOString(),
-          originalReturnId: activePurchaseItem.id,
-          status: 'Menunggu Vendor',
-        })
-      }
-
-      // Kirim notifikasi ke Admin PO
-      const vendorName = vendors.find(v => v.id === returnVendorId)?.companyName
-      const adminUsers = useAppStore.getState().users.filter(u => u.role === 'admin_po')
-      for (const adminUser of adminUsers) {
-        await useAppStore.getState().addNotification({
-          id: uuidv4(),
-          userId: adminUser.id,
-          title: returnVendorId ? `Retur ke Vendor: ${activeProduct.name}` : `QC Reject: ${activeProduct.name}`,
-          message: returnVendorId
-            ? `${qtyReject} ${activeProduct.uom} diretur ke ${vendorName} untuk ditukar. Alasan: ${rejectReason || 'Tanpa alasan'}.`
-            : `${qtyReject} ${activeProduct.uom} ditolak QC (${rejectAction}). Alasan: ${rejectReason || 'Tanpa alasan'}.`,
-          type: 'system',
-          link: returnVendorId ? '/warehouse/qc' : '/admin/shopping-list',
-          read: false,
-          createdAt: new Date().toISOString()
-        })
-      }
-
-      if (rejectAction === 'Return') {
-        if (returnVendorId) toast.info(`Retur ke ${vendorName} dibuat — tunggu penggantian dari vendor.`)
-        // Belanja cash di pasar tidak punya vendor, jadi tidak ada yang bisa ditagih.
-        else toast.warning('Ditandai retur, tapi vendornya tidak diketahui — dokumen retur tidak dibuat.')
-      }
-    }
-
-    // 6. Tempo (lokasi ambil mana pun): bayar belakangan — tagihan otomatis jadi Hutang
-    // Vendor (AP Aging). Dulu ini dibatasi ke Vendor+Tempo dengan alasan Pasar+Tempo
-    // di-settle oleh recordReconciliationSettlement; tapi settlement itu cuma jalan di
-    // jalur `isLegacy` (purchase dengan budgetTransferDate) yang sudah mati sejak model
-    // kantong sourcing, jadi hutang belanja tempo di pasar tidak pernah tercatat sama
-    // sekali. netAccrual harus sama persis dengan yang di-credit ke 2-1100 oleh
-    // recordInboundQC di atas.
-    const qtyReceived = qtyPassToInventory + totalAllocatedToPos + qtyReject
-    const grossAccrual = qtyReceived * unitCost
-    const netAccrual = grossAccrual - (qtyReject > 0 && rejectAction === 'Return' ? qtyReject * unitCost : 0)
-
-    if (activePurchaseItem.paymentMethod === 'Tempo') {
-      if (!activePurchaseItem.vendorId) {
-        toast.warning(`${activeProduct.name} (Tempo) tidak ada vendor — hutang tidak otomatis dicatat. Catat manual di AP Aging.`)
-      } else if (netAccrual > 0) {
-        await recordVendorBillFromInbound(
-          activePurchaseItem.id,
-          activePurchaseItem.vendorId,
-          netAccrual,
-          `Tempo: ${activeProduct.name} (QC ${new Date().toLocaleDateString('id-ID')})`,
-          activePurchaseItem.purchaseId
-        )
-      }
-    }
-
-    // 7. Vendor + Transfer: dibayar finance dari BCA. Satu-satunya yang memposting ini
-    // ada di submit laporan sourcing, padahal barang kiriman vendor sengaja dikeluarkan
-    // dari checklist sourcing — jadi uangnya tidak pernah keluar dari bank dan accrual
-    // 2-1100 menggantung selamanya. Barang pasar dengan Transfer tetap diposting di
-    // sourcing seperti sebelumnya, jadi tidak ada yang dobel.
-    if (activePurchaseItem.purchaseMethod === 'Vendor' && activePurchaseItem.paymentMethod === 'Transfer' && netAccrual > 0) {
-      const bca = bankAccounts.find(b => b.accountCode === '1-1200')
-      if (!bca) {
-        toast.warning(`${activeProduct.name} (Transfer): rekening BCA tidak ketemu — pembayaran tidak tercatat.`)
-      } else {
-        await recordVendorTransferPurchase(
-          activePurchaseItem.purchaseId,
-          bca.id,
-          netAccrual,
-          currentUser?.name || 'Finance'
-        )
-      }
-    }
-
-    await updatePurchaseItem(activePurchaseItem.id, {
-      isQCed: true,
-      inboundStatus: qtyReject === totalIncoming ? 'rejected' : (totalProcessed === totalIncoming ? 'verified' : 'partial'),
-      inboundQtyReceived: qtyPassToInventory + totalAllocatedToPos,
-      inboundVerifiedAt: new Date().toISOString(),
-      // Nama orang yang MEMERIKSA barangnya, bukan yang mengetiknya. Di mode salin
-      // keduanya orang berbeda, dan riwayat aktivitas sudah mencatat si pengetik.
-      inboundVerifiedBy: resolveActor(
-        useAppStore.getState().users.find(u => u.id === qcPerformedBy)?.name,
-        currentUser?.name || currentUser?.id),
-      inboundNote: [
-        transcriptionNote(
-          useAppStore.getState().users.find(u => u.id === qcPerformedBy)?.name,
-          currentUser?.name),
-        unbalanceReason, rejectReason,
-      ].filter(Boolean).join(' | '),
-      expiryDate: expiryDate || undefined
-    })
-
-    // Push SOs to Packing if all their items now have qtyFinal set
-    const affectedSoIds = poAllocations.filter(a => a.qty > 0).map(a => a.soId)
-    for (const soId of affectedSoIds) {
-      const storeState = useAppStore.getState()
-      const soItems = storeState.salesOrderItems.filter(i => i.salesOrderId === soId)
-      if (soItems.length > 0 && soItems.every(i => (i.qtyFinal != null) || (i.qty - (i.qtyDelivered ?? 0) <= 0))) {
-        await updateSalesOrder(soId, { status: 'Packing' })
-      }
-    }
+    res.warnings.forEach(w => toast.warning(w))
+    res.infos.forEach(i => toast.info(i))
 
     toast.success("QC berhasil diproses dan stok telah terupdate!", { id: "qc-process" })
 
@@ -738,7 +438,7 @@ export default function QCPage() {
                              onClick={() => {
                                setSelectedPurchaseItemId(item.id)
                                setQtyReject(0)
-                               const { allocations, inventoryRemainder } = buildFifoAllocations(item.productId, item.qtyPurchased)
+                               const { allocations, inventoryRemainder } = buildFifo(item.productId, item.qtyPurchased)
                                setPoAllocations(allocations)
                                setQtyPassToInventory(inventoryRemainder)
                              }}

@@ -9,7 +9,7 @@ export interface User {
 
 export type AccessKey = 
   // Admin & CEO
-  | 'admin_dashboard' | 'admin_vendors' | 'admin_clients' | 'admin_products' 
+  | 'admin_hari_ini' | 'admin_dashboard' | 'admin_vendors' | 'admin_clients' | 'admin_products' 
   | 'admin_sales_orders' | 'admin_shopping_list' | 'admin_assets' | 'admin_crm' 
   | 'admin_documents' | 'admin_users' | 'admin_settings' | 'admin_tasks' | 'admin_maintenance' | 'admin_price_lists' | 'admin_activity_log'
   | 'admin_purchase_requests' | 'admin_loss_analytics' | 'admin_tukar_faktur' | 'admin_dropship' | 'admin_delivery_routes'

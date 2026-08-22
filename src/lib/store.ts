@@ -621,7 +621,7 @@ const INITIAL_BANK_ACCOUNTS: BankAccount[] = [];
 
 const initialRolePermissions: RolePermissionMap = {
   super_admin: [
-    'admin_dashboard', 'admin_vendors', 'admin_clients', 'admin_products',
+    'admin_hari_ini', 'admin_dashboard', 'admin_vendors', 'admin_clients', 'admin_products',
     'admin_sales_orders', 'admin_shopping_list', 'admin_dropship', 'admin_delivery_routes', 'admin_crm',
     'admin_users', 'users_perms', 'admin_settings', 'admin_tasks', 'admin_maintenance', 'admin_price_lists', 'admin_activity_log',
     'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets', 
@@ -633,7 +633,7 @@ const initialRolePermissions: RolePermissionMap = {
     'tasks_global', 'settings_global', 'admin_loss_analytics'
   ],
   ceo: [
-    'admin_dashboard', 'admin_vendors', 'admin_clients', 'admin_products',
+    'admin_hari_ini', 'admin_dashboard', 'admin_vendors', 'admin_clients', 'admin_products',
     'admin_sales_orders', 'admin_shopping_list', 'admin_dropship', 'admin_delivery_routes', 'admin_crm',
     'admin_users', 'users_perms', 'admin_settings', 'admin_tasks', 'admin_price_lists', 'admin_activity_log',
     'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets',
@@ -642,7 +642,7 @@ const initialRolePermissions: RolePermissionMap = {
     'warehouse_dashboard', 'warehouse_catalog', 'tasks_global', 'settings_global', 'admin_loss_analytics'
   ],
   coo: [
-    'admin_dashboard', 'admin_vendors', 'admin_clients', 'admin_products',
+    'admin_hari_ini', 'admin_dashboard', 'admin_vendors', 'admin_clients', 'admin_products',
     'admin_sales_orders', 'admin_shopping_list', 'admin_dropship', 'admin_delivery_routes', 'admin_crm',
     'admin_users', 'users_perms', 'admin_settings', 'admin_tasks', 'admin_maintenance', 'admin_price_lists', 'admin_activity_log',
     'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets',
@@ -667,9 +667,15 @@ const initialRolePermissions: RolePermissionMap = {
     // itu membuat seluruh jejak audit menunjuk orang yang salah. Ditulis penuh, bukan
     // lewat konstanta bersama, karena nav-permissions.check.ts membaca berkas ini
     // sebagai teks dan tidak melihat spread.
+    //
+    // 22 Agu 2026: 'warehouse_qc', 'warehouse_outbound' dan 'courier_list' dicabut dari
+    // sidebar — ketiganya sekarang jadi tiga bagian di layar 'Hari Ini'. Halamannya
+    // masih hidup dan bisa dibuka lewat URL kalau ada kasus yang layar harian belum
+    // tangani; yang hilang cuma menunya.
+    'admin_hari_ini',
     'sourcing_dashboard', 'sourcing_list', 'sourcing_expenses',
-    'warehouse_inbound', 'warehouse_qc', 'warehouse_outbound', 'warehouse_opname',
-    'courier_list', 'courier_handover', 'courier_expenses'],
+    'warehouse_inbound', 'warehouse_opname',
+    'courier_handover', 'courier_expenses'],
   gudang: ['warehouse_dashboard', 'warehouse_catalog', 'warehouse_inbound', 'warehouse_outbound', 'warehouse_qc', 'warehouse_reject_monitor', 'warehouse_opname', 'tasks_global', 'settings_global'],
   sourcing: ['sourcing_dashboard', 'sourcing_list', 'sourcing_expenses', 'tasks_global', 'settings_global'],
   kurir: ['courier_dashboard', 'courier_list', 'courier_handover', 'courier_history', 'courier_expenses', 'tasks_global', 'settings_global'],
@@ -678,9 +684,10 @@ const initialRolePermissions: RolePermissionMap = {
   // melihat pengajuannya sudah disetujui Finance atau belum.
   admin_po: ['admin_dashboard', 'admin_sales_orders', 'admin_shopping_list', 'admin_purchase_requests', 'admin_dropship', 'admin_delivery_routes', 'admin_clients', 'admin_products', 'warehouse_catalog', 'tasks_global', 'settings_global', 'admin_price_lists', 'finance_invoices', 'admin_tukar_faktur',
     // Mode Salin — lihat catatan di daftar izin finance di atas.
+    'admin_hari_ini',
     'sourcing_dashboard', 'sourcing_list', 'sourcing_expenses',
-    'warehouse_inbound', 'warehouse_qc', 'warehouse_outbound', 'warehouse_opname',
-    'courier_list', 'courier_handover', 'courier_expenses'],
+    'warehouse_inbound', 'warehouse_opname',
+    'courier_handover', 'courier_expenses'],
 };
 
 export const useAppStore = create<AppState>((set, get) => ({
