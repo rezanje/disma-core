@@ -24,6 +24,7 @@ const ROLES_LIST: { id: Role; label: string; desc: string }[] = [
 
 const AVAILABLE_KEYS: { id: AccessKey, label: string, module: string }[] = [
   // Operasional
+  { id: 'admin_hari_ini', label: 'Hari Ini (barang datang → kirim → tagih)', module: 'Operasional Harian' },
   { id: 'admin_dashboard', label: 'Admin Dashboard', module: 'Operasional' },
   { id: 'admin_sales_orders', label: 'Sales Orders', module: 'Operasional' },
   { id: 'admin_shopping_list', label: 'Strategic Shopping List', module: 'Operasional' },

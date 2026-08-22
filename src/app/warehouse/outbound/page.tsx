@@ -6,81 +6,23 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ArrowUpFromLine, Package, Truck, CheckCircle2, Circle, ShieldCheck, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
-import { v4 as uuidv4 } from "uuid"
 import { cn } from "@/lib/utils"
-import { recordStockMovement } from "@/lib/accounting"
-import { roundQtyToBook } from "@/lib/backorder"
+import { releaseForDelivery } from "@/lib/dispatch"
 
 export default function OutboundPage() {
-  const currentUser = useAppStore(state => state.currentUser)
   const salesOrders = useAppStore(state => state.salesOrders)
   const salesOrderItems = useAppStore(state => state.salesOrderItems)
   const products = useAppStore(state => state.products)
   const clients = useAppStore(state => state.clients)
-  const updateSalesOrder = useAppStore(state => state.updateSalesOrder)
-  const addDelivery = useAppStore(state => state.addDelivery)
 
   // Orders that are ready for packing
   const packingOrders = salesOrders.filter(so => so.status === 'Packing')
   const handoverOrders = salesOrders.filter(so => so.status === 'Siap Kirim')
 
   const handleRelease = async (soId: string) => {
-    const items = salesOrderItems.filter(i => i.salesOrderId === soId)
-
-    // 1. Misi pengirimannya dibuat DULU supaya baris stok di bawah bisa memakai
-    //    id-nya. Itu yang dipakai audit Finance untuk tahu barangnya sudah dipotong
-    //    di sini dan tidak memotongnya untuk kedua kali.
-    const existingDeliveries = useAppStore.getState().deliveries
-    // A completed (Terkirim) delivery from a previous round must NOT block a new
-    // round's delivery — only an in-flight delivery should.
-    const openDelivery = existingDeliveries.find(d => d.salesOrderId === soId && d.status !== 'Terkirim')
-    let deliveryId = openDelivery?.id
-    if (!deliveryId) {
-      const so = salesOrders.find(s => s.id === soId)
-      deliveryId = uuidv4()
-      await addDelivery({
-        id: deliveryId,
-        salesOrderId: soId,
-        // Rencana Admin PO menang atas 'pending'; kalau belum direncanakan,
-        // perilakunya sama seperti sebelumnya.
-        courierId: so?.assignedCourierId || 'pending',
-        status: 'Menunggu',
-      })
-    }
-
-    // 2. Reduce Inventory Stock (use qtyFinal if available, fallback to qty)
-    for (const item of items) {
-      const product = products.find(p => p.id === item.productId)
-      if (product) {
-        // Deduct only THIS round's qty. For an item already fully delivered in a prior
-        // round (qtyFinal reset to null, nothing owed) this is 0, avoiding a phantom
-        // outbound of already-shipped stock in a mixed backorder SO.
-        const qtyToDeduct = roundQtyToBook(item)
-        if (qtyToDeduct <= 0) continue
-        await recordStockMovement({
-          productId: product.id,
-          quantity: qtyToDeduct,
-          stockDelta: -qtyToDeduct,
-          direction: 'Out',
-          kind: 'DELIVERY_OUTBOUND',
-          source: 'Inventory',
-          destination: 'Client Delivery',
-          referenceType: 'Delivery',
-          referenceId: deliveryId,
-          salesOrderId: soId,
-          note: `Barang keluar untuk pengiriman SO ${soId}`,
-          createdByUserId: currentUser?.id || 'system',
-        })
-      }
-    }
-
-    // 3. Update SO Status to 'Siap Kirim' (READY FOR HANDOVER)
-    updateSalesOrder(soId, {
-      status: 'Siap Kirim',
-      handoverDate: new Date().toISOString(),
-      handoverBy: currentUser?.id || 'system'
-    })
-
+    // Isinya pindah ke src/lib/dispatch.ts supaya layar harian gabungan melepas
+    // barang lewat alur yang sama, bukan salinannya.
+    await releaseForDelivery(useAppStore.getState, soId)
     toast.success("Barang siap untuk serah terima (Handover) ke Kurir.")
   }
 

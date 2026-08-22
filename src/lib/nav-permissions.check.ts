@@ -87,10 +87,14 @@ tabbed.forEach(e => {
 // jadi keduanya harus bisa membuka setiap layar lapangan. Tanpa ini satu-satunya jalan
 // adalah meminjam PIN orang lapangan — dan seluruh jejak audit jadi menunjuk orang
 // yang salah.
+// 22 Agu 2026: QC, keluar barang, dan hasil kiriman pindah jadi tiga bagian di layar
+// 'Hari Ini'. Yang dijaga di sini tetap kemampuannya, bukan nama layarnya — jadi
+// admin_hari_ini yang wajib, bukan lagi ketiga layar lamanya.
 const FIELD_SCREENS = [
+  'admin_hari_ini',
   'sourcing_list', 'sourcing_expenses',
-  'warehouse_inbound', 'warehouse_qc', 'warehouse_outbound', 'warehouse_opname',
-  'courier_list', 'courier_handover', 'courier_expenses',
+  'warehouse_inbound', 'warehouse_opname',
+  'courier_handover', 'courier_expenses',
 ];
 const mustHave: Record<string, string[]> = {
   finance: ['finance_approvals', 'finance_invoices', 'finance_cash_bank', 'admin_purchase_requests', ...FIELD_SCREENS],

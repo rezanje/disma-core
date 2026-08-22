@@ -2,14 +2,12 @@
 
 import { useMemo, useState } from "react"
 import { useAppStore } from "@/lib/store"
-import { buildIssueNumber, defaultDueDate } from "@/lib/delivery-issue"
+import { applyClientReceipt, finalizeDeliveryAndInvoice } from "@/lib/dispatch"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { MapPin, Navigation, PackageCheck, Truck, Camera, ExternalLink } from "lucide-react"
 import { toast } from "sonner"
-import { v4 as uuidv4 } from "uuid"
 import DocumentPreview from "@/components/delivery/DocumentPreview"
-import { roundQtyToBook } from "@/lib/backorder"
 import { hasLocation, googleMapsUrl, sortStops } from "@/lib/delivery-route"
 import { cn } from "@/lib/utils"
 
@@ -17,13 +15,10 @@ export default function CourierDashboard() {
   const currentUser = useAppStore(state => state.currentUser)
   const deliveries = useAppStore(state => state.deliveries)
   const salesOrders = useAppStore(state => state.salesOrders)
-  const salesOrderItems = useAppStore(state => state.salesOrderItems)
   const clients = useAppStore(state => state.clients)
   
   const updateDelivery = useAppStore(state => state.updateDelivery)
   const updateSalesOrder = useAppStore(state => state.updateSalesOrder)
-  const addInvoice = useAppStore(state => state.addInvoice)
-  const addPendingReturn = useAppStore(state => state.addPendingReturn)
   const setClientLocation = useAppStore(state => state.setClientLocation)
 
   const [activeDeliveryId, setActiveDeliveryId] = useState<string | null>(null)
@@ -98,51 +93,13 @@ export default function CourierDashboard() {
     setPreviewOpen(true)
   }
 
-  const handleCompleteWithSignature = (signatures: { courier: string, client: string }, adjustments?: Record<string, number>, archivedDocs?: { sj?: string, ba?: string }) => {
+  const handleCompleteWithSignature = async (signatures: { courier: string, client: string }, adjustments?: Record<string, number>, archivedDocs?: { sj?: string, ba?: string }) => {
     if (activeDeliveryId && selectedSoId) {
-       // Apply adjustments...
-       if (adjustments) {
-        Object.entries(adjustments).forEach(([itemId, finalQty]) => {
-          const item = salesOrderItems.find(i => i.id === itemId)
-          if (!item) return
-
-          // Bandingkan dengan yang BENAR-BENAR berangkat ronde ini, bukan qty pesanan.
-          // Kekurangan dari QC bukan penolakan klien: memakai item.qty membuat barang
-          // yang tidak pernah naik mobil ikut tercatat "Reject di Lokasi".
-          const shipped = roundQtyToBook(item)
-          if (shipped === finalQty) return
-
-          useAppStore.getState().updateSalesOrderItem(itemId, {
-            qtyFinal: finalQty,
-            subtotalFinal: finalQty * item.unitPrice,
-            qtyAdjustmentReason: (item.qtyAdjustmentReason ? item.qtyAdjustmentReason + " + " : "") + "Reject di Lokasi"
-          })
-
-          // Barang yang ditolak ikut kurir pulang ke gudang. Tanpa baris ini tidak ada
-          // catatan apa pun yang mengikutinya — stok tidak pernah kembali, dan tab
-          // "Inspeksi Retur Customer" di QC tidak pernah terisi.
-          const rejectedQty = shipped - finalQty
-          if (rejectedQty > 0) {
-            // Bernomor, ada pemiliknya, ada tenggatnya. Tanpa ketiganya baris ini cuma
-            // catatan yang tidak pernah dikejar — dan barang segar yang digantung dua
-            // hari sudah tidak layak apa pun.
-            const now = new Date()
-            addPendingReturn({
-              id: uuidv4(),
-              productId: item.productId,
-              originalSoId: selectedSoId,
-              qty: rejectedQty,
-              reason: 'Ditolak klien saat serah terima',
-              date: now.toISOString(),
-              status: 'Pending QC',
-              diNumber: buildIssueNumber(now, useAppStore.getState().pendingReturns.map(r => r.diNumber || '')),
-              // Pemiliknya Admin PO — playbook §3.2 menaruh Delivery Issue di sana,
-              // bukan pada kurir yang cuma mencatat fakta di lapangan.
-              ownerUserId: useAppStore.getState().users.find(u => u.role === 'admin_po')?.id,
-              dueDate: defaultDueDate(now),
-            })
-          }
-        })
+       // Penyesuaian qty yang diterima klien: isinya pindah ke src/lib/dispatch.ts
+       // supaya layar harian gabungan memakai alur yang sama.
+      if (adjustments) {
+        await applyClientReceipt(useAppStore.getState, selectedSoId,
+          Object.entries(adjustments).map(([salesOrderItemId, qtyReceived]) => ({ salesOrderItemId, qtyReceived })))
       }
 
       // Update SO with raw signatures
@@ -184,45 +141,12 @@ export default function CourierDashboard() {
     const client = clients.find(c => c.id === so?.clientId)
     if (!so || !client) return
 
-    const soItems = salesOrderItems.filter(i => i.salesOrderId === soId)
-    // Only THIS round's shipped qty (backorder: a re-shipped round carries qtyFinal for
-    // the remainder, not the full order).
-    const totalRevenue = soItems.reduce((sum, item) => {
-      return sum + (roundQtyToBook(item) * item.unitPrice)
-    }, 0)
-
-    // 1. Update Delivery
-    await updateDelivery(deliveryId, { 
-      status: 'Awaiting Audit', 
-      deliveryDate: new Date().toISOString()
-    })
-
-    // 2. Update SO
-    await updateSalesOrder(soId, { status: 'Awaiting Audit' })
-
-    // 3. Generate Invoice (Draft)
-    const invoiceId = uuidv4()
-    const dueDate = new Date()
-    dueDate.setDate(dueDate.getDate() + (client.paymentTermDays || 30))
-
-    await addInvoice({
-      id: invoiceId,
-      salesOrderId: soId,
-      clientId: client.id,
-      issueDate: new Date().toISOString(),
-      dueDate: dueDate.toISOString(),
-      totalAmount: totalRevenue,
-      amountPaid: 0,
-      status: 'Unpaid'
-    })
-
-    // 4. Update delivery with invoice link
-    await updateDelivery(deliveryId, { invoiceId })
-
-    // 5. Under-shipment is now handled by the backorder / Kurang Kirim flow (qtyDelivered
-    // re-enters QC), so the courier no longer raises a Pending-QC return for the shortfall
-    // here — that double-counted against the backorder. Genuine customer rejects are
-    // captured at BAST confirmation as rejectedItems.
+    // Tutup pengiriman + terbitkan tagihan: satu alur di src/lib/dispatch.ts.
+    const res = await finalizeDeliveryAndInvoice(useAppStore.getState, deliveryId, soId)
+    if (!res.ok) {
+      toast.error(res.error)
+      return
+    }
 
     setActiveDeliveryId(null)
 
