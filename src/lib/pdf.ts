@@ -5,6 +5,7 @@ import { useAppStore } from "./store"
 import { formatRupiah, formatRupiahValue, getEffectiveBasePrice } from "./utils"
 import { DISMA_LOGO_BASE64 } from "./logo"
 import { printedQty } from "./delivery-qty"
+import { clientUnitPrice } from "./client-price"
 import { Product } from "@/types"
 
 // Basic standardized branding
@@ -406,6 +407,110 @@ export function generateInvoicePDF(invoiceId: string, outputType: 'save' | 'data
   doc.save(`Invoice_${invoiceId.substring(0,8)}.pdf`)
 }
 
+/**
+ * Daftar harga untuk satu klien, siap dikirim.
+ *
+ * Harganya dihitung ulang lewat clientUnitPrice — sumber yang sama dengan layar
+ * Price Lists — jadi kertas yang dipegang klien tidak pernah berbeda dari yang
+ * dipakai saat pesanannya dihargai.
+ */
+export function generateClientPricelistPDF(clientId: string, outputType: 'save' | 'dataurl' = 'save') {
+  const store = useAppStore.getState()
+  const client = store.clients.find(c => c.id === clientId)
+  if (!client) return
+
+  const margins = store.tierMargins || { 'Tier 1': 30, 'Tier 2': 25, 'Tier 3': 20, 'Tier 4': 10, 'Tier 5': 15 }
+  const records = store.clientPrices.filter(cp => cp.clientId === clientId)
+  const rows = records
+    .map(rec => {
+      const product = store.products.find(p => p.id === rec.productId)
+      if (!product) return null
+      const { price: basePrice } = getEffectiveBasePrice(product)
+      return {
+        category: product.category || 'Tanpa Kategori',
+        name: product.name,
+        uom: product.uom || '-',
+        price: clientUnitPrice(product, basePrice, margins, rec, client.defaultPriceTier),
+      }
+    })
+    .filter((r): r is { category: string; name: string; uom: string; price: number } => !!r)
+    .sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name))
+
+  const doc = new jsPDF({ compress: true })
+  drawHeader(doc, "DAFTAR HARGA", `PL-${format(new Date(), 'yyyyMMdd')}`, new Date())
+
+  doc.setFontSize(10)
+  doc.setFont("helvetica", "bold")
+  doc.text(`Untuk: ${client.companyName}`, 14, 62)
+  doc.setFont("helvetica", "normal")
+  doc.setFontSize(8)
+  doc.text("Harga berlaku sampai daftar berikutnya diterbitkan. Sudah termasuk pengiriman.", 14, 68)
+
+  let y = 78
+  const line = (label: string, uom: string, price: string, bold = false) => {
+    doc.setFont("helvetica", bold ? "bold" : "normal")
+    doc.setFontSize(9)
+    doc.text(label, 16, y)
+    doc.text(uom, 130, y)
+    doc.text(price, 196, y, { align: 'right' })
+  }
+
+  let lastCategory = ''
+  for (const row of rows) {
+    if (y > 275) { doc.addPage(); y = 20 }
+    if (row.category !== lastCategory) {
+      lastCategory = row.category
+      doc.setFillColor(240, 240, 240)
+      doc.rect(14, y - 5, 182, 7, 'F')
+      line(row.category.toUpperCase(), '', '', true)
+      y += 8
+    }
+    if (y > 275) { doc.addPage(); y = 20 }
+    line(row.name, row.uom, formatRupiah(row.price))
+    y += 6
+  }
+
+  if (rows.length === 0) {
+    doc.setFontSize(9)
+    doc.text("Belum ada produk yang terdaftar untuk klien ini.", 16, y)
+  }
+
+  if (outputType === 'dataurl') {
+    return doc.output('datauristring')
+  }
+  doc.save(`Daftar_Harga_${client.companyName.replace(/[^A-Za-z0-9]/g, '_')}.pdf`)
+}
+
+/**
+ * Satu halaman berisi foto dokumen bertanda tangan, diskalakan agar utuh di halaman.
+ * Kalau gambarnya gagal dimuat, halamannya tetap terbit dengan keterangan — lebih baik
+ * ketahuan kosong daripada bundel yang diam-diam kehilangan bukti.
+ */
+function drawScannedPage(doc: jsPDF, dataUrl: string, title: string) {
+  doc.addPage()
+  doc.setFont("helvetica", "bold")
+  doc.setFontSize(10)
+  doc.text(title, 14, 16)
+
+  const pageW = doc.internal.pageSize.getWidth()
+  const pageH = doc.internal.pageSize.getHeight()
+  const maxW = pageW - 28
+  const maxH = pageH - 40
+
+  try {
+    const props = doc.getImageProperties(dataUrl)
+    const ratio = Math.min(maxW / props.width, maxH / props.height)
+    const w = props.width * ratio
+    const h = props.height * ratio
+    doc.addImage(dataUrl, 14 + (maxW - w) / 2, 24, w, h)
+  } catch (e) {
+    console.error("[Tukar Faktur] gagal memuat scan:", e)
+    doc.setFont("helvetica", "normal")
+    doc.setFontSize(9)
+    doc.text("Foto dokumen tidak bisa dimuat. Buka arsipnya langsung di Sales Order.", 14, 32)
+  }
+}
+
 export function generateTukarFakturBundle(invoiceId: string, outputType: 'save' | 'dataurl' = 'save') {
   const store = useAppStore.getState()
   const inv = store.invoices.find(i => i.id === invoiceId)
@@ -425,8 +530,21 @@ export function generateTukarFakturBundle(invoiceId: string, outputType: 'save' 
       
       // Order: 1. PO Ref -> 2. Surat Jalan -> 3. Berita Acara
       drawSalesOrderOnDoc(doc, so.poNumber)
-      drawSuratJalanOnDoc(doc, so.poNumber, false, signatures)
-      drawBAOnDoc(doc, so.poNumber, signatures)
+
+      // Kertas bertanda tangan menang atas lembar cetakan sistem. Kurir kita tidak
+      // memakai aplikasi, jadi tanda tangan aslinya ada di foto yang diunggah Admin PO —
+      // dan itulah yang dipegang klien kalau tagihannya dipertanyakan.
+      if (so.archivedSuratJalanUrl) {
+        drawScannedPage(doc, so.archivedSuratJalanUrl, `SURAT JALAN (SCAN) — ${so.poNumber}`)
+      } else {
+        drawSuratJalanOnDoc(doc, so.poNumber, false, signatures)
+      }
+
+      if (so.archivedBaUrl) {
+        drawScannedPage(doc, so.archivedBaUrl, `BERITA ACARA (SCAN) — ${so.poNumber}`)
+      } else {
+        drawBAOnDoc(doc, so.poNumber, signatures)
+      }
     }
   })
   

@@ -88,6 +88,30 @@ export default function HariIniPage() {
     setOpenItem(null)
   }
 
+  // --- Barang kurang: yang harus dikabarin ke klien SEBELUM dikirim ---
+  //
+  // Selama ini yang dikabarkan cuma barang yang DITOLAK QC. Kalau barangnya sekadar
+  // kurang — di pasar cuma dapat 8 dari 10 kg, atau kebagi ke pesanan yang lebih tua —
+  // tidak ada yang memberi tahu siapa pun, dan status "Kurang Kirim" baru muncul setelah
+  // barangnya terlanjur berangkat. Terlambat untuk menelepon klien.
+  const kurang = useMemo(() => {
+    return salesOrders
+      .filter(so => ['Packing', 'Siap Kirim'].includes(so.status))
+      .map(so => ({
+        so,
+        lines: salesOrderItems
+          .filter(i => i.salesOrderId === so.id && stillOwed(i) > 0)
+          .map(i => ({
+            id: i.id,
+            nama: products.find(p => p.id === i.productId)?.name || i.productId,
+            uom: products.find(p => p.id === i.productId)?.uom || '',
+            kurang: stillOwed(i),
+            dipesan: i.qty,
+          })),
+      }))
+      .filter(x => x.lines.length > 0)
+  }, [salesOrders, salesOrderItems, products])
+
   // --- Bagian 2: siap dikirim ---
   const siapDilepas = salesOrders.filter(so => so.status === 'Packing')
 
@@ -125,7 +149,7 @@ export default function HariIniPage() {
     }
   }
 
-  const kosong = masuk.length === 0 && siapDilepas.length === 0 && sedangJalan.length === 0
+  const kosong = masuk.length === 0 && siapDilepas.length === 0 && sedangJalan.length === 0 && kurang.length === 0
 
   return (
     <AuthGuard allowedRoles={['admin_po', 'finance', 'super_admin', 'coo', 'ceo']}>
@@ -277,6 +301,39 @@ export default function HariIniPage() {
                 </Card>
               )
             })}
+          </section>
+        )}
+
+        {/* ---------- KURANG BARANG: KABARIN KLIEN ---------- */}
+        {kurang.length > 0 && (
+          <section className="space-y-3">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-600" />
+              <h3 className="font-black text-lg text-slate-800 dark:text-slate-100">Perlu Dikabarin ke Klien</h3>
+              <Badge className="bg-amber-100 text-amber-700 border-none">{kurang.length}</Badge>
+            </div>
+            <p className="text-xs text-slate-500 font-bold -mt-1">
+              Pesanan ini bakal dikirim kurang. Telepon kliennya sekarang, sebelum barangnya jalan.
+            </p>
+
+            {kurang.map(({ so, lines }) => (
+              <Card key={so.id} className="border-none shadow-lg rounded-2xl border-l-4 border-l-amber-400">
+                <CardContent className="p-4 space-y-2">
+                  <div>
+                    <p className="font-black text-slate-800 dark:text-slate-100">{namaKlien(so.id)}</p>
+                    <p className="text-xs text-slate-500 font-bold">{so.poNumber}</p>
+                  </div>
+                  {lines.map(l => (
+                    <div key={l.id} className="flex justify-between text-sm">
+                      <span className="font-bold text-slate-600 dark:text-slate-300">{l.nama}</span>
+                      <span className="font-black text-amber-700">
+                        kurang {l.kurang} {l.uom} <span className="text-slate-400 font-bold">dari {l.dipesan}</span>
+                      </span>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            ))}
           </section>
         )}
 
