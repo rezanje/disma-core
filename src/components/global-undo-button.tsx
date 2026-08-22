@@ -39,8 +39,6 @@ export default function GlobalUndoButton({ inline = false }: GlobalUndoButtonPro
       "/admin/products",
       "/admin/crm",
       "/admin/clients",
-      "/admin/hr",
-      "/admin/okr",
       "/admin/users",
       "/admin/shopping-list"
     ]

@@ -14,6 +14,7 @@ import {
   type LedgerLine, type DayExpense, type PocketClose,
 } from "@/lib/daily-close"
 import { overdueIssues } from "@/lib/delivery-issue"
+import { ceilingByLine, isOverCeiling, overByPct } from "@/lib/price-ceiling"
 
 /** YYYY-MM-DD di zona setempat — bukan toISOString(), yang menggeser tengah malam WIB ke hari sebelumnya. */
 const localDay = (d: Date | string) => {
@@ -33,6 +34,8 @@ export default function DailyClosePage() {
   const clients = useAppStore(s => s.clients)
   const products = useAppStore(s => s.products)
   const purchaseItems = useAppStore(s => s.purchaseItems)
+  const purchases = useAppStore(s => s.purchases)
+  const minMarginPct = useAppStore(s => s.minMarginPct)
   const salesOrderItems = useAppStore(s => s.salesOrderItems)
   const pendingReturns = useAppStore(s => s.pendingReturns)
   const dailyCloses = useAppStore(s => s.dailyCloses)
@@ -88,6 +91,25 @@ export default function DailyClosePage() {
   const sudahDitutup = dailyCloses.find(d => d.day === day)
   const lewatTenggat = overdueIssues(pendingReturns, day)
   const boleh = canClose(vs, reasons)
+
+  // Belanja yang harganya di atas batas margin. Tidak pernah diblokir di lapangan,
+  // jadi di sini lah satu-satunya tempat angka itu terlihat lagi — lengkap dengan
+  // alasan yang ditulis orang yang belanja.
+  const lewatBatas = useMemo(() => {
+    const hariPembelian = new Map(purchases.map(p => [p.id, localDay(p.date)]))
+    const itemHariIni = purchaseItems.filter(i => i.isChecked && hariPembelian.get(i.purchaseId) === day)
+    const batas = ceilingByLine(itemHariIni, salesOrderItems, minMarginPct)
+    return itemHariIni
+      .filter(i => isOverCeiling(Number(i.actualUnitPrice || 0), batas.get(i.id) || 0))
+      .map(i => ({
+        id: i.id,
+        nama: products.find(p => p.id === i.productId)?.name || i.productId,
+        harga: Number(i.actualUnitPrice || 0),
+        batas: batas.get(i.id) || 0,
+        pct: overByPct(Number(i.actualUnitPrice || 0), batas.get(i.id) || 0),
+        alasan: i.overCeilingReason || '',
+      }))
+  }, [purchases, purchaseItems, salesOrderItems, products, minMarginPct, day])
 
   // --- Lapis 3: bedah per klien dan per SKU ---
   const invToday = invoices.filter(i => localDay(i.issueDate) === day)
@@ -250,6 +272,20 @@ export default function DailyClosePage() {
               {lewatTenggat.slice(0, 5).map(r => (
                 <p key={r.id} className="text-[11px] font-bold text-rose-700 dark:text-rose-500">
                   {r.diNumber || r.id.slice(0, 8)} — {products.find(p => p.id === r.productId)?.name || r.productId} {r.qty}, jatuh tempo {r.dueDate}
+                </p>
+              ))}
+            </div>
+          )}
+
+          {lewatBatas.length > 0 && (
+            <div className="p-4 rounded-xl bg-orange-50 dark:bg-orange-950/20 border border-orange-200 space-y-1">
+              <p className="font-black text-sm text-orange-800 dark:text-orange-400">
+                {lewatBatas.length} belanja di atas batas harga
+              </p>
+              {lewatBatas.slice(0, 8).map(b => (
+                <p key={b.id} className="text-[11px] font-bold text-orange-700 dark:text-orange-500">
+                  {b.nama} — {formatRupiah(b.harga)} vs batas {formatRupiah(b.batas)} (+{b.pct}%)
+                  {b.alasan ? ` · ${b.alasan}` : ''}
                 </p>
               ))}
             </div>

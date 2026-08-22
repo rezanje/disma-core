@@ -41,13 +41,10 @@ const AVAILABLE_KEYS: { id: AccessKey, label: string, module: string }[] = [
   { id: 'finance_dashboard', label: 'Finance Hub', module: 'Keuangan' },
   { id: 'finance_ledger', label: 'Buku Besar / Ledger', module: 'Keuangan' },
   { id: 'finance_cash_bank', label: 'Kas & Bank', module: 'Keuangan' },
-  { id: 'finance_budget', label: 'Budgeting PO', module: 'Keuangan' },
   { id: 'finance_online_purchase', label: 'Finance Hub: Online', module: 'Keuangan' },
   
   // Data Strategic
   { id: 'admin_crm', label: 'CRM & Leads Pipeline', module: 'Data Strategic' },
-  { id: 'admin_hr', label: 'HR & KPI Performance', module: 'Data Strategic' },
-  { id: 'admin_okr', label: 'OKR Mapping', module: 'Data Strategic' },
   { id: 'admin_products', label: 'Master SKU / Product', module: 'Data Strategic' },
   
   // Settings

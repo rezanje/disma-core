@@ -17,7 +17,7 @@ const ROLLBACKABLE_TABLES = [
   'expenses', 'invoices', 'reimbursements', 'deliveries',
   'cash_transactions', 'journal_entries',
   'clients', 'vendors', 'products', 'bank_accounts', 'users',
-  'client_prices', 'employees', 'kpis', 'okr_objectives',
+  'client_prices',
   'fixed_assets', 'leads', 'disma_tasks',
 ]
 

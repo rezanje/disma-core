@@ -10,12 +10,12 @@ export interface User {
 export type AccessKey = 
   // Admin & CEO
   | 'admin_dashboard' | 'admin_vendors' | 'admin_clients' | 'admin_products' 
-  | 'admin_sales_orders' | 'admin_shopping_list' | 'admin_assets' | 'admin_hr' | 'admin_crm' 
-  | 'admin_documents' | 'admin_okr' | 'admin_users' | 'admin_settings' | 'admin_tasks' | 'admin_maintenance' | 'admin_price_lists' | 'admin_activity_log'
+  | 'admin_sales_orders' | 'admin_shopping_list' | 'admin_assets' | 'admin_crm' 
+  | 'admin_documents' | 'admin_users' | 'admin_settings' | 'admin_tasks' | 'admin_maintenance' | 'admin_price_lists' | 'admin_activity_log'
   | 'admin_purchase_requests' | 'admin_loss_analytics' | 'admin_tukar_faktur' | 'admin_dropship' | 'admin_delivery_routes'
   // Finance
   | 'finance_dashboard' | 'finance_approvals' | 'finance_reports' | 'finance_assets' | 'finance_sku_pnl'
-  | 'finance_budget' | 'finance_cash_bank' | 'finance_expenses' | 'finance_ledger' | 'finance_invoices' | 'finance_collections'
+  | 'finance_cash_bank' | 'finance_expenses' | 'finance_ledger' | 'finance_invoices' | 'finance_collections'
   | 'finance_tukar_faktur' | 'finance_purchase_plan' | 'finance_daily_close' | 'finance_disbursements' | 'finance_sourcing_monitor' | 'finance_rekon'
   // Pintasan tab di dalam Finance Hub — dipakai sebagai kunci izin anak menu.
   | 'finance_settlement' | 'finance_settlement_dash' | 'finance_online_audit' | 'finance_delivery'
@@ -264,6 +264,8 @@ export interface PurchaseItem {
   inboundVerifiedBy?: string;
   inboundNote?: string;
   expiryDate?: string;
+  /** Kenapa harga belinya di atas batas. Wajib diisi kalau lewat, tidak pernah memblokir belanja. */
+  overCeilingReason?: string;
 }
 
 export type DeliveryStatus = 'Menunggu' | 'Dikirim' | 'Tunggu Konfirmasi' | 'Awaiting Audit' | 'Terkirim';
@@ -540,102 +542,6 @@ export interface AppNotification {
   createdAt: string;
 }
 
-// --- NEW FEATURES: HR & KPI --- //
-
-export interface Employee {
-  id: string;
-  userId?: string; // Optional link to app User
-  fullName: string;
-  position: string;
-  department: string;
-  baseSalary: number;
-  kasbon: number; // Kasbon/Hutang
-  joinDate: string;
-  status: 'Active' | 'Resigned' | 'Probation';
-}
-
-export type SmartKpiGrade = 'A' | 'B' | 'C' | 'D' | 'E' | '-';
-
-export interface SmartKpi {
-  id: string;
-  // WHO
-  assigneeUserId: string; // Direct link to User.id (not Employee)
-  assignedByUserId: string; // CEO/Super Admin/CMO who created this
-  
-  // SMART Framework
-  specific: string; // What exactly should be achieved?
-  measurable: string; // How is it measured? (metric description)
-  achievable: string; // Why is this target realistic?
-  relevant: string; // How does this link to company goals?
-  timeBound: string; // Deadline or period
-
-  // Evaluation
-  period: string; // e.g. "Q1 2026", "Maret 2026"
-  weight: number; // 0-100, total weights per user per period should sum to 100
-  targetValue: number;
-  actualValue: number;
-  unit: string; // e.g. '%', 'Rp', 'deals', 'item'
-  
-  // Meta
-  title: string; // Short name e.g. "Closing Rate"
-  category: string; // e.g. "Sales", "Operasional", "Quality"
-  status: 'Draft' | 'Active' | 'Under Review' | 'Evaluated';
-  
-  // Review (filled by evaluator)
-  evaluatorNote?: string;
-  evaluatedAt?: string;
-  evaluatedBy?: string;
-  manualGrade?: SmartKpiGrade; // If evaluator overrides the auto-grade
-  
-  createdAt: string;
-  updatedAt?: string;
-}
-
-// Grade Calculation Helper
-// A = 90-100% | B = 75-89% | C = 60-74% | D = 40-59% | E = <40%
-export const getKpiGrade = (actual: number, target: number, manualGrade?: SmartKpiGrade): SmartKpiGrade => {
-  if (manualGrade && manualGrade !== '-') return manualGrade;
-  if (target <= 0) return '-';
-  const pct = (actual / target) * 100;
-  if (pct >= 90) return 'A';
-  if (pct >= 75) return 'B';
-  if (pct >= 60) return 'C';
-  if (pct >= 40) return 'D';
-  return 'E';
-};
-
-export const GRADE_META: Record<SmartKpiGrade, { label: string; color: string; bg: string; desc: string }> = {
-  'A': { label: 'Excellent', color: 'text-emerald-700', bg: 'bg-emerald-100 border-emerald-300', desc: 'Outstanding performer – KPI terpenuhi dan melampaui ekspektasi.' },
-  'B': { label: 'Good', color: 'text-blue-700', bg: 'bg-blue-100 border-blue-300', desc: 'Konsisten mencapai target – sangat baik.' },
-  'C': { label: 'Satisfactory', color: 'text-amber-700', bg: 'bg-amber-100 border-amber-300', desc: 'Target tercapai sebagian – perlu improvement.' },
-  'D': { label: 'Needs Improvement', color: 'text-orange-700', bg: 'bg-orange-100 border-orange-300', desc: 'Pencapaian di bawah standar – perlu coaching serius.' },
-  'E': { label: 'Unsatisfactory', color: 'text-rose-700', bg: 'bg-rose-100 border-rose-300', desc: 'Tidak mencapai target minimum – perlu evaluasi lanjutan.' },
-  '-': { label: 'Not Evaluated', color: 'text-slate-500', bg: 'bg-slate-100 border-slate-300', desc: 'Belum dievaluasi.' },
-};
-
-// --- NEW FEATURES: OKR --- //
-
-export interface OkrKeyResult {
-  id: string;
-  objectiveId: string;
-  title: string;
-  targetValue: number;
-  currentValue: number;
-  unit: string;
-  linkedKpiId?: string; // Optional cross-ref to a KPI
-  linkedTaskId?: string; // Optional cross-ref to a Task
-}
-
-export interface OkrObjective {
-  id: string;
-  title: string;
-  description: string;
-  period: string;
-  ownerId: string; // Typically a Role or specific user ID
-  progress: number; // 0-100, auto-calculated from KRs
-  keyResults: OkrKeyResult[];
-}
-
 export interface PendingReturn {
   id: string;
   productId: string;
@@ -718,50 +624,6 @@ export interface PurchaseRequest {
   disbursementType?: 'sourcing' | 'vendor' | 'other';
   disbursedBy?: string;                              // user name/id who disbursed
   createdAt: string;
-}
-
-// --- NEW BUDGET PLANNING FEATURE TYPES ---
-export interface BudgetPlan {
-  id: string;
-  month: string; // 'YYYY-MM'
-  status: 'Draft' | 'Active' | 'Closed';
-  totalPlanned: number;
-  notes?: string;
-  createdBy?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface BudgetCategory {
-  id: string;
-  planId: string;
-  name: string;
-  icon?: string;
-  plannedAmount: number;
-  orderIndex?: number;
-  color?: string;
-}
-
-export interface BudgetSubCategory {
-  id: string;
-  categoryId: string;
-  name: string;
-  plannedAmount: number;
-  mappedTxCategories?: string[];
-  orderIndex?: number;
-}
-
-export interface BudgetAdjustment {
-  id: string;
-  planId: string;
-  date: string;
-  type: 'Reallocation' | 'Adjustment';
-  fromCategoryId?: string;
-  toCategoryId?: string;
-  subCategoryId?: string;
-  amount: number;
-  reason: string;
-  createdBy?: string;
 }
 
 export type DisbursementStatus = 'Draft' | 'Pending_CFO' | 'Approved' | 'Transferred' | 'Rejected';
