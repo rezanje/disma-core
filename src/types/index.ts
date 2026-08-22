@@ -234,6 +234,22 @@ export interface Purchase {
   reconciliationStatus?: ReconciliationStatus;
   reconciliationProofUrl?: string; // Optional: Image/Photo proof of return
   withdrawalAmount?: number; // Amount sourcing withdrew from shared Bank Jago to personal account
+
+  // --- Satu alur belanja (22 Agu 2026) ---
+  // Rencana, pencairan dan belanja hidup di dokumen yang sama. Sebelum ini uangnya
+  // dilacak lima objek berbeda (dokumen ini, PR, disbursement, saldo kantong,
+  // settlement) tanpa ada yang membandingkan — dan PR Rp0 lolos berminggu-minggu.
+  /** Siapa yang menentukan vendor/jalur/cara bayar, dan kapan. */
+  plannedBy?: string;
+  plannedAt?: string;
+  /** Uang yang benar-benar diserahkan ke kantong — bisa beda dari budgetAmount. */
+  disbursedAmount?: number;
+  disbursedAt?: string;
+  disbursedBy?: string;
+  /** Kantong tujuan pencairan. */
+  disbursedToBankAccountId?: string;
+  /** Wajib diisi kalau yang dicairkan tidak sama dengan yang direncanakan. */
+  disbursementNote?: string;
 }
 
 export interface PurchaseItem {

@@ -4,7 +4,7 @@ import { useAppStore } from "@/lib/store"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ShoppingBasket, RefreshCw, Printer, Plus, Search, Check, ChevronsUpDown, Trash2, Globe, ShoppingBag, FileText, X, Download, Loader2, Send, CheckCircle2, Banknote, Store, Carrot, Apple, Laptop, ShoppingCart, ArrowRightLeft, CircleDollarSign, Warehouse, AlertTriangle, Undo2, ChevronDown, ChevronUp } from "lucide-react"
+import { ShoppingBasket, RefreshCw, Printer, Plus, Search, Check, ChevronsUpDown, Trash2, Globe, ShoppingBag, FileText, X, Download, Loader2, CheckCircle2, Banknote, Store, Carrot, Apple, Laptop, ShoppingCart, ArrowRightLeft, CircleDollarSign, Warehouse, AlertTriangle, Undo2, ChevronDown, ChevronUp } from "lucide-react"
 import React, { useEffect, useMemo, useState } from "react"
 import { v4 as uuidv4 } from "uuid"
 import { toast } from "sonner"
@@ -65,10 +65,7 @@ export default function ShoppingListPage() {
   const addPurchaseItems = useAppStore(state => state.addPurchaseItems)
   const deletePurchase = useAppStore(state => state.deletePurchase)
   const updateSalesOrder = useAppStore(state => state.updateSalesOrder)
-  const updatePurchase = useAppStore(state => state.updatePurchase)
   const purchaseRequests = useAppStore(state => state.purchaseRequests) || []
-  const updatePurchaseRequest = useAppStore(state => state.updatePurchaseRequest)
-  const addPurchaseRequest = useAppStore(state => state.addPurchaseRequest)
   const stockMovements = useAppStore(state => state.stockMovements)
   const addStockMovement = useAppStore(state => state.addStockMovement)
   const rejectedItems = useAppStore(state => state.rejectedItems) || []
@@ -76,7 +73,6 @@ export default function ShoppingListPage() {
 
   const [isLoading, setIsLoading] = useState(false)
   const [isDeletingPurchase, setIsDeletingPurchase] = useState<string | null>(null)
-  const [isSendingToFinance, setIsSendingToFinance] = useState<string | null>(null)
   const [selectedHistoryPurchaseId, setSelectedHistoryPurchaseId] = useState<string | null>(null)
 
   const addVendor = useAppStore(state => state.addVendor)
@@ -876,60 +872,6 @@ export default function ShoppingListPage() {
     }
   }
 
-  const handleSendToFinance = async (purchaseId: string) => {
-    if (isSendingToFinance) return
-    const purchase = purchases.find(p => p.id === purchaseId)
-    if (!purchase) return toast.error("Purchase tidak ditemukan.")
-    if (purchase.reconciliationStatus === 'Belum Transfer') return toast.info("Sudah dikirim ke Finance.")
-
-    setIsSendingToFinance(purchaseId)
-    const loadingId = toast.loading("Mengirim ke Finance...")
-    try {
-      useAppStore.getState().takeDevSnapshot()
-      // Angka SEMENTARA: seluruh isi dokumen, seolah semuanya dibayar tunai.
-      //
-      // Uang tunai yang sebenarnya baru bisa dihitung setelah Finance menentukan cara
-      // bayar tiap barang (tempo dan transfer tidak perlu dibawa ke pasar), dan itu
-      // terjadi setelah langkah ini. Menyaring pakai purchaseMethod/paymentMethod di
-      // sini — seperti sebelumnya — selalu menghasilkan nol, karena kedua kolom itu
-      // memang belum diisi. Finance memperbaikinya jadi angka pasti saat melepas
-      // rencana di /finance/purchase-plan.
-      const items = purchaseItems.filter(pi => pi.purchaseId === purchaseId)
-      const totalBudget = items.reduce((sum, item) => sum + (item.estimatedUnitPrice * item.qtyTarget), 0)
-
-      let prId = purchase.purchaseRequestId
-      if (!prId) {
-        // Auto-generate Purchase Request for Sourcing
-        prId = `pr-${uuidv4().slice(0, 8)}`
-        const linkedSOs = salesOrders.filter(so => so.shoppingListDocumentId === purchaseId)
-        const salesOrderIds = linkedSOs.map(so => so.id)
-
-        await addPurchaseRequest({
-          id: prId,
-          title: `Belanja PO Sourcing #${purchase.advanceCode || purchase.id.slice(0,8)}`,
-          description: `Perencanaan list belanja #${purchase.advanceCode || purchase.id.slice(0,8)} diajukan oleh Tim Sourcing.`,
-          amount: totalBudget,
-          category: 'Sourcing',
-          status: 'Pending_Finance',
-          requestedBy: currentUser?.name || currentUser?.id || 'Sourcing',
-          salesOrderIds,
-          createdAt: new Date().toISOString(),
-        })
-      }
-
-      await updatePurchase(purchaseId, {
-        reconciliationStatus: 'Belum Transfer',
-        budgetAmount: totalBudget,
-        purchaseRequestId: prId
-      })
-      toast.success("List belanja berhasil diajukan ke Finance / Admin PO (PR dibuat).", { id: loadingId })
-    } catch (e) {
-      toast.error(`Gagal kirim ke Finance: ${e instanceof Error ? e.message : String(e)}`, { id: loadingId })
-    } finally {
-      setIsSendingToFinance(null)
-    }
-  }
-
   const handleDeletePurchase = async (purchaseId: string) => {
     if (isDeletingPurchase) return
     const purchase = purchases.find(p => p.id === purchaseId)
@@ -1401,29 +1343,19 @@ export default function ShoppingListPage() {
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {(() => {
+                        // Tidak ada lagi tombol "Kirim ke Finance": dokumen yang sudah
+                        // dibuat OTOMATIS muncul di Rencana Pembelian milik Finance.
+                        // Pengajuan dana terpisah dihapus — perencanaan Finance itulah
+                        // persetujuannya, dan angka tunainya baru diketahui di sana.
                         const p = purchases.find(pr => pr.id === lastGeneratedDoc.purchaseId)
-                        const alreadySent = p?.reconciliationStatus === 'Belum Transfer' || !!p?.budgetTransferDate
-                        return alreadySent ? (
-                          <div className="flex items-center gap-2 h-11 px-4 rounded-xl bg-emerald-100 text-emerald-700">
+                        const label = p?.disbursedAt ? 'Dana Sudah Diserahkan'
+                          : p?.status === 'Menunggu Rencana' ? 'Menunggu Rencana Finance'
+                          : 'Sudah Direncanakan'
+                        return (
+                          <div className="flex items-center gap-2 h-11 px-4 rounded-xl bg-slate-100 text-slate-600">
                             <CheckCircle2 className="h-4 w-4" />
-                            <span className="text-[10px] font-black uppercase tracking-widest">
-                              {p?.budgetTransferDate ? 'Dana Sudah Ditransfer' : 'Sudah Dikirim ke Finance'}
-                            </span>
+                            <span className="text-[10px] font-black uppercase tracking-widest">{label}</span>
                           </div>
-                        ) : (
-                          <Button
-                            data-tour="sl-send-finance"
-                            className="h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black uppercase tracking-widest text-[10px] shadow-md shadow-blue-500/20"
-                            onClick={() => handleSendToFinance(lastGeneratedDoc.purchaseId)}
-                            disabled={isSendingToFinance === lastGeneratedDoc.purchaseId}
-                          >
-                            {isSendingToFinance === lastGeneratedDoc.purchaseId ? (
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            ) : (
-                              <Send className="mr-2 h-4 w-4" />
-                            )}
-                            {isSendingToFinance === lastGeneratedDoc.purchaseId ? 'Mengirim...' : 'Kirim ke Finance'}
-                          </Button>
                         )
                       })()}
                       <Button
@@ -2250,7 +2182,7 @@ export default function ShoppingListPage() {
                     const items = purchaseItems.filter(pi => pi.purchaseId === purchase.id)
                     const totalBudget = items.reduce((sum, item) => sum + (item.estimatedUnitPrice * item.qtyTarget), 0)
                     const hasBeenTransferred = !!purchase.budgetTransferDate
-                    const sentToFinance = purchase.reconciliationStatus === 'Belum Transfer'
+                    const sentToFinance = purchase.status !== 'Menunggu Rencana'
                     const isSettled = purchase.reconciliationStatus === 'Terverifikasi'
 
                     return (
@@ -2276,11 +2208,11 @@ export default function ShoppingListPage() {
                               </span>
                             ) : sentToFinance ? (
                               <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-blue-700">
-                                Menunggu Finance
+                                Sudah Direncanakan
                               </span>
                             ) : (
                               <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-slate-500">
-                                Draft
+                                Menunggu Rencana
                               </span>
                             )}
                           </div>
@@ -2292,21 +2224,6 @@ export default function ShoppingListPage() {
                           <span className="text-[9px] font-black uppercase tracking-widest text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
                             <Search className="w-3 h-3" /> Detail
                           </span>
-                          {!sentToFinance && !hasBeenTransferred && !isSettled && (
-                            <Button
-                              size="sm"
-                              className="h-8 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black uppercase tracking-widest shadow-sm"
-                              onClick={(e) => { e.stopPropagation(); handleSendToFinance(purchase.id) }}
-                              disabled={isSendingToFinance === purchase.id}
-                            >
-                              {isSendingToFinance === purchase.id ? (
-                                <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
-                              ) : (
-                                <Send className="mr-1.5 h-3 w-3" />
-                              )}
-                              {isSendingToFinance === purchase.id ? 'Mengirim...' : 'Kirim'}
-                            </Button>
-                          )}
                           {!hasBeenTransferred && !isSettled && (
                             <Button
                               size="sm"
