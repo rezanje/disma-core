@@ -33,6 +33,8 @@ export default function PurchasePlanPage() {
   const clients = useAppStore(s => s.clients)
   const updatePurchase = useAppStore(s => s.updatePurchase)
   const updatePurchaseItem = useAppStore(s => s.updatePurchaseItem)
+  const purchaseRequests = useAppStore(s => s.purchaseRequests)
+  const updatePurchaseRequest = useAppStore(s => s.updatePurchaseRequest)
 
   const [openId, setOpenId] = useState<string | null>(null)
   const [releasing, setReleasing] = useState(false)
@@ -69,6 +71,15 @@ export default function PurchasePlanPage() {
       // belakangan dan Transfer dibayar dari rekening kantor.
       const tunai = cashNeeded(lines)
       await updatePurchase(active.id, { status: 'Pending', budgetAmount: tunai })
+
+      // Pengajuan dananya dibuat Admin PO SEBELUM rencana ini ada, jadi angkanya waktu
+      // itu belum bisa diketahui. Kalau tidak diperbarui di sini, Finance menyetujui dan
+      // mencairkan angka yang tidak pernah berhubungan dengan belanja yang direncanakan.
+      const pr = purchaseRequests.find(r => r.id === active.purchaseRequestId)
+      if (pr && !pr.disbursedAt && pr.amount !== tunai) {
+        await updatePurchaseRequest(pr.id, { amount: tunai })
+      }
+
       toast.success(`Rencana dilepas ke sourcing. Uang tunai yang perlu disiapkan ${formatRupiah(tunai)}.`)
       setOpenId(null)
     } catch (e) {
