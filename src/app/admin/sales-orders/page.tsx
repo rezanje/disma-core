@@ -57,6 +57,7 @@ import { Printer } from "lucide-react"
 import { toast } from "sonner"
 import { generateDocumentNumber, updateProductPriceHistory, finalizeSalesOrderDelivery } from "@/lib/accounting"
 import ReceiptUpload from "@/components/ui/receipt-upload"
+import { PdfCanvasPreview } from "@/components/pdf-canvas-preview"
 import { generateSuratJalan, generateBA, generateSalesOrderPDF } from "@/lib/pdf"
 import { roundQtyToBook, nextSoStatus } from "@/lib/backorder"
 import { pendingEdits } from "@/lib/order-edits"
@@ -2745,7 +2746,7 @@ export default function SalesOrdersPage() {
 
       {/* PDF PREVIEW MODAL */}
       <Dialog open={!!pdfPreview} onOpenChange={(open) => !open && setPdfPreview(null)}>
-        <DialogContent className="max-w-[96vw] w-[96vw] h-[96vh] p-0 rounded-[2rem] overflow-hidden border-none bg-slate-900 shadow-2xl flex flex-col">
+        <DialogContent className="max-w-[96vw] sm:max-w-[96vw] w-[96vw] h-[96vh] p-0 rounded-[2rem] overflow-hidden border-none bg-slate-900 shadow-2xl flex flex-col">
           <DialogHeader className="p-6 bg-slate-900 text-white flex flex-row items-center justify-between shrink-0">
              <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400">
@@ -2771,14 +2772,12 @@ export default function SalesOrdersPage() {
                 <Download className="w-4 h-4 mr-2" /> Download PDF
              </Button>
           </DialogHeader>
-          <div className="flex-1 bg-slate-800 relative">
-             {pdfPreview && (
-                <iframe 
-                   src={pdfPreview.url} 
-                   className="w-full h-full border-none"
-                   title="PDF Preview"
-                />
-             )}
+          {/* Digambar ke kanvas lewat pdf.js, bukan <iframe>. Penampil PDF bawaan
+              browser diam-diam tidak menampilkan apa pun kalau Chrome-nya disetel
+              "unduh PDF" — dan itu tidak bisa dideteksi dari halaman. Sama dengan
+              yang dipakai Shopping List, yang memang tampil. */}
+          <div className="flex-1 bg-slate-800 relative overflow-auto p-4">
+             {pdfPreview && <PdfCanvasPreview url={pdfPreview.url} />}
           </div>
           <div className="p-4 bg-slate-900 border-t border-white/5 flex justify-center sticky bottom-0">
              <Button 
