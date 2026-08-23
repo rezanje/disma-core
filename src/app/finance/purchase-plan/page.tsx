@@ -323,6 +323,39 @@ export default function PurchasePlanPage() {
               </div>
             )}
 
+            {/* Dokumen ini berubah setelah sampai ke sini. Merencanakan vendor dan
+                menyiapkan uang dari angka lama adalah kesalahan yang tidak kelihatan
+                sampai orangnya sudah berdiri di pasar. */}
+            {active.revisedAt && (
+              <div className="mx-5 mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-black text-amber-800 flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4" /> Daftar ini berubah setelah dikirim
+                    </p>
+                    <p className="text-[11px] font-bold text-amber-700/80 mt-0.5">
+                      Diubah {active.revisedBy || '—'} · {new Date(active.revisedAt).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}
+                    </p>
+                    <div className="mt-2 space-y-0.5">
+                      {String(active.revisionNote || '').split('\n').filter(Boolean).map((baris, i) => (
+                        <p key={i} className="text-xs font-bold text-amber-900">{baris}</p>
+                      ))}
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    className="h-9 font-black text-[10px] uppercase tracking-widest shrink-0 bg-white"
+                    onClick={async () => {
+                      await updatePurchase(active.id, { revisedAt: undefined, revisedBy: undefined, revisionNote: undefined })
+                      toast.success("Ditandai sudah dilihat.")
+                    }}
+                  >
+                    Sudah saya lihat
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <Table>
               <TableHeader>
                 <TableRow className="bg-slate-50 dark:bg-slate-900/50">

@@ -250,6 +250,17 @@ export interface Purchase {
   disbursedToBankAccountId?: string;
   /** Wajib diisi kalau yang dicairkan tidak sama dengan yang direncanakan. */
   disbursementNote?: string;
+
+  /**
+   * Dokumen ini berubah SETELAH dikirim ke Finance.
+   *
+   * Admin PO boleh membetulkan salah ketik — pesanan klien memang berubah. Yang tidak
+   * boleh adalah Finance merencanakan angka lama tanpa tahu angkanya sudah berganti.
+   */
+  revisedAt?: string;
+  revisedBy?: string;
+  /** Daftar perubahan, terbaru di atas: "Temukunci 5 → 8 Kg". */
+  revisionNote?: string;
 }
 
 export interface PurchaseItem {
