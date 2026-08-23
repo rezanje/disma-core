@@ -2,13 +2,11 @@
 
 import { useState, useMemo } from "react"
 import { useAppStore } from "@/lib/store"
-import { getAdvanceWalletByUserId, recordPocketPurchase, recordPocketWithdrawal, recordPocketReturn, recordVendorTransferPurchase } from "@/lib/accounting"
+import { recordPocketWithdrawal, recordPocketReturn } from "@/lib/accounting"
 import { computeBankBalances } from "@/lib/bank-balance"
 import { pocketOwners, resolvePocket } from "@/lib/sourcing-pocket"
-import { resolveActor } from "@/lib/actor"
-import { buildMarketPriceRows } from "@/lib/market-price"
-import { ceilingByLine, isOverCeiling, overByPct, linesNeedingReason } from "@/lib/price-ceiling"
-import { proofBlocker } from "@/lib/transcription-proof"
+import { ceilingByLine, isOverCeiling, overByPct } from "@/lib/price-ceiling"
+import { reportProblems, submitShoppingReport } from "@/lib/shopping-report"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -208,165 +206,46 @@ export default function SourcingDashboard() {
   const handleSubmitLaporan = async () => {
     if (activePurchases.length === 0) return
 
-    // Submit validation: all checked items must have a vendorId (currentItems is Pasar-only)
-    const itemsWithoutVendor = currentItems.filter(item => {
-      const vendorId = activeItem?.id === item.id ? editVendorId : item.vendorId;
-      return item.isChecked && !vendorId;
-    });
+    // Isinya pindah ke src/lib/shopping-report.ts supaya layar Salin Kertas Belanja
+    // membukukan lewat alur yang sama persis — bukan salinan yang pelan-pelan berbeda.
+    const lines = currentItems.map(item => ({
+      id: item.id,
+      productId: item.productId,
+      purchaseId: item.purchaseId,
+      purchaseMethod: item.purchaseMethod,
+      isChecked: !!item.isChecked,
+      actualUnitPrice: activeItem?.id === item.id ? editPrice : (item.actualUnitPrice || 0),
+      qtyPurchased: activeItem?.id === item.id ? (editQty || item.qtyTarget) : (item.qtyPurchased || 0),
+      vendorId: activeItem?.id === item.id ? editVendorId : item.vendorId,
+      paymentMethod: (activeItem?.id === item.id ? editPaymentMethod : (item.paymentMethod || 'Cash')) as 'Cash' | 'Tempo' | 'Transfer',
+      notes: activeItem?.id === item.id ? editNote : item.notes,
+      overCeilingReason: activeItem?.id === item.id ? editOverReason : item.overCeilingReason,
+    }))
 
-    if (itemsWithoutVendor.length > 0) {
-      const names = itemsWithoutVendor.map(item => {
-        const prod = products.find(p => p.id === item.productId);
-        return prod ? prod.name : `Item ID ${item.id}`;
-      });
-      toast.error(`Semua item belanja wajib memiliki Vendor. Item berikut belum ada vendor: ${names.join(', ')}`);
-      return;
-    }
-
-    // Belanja di atas batas tidak pernah ditolak — pasar tidak bisa menunggu approval.
-    // Yang ditahan cuma laporan tanpa keterangan, supaya harga mahal meninggalkan jejak
-    // dan muncul di Tutup Hari, bukan cuma di ingatan orang.
-    const pendingReason = linesNeedingReason(
-      currentItems.map(item => item.id === activeItem?.id
-        ? { ...item, actualUnitPrice: editPrice, overCeilingReason: editOverReason }
-        : item),
+    const input = {
+      purchaseIds: activePurchases.map(p => p.id),
+      lines,
+      pocketBankAccountId: myPocket?.id || null,
+      onBehalfOfUserId: onBehalfOfUserId || null,
+      proofImage: proofImage,
+      reconciliationNote: reconciliationNote || undefined,
       ceilings,
-    );
-    if (pendingReason.length > 0) {
-      const names = pendingReason.map(id => {
-        const it = currentItems.find(i => i.id === id);
-        return products.find(p => p.id === it?.productId)?.name || `Item ${id}`;
-      });
-      toast.error(`Harga beli di atas batas dan belum ada alasannya: ${names.join(', ')}. Buka itemnya, tulis alasannya, baru kirim laporan.`);
-      return;
     }
 
-    // Belanja tunai hanya bisa dibukukan lewat kantong si pembelanja. Tanpa kantong,
-    // recordPocketPurchase di bawah tidak pernah jalan dan uangnya tidak pernah keluar
-    // dari kas mana pun — laporan tetap "berhasil" padahal saldo bank tidak berkurang.
-    // Blokir di depan daripada kehilangan jejak uangnya.
-    const cashSpendTotal = currentItems.reduce((sum, item) => {
-      if (!item.isChecked || item.purchaseMethod === 'Online') return sum
-      const method = activeItem?.id === item.id ? editPaymentMethod : (item.paymentMethod || 'Cash')
-      if (method !== 'Cash') return sum
-      const price = activeItem?.id === item.id ? editPrice : (item.actualUnitPrice || 0)
-      const qty = activeItem?.id === item.id ? (editQty || item.qtyTarget) : (item.qtyPurchased || 0)
-      return sum + qty * price
-    }, 0)
-
-    if (cashSpendTotal > 0 && !myPocket) {
-      toast.error("Pilih dulu belanja ini atas nama siapa — uangnya harus dipotong dari kantong orang yang belanja. Kalau kantongnya belum ada, minta Finance membuatkan di Cash & Bank (purpose \"Kantong Sourcing\" + owner orangnya).")
-      return
-    }
-
-    // Laporan salinan wajib membawa foto kertasnya. Kertas itu satu-satunya asli,
-    // dan begitu hilang angka di sistem tidak punya bukti apa pun di belakangnya.
-    const proofProblem = proofBlocker(onBehalfOfUserId, currentUser?.id, proofImage)
-    if (proofProblem) {
-      toast.error(proofProblem)
+    const masalah = reportProblems(input, (id) => products.find(p => p.id === id)?.name || id, currentUser?.id)
+    if (masalah.length > 0) {
+      masalah.forEach(m => toast.error(m))
       return
     }
 
     const loadingToast = toast.loading("Mengirim laporan belanja...")
-    
     try {
-      // Final sync of the currently editing item if it exists
-      if (activeItem) {
-        updatePurchaseItem(activeItem.id, {
-          actualUnitPrice: editPrice,
-          qtyPurchased: editQty || activeItem.qtyTarget,
-          notes: editNote,
-          vendorId: editVendorId,
-          paymentMethod: editPaymentMethod,
-          overCeilingReason: isOverCeiling(editPrice, ceilings.get(activeItem.id) || 0) ? editOverReason.trim() : '',
-        })
+      const res = await submitShoppingReport(useAppStore.getState, input)
+      if (!res.ok) {
+        toast.error(res.problems.join(' · '), { id: loadingToast })
+        return
       }
-
-      for (const p of activePurchases) {
-        const pItems = currentItems.filter(item => item.purchaseId === p.id && item.isChecked)
-        const lineTotal = (item: PurchaseItem) => {
-          const price = activeItem?.id === item.id ? editPrice : (item.actualUnitPrice || 0)
-          const qty = activeItem?.id === item.id ? (editQty || item.qtyTarget) : (item.qtyPurchased || 0)
-          return qty * price
-        }
-        const pm = (item: PurchaseItem) => (activeItem?.id === item.id ? editPaymentMethod : (item.paymentMethod || 'Cash'))
-        const pTotalCost = pItems.reduce((sum, item) => sum + lineTotal(item), 0)
-        // Only Cash draws the sourcer's cash advance/pocket — Tempo defers to AP, Transfer is paid by finance from BCA.
-        const pCashCost = pItems.reduce((sum, item) => pm(item) === 'Cash' ? sum + lineTotal(item) : sum, 0)
-        const pBudget = (p.budgetAmount || 0) + (p.operationalSpareAmount || 0)
-
-        await updatePurchase(p.id, {
-          status: 'Selesai',
-          // Yang belanja di lapangan, bukan yang mengetik laporannya.
-          purchaserId: resolveActor(onBehalfOfUserId, currentUser?.id),
-          actualSpent: pTotalCost,
-          changeReturned: pBudget > pCashCost ? pBudget - pCashCost : 0,
-          reconciliationNote: reconciliationNote || 'Sesuai budget (Auto-Consolidated)',
-          reconciliationStatus: 'Laporan Masuk',
-          reconciliationProofUrl: proofImage || undefined
-        })
-
-        if (myPocket) {
-          // Cash items draw the sourcer's pocket. Online is always paid from BCA by finance
-          // regardless of paymentMethod field, so it's excluded here too.
-          const pocketSpend = pItems.reduce((sum, item) =>
-            (pm(item) === 'Cash' && item.purchaseMethod !== 'Online') ? sum + lineTotal(item) : sum, 0)
-          if (pocketSpend > 0) {
-            await recordPocketPurchase(p.id, myPocket.id, pocketSpend, currentUser?.name || 'Sourcing')
-          }
-        }
-
-        // Transfer = paid immediately by finance from BCA, no queue/approval — post now.
-        const transferSpend = pItems.reduce((sum, item) =>
-          (pm(item) === 'Transfer' && item.purchaseMethod !== 'Online') ? sum + lineTotal(item) : sum, 0)
-        if (transferSpend > 0) {
-          const bca = bankAccounts.find(b => b.accountCode === '1-1200')
-          if (bca) {
-            await recordVendorTransferPurchase(p.id, bca.id, transferSpend, currentUser?.name || 'Sourcing')
-          }
-        }
-      }
-
-      // Cash belanja dibukukan real ke kantong via recordPocketPurchase; sisa derived dari saldo pocket
-      // Harga rekomendasi produk baru di-update setelah finance approve rekon (bukan di sini)
-
-      // Harga pasar hari ini ikut tercatat dari angka yang barusan diketik — tidak ada
-      // ketikan tambahan, dan ini bahan untuk batas harga beli nanti. Kegagalan di sini
-      // tidak boleh menggagalkan laporan belanjanya: yang dicatat cuma data pendukung.
-      try {
-        const today = new Date().toISOString().slice(0, 10)
-        const addVendorPrice = useAppStore.getState().addVendorPrice
-        for (const row of buildMarketPriceRows(currentItems, today, 'salin-belanja')) {
-          await addVendorPrice({
-            id: uuidv4(),
-            vendorId: row.vendorId,
-            productId: row.productId,
-            price: row.price,
-            uom: products.find(p => p.id === row.productId)?.uom || 'Kg',
-            validFrom: row.validFrom,
-            validTo: row.validTo,
-            status: row.status,
-            source: row.source,
-            lastUpdated: new Date().toISOString(),
-          } as never)
-        }
-      } catch (e) {
-        console.warn('[market-price] gagal mencatat harga pasar harian:', e)
-      }
-
-      // Ambil semua salesOrderId unik dari items yang baru saja disubmit
-      const purchaseIds = activePurchases.map(p => p.id)
-      const involvedSOIds = new Set(
-        currentItems
-          .filter(item => purchaseIds.includes(item.purchaseId) && item.isChecked && item.salesOrderId)
-          .map(item => item.salesOrderId as string)
-      )
-
-      const updateSO = useAppStore.getState().updateSalesOrder
-      for (const soId of involvedSOIds) {
-        await updateSO(soId, { status: 'QC' })
-      }
-
+      res.warnings.forEach(w => toast.warning(w))
       toast.success(`${activePurchases.length} sesi belanja berhasil diselesaikan!`, { id: loadingToast })
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Unknown error'

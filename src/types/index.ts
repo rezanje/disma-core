@@ -16,7 +16,7 @@ export type AccessKey =
   // Finance
   | 'finance_dashboard' | 'finance_approvals' | 'finance_reports' | 'finance_assets' | 'finance_sku_pnl'
   | 'finance_cash_bank' | 'finance_expenses' | 'finance_ledger' | 'finance_invoices' | 'finance_collections'
-  | 'finance_tukar_faktur' | 'finance_purchase_plan' | 'finance_daily_close' | 'finance_disbursements' | 'finance_sourcing_monitor' | 'finance_rekon'
+  | 'finance_tukar_faktur' | 'finance_purchase_plan' | 'finance_salin_belanja' | 'finance_daily_close' | 'finance_disbursements' | 'finance_sourcing_monitor' | 'finance_rekon'
   // Pintasan tab di dalam Finance Hub — dipakai sebagai kunci izin anak menu.
   | 'finance_settlement' | 'finance_settlement_dash' | 'finance_online_audit' | 'finance_delivery'
   | 'finance_ar_aging' | 'finance_ap_aging'
