@@ -408,80 +408,6 @@ export function generateInvoicePDF(invoiceId: string, outputType: 'save' | 'data
 }
 
 /**
- * Daftar harga untuk satu klien, siap dikirim.
- *
- * Harganya dihitung ulang lewat clientUnitPrice — sumber yang sama dengan layar
- * Price Lists — jadi kertas yang dipegang klien tidak pernah berbeda dari yang
- * dipakai saat pesanannya dihargai.
- */
-export function generateClientPricelistPDF(clientId: string, outputType: 'save' | 'dataurl' = 'save') {
-  const store = useAppStore.getState()
-  const client = store.clients.find(c => c.id === clientId)
-  if (!client) return
-
-  const margins = store.tierMargins || { 'Tier 1': 30, 'Tier 2': 25, 'Tier 3': 20, 'Tier 4': 10, 'Tier 5': 15 }
-  const records = store.clientPrices.filter(cp => cp.clientId === clientId)
-  const rows = records
-    .map(rec => {
-      const product = store.products.find(p => p.id === rec.productId)
-      if (!product) return null
-      const { price: basePrice } = getEffectiveBasePrice(product)
-      return {
-        category: product.category || 'Tanpa Kategori',
-        name: product.name,
-        uom: product.uom || '-',
-        price: clientUnitPrice(product, basePrice, margins, rec, client.defaultPriceTier),
-      }
-    })
-    .filter((r): r is { category: string; name: string; uom: string; price: number } => !!r)
-    .sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name))
-
-  const doc = new jsPDF({ compress: true })
-  drawHeader(doc, "DAFTAR HARGA", `PL-${format(new Date(), 'yyyyMMdd')}`, new Date())
-
-  doc.setFontSize(10)
-  doc.setFont("helvetica", "bold")
-  doc.text(`Untuk: ${client.companyName}`, 14, 62)
-  doc.setFont("helvetica", "normal")
-  doc.setFontSize(8)
-  doc.text("Harga berlaku sampai daftar berikutnya diterbitkan. Sudah termasuk pengiriman.", 14, 68)
-
-  let y = 78
-  const line = (label: string, uom: string, price: string, bold = false) => {
-    doc.setFont("helvetica", bold ? "bold" : "normal")
-    doc.setFontSize(9)
-    doc.text(label, 16, y)
-    doc.text(uom, 130, y)
-    doc.text(price, 196, y, { align: 'right' })
-  }
-
-  let lastCategory = ''
-  for (const row of rows) {
-    if (y > 275) { doc.addPage(); y = 20 }
-    if (row.category !== lastCategory) {
-      lastCategory = row.category
-      doc.setFillColor(240, 240, 240)
-      doc.rect(14, y - 5, 182, 7, 'F')
-      line(row.category.toUpperCase(), '', '', true)
-      y += 8
-    }
-    if (y > 275) { doc.addPage(); y = 20 }
-    line(row.name, row.uom, formatRupiah(row.price))
-    y += 6
-  }
-
-  if (rows.length === 0) {
-    doc.setFontSize(9)
-    doc.text("Belum ada produk yang terdaftar untuk klien ini.", 16, y)
-  }
-
-  if (outputType === 'dataurl') {
-    return doc.output('datauristring')
-  }
-  doc.save(`Daftar_Harga_${client.companyName.replace(/[^A-Za-z0-9]/g, '_')}.pdf`)
-}
-
-/**
  * Satu halaman berisi foto dokumen bertanda tangan, diskalakan agar utuh di halaman.
  * Kalau gambarnya gagal dimuat, halamannya tetap terbit dengan keterangan — lebih baik
  * ketahuan kosong daripada bundel yang diam-diam kehilangan bukti.
@@ -980,18 +906,12 @@ export function generatePriceListPDF(clientId: string, outputType: 'save' | 'dat
       const { price: basePrice } = getEffectiveBasePrice(product)
       const tierMargins = store.tierMargins || { 'Tier 1': 30, 'Tier 2': 25, 'Tier 3': 20, 'Tier 4': 10, 'Tier 5': 15 }
 
-      if (record) {
+      // Rumusnya di src/lib/client-price.ts — sama persis dengan layar Price Lists.
+      // Sempat ada tiga salinan rumus ini; lembar yang dipegang klien tidak boleh
+      // beda dari angka yang dipakai saat pesanannya dihargai.
+      if (record || hasDefaultTier) {
         hasSpecialPrice = true
-        if (record.tier === 'Custom') priceToDisplay = record.agreedPrice
-        else {
-          const marginPct = tierMargins[record.tier] || 0
-          priceToDisplay = (product[`tier${record.tier.replace('Tier ', '')}Price` as keyof Product] as number) || Math.round(basePrice * (1 + marginPct / 100)) || product.sellingPrice
-        }
-      } else if (hasDefaultTier) {
-        hasSpecialPrice = true
-        const tier = client.defaultPriceTier!
-        const marginPct = tierMargins[tier] || 0
-        priceToDisplay = (product[`tier${tier.replace('Tier ', '')}Price` as keyof Product] as number) || Math.round(basePrice * (1 + marginPct / 100)) || product.sellingPrice
+        priceToDisplay = clientUnitPrice(product, basePrice, tierMargins, record, client.defaultPriceTier)
       }
 
       doc.setFontSize(9)

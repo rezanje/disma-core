@@ -14,7 +14,7 @@ import { cn, getEffectiveBasePrice } from "@/lib/utils"
 import { rescaleTiers } from "@/lib/tier-rescale"
 import { toast } from "sonner"
 import { ClientPriceList } from "@/components/client-prices/ClientPriceList"
-import { generateClientPricelistPDF } from "@/lib/pdf"
+import { generatePriceListPDF } from "@/lib/pdf"
 
 export default function ClientPricesPage() {
   const clients = useAppStore(state => state.clients)
@@ -213,7 +213,7 @@ export default function ClientPricesPage() {
             <Button
               variant="outline"
               className="h-12 font-bold"
-              onClick={() => generateClientPricelistPDF(activeClient.id)}
+              onClick={() => generatePriceListPDF(activeClient.id)}
             >
               <Download className="mr-2 h-4 w-4" /> Daftar Harga PDF
             </Button>
