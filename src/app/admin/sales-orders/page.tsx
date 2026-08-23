@@ -62,6 +62,7 @@ import { generateSuratJalan, generateBA, generateSalesOrderPDF } from "@/lib/pdf
 import { roundQtyToBook, nextSoStatus } from "@/lib/backorder"
 import { pendingEdits } from "@/lib/order-edits"
 import { orderEditable, editLockReason, linkedPurchaseLines } from "@/lib/order-edit-window"
+import { appendRevisions, revisionSummary, type Revision } from "@/lib/revision-note"
 import {
   Popover,
   PopoverContent,
@@ -197,6 +198,9 @@ export default function SalesOrdersPage() {
   const purchases = useAppStore(state => state.purchases)
   const purchaseItems = useAppStore(state => state.purchaseItems)
   const updatePurchaseItem = useAppStore(state => state.updatePurchaseItem)
+  const updatePurchase = useAppStore(state => state.updatePurchase)
+  const users = useAppStore(state => state.users)
+  const addNotification = useAppStore(state => state.addNotification)
   const clients = useAppStore(state => state.clients)
   const products = useAppStore(state => state.products)
   const invoices = useAppStore(state => state.invoices)
@@ -1082,7 +1086,10 @@ export default function SalesOrdersPage() {
     }
     // Hanya baris yang berubah yang ditulis ulang — sebelumnya seluruh baris ditulis
     // setiap kali, jadi riwayat perubahan penuh baris yang sebenarnya sama.
-    let ikut = 0
+    // Perubahan yang menyentuh dokumen belanja dikumpulkan dulu, supaya catatannya
+    // ditulis sekali per dokumen — bukan satu notifikasi per baris.
+    const revisiPerDokumen = new Map<string, Revision[]>()
+
     dirtyItemIds.forEach(itemId => {
       const data = editingItems[itemId]
       const item = selectedItems.find(i => i.id === itemId)
@@ -1096,13 +1103,51 @@ export default function SalesOrdersPage() {
       // belanjanya masih 10 — dan yang dibawa ke pasar adalah yang 10.
       if (item && detailSOId) {
         for (const lineId of linkedPurchaseLines(detailSOId, item.productId, purchaseItems, purchases)) {
+          const baris = purchaseItems.find(pi => pi.id === lineId)
+          if (!baris || baris.qtyTarget === data.qty) continue
           updatePurchaseItem(lineId, { qtyTarget: data.qty })
-          ikut++
+          const produk = products.find(p => p.id === item.productId)
+          const daftar = revisiPerDokumen.get(baris.purchaseId) || []
+          daftar.push({
+            produk: produk?.name || item.productId,
+            dari: baris.qtyTarget,
+            jadi: data.qty,
+            satuan: produk?.uom,
+          })
+          revisiPerDokumen.set(baris.purchaseId, daftar)
         }
       }
     })
+
+    // Finance harus tahu. Dokumennya ditandai berubah, dan orangnya diberi tahu —
+    // tanpa ini dia merencanakan vendor dan uang dari angka yang sudah tidak berlaku.
+    let ikut = 0
+    for (const [purchaseId, revisi] of revisiPerDokumen) {
+      ikut += revisi.length
+      const doc = purchases.find(p => p.id === purchaseId)
+      const kode = doc?.advanceCode || purchaseId.slice(0, 8)
+      updatePurchase(purchaseId, {
+        revisedAt: new Date().toISOString(),
+        revisedBy: currentUser?.name || currentUser?.id,
+        revisionNote: appendRevisions(doc?.revisionNote, revisi),
+      })
+      const financeUsers = users.filter(u => u.role === 'finance')
+      for (const fu of financeUsers) {
+        addNotification({
+          id: uuidv4(),
+          userId: fu.id,
+          title: 'Daftar belanja berubah',
+          message: revisionSummary(kode, revisi),
+          type: 'system',
+          link: '/finance/purchase-plan',
+          read: false,
+          createdAt: new Date().toISOString(),
+        })
+      }
+    }
+
     toast.success(ikut > 0
-      ? `${dirtyItemIds.length} baris pesanan disimpan — ${ikut} baris daftar belanja ikut diperbarui`
+      ? `${dirtyItemIds.length} baris pesanan disimpan — ${ikut} baris daftar belanja ikut berubah, Finance sudah diberi tahu`
       : `${dirtyItemIds.length} baris pesanan berhasil disimpan`)
   }
 
