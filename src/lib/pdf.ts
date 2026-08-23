@@ -85,7 +85,7 @@ function drawSalesOrderOnDoc(doc: jsPDF, poNumber: string) {
   const client = store.clients.find(c => c.id === so.clientId)
   const items = store.salesOrderItems.filter(i => i.salesOrderId === so.id)
   
-  drawHeader(doc, "SALES ORDER (PURCHASE ORDER REF)", `SO-${poNumber}`, new Date(so.orderDate))
+  drawHeader(doc, "SALES ORDER", `SO-${poNumber}`, new Date(so.orderDate))
 
   // Client Info
   doc.setFontSize(11)
