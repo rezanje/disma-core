@@ -718,6 +718,7 @@ export default function SourcingDashboard() {
                                     </Label>
                                     <Input
                                       type="number"
+                                      onWheel={(e) => e.currentTarget.blur()}
                                       min="0"
                                       step="any"
                                       className="h-12 text-lg font-bold bg-white/50 border-2 transition-all focus:border-emerald-500"
@@ -1226,6 +1227,7 @@ export default function SourcingDashboard() {
                 <Label>Termin Pembayaran (Hari)</Label>
                 <Input
                   type="number"
+                  onWheel={(e) => e.currentTarget.blur()}
                   placeholder="14"
                   value={newVendorTermDays}
                   onChange={e => setNewVendorTermDays(parseInt(e.target.value) || 0)}
