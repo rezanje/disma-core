@@ -1,10 +1,10 @@
 "use client"
 
 import { useState } from "react"
+import React from "react"
 import { useAppStore } from "@/lib/store"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ClipboardList, PackageCheck, ShoppingBag, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
@@ -15,6 +15,7 @@ import {
   HANDLING_LABEL, type Handling, type PaymentMethod,
 } from "@/lib/purchase-plan"
 import { disbursementProblem } from "@/lib/shopping-money"
+import { sortRows, groupRows, toggleAll, type SortKey, type GroupKey } from "@/lib/plan-table"
 import { pocketOwners } from "@/lib/sourcing-pocket"
 import { recordPocketWithdrawal, bankRequiresCfoApproval } from "@/lib/accounting"
 import { Input } from "@/components/ui/input"
@@ -55,6 +56,13 @@ export default function PurchasePlanPage() {
   const [cairNote, setCairNote] = useState<string>('')
   const [cairing, setCairing] = useState(false)
 
+  // Pilih beramai-ramai + urut + kelompok. Satu dokumen bisa puluhan barang, dan
+  // menyetel vendor satu-satu untuk barang yang jelas dibeli di tempat yang sama
+  // itu menyalin, bukan memutuskan.
+  const [pilih, setPilih] = useState<Set<string>>(new Set())
+  const [urut, setUrut] = useState<SortKey>('nama')
+  const [kelompok, setKelompok] = useState<GroupKey>('none')
+
   const waiting = purchases.filter(p => p.status === 'Menunggu Rencana')
   // Sudah direncanakan tapi uangnya belum keluar. Dulu ini antrean di layar lain
   // (pengajuan dana + disbursement); sekarang lanjutannya ada di dokumen yang sama.
@@ -67,6 +75,35 @@ export default function PurchasePlanPage() {
   const belum = unplannedLines(lines)
 
   const setLine = (itemId: string, patch: Record<string, unknown>) => updatePurchaseItem(itemId, patch)
+
+  const namaProduk = (row: { productId: string }) => products.find(p => p.id === row.productId)?.name || row.productId
+  const labelGrup = {
+    vendorName: (id?: string | null) => vendors.find(v => v.id === id)?.companyName || 'Vendor',
+    poName: (id?: string | null) => salesOrders.find(s2 => s2.id === id)?.poNumber || 'PO',
+  }
+  const barisTampil = sortRows(lines, urut, namaProduk)
+  const grup = groupRows(barisTampil, kelompok, labelGrup)
+  const idTampil = barisTampil.map(l => l.id)
+  const terpilih = lines.filter(l => pilih.has(l.id))
+
+  /** Terapkan satu keputusan ke semua baris yang dicentang. */
+  const massal = async (patch: Record<string, unknown>, pesan: string) => {
+    if (terpilih.length === 0) return
+    for (const l of terpilih) await updatePurchaseItem(l.id, patch)
+    toast.success(`${terpilih.length} barang: ${pesan}`)
+  }
+
+  const massalHandling = async (isOnline: boolean, handling: Handling) => {
+    if (terpilih.length === 0) return
+    const method = toPurchaseMethod(isOnline, handling)
+    for (const l of terpilih) {
+      await updatePurchaseItem(l.id, {
+        purchaseMethod: method,
+        qtyPurchased: (method === 'Vendor' || method === 'Dropship') ? (l.qtyTarget ?? 0) : 0,
+      })
+    }
+    toast.success(`${terpilih.length} barang: ${isOnline ? 'beli online' : HANDLING_LABEL[handling]}`)
+  }
 
   const setHandling = (itemId: string, isOnline: boolean, handling: Handling) => {
     const method = toPurchaseMethod(isOnline, handling)
@@ -321,9 +358,115 @@ export default function PurchasePlanPage() {
               </div>
             </div>
 
+            {/* Alat bantu: urutkan, kelompokkan, pilih beramai-ramai. */}
+            <div className="px-5 py-3 border-b bg-white dark:bg-slate-950 flex flex-wrap items-center gap-3">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Urutkan</label>
+              <select
+                className="h-9 rounded-lg border border-slate-200 px-2 text-xs font-bold bg-white dark:bg-slate-900"
+                value={urut}
+                onChange={e => setUrut(e.target.value as SortKey)}
+              >
+                <option value="nama">Nama barang</option>
+                <option value="qty">Qty terbanyak</option>
+                <option value="harga">Harga tertinggi</option>
+                <option value="nilai">Nilai terbesar</option>
+              </select>
+
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Kelompokkan</label>
+              <select
+                className="h-9 rounded-lg border border-slate-200 px-2 text-xs font-bold bg-white dark:bg-slate-900"
+                value={kelompok}
+                onChange={e => setKelompok(e.target.value as GroupKey)}
+              >
+                <option value="none">Tanpa kelompok</option>
+                <option value="vendor">Per vendor</option>
+                <option value="po">Per PO klien</option>
+                <option value="bayar">Per cara bayar</option>
+                <option value="jalur">Per jalur beli</option>
+              </select>
+
+              <div className="ml-auto text-[10px] font-black uppercase tracking-widest text-slate-400">
+                {pilih.size > 0 ? `${pilih.size} dipilih` : `${lines.length} barang`}
+              </div>
+            </div>
+
+            {terpilih.length > 0 && (
+              <div className="px-5 py-3 border-b bg-emerald-50/70 dark:bg-emerald-950/20 flex flex-wrap items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700">
+                  Terapkan ke {terpilih.length} barang
+                </span>
+
+                <select
+                  className="h-9 rounded-lg border border-emerald-200 px-2 text-xs font-bold bg-white dark:bg-slate-900"
+                  value=""
+                  onChange={e => {
+                    const v = e.target.value
+                    if (!v) return
+                    if (v === 'online') massalHandling(true, 'vendor-antar-gudang')
+                    else massalHandling(false, v as Handling)
+                    e.target.value = ''
+                  }}
+                >
+                  <option value="">Jalur beli…</option>
+                  <option value="online">Beli online</option>
+                  {(Object.keys(HANDLING_LABEL) as Handling[]).map(h => (
+                    <option key={h} value={h}>{HANDLING_LABEL[h]}</option>
+                  ))}
+                </select>
+
+                <select
+                  className="h-9 rounded-lg border border-emerald-200 px-2 text-xs font-bold bg-white dark:bg-slate-900"
+                  value=""
+                  onChange={e => {
+                    const v = e.target.value
+                    if (!v) return
+                    massal({ plannedVendorId: v }, `vendor ${vendors.find(x => x.id === v)?.companyName || ''}`)
+                    e.target.value = ''
+                  }}
+                >
+                  <option value="">Vendor…</option>
+                  {selectableVendors(vendors).map(v => (
+                    <option key={v.id} value={v.id}>{v.companyName}</option>
+                  ))}
+                </select>
+
+                <select
+                  className="h-9 rounded-lg border border-emerald-200 px-2 text-xs font-bold bg-white dark:bg-slate-900"
+                  value=""
+                  onChange={e => {
+                    const v = e.target.value
+                    if (!v) return
+                    massal({ paymentMethod: v }, `bayar ${v}`)
+                    e.target.value = ''
+                  }}
+                >
+                  <option value="">Cara bayar…</option>
+                  <option value="Cash">Cash (bawa uang)</option>
+                  <option value="Tempo">Tempo (bayar belakangan)</option>
+                  <option value="Transfer">Transfer (dibayar kantor)</option>
+                </select>
+
+                <Button
+                  variant="ghost"
+                  className="h-9 font-black text-[10px] uppercase tracking-widest text-slate-400"
+                  onClick={() => setPilih(new Set())}
+                >
+                  Batal pilih
+                </Button>
+              </div>
+            )}
+
             <Table>
               <TableHeader>
                 <TableRow className="bg-slate-50 dark:bg-slate-900/50">
+                  <TableHead className="w-10">
+                    <input
+                      type="checkbox"
+                      className="w-4 h-4 accent-emerald-600"
+                      checked={idTampil.length > 0 && idTampil.every(id => pilih.has(id))}
+                      onChange={() => setPilih(prev => toggleAll(idTampil, prev))}
+                    />
+                  </TableHead>
                   <TableHead className="text-[10px] font-black">Barang</TableHead>
                   <TableHead className="text-[10px] font-black">Untuk PO</TableHead>
                   <TableHead className="text-[10px] font-black text-center w-24">Qty</TableHead>
@@ -335,7 +478,26 @@ export default function PurchasePlanPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {lines.map(line => {
+                {grup.map(g => (
+                  <React.Fragment key={g.key}>
+                    {g.label && (
+                      <TableRow className="bg-slate-100/70 dark:bg-slate-800/50">
+                        <TableCell colSpan={9} className="py-1.5">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              className="w-4 h-4 accent-emerald-600"
+                              checked={g.rows.length > 0 && g.rows.every(r => pilih.has(r.id))}
+                              onChange={() => setPilih(prev => toggleAll(g.rows.map(r => r.id), prev))}
+                            />
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                              {g.label} · {g.rows.length} barang
+                            </span>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {g.rows.map(line => {
                   const product = products.find(p => p.id === line.productId)
                   const so = salesOrders.find(s => s.id === line.salesOrderId)
                   const client = clients.find(c => c.id === so?.clientId)
@@ -344,7 +506,19 @@ export default function PurchasePlanPage() {
                   const isPasar = line.purchaseMethod === 'Pasar'
 
                   return (
-                    <TableRow key={line.id} className={cn(!planned && "bg-amber-50/40 dark:bg-amber-950/10")}>
+                    <TableRow key={line.id} className={cn(!planned && "bg-amber-50/40 dark:bg-amber-950/10", pilih.has(line.id) && "bg-emerald-50/60 dark:bg-emerald-950/20")}>
+                      <TableCell>
+                        <input
+                          type="checkbox"
+                          className="w-4 h-4 accent-emerald-600"
+                          checked={pilih.has(line.id)}
+                          onChange={() => setPilih(prev => {
+                            const next = new Set(prev)
+                            if (next.has(line.id)) next.delete(line.id); else next.add(line.id)
+                            return next
+                          })}
+                        />
+                      </TableCell>
                       <TableCell>
                         <p className="font-bold text-sm">{product?.name}</p>
                         <p className="text-[9px] text-slate-400 font-bold uppercase">{product?.skuCode}</p>
@@ -442,7 +616,9 @@ export default function PurchasePlanPage() {
                       </TableCell>
                     </TableRow>
                   )
-                })}
+                    })}
+                  </React.Fragment>
+                ))}
               </TableBody>
             </Table>
 
