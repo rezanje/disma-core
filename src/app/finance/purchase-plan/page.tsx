@@ -6,7 +6,7 @@ import { useAppStore } from "@/lib/store"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ClipboardList, PackageCheck, ShoppingBag, AlertTriangle } from "lucide-react"
+import { ClipboardList, PackageCheck, ShoppingBag, AlertTriangle, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { cn, formatRupiah } from "@/lib/utils"
 import { selectableVendors } from "@/lib/vendor-status"
@@ -50,6 +50,10 @@ export default function PurchasePlanPage() {
   const [pilih, setPilih] = useState<Set<string>>(new Set())
   const [urut, setUrut] = useState<SortKey>('nama')
   const [kelompok, setKelompok] = useState<GroupKey>('none')
+  // Aksi massal menulis baris satu per satu ke server, jadi bisa terasa lama. Tanpa
+  // tanda apa pun orang mengira kliknya tidak masuk lalu mengklik lagi — dan klik
+  // kedua menimpa yang pertama di tengah jalan.
+  const [massalJalan, setMassalJalan] = useState(false)
 
   const waiting = purchases.filter(p => p.status === 'Menunggu Rencana')
 
@@ -71,21 +75,33 @@ export default function PurchasePlanPage() {
 
   /** Terapkan satu keputusan ke semua baris yang dicentang. */
   const massal = async (patch: Record<string, unknown>, pesan: string) => {
-    if (terpilih.length === 0) return
-    for (const l of terpilih) await updatePurchaseItem(l.id, patch)
-    toast.success(`${terpilih.length} barang: ${pesan}`)
+    if (terpilih.length === 0 || massalJalan) return
+    setMassalJalan(true)
+    try {
+      // Barengan, bukan satu per satu: tiap baris adalah catatan berbeda, dan bagian
+      // yang mengubah isi store berjalan tuntas sebelum permintaan jaringannya
+      // dimulai — jadi tidak ada yang saling menimpa. Dua puluh baris berhenti
+      // menunggu dua puluh giliran.
+      await Promise.all(terpilih.map(l => updatePurchaseItem(l.id, patch)))
+      toast.success(`${terpilih.length} barang: ${pesan}`)
+    } finally {
+      setMassalJalan(false)
+    }
   }
 
   const massalHandling = async (isOnline: boolean, handling: Handling) => {
-    if (terpilih.length === 0) return
-    const method = toPurchaseMethod(isOnline, handling)
-    for (const l of terpilih) {
-      await updatePurchaseItem(l.id, {
+    if (terpilih.length === 0 || massalJalan) return
+    setMassalJalan(true)
+    try {
+      const method = toPurchaseMethod(isOnline, handling)
+      await Promise.all(terpilih.map(l => updatePurchaseItem(l.id, {
         purchaseMethod: method,
         qtyPurchased: (method === 'Vendor' || method === 'Dropship') ? (l.qtyTarget ?? 0) : 0,
-      })
+      })))
+      toast.success(`${terpilih.length} barang: ${isOnline ? 'beli online' : HANDLING_LABEL[handling]}`)
+    } finally {
+      setMassalJalan(false)
     }
-    toast.success(`${terpilih.length} barang: ${isOnline ? 'beli online' : HANDLING_LABEL[handling]}`)
   }
 
   const setHandling = (itemId: string, isOnline: boolean, handling: Handling) => {
@@ -259,12 +275,14 @@ export default function PurchasePlanPage() {
 
             {terpilih.length > 0 && (
               <div className="px-5 py-3 border-b bg-emerald-50/70 dark:bg-emerald-950/20 flex flex-wrap items-center gap-2">
-                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700">
-                  Terapkan ke {terpilih.length} barang
+                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700 flex items-center gap-2">
+                  {massalJalan && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  {massalJalan ? `Menyimpan ${terpilih.length} barang…` : `Terapkan ke ${terpilih.length} barang`}
                 </span>
 
                 <select
-                  className="h-9 rounded-lg border border-emerald-200 px-2 text-xs font-bold bg-white dark:bg-slate-900"
+                  className="h-9 rounded-lg border border-emerald-200 px-2 text-xs font-bold bg-white dark:bg-slate-900 disabled:opacity-50"
+                  disabled={massalJalan}
                   value=""
                   onChange={e => {
                     const v = e.target.value
@@ -282,7 +300,8 @@ export default function PurchasePlanPage() {
                 </select>
 
                 <select
-                  className="h-9 rounded-lg border border-emerald-200 px-2 text-xs font-bold bg-white dark:bg-slate-900"
+                  className="h-9 rounded-lg border border-emerald-200 px-2 text-xs font-bold bg-white dark:bg-slate-900 disabled:opacity-50"
+                  disabled={massalJalan}
                   value=""
                   onChange={e => {
                     const v = e.target.value
@@ -298,7 +317,8 @@ export default function PurchasePlanPage() {
                 </select>
 
                 <select
-                  className="h-9 rounded-lg border border-emerald-200 px-2 text-xs font-bold bg-white dark:bg-slate-900"
+                  className="h-9 rounded-lg border border-emerald-200 px-2 text-xs font-bold bg-white dark:bg-slate-900 disabled:opacity-50"
+                  disabled={massalJalan}
                   value=""
                   onChange={e => {
                     const v = e.target.value
@@ -316,6 +336,7 @@ export default function PurchasePlanPage() {
                 <Button
                   variant="ghost"
                   className="h-9 font-black text-[10px] uppercase tracking-widest text-slate-400"
+                  disabled={massalJalan}
                   onClick={() => setPilih(new Set())}
                 >
                   Batal pilih
