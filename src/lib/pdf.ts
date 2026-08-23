@@ -94,6 +94,12 @@ function drawSalesOrderOnDoc(doc: jsPDF, poNumber: string) {
   doc.setFont("helvetica", "normal")
   doc.text(client?.companyName || 'Unknown', 130, 54)
   doc.text(client?.address || '', 130, 59, { maxWidth: 60 })
+  if (so.targetDeliveryDate) {
+    doc.setFont("helvetica", "bold")
+    doc.text("Target Kirim:", 14, 48)
+    doc.setFont("helvetica", "normal")
+    doc.text(format(new Date(so.targetDeliveryDate), 'dd MMM yyyy'), 14, 54)
+  }
 
   let y = 80
   doc.setFillColor(240, 240, 240)
@@ -107,6 +113,7 @@ function drawSalesOrderOnDoc(doc: jsPDF, poNumber: string) {
 
   doc.setFont("helvetica", "normal")
   y += 18
+  let grandTotal = 0
   items.forEach((item, index) => {
     const product = store.products.find(p => p.id === item.productId)
     doc.text(`${index + 1}`, 16, y)
@@ -114,8 +121,21 @@ function drawSalesOrderOnDoc(doc: jsPDF, poNumber: string) {
     doc.text(`${item.qty}`, 120, y)
     doc.text(formatRupiahValue(item.unitPrice), 140, y)
     doc.text(formatRupiahValue(item.subtotal), 175, y)
+    grandTotal += Number(item.subtotal || 0)
     y += 10
   })
+
+  // Total dan tanggal kirim: lembar ini dikirim balik ke klien sebagai konfirmasi
+  // pesanan, dan konfirmasi tanpa total maupun tanggal tidak menyelesaikan
+  // perdebatan apa pun.
+  y += 4
+  doc.setDrawColor(200, 200, 200)
+  doc.line(120, y, 196, y)
+  y += 8
+  doc.setFont("helvetica", "bold")
+  doc.text("TOTAL", 140, y)
+  doc.text(formatRupiahValue(grandTotal), 175, y)
+  doc.setFont("helvetica", "normal")
 
   y += 20
   drawSignatures(doc, "Kepala Admin (Gudang)", "Pemesan (Client)", y + 20)
@@ -194,6 +214,21 @@ function drawSuratJalanOnDoc(
   
   // Use signatures if provided
   drawSignatures(doc, "Tim Gudang (Pengirim)", "Penerima (Klien)", y + 20, signatures?.courier, signatures?.client)
+}
+
+/**
+ * Lembar Sales Order untuk satu PO — konfirmasi pesanan yang dikirim balik ke klien.
+ *
+ * Memakai penggambar yang sama dengan halaman pertama bundel Tukar Faktur, jadi apa
+ * yang dikonfirmasi ke klien di awal adalah persis apa yang ditagihkan di akhir.
+ */
+export function generateSalesOrderPDF(poNumber: string, outputType: 'save' | 'dataurl' = 'save') {
+  const doc = new jsPDF({ compress: true })
+  drawSalesOrderOnDoc(doc, poNumber)
+  // drawSalesOrderOnDoc selalu membuka halaman baru dulu, jadi halaman pertama kosong.
+  doc.deletePage(1)
+  if (outputType === 'dataurl') return doc.output('datauristring')
+  doc.save(`Sales_Order_${poNumber}.pdf`)
 }
 
 export function generateSuratJalan(

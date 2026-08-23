@@ -57,7 +57,7 @@ import { Printer } from "lucide-react"
 import { toast } from "sonner"
 import { generateDocumentNumber, updateProductPriceHistory, finalizeSalesOrderDelivery } from "@/lib/accounting"
 import ReceiptUpload from "@/components/ui/receipt-upload"
-import { generateSuratJalan, generateBA } from "@/lib/pdf"
+import { generateSuratJalan, generateBA, generateSalesOrderPDF } from "@/lib/pdf"
 import { roundQtyToBook, nextSoStatus } from "@/lib/backorder"
 import { pendingEdits } from "@/lib/order-edits"
 import {
@@ -1769,6 +1769,35 @@ export default function SalesOrdersPage() {
                             <Trash2 className="h-4 w-4" />
                           </Button>
                           
+                          {/* Konfirmasi pesanan buat dikirim balik ke klien. Tidak dibatasi
+                              status: justru paling berguna selagi pesanannya masih baru,
+                              sebelum barangnya dibelanjakan — di situlah salah qty atau
+                              salah harga masih murah untuk dibetulkan. */}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            title="Cetak Sales Order (konfirmasi pesanan ke klien)"
+                            onClick={() => {
+                              toast.loading("Menyiapkan Sales Order...", { id: "so_gen" })
+                              setTimeout(() => {
+                                try {
+                                  const url = generateSalesOrderPDF(so.poNumber, 'dataurl')
+                                  if (url) {
+                                    setPdfPreview({ url: url as string, title: `Sales Order - ${so.poNumber}` })
+                                    toast.success("Siap!", { id: "so_gen" })
+                                  } else {
+                                    toast.error("Gagal generate PDF", { id: "so_gen" })
+                                  }
+                                } catch (e) {
+                                  console.error(e)
+                                  toast.error("Error PDF", { id: "so_gen" })
+                                }
+                              }, 100)
+                            }}
+                          >
+                            <Printer className="h-4 w-4 mr-1" /> SO
+                          </Button>
+
                           {so.status !== 'Draft' && (
                             <>
                               <Button 
