@@ -327,6 +327,7 @@ export default function PurchasePlanPage() {
                   <TableHead className="text-[10px] font-black">Barang</TableHead>
                   <TableHead className="text-[10px] font-black">Untuk PO</TableHead>
                   <TableHead className="text-[10px] font-black text-center w-24">Qty</TableHead>
+                  <TableHead className="text-[10px] font-black w-32">Harga perkiraan</TableHead>
                   <TableHead className="text-[10px] font-black">Beli online?</TableHead>
                   <TableHead className="text-[10px] font-black">Barangnya gimana</TableHead>
                   <TableHead className="text-[10px] font-black">Vendor</TableHead>
@@ -354,6 +355,24 @@ export default function PurchasePlanPage() {
                       </TableCell>
                       <TableCell className="text-center font-black text-sm">
                         {line.qtyTarget} {product?.uom}
+                      </TableCell>
+
+                      {/* Harga diisi di sini, bukan di layar Admin PO. Yang tahu harga
+                          pasar dan harga vendor adalah orang yang memilih vendornya —
+                          dan angka inilah yang jadi uang tunai yang dia serahkan sendiri
+                          ke kantong sourcing. */}
+                      <TableCell>
+                        <input
+                          type="number"
+                          min="0"
+                          className="h-9 w-28 rounded-lg border border-slate-200 px-2 text-xs font-bold bg-white dark:bg-slate-900 text-right"
+                          value={line.estimatedUnitPrice || ''}
+                          placeholder="0"
+                          onChange={e => setLine(line.id, { estimatedUnitPrice: parseFloat(e.target.value) || 0 })}
+                        />
+                        <span className="block text-[9px] text-slate-400 font-bold mt-0.5">
+                          per {product?.uom || 'unit'}
+                        </span>
                       </TableCell>
 
                       {/* Baris yang belum direncanakan TIDAK menampilkan jawaban default.

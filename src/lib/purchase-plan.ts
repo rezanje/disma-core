@@ -52,6 +52,7 @@ export type PlannableLine = {
   purchaseMethod?: string | null;
   paymentMethod?: string | null;
   plannedVendorId?: string | null;
+  estimatedUnitPrice?: number | null;
 };
 
 /**
@@ -61,6 +62,10 @@ export type PlannableLine = {
  */
 export function lineIsPlanned(line: PlannableLine): boolean {
   if (!line.purchaseMethod || !line.paymentMethod) return false;
+  // Barang tunai tanpa harga membuat uang yang diserahkan ke kantong jadi nol untuk
+  // baris itu — orangnya berangkat ke pasar dengan uang kurang, dan tidak ada yang
+  // memberi tahu. Harga adalah bagian dari rencana, bukan pelengkap.
+  if (line.paymentMethod === 'Cash' && !(Number(line.estimatedUnitPrice || 0) > 0)) return false;
   if (line.purchaseMethod === 'Pasar') return true;
   return !!line.plannedVendorId;
 }

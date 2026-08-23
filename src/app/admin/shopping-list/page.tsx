@@ -4,7 +4,7 @@ import { useAppStore } from "@/lib/store"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ShoppingBasket, RefreshCw, Printer, Plus, Search, Check, ChevronsUpDown, Trash2, Globe, ShoppingBag, FileText, X, Download, Loader2, CheckCircle2, Banknote, Store, Carrot, Apple, Laptop, ShoppingCart, ArrowRightLeft, CircleDollarSign, Warehouse, AlertTriangle, Undo2, ChevronDown, ChevronUp } from "lucide-react"
+import { ShoppingBasket, RefreshCw, Printer, Plus, Search, Check, ChevronsUpDown, Trash2, FileText, X, Download, Loader2, CheckCircle2, Store, Carrot, Apple, Laptop, ShoppingCart, Warehouse, AlertTriangle, ChevronDown, ChevronUp } from "lucide-react"
 import React, { useEffect, useMemo, useState } from "react"
 import { v4 as uuidv4 } from "uuid"
 import { toast } from "sonner"
@@ -15,7 +15,6 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn, formatRupiah } from "@/lib/utils"
-import { selectableVendors } from "@/lib/vendor-status"
 import { qtyOwed } from "@/lib/backorder"
 import GlobalUndoButton from "@/components/global-undo-button"
 import { PdfCanvasPreview } from "@/components/pdf-canvas-preview"
@@ -75,56 +74,7 @@ export default function ShoppingListPage() {
   const [isDeletingPurchase, setIsDeletingPurchase] = useState<string | null>(null)
   const [selectedHistoryPurchaseId, setSelectedHistoryPurchaseId] = useState<string | null>(null)
 
-  const addVendor = useAppStore(state => state.addVendor)
-  const [isAddVendorOpen, setIsAddVendorOpen] = useState(false)
-  const [autoAssignProductId, setAutoAssignProductId] = useState<string | null>(null)
-  const [newVendorData, setNewVendorData] = useState({
-    companyName: "",
-    picName: "",
-    phone: "",
-    address: "",
-    isTempo: false,
-    paymentTermDays: 14
-  })
 
-  const handleSaveVendor = () => {
-    if (!newVendorData.companyName.trim()) {
-      toast.error("Nama Perusahaan Vendor wajib diisi.")
-      return
-    }
-    const vendorId = uuidv4()
-    const newVendor = {
-      id: vendorId,
-      companyName: newVendorData.companyName.trim(),
-      picName: newVendorData.picName.trim(),
-      email: "",
-      phone: newVendorData.phone.trim(),
-      address: newVendorData.address.trim(),
-      isTempo: newVendorData.isTempo,
-      paymentTermDays: newVendorData.isTempo ? newVendorData.paymentTermDays : 0,
-      createdAt: new Date().toISOString()
-    }
-    addVendor(newVendor)
-    toast.success(`Vendor ${newVendor.companyName} berhasil ditambahkan!`)
-    if (autoAssignProductId) {
-      setVendorAssignments(prev => ({
-        ...prev,
-        [autoAssignProductId]: vendorId
-      }))
-      setAutoAssignProductId(null)
-    } else {
-      setBulkVendorId(vendorId)
-    }
-    setNewVendorData({
-      companyName: "",
-      picName: "",
-      phone: "",
-      address: "",
-      isTempo: false,
-      paymentTermDays: 14
-    })
-    setIsAddVendorOpen(false)
-  }
   const [manualItems, setManualItems] = useState<Array<{id: string, productId: string, qty: number, price: number, source: 'manual' | 'susulan'}>>(() => {
     if (typeof window === 'undefined') return []
     try {
@@ -197,7 +147,6 @@ export default function ShoppingListPage() {
   })
   const [pdfPreview, setPdfPreview] = useState<{ url: string, title: string } | null>(null)
   const [selectedPRId, setSelectedPRId] = useState<string>('')
-  const [bulkVendorId, setBulkVendorId] = useState<string>('')
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set())
 
   // Persist state to localStorage on change
@@ -352,104 +301,13 @@ export default function ShoppingListPage() {
   const rowKey = (row: { productId: string; salesOrderId?: string }) =>
     `${row.productId}::${row.salesOrderId || ''}`
 
-  const selectPasar = (key: string) => {
-    saveToHistory()
-    setStockBookedProductIds(prev => {
-      const next = new Set(prev)
-      next.delete(key)
-      return next
-    })
-    setOnlineProductIds(prev => {
-      const next = new Set(prev)
-      next.delete(key)
-      return next
-    })
-    setVendorProductIds(prev => {
-      const next = new Set(prev)
-      next.delete(key)
-      return next
-    })
-    setDropshipProductIds(prev => {
-      const next = new Set(prev)
-      next.delete(key)
-      return next
-    })
-    // Transfer bayar tidak berlaku di Pasar — turunkan ke Cash bila sebelumnya Transfer.
-    setPaymentByProduct(prev => prev[key] === 'Transfer' ? { ...prev, [key]: 'Cash' } : prev)
-  }
 
-  const selectOnline = (key: string) => {
-    saveToHistory()
-    setStockBookedProductIds(prev => {
-      const next = new Set(prev)
-      next.delete(key)
-      return next
-    })
-    setOnlineProductIds(prev => {
-      const next = new Set(prev)
-      next.add(key)
-      return next
-    })
-    setVendorProductIds(prev => {
-      const next = new Set(prev)
-      next.delete(key)
-      return next
-    })
-    setDropshipProductIds(prev => {
-      const next = new Set(prev)
-      next.delete(key)
-      return next
-    })
-  }
 
-  const selectVendor = (key: string) => {
-    saveToHistory()
-    setStockBookedProductIds(prev => {
-      const next = new Set(prev)
-      next.delete(key)
-      return next
-    })
-    setVendorProductIds(prev => {
-      const next = new Set(prev)
-      next.add(key)
-      return next
-    })
-    setOnlineProductIds(prev => {
-      const next = new Set(prev)
-      next.delete(key)
-      return next
-    })
-    setDropshipProductIds(prev => {
-      const next = new Set(prev)
-      next.delete(key)
-      return next
-    })
-  }
 
   // Vendor mengantar langsung ke klien. Hanya untuk baris yang terikat sebuah PO —
   // baris stok manual tidak punya tujuan pengiriman. Uang tunai tidak berlaku:
   // tidak ada orang kita di lokasi serah terima, jadi naikkan Cash ke Transfer.
-  const selectDropship = (key: string, salesOrderId?: string) => {
-    if (!salesOrderId) {
-      toast.error("Kiriman langsung ke klien cuma bisa untuk barang yang nempel ke PO.")
-      return
-    }
-    saveToHistory()
-    setStockBookedProductIds(prev => { const next = new Set(prev); next.delete(key); return next })
-    setOnlineProductIds(prev => { const next = new Set(prev); next.delete(key); return next })
-    setVendorProductIds(prev => { const next = new Set(prev); next.delete(key); return next })
-    setDropshipProductIds(prev => { const next = new Set(prev); next.add(key); return next })
-    setPaymentByProduct(prev => (prev[key] || 'Cash') === 'Cash' ? { ...prev, [key]: 'Transfer' } : prev)
-  }
 
-  const setPaymentMethod = (key: string, method: 'Cash' | 'Tempo' | 'Transfer') => {
-    if (method === 'Cash' && dropshipProductIds.has(key)) {
-      toast.error("Kiriman langsung ke klien nggak bisa bayar tunai — pilih Transfer atau Tempo.")
-      return
-    }
-    saveToHistory()
-    setPaymentByProduct(prev => ({ ...prev, [key]: method }))
-  }
 
   const toggleStockBooked = (key: string) => {
     saveToHistory()
@@ -480,22 +338,6 @@ export default function ShoppingListPage() {
   }
 
   // Assign the chosen vendor to all checked items at once.
-  const applyVendorToSelected = () => {
-    if (!bulkVendorId) { toast.error("Pilih vendor dulu di dropdown."); return }
-    if (selectedItemIds.size === 0) { toast.error("Centang item dulu yang mau di-set."); return }
-    saveToHistory()
-    setVendorAssignments(prev => {
-      const next = { ...prev }
-      selectedItemIds.forEach(key => {
-        if (stockBookedProductIds.has(key)) return
-        next[key] = bulkVendorId
-      })
-      return next
-    })
-    const vName = vendors.find(v => v.id === bulkVendorId)?.companyName || 'vendor'
-    toast.success(`${selectedItemIds.size} item di-assign ke ${vName}.`)
-    setSelectedItemIds(new Set())
-  }
 
   // Quantity already reserved (booked) against warehouse stock from prior bookings.
   // Used to compute available-to-promise stock = currentStock - alreadyBooked.
@@ -1513,216 +1355,40 @@ export default function ShoppingListPage() {
                   )
                 })()}
 
-                {/* Bulk vendor assignment — select items then apply */}
-                <div className="flex flex-wrap items-center gap-2 p-3 rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/40">
-                  <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-emerald-700 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      className="w-4 h-4 accent-emerald-600"
-                      checked={consolidatedList.length > 0 && selectedItemIds.size === consolidatedList.length}
-                      onChange={(e) => {
-                        if (e.target.checked) setSelectedItemIds(new Set(consolidatedList.map(i => i.productId)))
-                        else setSelectedItemIds(new Set())
-                      }}
-                    />
-                    Pilih Semua
-                  </label>
-                  <span className="text-[10px] font-bold text-slate-500">{selectedItemIds.size} dipilih</span>
-                  <div className="h-5 w-px bg-emerald-200 mx-1" />
-                  <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Set Vendor</span>
-                  <div className="flex items-center gap-1">
-                    <select
-                      className="text-xs p-2 border rounded-lg bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500 min-w-[160px]"
-                      value={bulkVendorId}
-                      onChange={(e) => setBulkVendorId(e.target.value)}
-                    >
-                      <option value="">-- Pilih Vendor --</option>
-                      {selectableVendors(vendors).map(v => (
-                        <option key={v.id} value={v.id}>{v.companyName}</option>
-                      ))}
-                    </select>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      type="button"
-                      onClick={() => {
-                        setAutoAssignProductId(null)
-                        setIsAddVendorOpen(true)
-                      }}
-                      className="h-9 w-9 p-0 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg border border-slate-200"
-                      title="Tambah Vendor Baru"
-                    >
-                      <Plus className="h-4 w-4 text-emerald-600" />
-                    </Button>
-                  </div>
-                  <Button
-                    size="sm"
-                    className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] uppercase tracking-widest"
-                    disabled={!bulkVendorId || selectedItemIds.size === 0}
-                    onClick={applyVendorToSelected}
-                  >
-                    Terapkan ke {selectedItemIds.size} item
-                  </Button>
-                  {selectedItemIds.size > 0 && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-9 font-black text-[10px] uppercase tracking-widest text-slate-400 hover:text-slate-700"
-                      onClick={() => setSelectedItemIds(new Set())}
-                    >
-                      Batal Pilih
-                    </Button>
-                  )}
-                  {/* Manual picks live in localStorage and outrank product.defaultVendorId, so a
-                      stale choice keeps showing the old vendor after the purchase data changes. */}
-                  {Object.keys(vendorAssignments).length > 0 && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-9 font-black text-[10px] uppercase tracking-widest text-slate-400 hover:text-emerald-700"
-                      title="Buang semua pilihan vendor manual, ikuti vendor dari data pembelian"
-                      onClick={() => {
-                        const n = Object.keys(vendorAssignments).length
-                        saveToHistory()
-                        setVendorAssignments({})
-                        toast.success(`${n} pilihan vendor manual dibuang — sekarang ikut data pembelian.`)
-                      }}
-                    >
-                      <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-                      Pakai Vendor dari Data ({Object.keys(vendorAssignments).length})
-                    </Button>
-                  )}
-                </div>
+                {/* Pemilihan vendor dihapus dari layar ini (23 Agu 2026). Yang tahu
+                    vendor dan harganya adalah Finance, dan sejak 16 Agu pilihan di sini
+                    memang tidak pernah tersimpan — dibuang saat dokumen dibuat. Layar ini
+                    sekarang murni: PO mana, barang apa, berapa banyak, mana yang diambil
+                    dari gudang. Vendor, jalur beli, cara bayar dan harga diisi Finance di
+                    Rencana Pembelian. */}
 
                 <div className="rounded-md border bg-slate-50 dark:bg-slate-900 shadow-inner">
 
-                  {/* Vendor Grouping Logic */}
+                  {/* Dikelompokkan per vendor sampai 23 Agu 2026. Vendornya diputuskan
+                      Finance sekarang, jadi di layar ini semua barang selalu jatuh ke satu
+                      kelompok "belum ada vendor" — judul kelompok yang tersisa cuma
+                      membingungkan. Daftarnya jadi satu, urut apa adanya. */}
                   {(() => {
-                    const groups: Record<string, typeof consolidatedList> = { unassigned: [] };
-                    consolidatedList.forEach(item => {
-                      const key = item.vendorId || 'unassigned';
-                      if (!groups[key]) groups[key] = [];
-                      groups[key].push(item);
-                    });
-                    const vendorKeys = Object.keys(groups).filter(k => k !== 'unassigned');
                     return (
                       <Table className="min-w-[1000px]">
                         <TableHeader>
                           <TableRow>
                             <TableHead className="w-[70px]">SKU</TableHead>
                             <TableHead className="min-w-[200px]">Product</TableHead>
-                            <TableHead className="w-[120px]">Vendor</TableHead>
                             <TableHead className="w-[85px] text-right">Kebutuhan</TableHead>
                             <TableHead className="w-[90px] text-right">Stok Gudang</TableHead>
                             <TableHead className="w-[95px] text-right">Qty Beli</TableHead>
                             <TableHead className="w-[110px] text-right">Sell Price</TableHead>
                             <TableHead className="w-[140px] text-right">Est. Buy</TableHead>
                             <TableHead className="w-[110px] text-right">Subtotal</TableHead>
-                            <TableHead className="w-[140px] text-center">Lokasi Ambil</TableHead>
-                            <TableHead className="w-[120px] text-center">Metode Bayar</TableHead>
+                            <TableHead className="w-[140px] text-center">Aksi</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {[...vendorKeys, 'unassigned'].map(vKey => {
-                            const items = groups[vKey];
+                          {[consolidatedList].map((items, gIdx) => {
                             if (items.length === 0) return null;
-                            const vName = vKey === 'unassigned' ? 'Tanpa Vendor / Bebas' : vendors.find(v => v.id === vKey)?.companyName || 'Unknown Vendor';
-                            
                             return (
-                              <React.Fragment key={vKey}>
-                                <TableRow className="bg-slate-100/50 dark:bg-slate-800/50 border-y-2 border-slate-200">
-                                  <TableCell colSpan={11} className="py-1.5 px-4">
-                                    <div className="flex items-center justify-between w-full gap-2 flex-wrap">
-                                      <span className="text-xs font-black uppercase tracking-widest text-slate-500">{vName}</span>
-                                      <div className="flex items-center gap-1.5 shrink-0">
-                                        {/* Bulk lokasi + metode bayar - hanya tampil untuk vendor yang teridentifikasi */}
-                                        {vKey !== 'unassigned' && items.length > 0 && (
-                                          <>
-                                            <div className="flex items-center gap-1 border border-slate-200 rounded-lg p-0.5 bg-white">
-                                              <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 pl-1.5 pr-0.5">Lokasi:</span>
-                                              <button
-                                                onClick={() => { saveToHistory(); items.forEach(i => selectPasar(rowKey(i))) }}
-                                                className="px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105 bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100"
-                                                title={`Set semua ${items.length} item di ${vName} ke Pasar`}
-                                              >
-                                                Pasar
-                                              </button>
-                                              <button
-                                                onClick={() => { saveToHistory(); items.forEach(i => selectOnline(rowKey(i))) }}
-                                                className="px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105 bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
-                                                title={`Set semua ${items.length} item di ${vName} ke Beli Online`}
-                                              >
-                                                Beli Online
-                                              </button>
-                                              <button
-                                                onClick={() => { saveToHistory(); items.forEach(i => selectVendor(rowKey(i))) }}
-                                                className="px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105 bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100"
-                                                title={`Set semua ${items.length} item di ${vName} ke Vendor`}
-                                              >
-                                                Vendor
-                                              </button>
-                                              <button
-                                                onClick={() => {
-                                                  // Baris stok manual tidak punya tujuan kirim — lewati diam-diam
-                                                  // supaya bulk tidak memuntahkan satu toast error per baris.
-                                                  const eligible = items.filter(i => i.salesOrderId)
-                                                  if (eligible.length === 0) {
-                                                    toast.error("Nggak ada barang di grup ini yang nempel ke PO.")
-                                                    return
-                                                  }
-                                                  saveToHistory()
-                                                  eligible.forEach(i => selectDropship(rowKey(i), i.salesOrderId))
-                                                  if (eligible.length < items.length) {
-                                                    toast.info(`${items.length - eligible.length} barang stok manual dilewati.`)
-                                                  }
-                                                }}
-                                                className="px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105 bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100"
-                                                title={`Set semua ${items.length} item di ${vName} ke antar langsung ke klien`}
-                                              >
-                                                Ke Klien
-                                              </button>
-                                            </div>
-                                            <div className="flex items-center gap-1 border border-slate-200 rounded-lg p-0.5 bg-white">
-                                              <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 pl-1.5 pr-0.5">Bayar:</span>
-                                              <button
-                                                onClick={() => { items.forEach(i => setPaymentMethod(rowKey(i), 'Cash')) }}
-                                                className="px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105 bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100"
-                                                title={`Set semua ${items.length} item di ${vName} ke Cash`}
-                                              >
-                                                Cash
-                                              </button>
-                                              <button
-                                                onClick={() => { items.forEach(i => setPaymentMethod(rowKey(i), 'Tempo')) }}
-                                                className="px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105 bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100"
-                                                title={`Set semua ${items.length} item di ${vName} ke Tempo`}
-                                              >
-                                                Tempo
-                                              </button>
-                                              <button
-                                                onClick={() => { items.forEach(i => setPaymentMethod(rowKey(i), 'Transfer')) }}
-                                                className="px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105 bg-violet-50 border-violet-200 text-violet-700 hover:bg-violet-100"
-                                                title={`Set semua ${items.length} item di ${vName} ke Transfer`}
-                                              >
-                                                Transfer
-                                              </button>
-                                            </div>
-                                          </>
-                                        )}
-                                        {items.length > 0 && (
-                                          <Button
-                                            size="sm"
-                                            variant="ghost"
-                                            type="button"
-                                            className="h-7 px-2.5 text-[10px] font-black uppercase tracking-wider text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 flex items-center gap-1 border border-emerald-200 bg-white"
-                                            onClick={() => handleOpenPdfPreview(items, `DAFTAR BELANJA VENDOR: ${vName.toUpperCase()}`)}
-                                          >
-                                            <Printer className="h-3.5 w-3.5" /> Print PDF Vendor
-                                          </Button>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </TableCell>
-                                </TableRow>
+                              <React.Fragment key={gIdx}>
                                 {items.map((item, idx) => {
                                   const product = products.find(p => p.id === item.productId);
                                   return (
@@ -1797,47 +1463,6 @@ export default function ShoppingListPage() {
                                           })()}
                                         </div>
                                       </TableCell>
-                                      <TableCell>
-                                        {item.fromStock ? (
-                                          <span className="text-[10px] font-black uppercase bg-slate-100 text-slate-600 px-2 py-1 rounded inline-flex items-center gap-1" title="Barang diambil dari Gudang">
-                                            <Warehouse className="w-3.5 h-3.5 text-slate-500" /> Gudang
-                                          </span>
-                                        ) : (
-                                          <div className="flex items-center gap-1">
-                                            <select
-                                              className="text-[10px] flex-1 min-w-[76px] p-1 border rounded bg-slate-50 text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                                              value={vendorAssignments[rowKey(item)] || item.vendorId || ''}
-                                              onChange={(e) => {
-                                                saveToHistory();
-                                                setVendorAssignments(prev => {
-                                                  const next = { ...prev };
-                                                  if (e.target.value) next[rowKey(item)] = e.target.value;
-                                                  else delete next[rowKey(item)];
-                                                  return next;
-                                                });
-                                              }}
-                                            >
-                                              <option value="">-- Pilih --</option>
-                                              {selectableVendors(vendors).map(v => (
-                                                <option key={v.id} value={v.id}>{v.companyName}</option>
-                                              ))}
-                                            </select>
-                                            <Button
-                                              size="sm"
-                                              variant="ghost"
-                                              type="button"
-                                              onClick={() => {
-                                                setAutoAssignProductId(item.productId)
-                                                setIsAddVendorOpen(true)
-                                              }}
-                                              className="h-7 w-7 p-0 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md border border-slate-200 shrink-0"
-                                              title="Tambah Vendor Baru"
-                                            >
-                                              <Plus className="h-3.5 w-3.5 text-slate-500" />
-                                            </Button>
-                                          </div>
-                                        )}
-                                      </TableCell>
                                       <TableCell className="text-right font-medium text-slate-600 pr-4">
                                         {item.kebutuhan}
                                       </TableCell>
@@ -1894,88 +1519,23 @@ export default function ShoppingListPage() {
                                             )}
                                          </div>
                                       </TableCell>
-                                      <TableCell className="text-right text-slate-500 pr-4">
-                                         <div className="flex items-center justify-end gap-1">
-                                            <span className="text-[10px] text-slate-400 font-bold shrink-0">Rp</span>
-                                            <Input
-                                               type="text"
-                                               inputMode="numeric"
-                                               className="h-8 w-24 text-right text-xs font-black border-slate-200"
-                                               placeholder="0"
-                                               value={item.estimatedPrice ? item.estimatedPrice.toLocaleString("id-ID") : ''}
-                                               onChange={(e) => {
-                                                  saveToHistory();
-                                                  const val = parseInt(e.target.value.replace(/\D/g, ""), 10) || 0
-                                                  setCustomPrices(prev => ({
-                                                     ...prev,
-                                                     [rowKey(item)]: val
-                                                  }));
-                                               }}
-                                            />
-                                         </div>
+                                      {/* Harga cuma ditampilkan di sini, tidak diketik. Yang tahu
+                                          harga vendor dan harga pasar adalah Finance, dan angka itulah
+                                          yang jadi uang tunai yang dia serahkan sendiri — jadi dia yang
+                                          mengisinya, di Rencana Pembelian. */}
+                                      <TableCell className="text-right text-slate-500 pr-4 text-xs font-bold">
+                                         {formatRupiah(item.estimatedPrice)}
+                                         <span className="block text-[9px] text-slate-400 font-bold">patokan</span>
                                       </TableCell>
                                       <TableCell className="text-right font-bold text-emerald-600 pr-4">{formatRupiah(item.estimatedPrice * item.totalQty)}</TableCell>
                                       <TableCell className="text-center">
                                          <div className="flex flex-wrap items-center justify-center gap-1 w-[140px]">
-                                            {/* Button Pasar */}
-                                            <button
-                                               onClick={() => selectPasar(rowKey(item))}
-                                               className={cn(
-                                                  "px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105",
-                                                  item.purchaseMethod === 'Pasar' && !item.fromStock
-                                                     ? "bg-emerald-100 border-emerald-300 text-emerald-700"
-                                                     : "bg-slate-50 border-slate-200 text-slate-400"
-                                               )}
-                                               title="Lokasi: Beli di Pasar"
-                                            >
-                                               Pasar
-                                            </button>
-
-                                            {/* Button Online */}
-                                            <button
-                                               onClick={() => selectOnline(rowKey(item))}
-                                               className={cn(
-                                                  "px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105",
-                                                  item.purchaseMethod === 'Online' && !item.fromStock
-                                                     ? "bg-blue-100 border-blue-300 text-blue-700"
-                                                     : "bg-slate-50 border-slate-200 text-slate-400"
-                                               )}
-                                               title="Lokasi: Beli Online"
-                                            >
-                                               Beli Online
-                                            </button>
-
-                                            {/* Button Vendor */}
-                                            <button
-                                               onClick={() => selectVendor(rowKey(item))}
-                                               className={cn(
-                                                  "px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105",
-                                                  item.purchaseMethod === 'Vendor' && !item.fromStock
-                                                     ? "bg-purple-100 border-purple-300 text-purple-700"
-                                                     : "bg-slate-50 border-slate-200 text-slate-400"
-                                               )}
-                                               title="Lokasi: Diantar/Diambil dari Vendor"
-                                            >
-                                               Vendor
-                                            </button>
-
-                                            {/* Button Vendor → Klien */}
-                                            <button
-                                               onClick={() => selectDropship(rowKey(item), item.salesOrderId)}
-                                               disabled={!item.salesOrderId}
-                                               className={cn(
-                                                  "px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105 disabled:opacity-40 disabled:hover:scale-100 disabled:cursor-not-allowed",
-                                                  item.purchaseMethod === 'Dropship' && !item.fromStock
-                                                     ? "bg-orange-100 border-orange-300 text-orange-700"
-                                                     : "bg-slate-50 border-slate-200 text-slate-400"
-                                               )}
-                                               title={item.salesOrderId
-                                                  ? "Vendor antar langsung ke klien (tidak lewat gudang)"
-                                                  : "Cuma untuk barang yang nempel ke PO"}
-                                            >
-                                               Ke Klien
-                                            </button>
-
+                                            {/* Jalur beli (Pasar / Online / Vendor / Ke Klien) dan cara
+                                                bayar TIDAK lagi dipilih di sini. Sejak 16 Agu itu wewenang
+                                                Finance di Rencana Pembelian — dan pilihan di layar ini tidak
+                                                pernah tersimpan, jadi yang tersisa cuma kerja sia-sia dan
+                                                kesan bahwa Admin PO yang memutuskan. Tombol Gudang tetap:
+                                                mengambil dari stok itu keputusan jumlah, bukan pemasok. */}
                                             {/* Button Gudang */}
                                             <button
                                                onClick={() => toggleStockBooked(rowKey(item))}
@@ -2014,56 +1574,6 @@ export default function ShoppingListPage() {
                                                <Trash2 className="w-3.5 h-3.5" />
                                             </button>
                                          </div>
-                                      </TableCell>
-                                      <TableCell className="text-center">
-                                         {item.purchaseMethod === 'Online' || item.fromStock ? (
-                                            <span className="text-[9px] text-slate-300 font-bold">—</span>
-                                         ) : (
-                                            <div className="flex flex-wrap items-center justify-center gap-1 w-[120px]">
-                                               <button
-                                                  onClick={() => setPaymentMethod(rowKey(item), 'Cash')}
-                                                  className={cn(
-                                                     "px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105",
-                                                     item.paymentMethod === 'Cash'
-                                                        ? "bg-emerald-100 border-emerald-300 text-emerald-700"
-                                                        : "bg-slate-50 border-slate-200 text-slate-400"
-                                                  )}
-                                                  title="Bayar Cash — potong kantong sourcing"
-                                               >
-                                                  Cash
-                                               </button>
-                                               <button
-                                                  onClick={() => setPaymentMethod(rowKey(item), 'Tempo')}
-                                                  className={cn(
-                                                     "px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105",
-                                                     item.paymentMethod === 'Tempo'
-                                                        ? "bg-amber-100 border-amber-300 text-amber-700"
-                                                        : "bg-slate-50 border-slate-200 text-slate-400"
-                                                  )}
-                                                  title="Tempo — hutang ke vendor, dibayar belakangan lewat AP Aging"
-                                               >
-                                                  Tempo
-                                               </button>
-                                               {/* Dropship menolak Tunai, jadi tombolnya wajib ada di sini —
-                                                   tanpa ini pesan "pilih Transfer atau Tempo" menyuruh memilih
-                                                   sesuatu yang tidak ada di layar, dan semua kiriman langsung
-                                                   ke klien terpaksa dicatat Tempo. */}
-                                               {(item.purchaseMethod === 'Vendor' || item.purchaseMethod === 'Dropship') && (
-                                                  <button
-                                                     onClick={() => setPaymentMethod(rowKey(item), 'Transfer')}
-                                                     className={cn(
-                                                        "px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105",
-                                                        item.paymentMethod === 'Transfer'
-                                                           ? "bg-violet-100 border-violet-300 text-violet-700"
-                                                           : "bg-slate-50 border-slate-200 text-slate-400"
-                                                     )}
-                                                     title="Transfer — dibayar sekarang oleh finance dari BCA"
-                                                  >
-                                                     Transfer
-                                                  </button>
-                                               )}
-                                            </div>
-                                         )}
                                       </TableCell>
                                     </TableRow>
                                   );
@@ -2417,80 +1927,6 @@ export default function ShoppingListPage() {
         )
       })()}
 
-      <Dialog open={isAddVendorOpen} onOpenChange={setIsAddVendorOpen}>
-        <DialogContent className="sm:max-w-[450px]">
-          <DialogHeader>
-            <DialogTitle>Tambah Vendor Baru</DialogTitle>
-            <DialogDescription>
-              Masukkan detail vendor baru untuk langsung digunakan dalam belanja stok ini.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4 text-slate-900 dark:text-slate-100">
-            <div className="grid gap-2">
-              <Label htmlFor="vendor-companyName">Nama Perusahaan Vendor</Label>
-              <Input 
-                id="vendor-companyName" 
-                value={newVendorData.companyName}
-                onChange={(e) => setNewVendorData({...newVendorData, companyName: e.target.value})}
-                placeholder="Supplier Sayur Maju" 
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="vendor-picName">Nama PIC</Label>
-              <Input 
-                id="vendor-picName" 
-                value={newVendorData.picName}
-                onChange={(e) => setNewVendorData({...newVendorData, picName: e.target.value})}
-                placeholder="Pak Budi" 
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="vendor-phone">No. Telepon / WA</Label>
-              <Input 
-                id="vendor-phone" 
-                value={newVendorData.phone}
-                onChange={(e) => setNewVendorData({...newVendorData, phone: e.target.value})}
-                placeholder="0812345678" 
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="vendor-address">Alamat</Label>
-              <Input 
-                id="vendor-address" 
-                value={newVendorData.address}
-                onChange={(e) => setNewVendorData({...newVendorData, address: e.target.value})}
-                placeholder="Pasar Induk Kramat Jati" 
-              />
-            </div>
-            
-            <div className="flex items-center gap-2 pt-2">
-              <Checkbox 
-                id="vendor-isTempo" 
-                checked={newVendorData.isTempo} 
-                onCheckedChange={(checked) => setNewVendorData({...newVendorData, isTempo: !!checked})}
-              />
-              <Label htmlFor="vendor-isTempo" className="cursor-pointer">Pembayaran Tempo</Label>
-            </div>
-
-            {newVendorData.isTempo && (
-              <div className="grid gap-2">
-                <Label htmlFor="vendor-paymentTermDays">Jatuh Tempo (Hari)</Label>
-                <Input 
-                  id="vendor-paymentTermDays" 
-                  type="number"
-                  value={newVendorData.paymentTermDays}
-                  onChange={(e) => setNewVendorData({...newVendorData, paymentTermDays: parseInt(e.target.value) || 0})}
-                  placeholder="14" 
-                />
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAddVendorOpen(false)}>Batal</Button>
-            <Button onClick={handleSaveVendor}>Simpan Vendor</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
