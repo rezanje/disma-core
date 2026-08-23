@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import React from "react"
 import { useAppStore } from "@/lib/store"
 import { Card, CardContent } from "@/components/ui/card"
@@ -16,6 +16,7 @@ import {
 } from "@/lib/purchase-plan"
 import { disbursementProblem } from "@/lib/shopping-money"
 import { sortRows, groupRows, toggleAll, type SortKey, type GroupKey } from "@/lib/plan-table"
+import { vendorPrefills } from "@/lib/vendor-suggest"
 import { pocketOwners } from "@/lib/sourcing-pocket"
 import { recordPocketWithdrawal, bankRequiresCfoApproval } from "@/lib/accounting"
 import { Input } from "@/components/ui/input"
@@ -152,6 +153,33 @@ export default function PurchasePlanPage() {
       setReleasing(false)
     }
   }
+
+  // Vendor diisi duluan dari riwayat: untuk sebagian besar barang jawabannya sama
+  // dengan minggu lalu, dan menyuruh orang mengulang jawaban yang sudah pernah dia
+  // beri adalah cara termurah membuat orang berhenti membaca layarnya.
+  //
+  // Aman karena tidak melewati pemeriksaan apa pun: baris tetap dihitung "belum
+  // direncanakan" sampai cara bayar DAN harganya diisi, jadi setiap baris tetap
+  // harus disentuh. Yang diisi hanya kolom vendor yang masih kosong.
+  useEffect(() => {
+    if (!active) return
+    const riwayat = purchaseItems
+      .filter(pi => pi.purchaseId !== active.id && pi.vendorId)
+      .map(pi => ({
+        productId: pi.productId,
+        vendorId: pi.vendorId,
+        date: purchases.find(p => p.id === pi.purchaseId)?.date,
+      }))
+    const isi = vendorPrefills(lines, riwayat, products)
+    if (isi.length === 0) return
+    ;(async () => {
+      for (const { id, vendorId } of isi) await updatePurchaseItem(id, { plannedVendorId: vendorId })
+      toast.info(`${isi.length} vendor diisi otomatis dari riwayat. Cek sebelum dilepas.`)
+    })()
+    // Sengaja hanya bergantung pada dokumen yang dibuka: kalau ikut `lines`, tiap
+    // pengisian memicu putaran berikutnya.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active?.id])
 
   const bukaPencairan = (purchaseId: string) => {
     const doc = purchases.find(p => p.id === purchaseId)
