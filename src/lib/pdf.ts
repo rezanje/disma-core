@@ -94,11 +94,14 @@ function drawSalesOrderOnDoc(doc: jsPDF, poNumber: string) {
   doc.setFont("helvetica", "normal")
   doc.text(client?.companyName || 'Unknown', 130, 54)
   doc.text(client?.address || '', 130, 59, { maxWidth: 60 })
+  // y=48..60 sudah dipakai judul, nomor, dan tanggal dari drawHeader — taruh di
+  // bawahnya, bukan menimpanya.
   if (so.targetDeliveryDate) {
+    doc.setFontSize(10)
     doc.setFont("helvetica", "bold")
-    doc.text("Target Kirim:", 14, 48)
+    doc.text("Target Kirim:", 14, 67)
     doc.setFont("helvetica", "normal")
-    doc.text(format(new Date(so.targetDeliveryDate), 'dd MMM yyyy'), 14, 54)
+    doc.text(format(new Date(so.targetDeliveryDate), 'dd MMM yyyy'), 40, 67)
   }
 
   let y = 80

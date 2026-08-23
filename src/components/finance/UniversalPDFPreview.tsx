@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { generateInvoicePDF, generateTukarFakturBundle } from "@/lib/pdf"
 import { useAppStore } from "@/lib/store"
 import { formatRupiah } from "@/lib/utils"
+import { PdfCanvasPreview } from "@/components/pdf-canvas-preview"
 
 interface UniversalPDFPreviewProps {
   isOpen: boolean
@@ -90,12 +91,10 @@ export default function UniversalPDFPreview({ isOpen, onClose, invoiceId, isCons
              </div>
            )}
            {pdfDataUrl && (
-             <div className="w-full max-w-[850px] h-full bg-white shadow-2xl rounded-sm overflow-hidden border border-slate-700">
-               <iframe 
-                 src={`${pdfDataUrl}#toolbar=0&navpanes=0&scrollbar=0`} 
-                 className="w-full h-full border-none"
-                 title="PDF Preview"
-               />
+             /* Kanvas, bukan <iframe>: penampil PDF bawaan browser tidak menampilkan
+                apa pun kalau Chrome disetel "unduh PDF". */
+             <div className="w-full max-w-[850px] h-full overflow-auto">
+               <PdfCanvasPreview url={pdfDataUrl} />
              </div>
            )}
         </div>
