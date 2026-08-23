@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { v4 as uuidv4 } from "uuid"
 import { recordBudgetTransfer, bankRequiresCfoApproval } from "@/lib/accounting"
+import { cashNeeded } from "@/lib/purchase-plan"
 import { computeBankBalances } from "@/lib/bank-balance"
 import { DisbursementRequest } from "@/types"
 
@@ -53,6 +54,9 @@ export default function DisbursementsPage() {
   const [toBankId, setToBankId] = useState("")
   const [amount, setAmount] = useState(0)
   const [description, setDescription] = useState("")
+  // Dokumen belanja yang didanai pencairan ini. Tanpa ini, uang pindah tanpa
+  // dokumennya tahu — penyakit yang sama dengan pengajuan dana Rp0 dulu.
+  const [purchaseId, setPurchaseId] = useState("")
   
   // CFO Approval Notes
   const [cfoNote, setCfoNote] = useState("")
@@ -83,6 +87,26 @@ export default function DisbursementsPage() {
   }, [rawDisbursements])
 
   // Submit Request Handler
+  const purchases = useAppStore(state => state.purchases)
+  const purchaseItems = useAppStore(state => state.purchaseItems)
+  const updatePurchase = useAppStore(state => state.updatePurchase)
+
+  // Rencana sudah dilepas, uangnya belum keluar.
+  const dokumenMenunggu = purchases.filter(p => p.status === 'Pending' && !p.disbursedAt)
+  const dokumenDipilih = purchases.find(p => p.id === purchaseId)
+  const rencanaTunai = dokumenDipilih
+    ? cashNeeded(purchaseItems.filter(pi => pi.purchaseId === dokumenDipilih.id))
+    : 0
+
+  const pilihDokumen = (id: string) => {
+    setPurchaseId(id)
+    const doc = purchases.find(p => p.id === id)
+    if (!doc) return
+    const tunai = cashNeeded(purchaseItems.filter(pi => pi.purchaseId === doc.id))
+    setAmount(tunai)
+    setDescription(`Belanja ${doc.advanceCode || doc.id.slice(0, 8)}`)
+  }
+
   const handleCreateRequest = async () => {
     if (!fromBankId || !toBankId || amount <= 0 || !description.trim()) {
       toast.error("Semua field wajib diisi dengan benar.")
@@ -92,6 +116,15 @@ export default function DisbursementsPage() {
     if (fromBankId === toBankId) {
       toast.error("Rekening asal dan tujuan tidak boleh sama.")
       return
+    }
+
+    // Beda dari rencana boleh — harga pasar bergerak — tapi tidak boleh diam-diam.
+    if (dokumenDipilih && amount !== rencanaTunai) {
+      const dasar = `Belanja ${dokumenDipilih.advanceCode || dokumenDipilih.id.slice(0, 8)}`
+      if (description.trim() === dasar || description.trim().length <= dasar.length) {
+        toast.error(`Nominalnya beda ${formatRupiah(Math.abs(amount - rencanaTunai))} dari rencana. Tulis alasannya di keterangan.`)
+        return
+      }
     }
 
     const sourceBank = derivedBankAccounts.find(b => b.id === fromBankId)
@@ -108,6 +141,7 @@ export default function DisbursementsPage() {
       description,
       requestedAt: new Date().toISOString(),
       requestedBy: currentUser?.name || currentUser?.id || "Finance Admin",
+      purchaseId: purchaseId || undefined,
       status: 'Draft'
     }
 
@@ -120,6 +154,7 @@ export default function DisbursementsPage() {
       setToBankId("")
       setAmount(0)
       setDescription("")
+      setPurchaseId("")
     } catch (e) {
       console.error(e)
       toast.error("Gagal membuat request disbursement.")
@@ -181,6 +216,21 @@ export default function DisbursementsPage() {
           transferredAt: new Date().toISOString(),
           transferredBy: currentUser?.name || currentUser?.id || "Finance Admin"
         })
+        // Dokumen belanjanya ikut dicap, supaya angka yang keluar dan angka yang
+        // direncanakan tinggal di satu tempat yang sama.
+        if (dr.purchaseId) {
+          await updatePurchase(dr.purchaseId, {
+            disbursedAmount: dr.amount,
+            disbursedAt: new Date().toISOString(),
+            disbursedBy: currentUser?.name || currentUser?.id,
+            disbursedToBankAccountId: dr.toBankAccountId,
+            disbursementNote: dr.description,
+            reconciliationStatus: 'Dana Ditransfer',
+            budgetTransferDate: new Date().toISOString(),
+            budgetBankAccountId: dr.fromBankAccountId,
+            budgetDestBankAccountId: dr.toBankAccountId,
+          })
+        }
         toast.success("Saldo berhasil ditransfer dan tercatat di Ledger & Cash-Bank!", { id: "transfer-execution" })
         setIsDetailOpen(false)
       } else {
@@ -369,6 +419,37 @@ export default function DisbursementsPage() {
           </DialogHeader>
           
           <div className="space-y-4 py-4">
+            {/* Untuk belanja yang mana. Dipilih duluan karena mengisi nominal dan
+                keterangannya sekaligus — dan karena pencairan tanpa dokumen adalah
+                uang keluar yang tidak bisa ditanya untuk apa. */}
+            {dokumenMenunggu.length > 0 && (
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 pl-0.5">
+                  Untuk Dokumen Belanja (opsional)
+                </Label>
+                <select
+                  className="h-10 w-full border border-slate-200 rounded-xl text-xs px-3 bg-white font-bold"
+                  value={purchaseId}
+                  onChange={(e) => {
+                    if (e.target.value) pilihDokumen(e.target.value)
+                    else { setPurchaseId(""); }
+                  }}
+                >
+                  <option value="">— Bukan untuk belanja tertentu —</option>
+                  {dokumenMenunggu.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.advanceCode || p.id.slice(0, 8)} — perlu tunai {formatRupiah(cashNeeded(purchaseItems.filter(pi => pi.purchaseId === p.id)))}
+                    </option>
+                  ))}
+                </select>
+                {dokumenDipilih && amount !== rencanaTunai && (
+                  <p className="text-[10px] font-bold text-amber-600">
+                    Beda {formatRupiah(Math.abs(amount - rencanaTunai))} dari rencana — jelaskan di keterangan.
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 pl-0.5">Rekening Asal (From Account)</Label>
               <Select value={fromBankId} onValueChange={setFromBankId}>

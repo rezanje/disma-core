@@ -646,6 +646,14 @@ export type DisbursementStatus = 'Draft' | 'Pending_CFO' | 'Approved' | 'Transfe
 
 export interface DisbursementRequest {
   id: string;
+  /**
+   * Dokumen belanja yang didanai pencairan ini.
+   *
+   * Tanpa tautan ini uang bisa pindah tanpa dokumen belanjanya tahu — persis
+   * penyakit yang membuat pengajuan dana Rp0 lolos berminggu-minggu: dua catatan
+   * angka untuk satu kejadian, dan tidak ada yang membandingkannya.
+   */
+  purchaseId?: string;
   fromBankAccountId: string;
   toBankAccountId: string;
   amount: number;
