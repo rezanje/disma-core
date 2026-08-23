@@ -1613,6 +1613,7 @@ export default function SalesOrdersPage() {
                               <TableCell className="text-right text-sm py-2">
                                 <Input
                                   type="number"
+                                  onWheel={(e) => e.currentTarget.blur()}
                                   min="0"
                                   step="any"
                                   className="h-8 w-20 text-right text-sm font-bold ml-auto"

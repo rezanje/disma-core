@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ClipboardList, PackageCheck, ShoppingBag, AlertTriangle, Loader2 } from "lucide-react"
 import { toast } from "sonner"
-import { cn, formatRupiah } from "@/lib/utils"
+import { cn, formatRupiah, formatNumber, parseNumber } from "@/lib/utils"
 import { selectableVendors } from "@/lib/vendor-status"
 import {
   toPurchaseMethod, fromPurchaseMethod, unplannedLines, lineIsPlanned, cashNeeded,
@@ -457,13 +457,17 @@ export default function PurchasePlanPage() {
                           dan angka inilah yang jadi uang tunai yang dia serahkan sendiri
                           ke kantong sourcing. */}
                       <TableCell>
+                        {/* Bukan type="number": angka rupiah tanpa titik ribuan sulit
+                            dibaca, dan kolom angka ikut berubah kalau roda mouse
+                            digulir sementara kursornya kebetulan di situ — salah harga
+                            yang tidak pernah disadari siapa pun. */}
                         <input
-                          type="number"
-                          min="0"
+                          type="text"
+                          inputMode="numeric"
                           className="h-9 w-28 rounded-lg border border-slate-200 px-2 text-xs font-bold bg-white dark:bg-slate-900 text-right"
-                          value={line.estimatedUnitPrice || ''}
+                          value={line.estimatedUnitPrice ? formatNumber(line.estimatedUnitPrice) : ''}
                           placeholder="0"
-                          onChange={e => setLine(line.id, { estimatedUnitPrice: parseFloat(e.target.value) || 0 })}
+                          onChange={e => setLine(line.id, { estimatedUnitPrice: parseNumber(e.target.value) })}
                         />
                         <span className="block text-[9px] text-slate-400 font-bold mt-0.5">
                           per {product?.uom || 'unit'}

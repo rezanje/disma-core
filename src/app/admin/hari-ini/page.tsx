@@ -232,6 +232,7 @@ export default function HariIniPage() {
                             <Label className="text-[10px] font-black uppercase text-slate-500">Ada yang ditolak? ({item.product?.uom})</Label>
                             <Input
                               type="number" min="0" step="any"
+                              onWheel={(e) => e.currentTarget.blur()}
                               className="h-11 font-bold"
                               placeholder="0"
                               value={rejectQty[item.id] || ''}
@@ -242,6 +243,7 @@ export default function HariIniPage() {
                             <Label className="text-[10px] font-black uppercase text-slate-500">Harga vendor (kalau beda)</Label>
                             <Input
                               type="number" min="0" step="any"
+                              onWheel={(e) => e.currentTarget.blur()}
                               className="h-11 font-bold"
                               placeholder={String(item.actualUnitPrice || item.estimatedUnitPrice || 0)}
                               value={vendorPrice[item.id] || ''}
@@ -411,6 +413,7 @@ export default function HariIniPage() {
                             </div>
                             <Input
                               type="number" min="0" step="any"
+                              onWheel={(e) => e.currentTarget.blur()}
                               className={cn("h-11 w-28 font-black text-right", kurang && "border-rose-300 text-rose-600")}
                               value={nilai}
                               onChange={e => setDiterima(p => ({ ...p, [item.id]: parseFloat(e.target.value) || 0 }))}
