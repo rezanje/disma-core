@@ -10,6 +10,7 @@ import { ClipboardList, PackageCheck, ShoppingBag, AlertTriangle, Loader2 } from
 import { toast } from "sonner"
 import { cn, formatRupiah, formatNumber, parseNumber } from "@/lib/utils"
 import { selectableVendors } from "@/lib/vendor-status"
+import { SearchSelect } from "@/components/ui/search-select"
 import {
   toPurchaseMethod, fromPurchaseMethod, unplannedLines, lineIsPlanned, cashNeeded,
   HANDLING_LABEL, type Handling, type PaymentMethod,
@@ -299,22 +300,19 @@ export default function PurchasePlanPage() {
                   ))}
                 </select>
 
-                <select
-                  className="h-9 rounded-lg border border-emerald-200 px-2 text-xs font-bold bg-white dark:bg-slate-900 disabled:opacity-50"
-                  disabled={massalJalan}
-                  value=""
-                  onChange={e => {
-                    const v = e.target.value
-                    if (!v) return
-                    massal({ plannedVendorId: v }, `vendor ${vendors.find(x => x.id === v)?.companyName || ''}`)
-                    e.target.value = ''
-                  }}
-                >
-                  <option value="">Vendor…</option>
-                  {selectableVendors(vendors).map(v => (
-                    <option key={v.id} value={v.id}>{v.companyName}</option>
-                  ))}
-                </select>
+                <div className="w-44">
+                  <SearchSelect
+                    value=""
+                    disabled={massalJalan}
+                    onChange={v => {
+                      if (!v) return
+                      massal({ plannedVendorId: v }, `vendor ${vendors.find(x => x.id === v)?.companyName || ''}`)
+                    }}
+                    options={selectableVendors(vendors).map(v => ({ value: v.id, label: v.companyName }))}
+                    placeholder="Vendor…"
+                    className="border-emerald-200"
+                  />
+                </div>
 
                 <select
                   className="h-9 rounded-lg border border-emerald-200 px-2 text-xs font-bold bg-white dark:bg-slate-900 disabled:opacity-50"
@@ -509,16 +507,16 @@ export default function PurchasePlanPage() {
                       </TableCell>
 
                       <TableCell>
-                        <select
-                          className="h-9 w-full rounded-lg border border-slate-200 px-2 text-xs font-bold bg-white dark:bg-slate-900"
+                        {/* Bisa dicari: daftarnya sudah puluhan dan tiap baris harus
+                            memilih ulang. Menggulung daftar sepanjang itu berkali-kali
+                            adalah cara orang mulai asal pilih yang kelihatan duluan. */}
+                        <SearchSelect
                           value={line.plannedVendorId || ''}
-                          onChange={e => setLine(line.id, { plannedVendorId: e.target.value || undefined })}
-                        >
-                          <option value="">{isPasar ? '— Nanti dari lapangan —' : '— Wajib pilih —'}</option>
-                          {selectableVendors(vendors, line.plannedVendorId).map(v => (
-                            <option key={v.id} value={v.id}>{v.companyName}</option>
-                          ))}
-                        </select>
+                          onChange={v => setLine(line.id, { plannedVendorId: v || undefined })}
+                          options={selectableVendors(vendors, line.plannedVendorId).map(v => ({ value: v.id, label: v.companyName }))}
+                          placeholder={isPasar ? '— Nanti dari lapangan —' : '— Wajib pilih —'}
+                          emptyLabel={isPasar ? '— Nanti dari lapangan —' : '— Kosongkan —'}
+                        />
                         {isPasar && (
                           <p className="text-[9px] text-slate-400 mt-1">
                             Boleh diisi sebagai incaran; vendor aslinya dari kertas belanja
