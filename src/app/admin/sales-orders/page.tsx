@@ -811,6 +811,17 @@ export default function SalesOrdersPage() {
     setLineItems(lineItems.filter(item => item.id !== id))
   }
 
+  /**
+   * Qty dan harga diubah langsung di daftarnya.
+   *
+   * Sebelum ini satu-satunya cara membetulkan salah ketik adalah menghapus barisnya
+   * lalu menambahkannya lagi dari awal — termasuk memilih ulang produk dan tier-nya.
+   * Untuk salah satu angka, itu tujuh langkah untuk satu perbaikan.
+   */
+  const updateLineItem = (id: string, patch: { qty?: number; unitPrice?: number }) => {
+    setLineItems(prev => prev.map(item => item.id === id ? { ...item, ...patch } : item))
+  }
+
   // ponytail: bulk-add all checked pricelist rows to lineItems
   const addFromPricelist = () => {
     const toAdd = Object.entries(pricelistDraft).filter(([, qty]) => qty > 0)
@@ -1554,9 +1565,26 @@ export default function SalesOrdersPage() {
                                   )}
                                 </div>
                               </TableCell>
-                              <TableCell className="text-right text-sm py-2">{item.qty}</TableCell>
+                              <TableCell className="text-right text-sm py-2">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="any"
+                                  className="h-8 w-20 text-right text-sm font-bold ml-auto"
+                                  value={item.qty || ''}
+                                  onChange={(e) => updateLineItem(item.id, { qty: parseFloat(e.target.value) || 0 })}
+                                />
+                              </TableCell>
                               <TableCell className="text-center text-xs py-2 text-slate-500">{products.find(p => p.id === item.productId)?.uom ?? '-'}</TableCell>
-                              <TableCell className="text-right text-sm py-2">{formatRupiah(item.unitPrice)}</TableCell>
+                              <TableCell className="text-right text-sm py-2">
+                                <Input
+                                  type="text"
+                                  inputMode="numeric"
+                                  className="h-8 w-28 text-right text-sm font-bold ml-auto"
+                                  value={item.unitPrice ? item.unitPrice.toLocaleString('id-ID') : ''}
+                                  onChange={(e) => updateLineItem(item.id, { unitPrice: parseInt(e.target.value.replace(/\D/g, ''), 10) || 0 })}
+                                />
+                              </TableCell>
                               <TableCell className="text-right font-bold text-sm py-2">{formatRupiah(item.qty * item.unitPrice)}</TableCell>
                               <TableCell className="py-2">
                                 <Button variant="ghost" size="icon" className="h-7 w-7 text-rose-500" onClick={() => removeLineItem(item.id)}>
