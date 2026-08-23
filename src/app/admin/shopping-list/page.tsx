@@ -1,6 +1,7 @@
 "use client"
 
 import { useAppStore } from "@/lib/store"
+import { groupOrdersByDeliveryDate } from "@/lib/po-grouping"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -1000,8 +1001,30 @@ export default function ShoppingListPage() {
                         Tidak ada PO untuk filter ini.
                       </div>
                     ) : (
-                      <div className="max-h-[220px] overflow-auto divide-y divide-slate-100">
-                        {candidateSOs.map(so => {
+                      <div className="max-h-[320px] overflow-auto divide-y divide-slate-100">
+                        {groupOrdersByDeliveryDate(candidateSOs).map(grup => (
+                        <div key={grup.tanggal || 'tanpa-tanggal'}>
+                          {/* Yang menentukan satu dokumen belanja itu tanggal kirimnya,
+                              bukan PO mana yang kebetulan tercentang. */}
+                          <div className="flex items-center justify-between gap-3 bg-slate-100/80 px-4 py-2">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                              Kirim {grup.label} · {grup.orders.length} PO
+                            </span>
+                            <button
+                              type="button"
+                              className="text-[10px] font-black uppercase tracking-widest text-emerald-600 hover:text-emerald-700"
+                              onClick={() => setSelectedSOIds(prev => {
+                                const ids = grup.orders.map(o => o.id)
+                                const semua = ids.every(id => prev.has(id))
+                                const next = new Set(prev)
+                                ids.forEach(id => semua ? next.delete(id) : next.add(id))
+                                return next
+                              })}
+                            >
+                              {grup.orders.every(o => selectedSOIds.has(o.id)) ? 'Kosongkan tanggal ini' : 'Pilih tanggal ini'}
+                            </button>
+                          </div>
+                        {grup.orders.map(so => {
                           const client = clients.find(c => c.id === so.clientId)
                           const items = salesOrderItems.filter(item => item.salesOrderId === so.id)
                           const total = items.reduce((sum, item) => sum + item.subtotal, 0)
@@ -1054,6 +1077,8 @@ export default function ShoppingListPage() {
                             </label>
                           )
                         })}
+                        </div>
+                        ))}
                       </div>
                     )}
                   </div>
