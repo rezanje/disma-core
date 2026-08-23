@@ -61,6 +61,7 @@ import { PdfCanvasPreview } from "@/components/pdf-canvas-preview"
 import { generateSuratJalan, generateBA, generateSalesOrderPDF } from "@/lib/pdf"
 import { roundQtyToBook, nextSoStatus } from "@/lib/backorder"
 import { pendingEdits } from "@/lib/order-edits"
+import { orderEditable, editLockReason, linkedPurchaseLines } from "@/lib/order-edit-window"
 import {
   Popover,
   PopoverContent,
@@ -193,6 +194,9 @@ const PricelistRow = memo(function PricelistRow({
 export default function SalesOrdersPage() {
   const salesOrders = useAppStore(state => state.salesOrders)
   const salesOrderItems = useAppStore(state => state.salesOrderItems)
+  const purchases = useAppStore(state => state.purchases)
+  const purchaseItems = useAppStore(state => state.purchaseItems)
+  const updatePurchaseItem = useAppStore(state => state.updatePurchaseItem)
   const clients = useAppStore(state => state.clients)
   const products = useAppStore(state => state.products)
   const invoices = useAppStore(state => state.invoices)
@@ -1067,15 +1071,28 @@ export default function SalesOrdersPage() {
     }
     // Hanya baris yang berubah yang ditulis ulang — sebelumnya seluruh baris ditulis
     // setiap kali, jadi riwayat perubahan penuh baris yang sebenarnya sama.
+    let ikut = 0
     dirtyItemIds.forEach(itemId => {
       const data = editingItems[itemId]
+      const item = selectedItems.find(i => i.id === itemId)
       updateSalesOrderItem(itemId, {
         qty: data.qty,
         unitPrice: data.price,
         subtotal: data.qty * data.price
       })
+
+      // Daftar belanjanya ikut. Tanpa ini pesanan bilang 15 kg sementara daftar
+      // belanjanya masih 10 — dan yang dibawa ke pasar adalah yang 10.
+      if (item && detailSOId) {
+        for (const lineId of linkedPurchaseLines(detailSOId, item.productId, purchaseItems, purchases)) {
+          updatePurchaseItem(lineId, { qtyTarget: data.qty })
+          ikut++
+        }
+      }
     })
-    toast.success(`${dirtyItemIds.length} baris pesanan berhasil disimpan`)
+    toast.success(ikut > 0
+      ? `${dirtyItemIds.length} baris pesanan disimpan — ${ikut} baris daftar belanja ikut diperbarui`
+      : `${dirtyItemIds.length} baris pesanan berhasil disimpan`)
   }
 
   // Menutup modal dengan perubahan yang belum disimpan dulu membuangnya tanpa suara.
@@ -2345,11 +2362,18 @@ export default function SalesOrdersPage() {
 
             {/* SECTION: ITEMS TABLE */}
             <div className="space-y-3">
+               {/* Kalau terkunci, sebutkan alasannya di layar. "Kolomnya tidak bisa
+                   diketik" tanpa keterangan bikin orang mengira aplikasinya rusak. */}
+               {editLockReason(selectedSO, purchases) && (
+                 <p className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                   Pesanan ini terkunci: {editLockReason(selectedSO, purchases)}
+                 </p>
+               )}
                <div className="flex justify-between items-center">
                   <h4 className="text-xs font-black uppercase tracking-widest text-slate-500 flex items-center gap-2">
                      <ShoppingCart className="w-4 h-4" /> Rincian Barang Pesanan
                   </h4>
-                  {(selectedSO?.status === 'Pending Approval' || selectedSO?.status === 'Draft') && (
+                  {orderEditable(selectedSO, purchases) && (
                     <Button
                       variant={dirtyItemIds.length > 0 ? "default" : "outline"}
                       size="sm"
@@ -2381,7 +2405,9 @@ export default function SalesOrdersPage() {
                      <TableBody>
                         {selectedItems.map((item) => {
                            const product = products.find(p => p.id === item.productId)
-                           const isEditable = selectedSO?.status === 'Pending Approval' || selectedSO?.status === 'Draft'
+                           // Jendelanya tutup saat Finance melepas rencananya, bukan saat
+                           // Admin PO merangkum — lihat src/lib/order-edit-window.ts.
+                           const isEditable = orderEditable(selectedSO, purchases)
                            const currentEdit = editingItems[item.id] || { qty: item.qty, price: item.unitPrice }
                            const owed = Math.max(0, item.qty - (item.qtyDelivered ?? 0))
                            
