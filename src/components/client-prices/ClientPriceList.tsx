@@ -486,7 +486,7 @@ export function ClientPriceList({ clientId }: ClientPriceListProps) {
     <>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-4">
           <div className="grid gap-2 flex-1 max-w-sm">
-            <label className="text-xs font-bold uppercase tracking-widest text-slate-500">Cari di List</label>
+            <label className="text-xs font-bold  text-slate-500">Cari di List</label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -510,7 +510,7 @@ export function ClientPriceList({ clientId }: ClientPriceListProps) {
                  Upload CSV (SKU, Price)
                </Button>
             </div>
-            <Button onClick={handlePreviewPdf} className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-200">
+            <Button onClick={handlePreviewPdf} className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm">
               <Eye className="mr-2 h-4 w-4" /> Preview & Cetak
             </Button>
           </div>
@@ -541,8 +541,8 @@ export function ClientPriceList({ clientId }: ClientPriceListProps) {
                )}
             </div>
             <DialogFooter className="p-4 border-t bg-white gap-3 sm:justify-between">
-               <div className="text-[10px] text-slate-400 max-w-[200px] leading-tight flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+               <div className="text-[11px] text-slate-400 max-w-[200px] leading-tight flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500" />
                   PDF Quote siap di-unduh dan dikirim ke Client.
                </div>
                <div className="flex gap-2">
@@ -558,31 +558,31 @@ export function ClientPriceList({ clientId }: ClientPriceListProps) {
         <div className="rounded-2xl border bg-white shadow-sm overflow-hidden border-slate-100">
           <div className="bg-slate-50/50 px-4 py-3 border-b flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-black">
+              <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold">
                 {activeClient.companyName.charAt(0)}
               </div>
               <div>
-                <p className="text-sm font-black text-slate-800 leading-tight">{activeClient.companyName}</p>
-                <p className="text-[10px] uppercase font-bold text-slate-400">Total: {configuredProducts.length} Items</p>
+                <p className="text-sm font-bold text-slate-800 leading-tight">{activeClient.companyName}</p>
+                <p className="text-[11px] uppercase font-bold text-slate-400">Total: {configuredProducts.length} Items</p>
               </div>
             </div>
             
             <div className="flex items-center gap-4">
               <div className="flex flex-col gap-1 mr-2">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Periode Price List</span>
+                <span className="text-[11px] font-bold text-slate-400 ">Periode Price List</span>
                 <div className="flex items-center gap-2">
                   <Input 
                     type="date" 
                     value={startDate} 
                     onChange={(e) => setStartDate(e.target.value)} 
-                    className="h-8 w-32 text-[10px] font-bold bg-white border-slate-200" 
+                    className="h-8 w-32 text-[11px] font-bold bg-white border-slate-200" 
                   />
-                  <span className="text-[10px] font-bold text-slate-400">s/d</span>
+                  <span className="text-[11px] font-bold text-slate-400">s/d</span>
                   <Input 
                     type="date" 
                     value={endDate} 
                     onChange={(e) => setEndDate(e.target.value)} 
-                    className="h-8 w-32 text-[10px] font-bold bg-white border-slate-200" 
+                    className="h-8 w-32 text-[11px] font-bold bg-white border-slate-200" 
                   />
                 </div>
               </div>
@@ -599,19 +599,19 @@ export function ClientPriceList({ clientId }: ClientPriceListProps) {
                     {selectedItemIds.length > 0 ? `Bulk Actions (${selectedItemIds.length})` : 'Bulk Actions'}
                   </Button>
                 } />
-                <PopoverContent className="w-64 p-3 bg-white shadow-xl border border-amber-100 rounded-xl" side="bottom" align="end">
+                <PopoverContent className="w-64 p-3 bg-white shadow-sm border border-amber-100 rounded-xl" side="bottom" align="end">
                   <div className="space-y-3">
                     {selectedItemIds.length > 0 && (
                       <div className="pb-2 border-b border-emerald-50">
-                        <h4 className="font-bold text-xs uppercase tracking-widest text-emerald-700">Aksi Terpilih ({selectedItemIds.length})</h4>
-                        <p className="text-[10px] text-slate-400">Terapkan ke barang yang dicentang.</p>
+                        <h4 className="font-bold text-xs  text-emerald-700">Aksi Terpilih ({selectedItemIds.length})</h4>
+                        <p className="text-[11px] text-slate-400">Terapkan ke barang yang dicentang.</p>
                         <div className="grid grid-cols-1 gap-1 mt-2">
                           {Object.entries(TIER_LABELS).filter(([k]) => k !== 'Custom').map(([key, label]) => (
                             <Button 
                               key={`selected-set-${key}`}
                               variant="ghost" 
                               size="sm" 
-                              className="h-7 text-[10px] justify-start px-2 hover:bg-emerald-50 hover:text-emerald-700 font-semibold"
+                              className="h-7 text-[11px] justify-start px-2 hover:bg-emerald-50 hover:text-emerald-700 font-semibold"
                               onClick={() => handleSelectedSetTier(key as ClientPriceTier)}
                             >
                               Set Terpilih to {label}
@@ -620,7 +620,7 @@ export function ClientPriceList({ clientId }: ClientPriceListProps) {
                           <Button 
                             variant="ghost" 
                             size="sm" 
-                            className="h-7 text-[10px] justify-start px-2 hover:bg-rose-50 hover:text-rose-700 font-bold border border-transparent hover:border-rose-100"
+                            className="h-7 text-[11px] justify-start px-2 hover:bg-rose-50 hover:text-rose-700 font-bold border border-transparent hover:border-rose-100"
                             onClick={handleSelectedDelete}
                           >
                             <Trash2 className="mr-2 h-3.5 w-3.5" /> Hapus Terpilih
@@ -629,15 +629,15 @@ export function ClientPriceList({ clientId }: ClientPriceListProps) {
                       </div>
                     )}
                     <div className="pb-2 border-b border-amber-50">
-                      <h4 className="font-bold text-xs uppercase tracking-widest text-slate-500">Massal Update Tier</h4>
-                      <p className="text-[10px] text-slate-400">Terapkan tier ke semua barang di list ini.</p>
+                      <h4 className="font-bold text-xs  text-slate-500">Massal Update Tier</h4>
+                      <p className="text-[11px] text-slate-400">Terapkan tier ke semua barang di list ini.</p>
                       <div className="grid grid-cols-1 gap-1 mt-2">
                         {Object.entries(TIER_LABELS).filter(([k]) => k !== 'Custom' && k !== 'Standard').map(([key, label]) => (
                           <Button 
                             key={`bulk-set-${key}`}
                             variant="ghost" 
                             size="sm" 
-                            className="h-7 text-[10px] justify-start px-2 hover:bg-amber-50 hover:text-amber-700 font-semibold"
+                            className="h-7 text-[11px] justify-start px-2 hover:bg-amber-50 hover:text-amber-700 font-semibold"
                             onClick={() => handleBulkSetTier(key as ClientPriceTier)}
                           >
                             Set All to {label}
@@ -647,15 +647,15 @@ export function ClientPriceList({ clientId }: ClientPriceListProps) {
                     </div>
                     
                     <div>
-                      <h4 className="font-bold text-xs uppercase tracking-widest text-slate-500">Input Massal (All SKU)</h4>
-                      <p className="text-[10px] text-slate-400">Masukin SEMUA barang dari Master SKU.</p>
+                      <h4 className="font-bold text-xs  text-slate-500">Input Massal (All SKU)</h4>
+                      <p className="text-[11px] text-slate-400">Masukin SEMUA barang dari Master SKU.</p>
                       <div className="grid grid-cols-1 gap-1 mt-2">
                          {Object.entries(TIER_LABELS).filter(([k]) => k !== 'Custom' && k !== 'Standard').map(([key, label]) => (
                           <Button 
                             key={`bulk-add-${key}`}
                             variant="ghost" 
                             size="sm" 
-                            className="h-7 text-[10px] justify-start px-2 hover:bg-emerald-50 hover:text-emerald-700 font-semibold border border-transparent hover:border-emerald-100"
+                            className="h-7 text-[11px] justify-start px-2 hover:bg-emerald-50 hover:text-emerald-700 font-semibold border border-transparent hover:border-emerald-100"
                             onClick={() => handleBulkAddAll(key as ClientPriceTier)}
                           >
                             Add All as {label}
@@ -664,12 +664,12 @@ export function ClientPriceList({ clientId }: ClientPriceListProps) {
                       </div>
 
                     <div>
-                      <h4 className="font-bold text-xs uppercase tracking-widest text-slate-500">Aksi Bahaya</h4>
-                      <p className="text-[10px] text-slate-400">Gunakan dengan hati-hati.</p>
+                      <h4 className="font-bold text-xs  text-slate-500">Aksi Bahaya</h4>
+                      <p className="text-[11px] text-slate-400">Gunakan dengan hati-hati.</p>
                       <Button 
                         variant="ghost" 
                         size="sm" 
-                        className="h-7 text-[10px] justify-start px-2 mt-2 w-full hover:bg-rose-50 hover:text-rose-700 font-bold border border-transparent hover:border-rose-100"
+                        className="h-7 text-[11px] justify-start px-2 mt-2 w-full hover:bg-rose-50 hover:text-rose-700 font-bold border border-transparent hover:border-rose-100"
                         onClick={handleBulkDelete}
                       >
                          <Trash2 className="mr-2 h-3 w-3" /> Kosongkan Daftar Ini
@@ -710,7 +710,7 @@ export function ClientPriceList({ clientId }: ClientPriceListProps) {
                       >
                         <div className="flex flex-col items-start min-w-0">
                           <span className="font-bold text-slate-900 truncate w-full text-left">{p.name}</span>
-                          <span className="text-[10px] text-slate-400 font-mono">{p.skuCode} · {formatRupiah(p.sellingPrice)}</span>
+                          <span className="text-[11px] text-slate-400 font-mono">{p.skuCode} · {formatRupiah(p.sellingPrice)}</span>
                         </div>
                         <Plus className="h-4 w-4 text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity" />
                       </button>
@@ -732,12 +732,12 @@ export function ClientPriceList({ clientId }: ClientPriceListProps) {
                     onChange={(e) => handleToggleSelectAll(e.target.checked)}
                   />
                 </TableHead>
-                <TableHead className="w-[80px] uppercase text-[10px] font-bold tracking-wider">SKU</TableHead>
-                <TableHead className="uppercase text-[10px] font-bold tracking-wider min-w-[150px]">Nama Produk</TableHead>
-                <TableHead className="text-right uppercase text-[10px] font-bold tracking-wider">HPP (Modal)</TableHead>
-                <TableHead className="uppercase text-[10px] font-bold tracking-wider text-center bg-emerald-50 text-emerald-700 border-l border-r border-emerald-100">Pricing Tier</TableHead>
-                <TableHead className="text-right uppercase text-[10px] font-bold tracking-wider">Harga Penawaran</TableHead>
-                <TableHead className="text-right uppercase text-[10px] font-bold tracking-wider w-[120px]">Est Margin</TableHead>
+                <TableHead className="w-[80px] uppercase text-[11px] font-bold tracking-wider">SKU</TableHead>
+                <TableHead className="uppercase text-[11px] font-bold tracking-wider min-w-[150px]">Nama Produk</TableHead>
+                <TableHead className="text-right uppercase text-[11px] font-bold tracking-wider">HPP (Modal)</TableHead>
+                <TableHead className="uppercase text-[11px] font-bold tracking-wider text-center bg-emerald-50 text-emerald-700 border-l border-r border-emerald-100">Pricing Tier</TableHead>
+                <TableHead className="text-right uppercase text-[11px] font-bold tracking-wider">Harga Penawaran</TableHead>
+                <TableHead className="text-right uppercase text-[11px] font-bold tracking-wider w-[120px]">Est Margin</TableHead>
                 <TableHead className="w-[50px]"></TableHead>
               </TableRow>
             </TableHeader>
@@ -753,7 +753,7 @@ export function ClientPriceList({ clientId }: ClientPriceListProps) {
                 Object.entries(groupedProducts).map(([category, items]) => (
                   <React.Fragment key={`cat-group-${category}`}>
                     <TableRow key={`cat-header-${category}`} className="bg-slate-50 border-y border-slate-200">
-                      <TableCell colSpan={8} className="py-2.5 px-4 font-black text-[12px] uppercase tracking-wider text-slate-600">
+                      <TableCell colSpan={8} className="py-2.5 px-4 font-bold text-[12px]  text-slate-600">
                         <div className="flex items-center gap-2">
                           <div className="h-4 w-1 bg-emerald-500 rounded-full" />
                           KATEGORI: {category} ({items.length} items)
@@ -773,21 +773,21 @@ export function ClientPriceList({ clientId }: ClientPriceListProps) {
                               onChange={() => handleToggleSelectItem(p.id)}
                             />
                           </TableCell>
-                          <TableCell className="font-mono text-[10px] font-bold text-slate-500">
+                          <TableCell className="font-mono text-[11px] font-bold text-slate-500">
                         <Popover>
                           <PopoverTrigger render={
                             <button className="hover:text-emerald-600 hover:underline transition-all">
                               {p.skuCode}
                             </button>
                           } />
-                          <PopoverContent className="w-64 p-4 shadow-xl border-slate-200">
+                          <PopoverContent className="w-64 p-4 shadow-sm border-slate-200">
                              <div className="space-y-3">
                                <div className="space-y-1">
-                                 <h4 className="text-xs font-black uppercase text-slate-400">Update Master Data</h4>
-                                 <p className="text-[10px] text-slate-500 font-medium">Ubah harga beli dasar (HPP) barang ini secara global.</p>
+                                 <h4 className="text-xs font-bold uppercase text-slate-400">Update Master Data</h4>
+                                 <p className="text-[11px] text-slate-500 font-medium">Ubah harga beli dasar (HPP) barang ini secara global.</p>
                                </div>
                                <div className="grid gap-2">
-                                  <label className="text-[10px] font-bold text-slate-500 uppercase">HPP Modal Baru (Rp)</label>
+                                  <label className="text-[11px] font-bold text-slate-500 uppercase">HPP Modal Baru (Rp)</label>
                                   <Input 
                                     key={`baseprice-${p.id}-${p.basePrice}`}
                                     defaultValue={formatNumber(p.basePrice)}
@@ -795,7 +795,7 @@ export function ClientPriceList({ clientId }: ClientPriceListProps) {
                                     className="h-9 text-xs font-mono font-bold"
                                   />
                                </div>
-                               <p className="text-[9px] italic text-slate-400">Input otomatis tersimpan saat kursor keluar (blur).</p>
+                               <p className="text-[11px] italic text-slate-400">Input otomatis tersimpan saat kursor keluar (blur).</p>
                              </div>
                           </PopoverContent>
                         </Popover>
@@ -807,14 +807,14 @@ export function ClientPriceList({ clientId }: ClientPriceListProps) {
                                 {p.name}
                               </button>
                             } />
-                            <PopoverContent className="w-64 p-4 shadow-xl border-slate-200">
+                            <PopoverContent className="w-64 p-4 shadow-sm border-slate-200">
                                <div className="space-y-3">
                                  <div className="space-y-1">
-                                   <h4 className="text-xs font-black uppercase text-slate-400">Produk Detil</h4>
+                                   <h4 className="text-xs font-bold uppercase text-slate-400">Produk Detil</h4>
                                    <p className="text-sm font-bold text-slate-800">{p.name}</p>
-                                   <p className="text-[10px] text-slate-400 font-mono italic">{p.skuCode}</p>
+                                   <p className="text-[11px] text-slate-400 font-mono italic">{p.skuCode}</p>
                                  </div>
-                                 <div className="pt-2 border-t border-slate-100 flex justify-between items-center text-[10px] font-bold">
+                                 <div className="pt-2 border-t border-slate-100 flex justify-between items-center text-[11px] font-bold">
                                     <span className="text-slate-400">MASTER HPP:</span>
                                     <span className="text-slate-700">{formatRupiah(p.basePrice)}</span>
                                  </div>
@@ -827,7 +827,7 @@ export function ClientPriceList({ clientId }: ClientPriceListProps) {
                           <span className={baseSource === 'weekly_low' ? 'text-emerald-700 font-bold' : 'text-slate-500'}>
                             {formatRupiah(effectiveBase)}
                           </span>
-                          <span className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${
+                          <span className={`text-[11px] font-bold  px-1.5 py-0.5 rounded ${
                             baseSource === 'weekly_low'
                               ? 'bg-emerald-100 text-emerald-700'
                               : 'bg-slate-100 text-slate-500'
@@ -835,7 +835,7 @@ export function ClientPriceList({ clientId }: ClientPriceListProps) {
                             {baseSource === 'weekly_low' ? 'Weekly Low' : 'Master'}
                           </span>
                           {baseSource === 'weekly_low' && p.basePrice !== effectiveBase && (
-                            <span className="text-[8px] font-medium text-slate-400 italic">
+                            <span className="text-[11px] font-medium text-slate-400 italic">
                               Master: {formatRupiah(p.basePrice)}
                             </span>
                           )}
@@ -863,7 +863,7 @@ export function ClientPriceList({ clientId }: ClientPriceListProps) {
                       <TableCell className="text-right">
                          {record?.tier === 'Custom' ? (
                             <div className="relative inline-block w-32">
-                               <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">Rp</span>
+                               <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-400">Rp</span>
                                <Input 
                                  key={`agreedprice-${p.id}-${record.agreedPrice || record.agreed_price}`}
                                  defaultValue={formatNumber(record.agreed_price || record.agreedPrice)} // Handle snake_case from DB if needed
@@ -872,7 +872,7 @@ export function ClientPriceList({ clientId }: ClientPriceListProps) {
                                />
                             </div>
                          ) : (
-                            <span className={`font-mono text-sm font-black ${isCustom ? 'text-emerald-600' : 'text-slate-700'}`}>
+                            <span className={`font-mono text-sm font-bold ${isCustom ? 'text-emerald-600' : 'text-slate-700'}`}>
                               {formatRupiah(price)}
                               {isCustom && <Check className="w-3 h-3 inline ml-1 text-emerald-500" />}
                             </span>
@@ -883,7 +883,7 @@ export function ClientPriceList({ clientId }: ClientPriceListProps) {
                           <span className={`text-[11px] font-bold font-mono ${margin < 0 ? 'text-rose-600' : 'text-slate-600'}`}>
                             {margin > 0 ? '+' : ''}{formatRupiah(margin)}
                           </span>
-                          <span className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-sm mt-0.5 ${
+                          <span className={`text-[11px] font-bold  px-1.5 py-0.5 rounded-sm mt-0.5 ${
                             marginPct < 10 && marginPct >= 0 ? 'bg-amber-100 text-amber-700' : 
                             marginPct < 0 ? 'bg-rose-100 text-rose-700' : 
                             'bg-emerald-100 text-emerald-700'
@@ -914,7 +914,7 @@ export function ClientPriceList({ clientId }: ClientPriceListProps) {
             {/* Pagination Controls */}
             {totalPages > 1 && (
               <div className="bg-slate-50 border-t border-slate-100 p-4 flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest leading-none">
+                <p className="text-xs font-bold text-slate-400  leading-none">
                   Halaman {currentPage} dari {totalPages} ({configuredProducts.length} items)
                 </p>
                 <div className="flex gap-2">

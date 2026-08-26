@@ -43,7 +43,7 @@ export default function SourcingMonitorPage() {
     <AuthGuard allowedRoles={['finance', 'super_admin', 'ceo']}>
       <div className="space-y-6 max-w-6xl mx-auto">
         <Card>
-          <CardHeader><CardTitle className="text-xl font-black uppercase tracking-tight">Pantau Harian Sourcing</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-xl font-bold ">Pantau Harian Sourcing</CardTitle></CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
@@ -65,11 +65,11 @@ export default function SourcingMonitorPage() {
                   return (
                     <TableRow key={`${r.pocketId}|${r.date}`}>
                       <TableCell className="text-xs font-bold">{r.date}</TableCell>
-                      <TableCell className="text-xs font-black">{r.sourcer}</TableCell>
+                      <TableCell className="text-xs font-bold">{r.sourcer}</TableCell>
                       <TableCell className="text-right text-xs">{formatRupiah(r.ditarik)}</TableCell>
                       <TableCell className="text-right text-xs">{formatRupiah(r.belanja)}</TableCell>
                       <TableCell className="text-right text-xs">{formatRupiah(r.disetor)}</TableCell>
-                      <TableCell className={`text-right text-xs font-black ${r.defisit > 0 ? 'text-rose-600' : 'text-slate-600'}`}>{r.defisit > 0 ? `-${formatRupiah(r.defisit)}` : formatRupiah(sisa)}</TableCell>
+                      <TableCell className={`text-right text-xs font-bold ${r.defisit > 0 ? 'text-rose-600' : 'text-slate-600'}`}>{r.defisit > 0 ? `-${formatRupiah(r.defisit)}` : formatRupiah(sisa)}</TableCell>
                       <TableCell className="text-center">
                         <Badge className={r.closed ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}>{r.closed ? 'Tutup' : 'Buka'}</Badge>
                       </TableCell>

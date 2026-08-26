@@ -23,18 +23,18 @@ export default function OrderLandingPage() {
   }, [clients, searchTerm])
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-100 via-slate-50 to-white">
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-100 to-white">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center space-y-4">
           <motion.div 
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            className="w-20 h-20 bg-emerald-600 text-white rounded-[2rem] flex items-center justify-center mx-auto shadow-xl shadow-emerald-200"
+            className="w-20 h-20 bg-emerald-600 text-white rounded-xl flex items-center justify-center mx-auto shadow-sm"
           >
             <Store className="w-10 h-10" />
           </motion.div>
           <div className="space-y-1">
-            <h1 className="text-3xl font-black text-slate-800 tracking-tight">Portal Order</h1>
+            <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Portal Order</h1>
             <p className="text-slate-500 font-medium">Silakan pilih nama perusahaan Anda untuk mulai belanja.</p>
           </div>
         </div>
@@ -48,7 +48,7 @@ export default function OrderLandingPage() {
           <div className="relative">
             <Input 
               placeholder="Cari nama perusahaan..."
-              className="h-14 bg-white border-slate-200 rounded-2xl pl-12 shadow-lg focus:ring-emerald-500/20 text-lg font-medium"
+              className="h-14 bg-white border-slate-200 rounded-2xl pl-12 shadow-sm focus:ring-emerald-500/20 text-lg font-medium"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -74,8 +74,8 @@ export default function OrderLandingPage() {
                           <User className="w-5 h-5" />
                         </div>
                         <div>
-                          <p className="font-black text-slate-800 group-hover:text-emerald-900 transition-colors">{client.companyName}</p>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{client.picName}</p>
+                          <p className="font-bold text-slate-800 group-hover:text-emerald-900 transition-colors">{client.companyName}</p>
+                          <p className="text-[11px] font-bold text-slate-400 ">{client.picName}</p>
                         </div>
                       </div>
                       <ArrowRight className="w-5 h-5 text-slate-300 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" />
@@ -86,14 +86,14 @@ export default function OrderLandingPage() {
             ))}
             
             {filteredClients.length === 0 && (
-              <div className="p-12 text-center text-slate-400 font-medium bg-white/50 rounded-3xl border border-dashed">
+              <div className="p-12 text-center text-slate-400 font-medium bg-card rounded-lg border border-dashed">
                 Perusahaan tidak ditemukan.
               </div>
             )}
           </div>
         </motion.div>
 
-        <p className="text-center text-[10px] font-bold text-slate-300 uppercase tracking-widest">
+        <p className="text-center text-[11px] font-bold text-slate-300 ">
           Powered by Disma Core v2.0
         </p>
       </div>

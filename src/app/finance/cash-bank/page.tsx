@@ -1,15 +1,18 @@
 "use client"
 
+import Link from "next/link"
 import { useState, useMemo } from "react"
 import { useAppStore } from "@/lib/store"
+import { tujuanTransaksi, tanpaRef } from "@/lib/tx-rujukan"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { StatBand } from "@/components/ui/stat-band"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Plus, Minus, Landmark, ArrowUpRight, ArrowDownRight, Search, History, Wallet, Wallet2, Building2, Receipt, FileText, Pencil, Settings2, Trash2, CheckCircle2, AlertCircle, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { format } from "date-fns"
-import { formatRupiah, formatNumber, parseNumber } from "@/lib/utils"
+import { formatRupiah, formatNumber, parseNumber, formatRupiahShort } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
@@ -56,7 +59,16 @@ export default function CashAndBankPage() {
   const deleteCashTransaction = useAppStore(state => state.deleteCashTransaction)
   const bulkDeleteCashTransactions = useAppStore(state => state.bulkDeleteCashTransactions)
   const coas = useAppStore(state => state.coas)
+  const invoices = useAppStore(state => state.invoices)
+  const salesOrders = useAppStore(state => state.salesOrders)
+  const purchases = useAppStore(state => state.purchases)
   const users = useAppStore(state => state.users)
+
+  // Bahan untuk menerjemahkan rujukan transaksi jadi nomor dokumen yang dikenal orang.
+  const kamusRujukan = useMemo(
+    () => ({ invoices, salesOrders, purchases }),
+    [invoices, salesOrders, purchases],
+  )
 
   const [isAddTxOpen, setIsAddTxOpen] = useState(false)
   const [isAddBankOpen, setIsAddBankOpen] = useState(false)
@@ -521,35 +533,37 @@ export default function CashAndBankPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Management Kas & Bank</h2>
-          <p className="text-muted-foreground italic">Pantau saldo akun bank dan catat transaksi finansial harian.</p>
+          <h2 className="text-[19px] leading-tight font-semibold text-slate-900">Kas &amp; bank</h2>
+          <p className="mt-[3px] text-[12.5px] text-slate-400">
+            Saldo gabungan {formatRupiahShort(bankAccounts.reduce((sum, b) => sum + Number(b.balance || 0), 0))} · {bankAccounts.length} akun
+          </p>
         </div>
         <div className="flex gap-2">
            <Dialog open={isAddBankOpen} onOpenChange={setIsAddBankOpen}>
               <DialogTrigger render={
-                 <Button variant="outline" className="rounded-xl h-11 px-6 font-bold uppercase text-[10px] tracking-widest border-slate-200">
+                 <Button variant="outline" className="rounded-xl h-11 px-6 font-bold uppercase text-[11px] tracking-widest border-slate-200">
                     <Building2 className="w-4 h-4 mr-2" /> Daftar Bank Baru
                  </Button>
               } />
-              <DialogContent className="rounded-[2rem] p-8 max-w-sm">
+              <DialogContent className="rounded-xl p-8 max-w-sm">
                  <DialogHeader>
-                    <DialogTitle className="text-xl font-black uppercase text-slate-800 tracking-tight text-center mb-4">Registrasi Akun Kas/Bank</DialogTitle>
+                    <DialogTitle className="text-xl font-bold uppercase text-slate-800 tracking-tight text-center mb-4">Registrasi Akun Kas/Bank</DialogTitle>
                  </DialogHeader>
                  <div className="space-y-4">
                     <div className="space-y-1">
-                       <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 text-center block">Nama Bank / Laci</label>
+                       <label className="text-[11px] font-bold uppercase text-slate-400 tracking-widest ml-1 text-center block">Nama Bank / Laci</label>
                        <Input value={bankForm.name} onChange={e => setBankForm({ ...bankForm, name: e.target.value })} placeholder="Misal: Bank Mandiri / Petty Cash" className="rounded-xl h-12 text-center" />
                     </div>
                     <div className="space-y-1">
-                       <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 text-center block">No Rekening (pasti/opsional)</label>
+                       <label className="text-[11px] font-bold uppercase text-slate-400 tracking-widest ml-1 text-center block">No Rekening (pasti/opsional)</label>
                        <Input value={bankForm.number} onChange={e => setBankForm({ ...bankForm, number: e.target.value })} placeholder="000-XXXXXXXX" className="rounded-xl h-12 text-center" />
                     </div>
                     <div className="space-y-1">
-                       <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 text-center block">Saldo Awal (Rp)</label>
-                       <Input type="number" value={bankForm.balance} onChange={e => setBankForm({ ...bankForm, balance: Number(e.target.value) })} className="rounded-xl h-12 font-black text-emerald-600 text-center" />
+                       <label className="text-[11px] font-bold uppercase text-slate-400 tracking-widest ml-1 text-center block">Saldo Awal (Rp)</label>
+                       <Input type="number" value={bankForm.balance} onChange={e => setBankForm({ ...bankForm, balance: Number(e.target.value) })} className="rounded-xl h-12 font-bold text-emerald-600 text-center" />
                     </div>
                     <div className="space-y-1">
-                       <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 text-center block">Link ke Buku Besar (COA)</label>
+                       <label className="text-[11px] font-bold uppercase text-slate-400 tracking-widest ml-1 text-center block">Link ke Buku Besar (COA)</label>
                         <Select value={bankForm.accountCode} onValueChange={(val) => setBankForm({ ...bankForm, accountCode: val || '' })}>
                            <SelectTrigger className="h-12 rounded-xl text-center font-bold">
                               <SelectValue placeholder="Pilih Akun">{bankForm.accountCode ? (() => { const acc = coas.find(c => c.accountCode === bankForm.accountCode); return acc ? `${acc.accountCode} - ${acc.accountName}` : bankForm.accountCode })() : undefined}</SelectValue>
@@ -564,7 +578,7 @@ export default function CashAndBankPage() {
                         </Select>
                     </div>
                     <div className="space-y-1">
-                       <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 text-center block">Peruntukan Rekening</label>
+                       <label className="text-[11px] font-bold uppercase text-slate-400 tracking-widest ml-1 text-center block">Peruntukan Rekening</label>
                         <Select value={bankForm.purpose} onValueChange={(val) => setBankForm({ ...bankForm, purpose: (val || 'umum') as BankAccountPurpose })}>
                            <SelectTrigger className="h-12 rounded-xl text-center font-bold">
                               <SelectValue />
@@ -579,7 +593,7 @@ export default function CashAndBankPage() {
                     </div>
                     {bankForm.purpose === 'sourcing_pocket' && (
                       <div className="space-y-1">
-                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 text-center block">Pemilik Kantong (Sourcing)</label>
+                        <label className="text-[11px] font-bold uppercase text-slate-400 tracking-widest ml-1 text-center block">Pemilik Kantong (Sourcing)</label>
                         <Select value={bankForm.ownerUserId} onValueChange={(val) => setBankForm({ ...bankForm, ownerUserId: val || '' })}>
                           <SelectTrigger className="h-12 rounded-xl text-center font-bold"><SelectValue placeholder="Pilih sourcing..." /></SelectTrigger>
                           <SelectContent>
@@ -596,11 +610,11 @@ export default function CashAndBankPage() {
                         checked={bankForm.cfoApprovalRequired}
                         onCheckedChange={(checked) => setBankForm({ ...bankForm, cfoApprovalRequired: checked === true })}
                       />
-                      <label htmlFor="cfo-gate-create" className="text-[10px] font-bold text-slate-600 leading-tight">
+                      <label htmlFor="cfo-gate-create" className="text-[11px] font-bold text-slate-600 leading-tight">
                         Butuh Approval CFO untuk transfer KELUAR dari rekening ini (BRI, Mandiri)
                       </label>
                     </div>
-                    <Button onClick={handleCreateBank} disabled={isSubmitting} className="w-full h-14 bg-slate-900 text-white rounded-[1.5rem] font-black uppercase text-[10px] tracking-widest shadow-xl mt-4">
+                    <Button onClick={handleCreateBank} disabled={isSubmitting} className="w-full h-14 bg-slate-900 text-white rounded-xl font-bold uppercase text-[11px] tracking-widest shadow-sm mt-4">
                        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Buka Akun Kas/Bank"}
                     </Button>
                  </div>
@@ -616,13 +630,13 @@ export default function CashAndBankPage() {
               }
            }}>
               <DialogTrigger render={
-                 <Button className="bg-emerald-600 hover:bg-emerald-700 font-bold shadow-lg shadow-emerald-200 dark:shadow-none h-11 px-6 rounded-xl">
+                 <Button className="bg-emerald-600 hover:bg-emerald-700 font-bold shadow-sm dark:shadow-none h-11 px-6 rounded-xl">
                     <Plus className="w-4 h-4 mr-1" /> Catat Kas Masuk/Keluar
                  </Button>
               } />
               <DialogContent className="sm:max-w-2xl max-h-[88vh] overflow-y-auto">
                  <DialogHeader>
-                    <DialogTitle className="text-2xl font-black">Input Transaksi Kas</DialogTitle>
+                    <DialogTitle className="text-2xl font-bold">Input Transaksi Kas</DialogTitle>
                  </DialogHeader>
                   <div className="space-y-4 py-2">
                      <div className="flex p-1 bg-slate-100 dark:bg-slate-900 rounded-xl">
@@ -739,10 +753,10 @@ export default function CashAndBankPage() {
                      <div className="space-y-2">
                         <Label>Nominal (Rp)</Label>
                         <div className="relative">
-                           <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-slate-400">Rp</span>
+                           <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">Rp</span>
                            <Input
                               type="text"
-                              className={`h-12 pl-12 text-2xl font-black rounded-2xl border-2 tracking-tight ${txType === 'In' ? 'text-emerald-600 border-emerald-100' : txType === 'Transfer' ? 'text-indigo-600 border-indigo-100' : 'text-rose-600 border-rose-100'}`}
+                              className={`h-12 pl-12 text-2xl font-bold rounded-2xl border-2 tracking-tight ${txType === 'In' ? 'text-emerald-600 border-emerald-100' : txType === 'Transfer' ? 'text-indigo-600 border-indigo-100' : 'text-rose-600 border-rose-100'}`}
                               value={formatNumber(amount)}
                               onChange={(e) => setAmount(parseNumber(e.target.value))}
                            />
@@ -751,7 +765,7 @@ export default function CashAndBankPage() {
 
                      {category === 'Cicilan Pinjaman' && txType === 'Out' && (
                         <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 space-y-3">
-                           <p className="text-xs font-black text-amber-700 uppercase tracking-widest">📋 Rincian Cicilan Pinjaman</p>
+                           <p className="text-xs font-bold text-amber-700 ">📋 Rincian Cicilan Pinjaman</p>
                            <div className="grid grid-cols-2 gap-3">
                               <div className="space-y-1">
                                  <Label className="text-xs text-amber-700">Bagian Pokok (Rp)</Label>
@@ -770,7 +784,7 @@ export default function CashAndBankPage() {
                                  </div>
                               </div>
                            </div>
-                           <p className="text-[10px] text-amber-600">Pokok kurangi utang di neraca. Bunga masuk beban P&L.</p>
+                           <p className="text-[11px] text-amber-600">Pokok kurangi utang di neraca. Bunga masuk beban P&L.</p>
                         </div>
                      )}
 
@@ -801,7 +815,7 @@ export default function CashAndBankPage() {
                   </div>
                   <DialogFooter>
                      <Button 
-                        className={`w-full h-12 font-black text-base rounded-2xl animate-in zoom-in-95 duration-200 ${txType === 'In' ? 'bg-emerald-600 hover:bg-emerald-700' : txType === 'Transfer' ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-rose-600 hover:bg-rose-700'}`}
+                        className={`w-full h-12 font-bold text-base rounded-2xl duration-200 ${txType === 'In' ? 'bg-emerald-600 hover:bg-emerald-700' : txType === 'Transfer' ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-rose-600 hover:bg-rose-700'}`}
                         onClick={handleSaveTx}
                         disabled={isSubmitting}
                      >
@@ -812,6 +826,22 @@ export default function CashAndBankPage() {
             </Dialog>
          </div>
       </div>
+
+      {bankAccounts.length > 0 && (
+        <StatBand
+          leader={{
+            label: 'Saldo gabungan',
+            value: formatRupiahShort(bankAccounts.reduce((sum, b) => sum + Number(b.balance || 0), 0)),
+            note: `${bankAccounts.length} akun kas & bank`,
+          }}
+          items={bankAccounts.slice(0, 4).map(b => ({
+            label: b.name,
+            value: formatRupiahShort(Number(b.balance || 0)),
+            tone: Number(b.balance || 0) < 0 ? 'risk' as const : 'ink' as const,
+            note: b.accountNumber || 'tanpa nomor rekening',
+          }))}
+        />
+      )}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
          {bankAccounts.map(b => {
             const isSelected = selectedBankFilter === b.id;
@@ -819,15 +849,15 @@ export default function CashAndBankPage() {
             <Card
                key={b.id}
                onClick={() => setSelectedBankFilter(isSelected ? null : b.id)}
-               className={`cursor-pointer transition-all duration-300 overflow-hidden group ${isSelected ? 'border-2 border-emerald-500 bg-emerald-50/30 shadow-md shadow-emerald-100 dark:border-emerald-600 dark:bg-emerald-900/20' : 'border border-transparent shadow-md shadow-slate-100 dark:shadow-none hover:border-slate-200'}`}
+               className={`cursor-pointer transition-all duration-300 overflow-hidden group ${isSelected ? 'border-2 border-emerald-500 bg-emerald-50/30 shadow-md dark:border-emerald-600 dark:bg-emerald-900/20' : 'border border-transparent shadow-md dark:shadow-none hover:border-slate-200'}`}
             >
                <div className="p-3 relative">
                   <div className="flex justify-between items-start">
                      <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-                        {b.name.includes('Petty') ? <Wallet className="w-4 h-4 text-indigo-600" /> : <Building2 className="w-4 h-4 text-slate-600 dark:text-slate-300" />}
+                        {b.name.includes('Petty') ? <Wallet className="w-4 h-4" /> : <Building2 className="w-4 h-4 text-slate-600 dark:text-slate-300" />}
                      </div>
                      <div className="flex flex-col items-end gap-2">
-                        <Badge variant="outline" className="text-[10px] font-bold tracking-tighter opacity-70">
+                        <Badge variant="outline" className="text-[11px] font-bold tracking-tighter opacity-70">
                            {b.accountNumber || 'PHYSICAL CASH'}
                         </Badge>
                         <div className="flex flex-row items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
@@ -856,16 +886,16 @@ export default function CashAndBankPage() {
                      </div>
                   </div>
                   <div className="mt-2">
-                     <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest truncate">{b.accountNumber || 'PHYSICAL CASH'}</p>
-                     <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wide mt-0.5 truncate">{b.name}</p>
-                     <p className="text-lg font-black mt-0.5 tracking-tighter">{formatRupiah(b.balance)}</p>
+                     <p className="text-[11px] text-slate-400 font-bold  truncate">{b.accountNumber || 'PHYSICAL CASH'}</p>
+                     <p className="text-[11px] text-slate-500 font-bold  mt-0.5 truncate">{b.name}</p>
+                     <p className="text-lg font-bold mt-0.5 tracking-tighter">{formatRupiah(b.balance)}</p>
                      {b.cfoApprovalRequired && (
-                        <Badge variant="outline" className="mt-1 text-[8px] font-black uppercase tracking-widest bg-amber-50 text-amber-700 border-amber-200">
+                        <Badge variant="outline" className="mt-1 text-[11px] font-bold  bg-amber-50 text-amber-700 border-amber-200">
                            Butuh Approval CFO
                         </Badge>
                      )}
                   </div>
-                  <div className="absolute right-[-8px] bottom-[-8px] opacity-[0.04] group-hover:rotate-12 transition-all duration-500">
+                  <div className="absolute right-[-8px] bottom-[-8px] opacity-[0.04] group-hover:rotate-12 transition-all duration-150">
                      <Landmark className="w-14 h-14" />
                   </div>
                </div>
@@ -876,13 +906,13 @@ export default function CashAndBankPage() {
 
       {/* EDIT BANK DIALOG */}
       <Dialog open={!!editingBank} onOpenChange={(open) => !open && setEditingBank(null)}>
-        <DialogContent className="rounded-[2.5rem] p-8 max-w-sm">
+        <DialogContent className="rounded-2xl p-8 max-w-sm">
           <DialogHeader>
-            <DialogTitle className="text-xl font-black uppercase text-slate-800 tracking-tight text-center mb-4">Edit Info Akun</DialogTitle>
+            <DialogTitle className="text-xl font-bold uppercase text-slate-800 tracking-tight text-center mb-4">Edit Info Akun</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1">
-              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 text-center block">Nama Bank</label>
+              <label className="text-[11px] font-bold uppercase text-slate-400 tracking-widest ml-1 text-center block">Nama Bank</label>
               <Input 
                 value={editingBank?.name || ''} 
                 onChange={e => setEditingBank({ ...editingBank, name: e.target.value })} 
@@ -890,7 +920,7 @@ export default function CashAndBankPage() {
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 text-center block">No Rekening</label>
+              <label className="text-[11px] font-bold uppercase text-slate-400 tracking-widest ml-1 text-center block">No Rekening</label>
               <Input 
                 value={editingBank?.accountNumber || ''} 
                 onChange={e => setEditingBank({ ...editingBank, accountNumber: e.target.value })} 
@@ -898,16 +928,16 @@ export default function CashAndBankPage() {
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 text-center block">Koreksi Saldo</label>
+              <label className="text-[11px] font-bold uppercase text-slate-400 tracking-widest ml-1 text-center block">Koreksi Saldo</label>
               <Input 
                 type="number"
                 value={editingBank?.balance || 0} 
                 onChange={e => setEditingBank({ ...editingBank, balance: Number(e.target.value) })} 
-                className="rounded-xl h-12 text-center font-black text-emerald-600" 
+                className="rounded-xl h-12 text-center font-bold text-emerald-600" 
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 text-center block">Link ke Buku Besar (COA)</label>
+              <label className="text-[11px] font-bold uppercase text-slate-400 tracking-widest ml-1 text-center block">Link ke Buku Besar (COA)</label>
               <Select value={editingBank?.accountCode || ''} onValueChange={(val) => setEditingBank({ ...editingBank, accountCode: val || '' })}>
                 <SelectTrigger className="h-12 rounded-xl text-center font-bold">
                   <SelectValue placeholder="Pilih Akun">{editingBank?.accountCode ? (() => { const acc = coas.find(c => c.accountCode === editingBank.accountCode); return acc ? `${acc.accountCode} - ${acc.accountName}` : editingBank.accountCode })() : undefined}</SelectValue>
@@ -922,7 +952,7 @@ export default function CashAndBankPage() {
               </Select>
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 text-center block">Peruntukan Rekening</label>
+              <label className="text-[11px] font-bold uppercase text-slate-400 tracking-widest ml-1 text-center block">Peruntukan Rekening</label>
               <Select value={editingBank?.purpose || 'umum'} onValueChange={(val) => setEditingBank({ ...editingBank, purpose: val || 'umum' })}>
                 <SelectTrigger className="h-12 rounded-xl text-center font-bold">
                   <SelectValue />
@@ -937,7 +967,7 @@ export default function CashAndBankPage() {
             </div>
             {editingBank?.purpose === 'sourcing_pocket' && (
               <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 text-center block">Pemilik Kantong (Sourcing)</label>
+                <label className="text-[11px] font-bold uppercase text-slate-400 tracking-widest ml-1 text-center block">Pemilik Kantong (Sourcing)</label>
                 <Select value={editingBank?.ownerUserId || ''} onValueChange={(val) => setEditingBank({ ...editingBank, ownerUserId: val || '' })}>
                   <SelectTrigger className="h-12 rounded-xl text-center font-bold"><SelectValue placeholder="Pilih sourcing..." /></SelectTrigger>
                   <SelectContent>
@@ -954,21 +984,21 @@ export default function CashAndBankPage() {
                 checked={!!editingBank?.cfoApprovalRequired}
                 onCheckedChange={(checked) => setEditingBank({ ...editingBank, cfoApprovalRequired: checked === true })}
               />
-              <label htmlFor="cfo-gate-edit" className="text-[10px] font-bold text-slate-600 leading-tight">
+              <label htmlFor="cfo-gate-edit" className="text-[11px] font-bold text-slate-600 leading-tight">
                 Butuh Approval CFO untuk transfer KELUAR dari rekening ini (BRI, Mandiri)
               </label>
             </div>
 
             {/* Adjustment Category Logic */}
             {editingBank && (Number(editingBank.balance) !== (bankAccounts.find(b => b.id === editingBank.id)?.balance || 0)) && (
-              <div className="space-y-2 p-4 bg-amber-50 rounded-2xl border border-amber-100 animate-in fade-in slide-in-from-top-2">
-                <label className="text-[10px] font-black uppercase text-amber-600 tracking-widest block text-center">Deteksi Selisih Saldo!</label>
-                <p className="text-[9px] text-amber-500 font-bold text-center leading-tight mb-2">
+              <div className="space-y-2 p-4 bg-amber-50 rounded-2xl border border-amber-100">
+                <label className="text-[11px] font-bold uppercase text-amber-600 tracking-widest block text-center">Deteksi Selisih Saldo!</label>
+                <p className="text-[11px] text-amber-500 font-bold text-center leading-tight mb-2">
                   Saldo berubah {formatRupiah(Math.abs(Number(editingBank.balance) - (bankAccounts.find(b => b.id === editingBank.id)?.balance || 0)))}. <br />
                   Kemana selisih ini dicatat di Buku Besar?
                 </p>
                 <Select value={editingBank.adjCategory || ''} onValueChange={(val) => setEditingBank({ ...editingBank, adjCategory: val || '' })}>
-                  <SelectTrigger className="h-10 rounded-xl bg-white border-amber-200 text-amber-900 font-black text-xs uppercase shadow-sm">
+                  <SelectTrigger className="h-10 rounded-xl bg-white border-amber-200 text-amber-900 font-bold text-xs uppercase shadow-sm">
                     <SelectValue placeholder="Pilih Kategori" />
                   </SelectTrigger>
                   <SelectContent>
@@ -989,7 +1019,7 @@ export default function CashAndBankPage() {
                 </Select>
               </div>
             )}
-            <Button onClick={handleUpdateBank} disabled={isSubmitting} className="w-full h-14 bg-emerald-600 text-white rounded-[1.5rem] font-black uppercase text-[10px] tracking-widest shadow-xl mt-4">
+            <Button onClick={handleUpdateBank} disabled={isSubmitting} className="w-full h-14 bg-emerald-600 text-white rounded-xl font-bold uppercase text-[11px] tracking-widest shadow-sm mt-4">
               {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Simpan Perubahan"}
             </Button>
             <Button
@@ -1005,7 +1035,7 @@ export default function CashAndBankPage() {
                   toast.error(err?.message || 'Gagal hapus akun')
                 }
               }}
-              className="w-full h-12 text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-[1.25rem] font-black uppercase text-[10px] tracking-widest mt-2 flex items-center gap-2"
+              className="w-full h-12 text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl font-bold uppercase text-[11px] tracking-widest mt-2 flex items-center gap-2"
             >
               <Trash2 className="w-4 h-4" /> Hapus Akun Bank
             </Button>
@@ -1013,20 +1043,20 @@ export default function CashAndBankPage() {
         </DialogContent>
       </Dialog>
 
-      <Card className="border-none shadow-xl shadow-slate-200 dark:shadow-none mt-8 rounded-3xl overflow-hidden">
+      <Card className="border-none shadow-sm dark:shadow-none mt-8 rounded-lg overflow-hidden">
          <CardHeader className="bg-slate-50 dark:bg-slate-900 border-b py-6 px-8">
             <div className="flex justify-between items-center">
                <div>
-                  <CardTitle className="text-xl font-black flex items-center gap-2">
+                  <CardTitle className="text-xl font-bold flex items-center gap-2">
                      <History className="w-5 h-5 text-emerald-600" />
                      History Transaksi Kas
                      {selectedBankFilter && (
-                        <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 ml-2 animate-in fade-in zoom-in">
+                        <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 ml-2">
                            Bank: {bankAccounts.find(b => b.id === selectedBankFilter)?.name}
                         </Badge>
                      )}
                      {selectedCategoryFilter && (
-                        <Badge variant="secondary" className="bg-blue-100 text-blue-700 ml-2 animate-in fade-in zoom-in">
+                        <Badge variant="secondary" className="bg-muted text-slate-600 ml-2">
                            Kategori: {formatCategory(selectedCategoryFilter)}
                         </Badge>
                      )}
@@ -1035,12 +1065,12 @@ export default function CashAndBankPage() {
                </div>
                <div className="flex items-center gap-4">
                   {selectedTxIds.length > 0 && (
-                     <div className="flex items-center gap-2 animate-in slide-in-from-right-2">
+                     <div className="flex items-center gap-2">
                         <span className="text-xs font-bold text-slate-500">{selectedTxIds.length} terpilih</span>
                         <Button 
                            variant="destructive" 
                            size="sm" 
-                           className="h-8 rounded-lg px-3 font-bold text-[10px] uppercase tracking-wider"
+                           className="h-8 rounded-lg px-3 font-bold text-[11px] "
                            onClick={() => setIsBulkDeleteConfirmOpen(true)}
                         >
                            <Trash2 className="w-3 h-3 mr-1" /> Hapus Massal
@@ -1133,20 +1163,36 @@ export default function CashAndBankPage() {
                                  />
                               </TableCell>
                               <TableCell className="px-4 flex flex-col items-start gap-1">
-                                 <span className="text-[10px] font-bold text-slate-400">{format(new Date(tx.date), 'dd/MM HH:mm')}</span>
-                                 <Badge variant="secondary" className="text-[9px] font-black h-4 px-1.5 uppercase tracking-tighter bg-slate-100">
+                                 <span className="text-[11px] font-bold text-slate-400">{format(new Date(tx.date), 'dd/MM HH:mm')}</span>
+                                 <Badge variant="secondary" className="text-[11px] font-bold h-4 px-1.5  bg-slate-100">
                                     {bank?.name || 'Bank'}
                                  </Badge>
                               </TableCell>
                               <TableCell>
                                  <div className="flex flex-col">
-                                    <span className="font-bold text-sm">{tx.description}</span>
+                                    {/* Id mentah diganti nomor dokumennya, dan barisnya
+                                        dibuat bisa dibuka. Yang mencocokkan mutasi bank
+                                        hafal nomor PO dan faktur — bukan id acak. */}
+                                    {(() => {
+                                      const tujuan = tujuanTransaksi(tx, kamusRujukan)
+                                      const judul = tanpaRef(tx.description)
+                                      if (!tujuan) return <span className="font-bold text-sm">{judul}</span>
+                                      return (
+                                        <Link
+                                          href={tujuan.href}
+                                          className="w-max text-sm font-bold text-emerald-700 underline-offset-2 hover:underline"
+                                          title={`Buka ${tujuan.label}`}
+                                        >
+                                          {judul} · {tujuan.label}
+                                        </Link>
+                                      )
+                                    })()}
                                     <div className="flex flex-col gap-1 mt-1">
                                        {(() => {
                                           const isInternal = tx.category.toLowerCase().includes('uang muka') || tx.category.toLowerCase().includes('kembalian') || tx.category.toLowerCase().includes('pindah');
                                           const prefix = isInternal ? '🔄 Pindah Saldo Ke/Dari:' : (tx.type === 'In' ? '📥 Sumber Dana:' : '📤 Tujuan Kas Keluar:');
                                           return (
-                                             <span className={`text-[10px] font-bold ${isInternal ? 'text-indigo-600' : 'text-slate-500'}`}>
+                                             <span className={`text-[11px] font-bold ${isInternal ? 'text-indigo-600' : 'text-slate-500'}`}>
                                                 {prefix} {tx.counterpartName || (isInternal ? 'Akun Internal' : 'Pihak Eksternal')}
                                              </span>
                                           )
@@ -1154,7 +1200,7 @@ export default function CashAndBankPage() {
                                        {tx.receiptUrl && (
                                           <Dialog>
                                              <DialogTrigger render={
-                                                <button className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-1 w-max">
+                                                <button className="text-[11px] text-emerald-600 font-bold hover:underline flex items-center gap-1 w-max">
                                                    <Receipt className="w-3 h-3" /> Lihat Bukti
                                                 </button>
                                              } />
@@ -1186,7 +1232,7 @@ export default function CashAndBankPage() {
                               </TableCell>
                               <TableCell>
                                  <div className="flex flex-col items-start gap-1.5">
-                                    <Badge variant="outline" className={`text-[10px] font-bold uppercase ${tx.type === 'In' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
+                                    <Badge variant="outline" className={`text-[11px] font-bold uppercase ${tx.type === 'In' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
                                        {formatCategory(tx.category)}
                                     </Badge>
                                     {(() => {
@@ -1195,14 +1241,14 @@ export default function CashAndBankPage() {
                                        const color = isInternal ? 'bg-indigo-100 text-indigo-700 border-indigo-200' : (tx.type === 'In' ? 'bg-slate-100 text-slate-500 border-slate-200' : 'bg-slate-100 text-slate-500 border-slate-200');
                                        
                                        return (
-                                          <Badge variant="outline" className={`text-[8.5px] font-black uppercase tracking-widest ${color}`}>
+                                          <Badge variant="outline" className={`text-[8.5px] font-bold  ${color}`}>
                                              {label}
                                           </Badge>
                                        )
                                     })()}
                                  </div>
                               </TableCell>
-                              <TableCell className={`text-right px-8 font-black text-lg font-mono ${tx.type === 'In' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                              <TableCell className={`text-right px-8 font-bold text-lg font-mono ${tx.type === 'In' ? 'text-emerald-600' : 'text-rose-600'}`}>
                                  <div className="flex items-center justify-end gap-3">
                                     <span>{tx.type === 'In' ? '+' : '-'} {formatRupiah(tx.amount)}</span>
                                     <div className="flex items-center gap-1">
@@ -1234,18 +1280,18 @@ export default function CashAndBankPage() {
 
       {/* DELETE CONFIRMATION DIALOG */}
       <Dialog open={!!txToDelete} onOpenChange={(open) => !open && setTxToDelete(null)}>
-         <DialogContent className="rounded-[2rem] max-w-sm p-8">
+         <DialogContent className="rounded-xl max-w-sm p-8">
             <DialogHeader className="items-center text-center">
                <div className="w-16 h-16 bg-rose-50 rounded-2xl flex items-center justify-center mb-4">
                   <AlertCircle className="w-8 h-8 text-rose-500" />
                </div>
-               <DialogTitle className="text-xl font-black uppercase tracking-tight">Hapus Transaksi?</DialogTitle>
+               <DialogTitle className="text-xl font-bold ">Hapus Transaksi?</DialogTitle>
                <DialogDescription className="font-bold text-slate-500 mt-2">
                   Tindakan ini akan menghapus riwayat transaksi dan **mengembalikan saldo bank** ke posisi sebelum transaksi ini terjadi.
                </DialogDescription>
             </DialogHeader>
             <DialogFooter className="flex-col gap-2 sm:flex-col mt-6">
-               <Button variant="destructive" className="w-full h-12 rounded-xl font-black uppercase text-xs tracking-widest" onClick={handleConfirmDelete} disabled={isSubmitting}>
+               <Button variant="destructive" className="w-full h-12 rounded-xl font-bold uppercase text-xs tracking-widest" onClick={handleConfirmDelete} disabled={isSubmitting}>
                  {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Ya, Hapus Sekarang"}
                </Button>
                <Button variant="ghost" className="w-full h-12 rounded-xl font-bold text-slate-400" onClick={() => setTxToDelete(null)} disabled={isSubmitting}>Batalkan</Button>
@@ -1255,18 +1301,18 @@ export default function CashAndBankPage() {
 
       {/* BULK DELETE CONFIRMATION DIALOG */}
       <Dialog open={isBulkDeleteConfirmOpen} onOpenChange={setIsBulkDeleteConfirmOpen}>
-         <DialogContent className="rounded-[2rem] max-w-sm p-8">
+         <DialogContent className="rounded-xl max-w-sm p-8">
             <DialogHeader className="items-center text-center">
                <div className="w-16 h-16 bg-rose-50 rounded-2xl flex items-center justify-center mb-4">
                   <Trash2 className="w-8 h-8 text-rose-500" />
                </div>
-               <DialogTitle className="text-xl font-black uppercase tracking-tight">Hapus {selectedTxIds.length} Transaksi?</DialogTitle>
+               <DialogTitle className="text-xl font-bold ">Hapus {selectedTxIds.length} Transaksi?</DialogTitle>
                <DialogDescription className="font-bold text-slate-500 mt-2">
                   Anda akan menghapus {selectedTxIds.length} transaksi sekaligus. Saldo dari masing-masing akun bank terkait akan dikalkulasi ulang secara otomatis.
                </DialogDescription>
             </DialogHeader>
             <DialogFooter className="flex-col gap-2 sm:flex-col mt-6">
-               <Button variant="destructive" className="w-full h-12 rounded-xl font-black uppercase text-xs tracking-widest" onClick={handleBulkDelete} disabled={isSubmitting}>
+               <Button variant="destructive" className="w-full h-12 rounded-xl font-bold uppercase text-xs tracking-widest" onClick={handleBulkDelete} disabled={isSubmitting}>
                  {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Hapus Semua Terpilih"}
                </Button>
                <Button variant="ghost" className="w-full h-12 rounded-xl font-bold text-slate-400" onClick={() => setIsBulkDeleteConfirmOpen(false)} disabled={isSubmitting}>Batalkan</Button>
@@ -1278,7 +1324,7 @@ export default function CashAndBankPage() {
       <Dialog open={!!editingTx} onOpenChange={(open) => { if (!open) setEditingTx(null) }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-lg font-black">Edit Transaksi</DialogTitle>
+            <DialogTitle className="text-lg font-bold">Edit Transaksi</DialogTitle>
           </DialogHeader>
           {editingTx && (
             <div className="space-y-4 py-2">

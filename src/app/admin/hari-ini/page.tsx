@@ -15,6 +15,7 @@ import { useMemo, useState } from "react"
 import { useAppStore } from "@/lib/store"
 import AuthGuard from "@/components/auth/auth-guard"
 import { Card, CardContent } from "@/components/ui/card"
+import { PageHeader } from "@/components/ui/page-header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -153,19 +154,46 @@ export default function HariIniPage() {
 
   return (
     <AuthGuard allowedRoles={['admin_po', 'finance', 'super_admin', 'coo', 'ceo']}>
-      <div className="space-y-6 pb-24">
-        <div>
-          <h2 className="text-3xl font-black tracking-tight text-slate-900 dark:text-slate-100">Hari Ini</h2>
-          <p className="text-slate-500 font-medium text-sm">
-            Barang datang, barang dikirim, tagihan terbit — satu halaman, urut dari atas ke bawah.
-          </p>
+      <div className="-m-4 pb-24 md:-m-6 lg:-m-8">
+        <PageHeader
+          title="Hari ini"
+          context="Barang datang, barang dikirim, tagihan terbit — satu halaman, urut dari atas ke bawah."
+        />
+
+        {/* Strip tahap — empat sel lebar sama, angka di depan */}
+        <div className="grid grid-cols-2 border-b border-border bg-card md:grid-cols-4">
+          {[
+            { n: '1', label: 'Datang & diperiksa', value: masuk.length, satuan: 'barang', aktif: masuk.length > 0 },
+            { n: '', label: 'Kabari klien dulu', value: kurang.length, satuan: 'pesanan', aktif: false },
+            { n: '2', label: 'Siap dikirim', value: siapDilepas.length, satuan: 'pesanan', aktif: false },
+            { n: '3', label: 'Sudah sampai?', value: sedangJalan.length, satuan: 'kiriman', aktif: false },
+          ].map((t, i) => (
+            <div
+              key={i}
+              className={cn(
+                "border-hairline px-6 py-3.5",
+                i < 3 && "border-r",
+                i < 2 && "border-b md:border-b-0",
+                t.aktif && "border-b-2 border-b-primary"
+              )}
+            >
+              <div className="text-xs font-medium text-slate-500">
+                {t.n ? `${t.n} · ` : ''}{t.label}
+              </div>
+              <div className="tabular mt-1 text-[20px] leading-tight font-semibold text-slate-900">
+                {t.value} <span className="text-xs font-normal text-slate-400">{t.satuan}</span>
+              </div>
+            </div>
+          ))}
         </div>
 
+        <div className="space-y-[18px] px-6 py-6 md:px-7">
+
         {kosong && (
-          <Card className="border-none shadow-lg rounded-3xl">
+          <Card className="border-none shadow-sm rounded-lg">
             <CardContent className="p-10 text-center">
               <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto mb-3" />
-              <p className="font-black text-slate-700 dark:text-slate-200">Tidak ada yang menunggu.</p>
+              <p className="font-bold text-slate-700 dark:text-slate-200">Tidak ada yang menunggu.</p>
               <p className="text-sm text-slate-500 mt-1">Belum ada barang datang, dan tidak ada kiriman yang jalan.</p>
             </CardContent>
           </Card>
@@ -176,8 +204,8 @@ export default function HariIniPage() {
           <section className="space-y-3">
             <div className="flex items-center gap-2">
               <PackageCheck className="w-5 h-5 text-emerald-600" />
-              <h3 className="font-black text-lg text-slate-800 dark:text-slate-100">1 · Barang Datang & Diperiksa</h3>
-              <Badge className="bg-emerald-100 text-emerald-700 border-none">{masuk.length}</Badge>
+              <h2 className="text-sm font-semibold text-slate-900">1 · Datang &amp; diperiksa</h2>
+              <span className="tabular text-xs text-slate-400">{masuk.length}</span>
             </div>
 
             {masuk.map(item => {
@@ -188,7 +216,7 @@ export default function HariIniPage() {
               const isOpen = openItem === item.id
 
               return (
-                <Card key={item.id} className="border-none shadow-lg rounded-2xl overflow-hidden">
+                <Card key={item.id} className="border-none shadow-sm rounded-2xl overflow-hidden">
                   <CardContent className="p-4 space-y-3">
                     <button
                       type="button"
@@ -197,12 +225,12 @@ export default function HariIniPage() {
                     >
                       <div className="flex justify-between items-start gap-3">
                         <div>
-                          <p className="font-black text-slate-800 dark:text-slate-100">{item.product?.name}</p>
+                          <p className="font-bold text-slate-800 dark:text-slate-100">{item.product?.name}</p>
                           <p className="text-xs text-slate-500 font-bold">
                             Datang {item.qtyPurchased} {item.product?.uom} · {item.purchaseMethod || 'Pasar'}
                           </p>
                         </div>
-                        <Badge variant="outline" className="shrink-0 text-[10px] font-black uppercase">
+                        <Badge variant="outline" className="shrink-0 text-[11px] font-bold uppercase">
                           {isOpen ? 'Tutup' : 'Buka'}
                         </Badge>
                       </div>
@@ -212,7 +240,7 @@ export default function HariIniPage() {
                       {terpakai.length > 0 ? terpakai.map(a => (
                         <div key={a.soId} className="flex justify-between">
                           <span className="text-slate-600 dark:text-slate-300 font-bold">{namaKlien(a.soId)}</span>
-                          <span className="font-black text-slate-800 dark:text-slate-100">{a.qty} {item.product?.uom}</span>
+                          <span className="font-bold text-slate-800 dark:text-slate-100">{a.qty} {item.product?.uom}</span>
                         </div>
                       )) : (
                         <p className="text-slate-500 font-bold">Tidak ada pesanan yang menunggu barang ini.</p>
@@ -220,7 +248,7 @@ export default function HariIniPage() {
                       {inventoryRemainder > 0 && (
                         <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 pt-1 mt-1">
                           <span className="text-slate-500 font-bold">Sisa masuk gudang</span>
-                          <span className="font-black text-slate-700 dark:text-slate-200">{inventoryRemainder} {item.product?.uom}</span>
+                          <span className="font-bold text-slate-700 dark:text-slate-200">{inventoryRemainder} {item.product?.uom}</span>
                         </div>
                       )}
                     </div>
@@ -229,7 +257,7 @@ export default function HariIniPage() {
                       <div className="space-y-3 pt-1">
                         <div className="grid grid-cols-2 gap-3">
                           <div className="space-y-1">
-                            <Label className="text-[10px] font-black uppercase text-slate-500">Ada yang ditolak? ({item.product?.uom})</Label>
+                            <Label className="text-[11px] font-bold uppercase text-slate-500">Ada yang ditolak? ({item.product?.uom})</Label>
                             <Input
                               type="number" min="0" step="any"
                               onWheel={(e) => e.currentTarget.blur()}
@@ -240,7 +268,7 @@ export default function HariIniPage() {
                             />
                           </div>
                           <div className="space-y-1">
-                            <Label className="text-[10px] font-black uppercase text-slate-500">Harga vendor (kalau beda)</Label>
+                            <Label className="text-[11px] font-bold uppercase text-slate-500">Harga vendor (kalau beda)</Label>
                             <Input
                               type="number" min="0" step="any"
                               onWheel={(e) => e.currentTarget.blur()}
@@ -254,7 +282,7 @@ export default function HariIniPage() {
 
                         {ditolak > 0 && (
                           <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50/60 dark:bg-amber-950/20 p-3">
-                            <Label className="text-[10px] font-black uppercase text-amber-800">Yang ditolak diapain?</Label>
+                            <Label className="text-[11px] font-bold uppercase text-amber-800">Yang ditolak diapain?</Label>
                             <Select
                               value={rejectAction[item.id] || 'Disposal'}
                               onValueChange={v => setRejectAction(p => ({ ...p, [item.id]: (v as RejectAction) || 'Disposal' }))}
@@ -276,7 +304,7 @@ export default function HariIniPage() {
                         )}
 
                         <div className="space-y-1">
-                          <Label className="text-[10px] font-black uppercase text-slate-500">Yang memeriksa di gudang</Label>
+                          <Label className="text-[11px] font-bold uppercase text-slate-500">Yang memeriksa di gudang</Label>
                           <Select
                             value={checkedBy[item.id] || ''}
                             onValueChange={v => setCheckedBy(p => ({ ...p, [item.id]: v || '' }))}
@@ -291,7 +319,7 @@ export default function HariIniPage() {
                         </div>
 
                         <Button
-                          className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 font-black"
+                          className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 font-bold"
                           disabled={busy === item.id}
                           onClick={() => prosesBarang(item.id)}
                         >
@@ -311,7 +339,7 @@ export default function HariIniPage() {
           <section className="space-y-3">
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-amber-600" />
-              <h3 className="font-black text-lg text-slate-800 dark:text-slate-100">Perlu Dikabarin ke Klien</h3>
+              <h2 className="text-sm font-semibold text-slate-900">Kabari klien sebelum barang jalan</h2>
               <Badge className="bg-amber-100 text-amber-700 border-none">{kurang.length}</Badge>
             </div>
             <p className="text-xs text-slate-500 font-bold -mt-1">
@@ -319,16 +347,16 @@ export default function HariIniPage() {
             </p>
 
             {kurang.map(({ so, lines }) => (
-              <Card key={so.id} className="border-none shadow-lg rounded-2xl border-l-4 border-l-amber-400">
+              <Card key={so.id} className="border-none shadow-sm rounded-2xl border-l-4 border-l-amber-400">
                 <CardContent className="p-4 space-y-2">
                   <div>
-                    <p className="font-black text-slate-800 dark:text-slate-100">{namaKlien(so.id)}</p>
+                    <p className="font-bold text-slate-800 dark:text-slate-100">{namaKlien(so.id)}</p>
                     <p className="text-xs text-slate-500 font-bold">{so.poNumber}</p>
                   </div>
                   {lines.map(l => (
                     <div key={l.id} className="flex justify-between text-sm">
                       <span className="font-bold text-slate-600 dark:text-slate-300">{l.nama}</span>
-                      <span className="font-black text-amber-700">
+                      <span className="font-bold text-amber-700">
                         kurang {l.kurang} {l.uom} <span className="text-slate-400 font-bold">dari {l.dipesan}</span>
                       </span>
                     </div>
@@ -343,29 +371,29 @@ export default function HariIniPage() {
         {siapDilepas.length > 0 && (
           <section className="space-y-3">
             <div className="flex items-center gap-2">
-              <Truck className="w-5 h-5 text-blue-600" />
-              <h3 className="font-black text-lg text-slate-800 dark:text-slate-100">2 · Siap Dikirim</h3>
-              <Badge className="bg-blue-100 text-blue-700 border-none">{siapDilepas.length}</Badge>
+              <Truck className="w-5 h-5" />
+              <h2 className="text-sm font-semibold text-slate-900">2 · Siap dikirim</h2>
+              <span className="tabular text-xs text-slate-400">{siapDilepas.length}</span>
             </div>
 
             {siapDilepas.map(so => {
               const baris = salesOrderItems.filter(i => i.salesOrderId === so.id)
               return (
-                <Card key={so.id} className="border-none shadow-lg rounded-2xl">
+                <Card key={so.id} className="border-none shadow-sm rounded-2xl">
                   <CardContent className="p-4 space-y-3">
                     <div className="flex justify-between items-start gap-3">
                       <div>
-                        <p className="font-black text-slate-800 dark:text-slate-100">{namaKlien(so.id)}</p>
+                        <p className="font-bold text-slate-800 dark:text-slate-100">{namaKlien(so.id)}</p>
                         <p className="text-xs text-slate-500 font-bold">{so.poNumber} · {baris.length} jenis barang</p>
                       </div>
                       {baris.some(i => stillOwed(i) > 0) && (
-                        <Badge className="bg-amber-100 text-amber-700 border-none text-[10px] font-black shrink-0">
+                        <Badge className="bg-amber-100 text-amber-700 border-none text-[11px] font-bold shrink-0">
                           <AlertTriangle className="w-3 h-3 mr-1" /> Belum lengkap
                         </Badge>
                       )}
                     </div>
                     <Button
-                      className="w-full h-12 bg-blue-600 hover:bg-blue-700 font-black"
+                      className="w-full h-12 bg-blue-600 hover:bg-blue-700 font-bold"
                       disabled={busy === so.id}
                       onClick={() => lepasKiriman(so.id)}
                     >
@@ -382,19 +410,19 @@ export default function HariIniPage() {
         {sedangJalan.length > 0 && (
           <section className="space-y-3">
             <div className="flex items-center gap-2">
-              <Receipt className="w-5 h-5 text-violet-600" />
-              <h3 className="font-black text-lg text-slate-800 dark:text-slate-100">3 · Sudah Sampai?</h3>
-              <Badge className="bg-violet-100 text-violet-700 border-none">{sedangJalan.length}</Badge>
+              <Receipt className="w-5 h-5" />
+              <h2 className="text-sm font-semibold text-slate-900">3 · Sudah sampai?</h2>
+              <span className="tabular text-xs text-slate-400">{sedangJalan.length}</span>
             </div>
 
             {sedangJalan.map(d => {
               const baris = qtyBerangkat(d.salesOrderId)
               const total = baris.reduce((sum, { item, shipped }) => sum + ((diterima[item.id] ?? shipped) * item.unitPrice), 0)
               return (
-                <Card key={d.id} className="border-none shadow-lg rounded-2xl">
+                <Card key={d.id} className="border-none shadow-sm rounded-2xl">
                   <CardContent className="p-4 space-y-3">
                     <div>
-                      <p className="font-black text-slate-800 dark:text-slate-100">{namaKlien(d.salesOrderId)}</p>
+                      <p className="font-bold text-slate-800 dark:text-slate-100">{namaKlien(d.salesOrderId)}</p>
                       <p className="text-xs text-slate-500 font-bold">
                         Isi berapa yang benar-benar diterima klien. Kalau pas semua, biarkan saja.
                       </p>
@@ -409,12 +437,12 @@ export default function HariIniPage() {
                           <div key={item.id} className="flex items-center gap-3">
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate">{product?.name}</p>
-                              <p className="text-[10px] text-slate-400 font-bold uppercase">Berangkat {shipped} {product?.uom}</p>
+                              <p className="text-[11px] text-slate-400 font-bold uppercase">Berangkat {shipped} {product?.uom}</p>
                             </div>
                             <Input
                               type="number" min="0" step="any"
                               onWheel={(e) => e.currentTarget.blur()}
-                              className={cn("h-11 w-28 font-black text-right", kurang && "border-rose-300 text-rose-600")}
+                              className={cn("h-11 w-28 font-bold text-right", kurang && "border-rose-300 text-rose-600")}
                               value={nilai}
                               onChange={e => setDiterima(p => ({ ...p, [item.id]: parseFloat(e.target.value) || 0 }))}
                             />
@@ -424,12 +452,12 @@ export default function HariIniPage() {
                     </div>
 
                     <div className="flex justify-between items-center rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3">
-                      <span className="text-xs font-black uppercase text-slate-500">Tagihan terbit</span>
-                      <span className="font-black text-slate-800 dark:text-slate-100">{formatRupiah(total)}</span>
+                      <span className="text-xs font-bold uppercase text-slate-500">Tagihan terbit</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-100">{formatRupiah(total)}</span>
                     </div>
 
                     <Button
-                      className="w-full h-12 bg-violet-600 hover:bg-violet-700 font-black"
+                      className="w-full h-12 bg-violet-600 hover:bg-violet-700 font-bold"
                       disabled={busy === d.id}
                       onClick={() => catatSampai(d.id, d.salesOrderId)}
                     >
@@ -441,6 +469,7 @@ export default function HariIniPage() {
             })}
           </section>
         )}
+        </div>
       </div>
     </AuthGuard>
   )

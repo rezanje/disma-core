@@ -11,6 +11,20 @@ import {
   DailyClose, DailyCostConfig, CreditNote
 } from '@/types';
 import { COA_SEED, CLIENTS_SEED, VENDORS_SEED, MOCK_USERS } from './constants';
+
+/**
+ * Buang field yang cuma hidup di kode sebelum baris user dikirim ke database.
+ *
+ * `isActive` adalah saklar di constants.ts untuk mematikan PIN akun lapangan selama
+ * Mode Salin — keputusan kode, bukan data. Tabel `users` tidak punya kolomnya, dan
+ * Postgres menolak SELURUH baris begitu ada satu kolom asing: daftar user tidak
+ * pernah tersimpan, dan layarnya cuma menampilkan error sinkron berulang.
+ */
+const untukDb = <T extends object>(user: T) => {
+  const { isActive, ...sisanya } = user as T & { isActive?: boolean };
+  void isActive;
+  return sisanya;
+};
 import { PRODUCTS_SEED } from './products_seed';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
@@ -690,6 +704,36 @@ const initialRolePermissions: RolePermissionMap = {
     'courier_handover', 'courier_expenses'],
 };
 
+/**
+ * Baca ulang beberapa baris dari server, by id.
+ *
+ * Lewat `/api/db` (kunci server), BUKAN klien Supabase di browser: tabel transaksi
+ * dikunci RLS untuk kunci publik, dan pembacaannya balik NOL baris tanpa error.
+ * Alur yang menulis lewat fungsi database lalu membaca sendiri hasilnya jadi diam-diam
+ * tidak pernah menerima apa pun — itu yang bikin Tukar Faktur baru terbit tampil Rp0
+ * dan daftar invoice anaknya kosong sampai halaman dimuat ulang.
+ *
+ * Balikannya sudah camelCase (rute yang mengubahnya). Gagal baca = array kosong:
+ * pemanggilnya menyimpan nilai lamanya, bukan menimpanya dengan kosong.
+ */
+const bacaBarisById = async <T,>(table: string, ids: string[]): Promise<T[]> => {
+  const bersih = ids.filter(Boolean);
+  if (bersih.length === 0) return [];
+  try {
+    const qs = `table=${encodeURIComponent(table)}&ids=${bersih.map(encodeURIComponent).join(',')}`;
+    const res = await fetch(`/api/db?${qs}`, { cache: 'no-store' });
+    if (!res.ok) {
+      console.warn(`[DB] Gagal baca ulang ${table}: ${res.status}`);
+      return [];
+    }
+    const json = await res.json().catch(() => ({}));
+    return Array.isArray(json.rows) ? (json.rows as T[]) : [];
+  } catch (e) {
+    console.warn(`[DB] Gagal baca ulang ${table}:`, e);
+    return [];
+  }
+};
+
 export const useAppStore = create<AppState>((set, get) => ({
       currentUser: loadCurrentUserFromStorage(),
       setCurrentUser: (user) => {
@@ -701,7 +745,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       navConfigs: {},
       addUser: async (user) => {
         set((state) => ({ users: [...state.users, user] }));
-        await get().syncTable('users', user);
+        await get().syncTable('users', untukDb(user));
       },
       updateUser: async (id, data) => {
         const before = get().users.find(u => u.id === id);
@@ -710,7 +754,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         }));
         const updated = get().users.find(u => u.id === id);
         if (updated) {
-          await get().syncTable('users', updated);
+          await get().syncTable('users', untukDb(updated));
           if (before) await get().logHistory({ table: 'users', recordId: id, action: 'update', oldData: before, newData: updated });
         }
       },
@@ -905,41 +949,59 @@ export const useAppStore = create<AppState>((set, get) => ({
           // bedanya tidak kelihatan dengan "memang belum ada datanya".
           const failedGroups: number[] = [];
 
-          const fetchGroup = async (group: number): Promise<Record<string, any>> => {
+          const sekaliAmbil = async (group: number): Promise<Record<string, any> | null> => {
+            const controller = new AbortController();
+            // Vercel functions run up to 300s; 45s cukup untuk grup terbesar yang tersisa
+            // sejak daftar harga klien dipisah ke grup 6.
+            const timeoutId = setTimeout(() => controller.abort(), 45000);
             try {
-              const controller = new AbortController();
-              // Group 1 ships ~5.7MB (20k client_prices rows) and takes 13-15s from
-              // production, so the old 9s budget aborted it on every boot and left the
-              // app on its stale local snapshot. Vercel functions run up to 300s.
-              // ponytail: one timeout for all groups; split the fat tables out if the
-              // payload keeps growing.
-              const timeoutId = setTimeout(() => controller.abort(), 45000);
-              const res = await fetch(`/api/db?group=${group}&ts=${ts}`, { 
+              const res = await fetch(`/api/db?group=${group}&ts=${ts}`, {
                 cache: 'no-store',
-                signal: controller.signal 
+                signal: controller.signal,
               });
-              clearTimeout(timeoutId);
               if (!res.ok) {
                 console.warn(`[INIT] Group ${group} returned ${res.status}`);
-                failedGroups.push(group);
-                return {};
+                return null;
               }
               const json = await res.json();
               return (json && !json.error) ? json : {};
             } catch (e) {
               console.warn(`[INIT] Group ${group} failed:`, e);
-              failedGroups.push(group);
-              return {};
+              return null;
+            } finally {
+              clearTimeout(timeoutId);
             }
           };
 
-          // Fetch groups in PARALLEL. Each group is its own serverless
-          // invocation with its own maxDuration, so running them concurrently
-          // costs no extra timeout budget — total wall clock is the slowest
-          // group instead of the sum of all five.
-          const [g1, g2, g3, g4, g5] = await Promise.all([
-            fetchGroup(1), fetchGroup(2), fetchGroup(3), fetchGroup(4), fetchGroup(5),
-          ]);
+          // Sekali gagal belum tentu datanya bermasalah — paling sering cuma koneksi ke
+          // database yang sedang penuh. Dicoba ulang sekali sebelum menyerah, karena
+          // menyerah artinya layar tampil kosong padahal datanya ada di server.
+          const fetchGroup = async (group: number): Promise<Record<string, any>> => {
+            const pertama = await sekaliAmbil(group);
+            if (pertama) return pertama;
+            await new Promise(r => setTimeout(r, 1200));
+            const kedua = await sekaliAmbil(group);
+            if (kedua) {
+              console.log(`[INIT] Group ${group} berhasil di percobaan kedua.`);
+              return kedua;
+            }
+            failedGroups.push(group);
+            return {};
+          };
+
+          // Dua grup sekaligus, bukan lima.
+          //
+          // Tiap grup di server membuka sampai 14 kueri paralel ke Postgres. Lima grup
+          // serentak berarti ~35 koneksi dalam satu tarikan napas — kolam koneksinya
+          // habis, satu-dua permintaan balik 500, dan pemakai melihat peringatan "sebagian
+          // data gagal dimuat" yang grupnya berganti-ganti tiap kali. Dua per gelombang
+          // menahan angkanya di sekitar 15 tanpa membuat waktu bukanya terasa lebih lama.
+          const hasil: Record<string, any>[] = [];
+          for (let i = 1; i <= 5; i += 2) {
+            const gelombang = [i, i + 1].filter(g => g <= 5);
+            hasil.push(...await Promise.all(gelombang.map(fetchGroup)));
+          }
+          const [g1, g2, g3, g4, g5] = hasil;
 
           if (failedGroups.length > 0 && typeof window !== 'undefined') {
             const { toast } = await import('sonner');
@@ -1004,7 +1066,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             }
             if ((!data.users || data.users.length === 0) && MOCK_USERS.length > 0) {
                console.log("Master Seed: Users missing in Supabase. Seeding...");
-               get().syncTable('users', MOCK_USERS);
+               get().syncTable('users', MOCK_USERS.map(untukDb));
             }
             if ((!data.bankAccounts || data.bankAccounts.length === 0) && INITIAL_BANK_ACCOUNTS.length > 0) {
                console.log("Master Seed: Bank Accounts missing in Supabase. Seeding...");
@@ -1083,6 +1145,14 @@ export const useAppStore = create<AppState>((set, get) => ({
               if (!mergedUsers.find((u: any) => u.id === localUser.id)) {
                 mergedUsers.push(localUser);
               }
+            });
+            // `isActive` sengaja tidak disimpan di database — itu saklar di constants.ts
+            // yang mematikan PIN akun lapangan selama Mode Salin. Baris dari database
+            // tidak membawanya, jadi kalau tidak ditempelkan lagi di sini, akun yang
+            // sengaja dimatikan diam-diam bisa dipakai login lagi.
+            mergedUsers = mergedUsers.map((u: any) => {
+              const mock = MOCK_USERS.find(m => m.id === u.id);
+              return mock && 'isActive' in mock ? { ...u, isActive: mock.isActive } : u;
             });
 
 
@@ -2226,36 +2296,24 @@ export const useAppStore = create<AppState>((set, get) => ({
         });
         if (error) throw new Error(`Issue TF gagal: ${error.message}`);
 
-        const [{ data: tfRow }, { data: invRows }] = await Promise.all([
-          sb.from('tukar_faktur').select('*').eq('id', tfId).single(),
-          sb.from('invoices').select('*').in('id', invoiceIds),
+        const [tfRows, invRows] = await Promise.all([
+          bacaBarisById<TukarFaktur>('tukar_faktur', [tfId]),
+          bacaBarisById<Invoice>('invoices', invoiceIds),
         ]);
+        const tfRow = tfRows[0];
         if (tfRow) {
-          const camelTf: TukarFaktur = {
-            id: tfRow.id,
-            tfNumber: tfRow.tf_number,
-            clientId: tfRow.client_id,
-            periodStart: tfRow.period_start,
-            periodEnd: tfRow.period_end,
-            issueDate: tfRow.issue_date,
-            status: tfRow.status,
-            totalAmount: Number(tfRow.total_amount) || 0,
-            notes: tfRow.notes || undefined,
-            issuedBy: tfRow.issued_by || undefined,
-            receivedAt: tfRow.received_at || undefined,
-            receivedBy: tfRow.received_by || undefined,
-            createdAt: tfRow.created_at,
-          };
           set(state => ({
-            tukarFakturs: state.tukarFakturs.map(t => t.id === tfId ? camelTf : t),
+            tukarFakturs: state.tukarFakturs.map(t => t.id === tfId
+              ? { ...t, ...tfRow, totalAmount: Number(tfRow.totalAmount) || 0 }
+              : t),
           }));
         }
-        if (invRows) {
+        if (invRows.length > 0) {
           set(state => ({
             invoices: state.invoices.map(inv => {
-              const fresh = invRows.find((r: { id: string }) => r.id === inv.id);
+              const fresh = invRows.find(r => r.id === inv.id);
               if (!fresh) return inv;
-              return { ...inv, tukarFakturId: fresh.tukar_faktur_id || undefined, dueDate: fresh.due_date };
+              return { ...inv, tukarFakturId: fresh.tukarFakturId || undefined, dueDate: fresh.dueDate };
             }),
           }));
         }
@@ -2273,24 +2331,25 @@ export const useAppStore = create<AppState>((set, get) => ({
         });
         if (error) throw new Error(`Link TF gagal: ${error.message}`);
 
-        const [{ data: tfRow }, { data: invRows }] = await Promise.all([
-          sb.from('tukar_faktur').select('*').eq('id', tfId).single(),
-          sb.from('invoices').select('*').in('id', invoiceIds),
+        const [tfRows, invRows] = await Promise.all([
+          bacaBarisById<TukarFaktur>('tukar_faktur', [tfId]),
+          bacaBarisById<Invoice>('invoices', invoiceIds),
         ]);
+        const tfRow = tfRows[0];
         if (tfRow) {
           set(state => ({
             tukarFakturs: state.tukarFakturs.map(t => t.id === tfId ? {
               ...t,
-              totalAmount: Number(tfRow.total_amount) || 0,
+              totalAmount: Number(tfRow.totalAmount) || 0,
             } : t),
           }));
         }
-        if (invRows) {
+        if (invRows.length > 0) {
           set(state => ({
             invoices: state.invoices.map(inv => {
-              const fresh = invRows.find((r: { id: string }) => r.id === inv.id);
+              const fresh = invRows.find(r => r.id === inv.id);
               if (!fresh) return inv;
-              return { ...inv, tukarFakturId: fresh.tukar_faktur_id || undefined };
+              return { ...inv, tukarFakturId: fresh.tukarFakturId || undefined };
             }),
           }));
         }
@@ -3285,7 +3344,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
           // 2. SEED Phase (Chunked)
           const allSeedData = {
-            users: MOCK_USERS,
+            users: MOCK_USERS.map(untukDb),
             coas: COA_SEED,
             bank_accounts: INITIAL_BANK_ACCOUNTS,
             vendors: VENDORS_SEED,

@@ -88,3 +88,22 @@ export function getWeekRange(dateStr: string) {
     label: `Minggu: ${monday.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })} - ${sunday.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}`
   }
 }
+
+/**
+ * Rupiah ringkas untuk sel angka sekunder (StatBand, kartu metrik).
+ * "Rp1.842.905.400" tidak bisa dipecah oleh CSS, jadi sel grid ke-floor di
+ * min-content dan kartu di sebelahnya terpotong. Nilai penuh tetap dipakai di
+ * tabel dan halaman detail.
+ */
+export function formatRupiahShort(amount: number): string {
+  const n = Number.isFinite(amount) ? amount : 0
+  const abs = Math.abs(n)
+  const sign = n < 0 ? '-' : ''
+  const id = (v: number, d: number) =>
+    new Intl.NumberFormat('id-ID', { minimumFractionDigits: d, maximumFractionDigits: d }).format(v)
+
+  if (abs >= 1_000_000_000) return `${sign}Rp${id(abs / 1_000_000_000, 2)} M`
+  if (abs >= 1_000_000) return `${sign}Rp${id(abs / 1_000_000, 1)} jt`
+  if (abs >= 1_000) return `${sign}Rp${id(Math.round(abs / 1_000), 0)} rb`
+  return `${sign}Rp${id(abs, 0)}`
+}

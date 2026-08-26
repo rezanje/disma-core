@@ -132,7 +132,7 @@ export default function ReceiptUpload({ onFileSelect, currentFile, className, la
             {preview === "pdf-placeholder" ? (
               <div className="w-full h-full bg-slate-100 dark:bg-slate-800 flex flex-col items-center justify-center">
                  <FileText className="w-12 h-12 text-rose-500 mb-2" />
-                 <p className="text-[10px] font-black uppercase text-slate-400">PDF Dokument Terlampir</p>
+                 <p className="text-[11px] font-bold uppercase text-slate-400">PDF Dokument Terlampir</p>
               </div>
             ) : (
               <img src={preview} alt="Receipt Preview" className="w-full h-full object-cover" />
@@ -141,7 +141,7 @@ export default function ReceiptUpload({ onFileSelect, currentFile, className, la
             <Button 
                size="icon" 
                variant="destructive" 
-               className="absolute top-2 right-2 h-7 w-7 rounded-full shadow-lg"
+               className="absolute top-2 right-2 h-7 w-7 rounded-full shadow-sm"
                onClick={clear}
             >
                <X className="w-4 h-4" />
@@ -159,7 +159,7 @@ export default function ReceiptUpload({ onFileSelect, currentFile, className, la
       </div>
       
       {isProcessing && (
-         <p className="text-[10px] mt-2 text-indigo-500 animate-pulse font-bold italic text-center">🔄 Sedang membidik & memperkecil ukuran file...</p>
+         <p className="text-[11px] mt-2 text-indigo-500 font-bold italic text-center">🔄 Sedang membidik & memperkecil ukuran file...</p>
       )}
     </div>
   )

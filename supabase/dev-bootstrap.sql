@@ -4,7 +4,9 @@ create table if not exists public.users (
   id text primary key,
   name text not null,
   role text not null,
-  pin text not null
+  pin text not null,
+  -- Kurir & tim lapangan terdaftar sebagai nama yang bisa dipilih, bukan akun.
+  is_active boolean not null default true
 );
 
 create table if not exists public.clients (

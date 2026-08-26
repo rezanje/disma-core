@@ -64,7 +64,7 @@ function TaskProgressSlider({ task, updateTask }: { task: AppTask, updateTask: (
          onPointerUp={() => updateTask(task.id, { progress: val })}
          onTouchEnd={() => updateTask(task.id, { progress: val })}
        />
-       <span className="text-[10px] font-black text-slate-500 w-8">{val}%</span>
+       <span className="text-[11px] font-bold text-slate-500 w-8">{val}%</span>
     </div>
   )
 }
@@ -270,71 +270,30 @@ export default function TaskTrackerPage() {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-black tracking-tight text-slate-800">Task Tracker</h2>
-          <p className="text-sm text-slate-500 font-medium">Monitoring and assign daily operations tasks.</p>
+          <h2 className="text-[19px] leading-tight font-semibold text-slate-900">Tugas</h2>
+          <p className="mt-[3px] text-[12.5px] text-slate-400">Siapa ngerjain apa hari ini.</p>
         </div>
         <Button 
           onClick={() => setIsAddOpen(true)}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl shadow-lg shadow-emerald-200"
+          
         >
-          <Plus className="mr-2 h-4 w-4" /> Buat Task Baru
+          <Plus className="mr-2 h-4 w-4" /> Tugas baru
         </Button>
       </div>
 
-      {/* STATS OVERVIEW */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="border-none shadow-sm bg-gradient-to-br from-white to-slate-50 rounded-2xl">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Total Task</p>
-                <h3 className="text-2xl font-black text-slate-800">{stats.total}</h3>
-              </div>
-              <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600">
-                <CheckSquare className="w-5 h-5" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-none shadow-sm bg-gradient-to-br from-white to-amber-50 rounded-2xl">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[10px] font-black uppercase text-amber-500 tracking-widest">In Progress</p>
-                <h3 className="text-2xl font-black text-slate-800">{stats.inProgress}</h3>
-              </div>
-              <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600">
-                <Clock className="w-5 h-5" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-none shadow-sm bg-gradient-to-br from-white to-rose-50 rounded-2xl">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[10px] font-black uppercase text-rose-500 tracking-widest">Urgent (High)</p>
-                <h3 className="text-2xl font-black text-slate-800">{stats.highPriority}</h3>
-              </div>
-              <div className="w-10 h-10 bg-rose-100 rounded-xl flex items-center justify-center text-rose-600">
-                <AlertCircle className="w-5 h-5" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-none shadow-sm bg-gradient-to-br from-white to-emerald-50 rounded-2xl">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[10px] font-black uppercase text-emerald-500 tracking-widest">Completed</p>
-                <h3 className="text-2xl font-black text-slate-800">{stats.done}</h3>
-              </div>
-              <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600">
-                <CheckCircle2 className="w-5 h-5" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Empat angka dalam satu baris — bukan empat kartu berikon */}
+      <div className="grid grid-cols-2 overflow-hidden rounded-lg border border-border bg-card md:grid-cols-4">
+        {[
+          { label: 'Semua tugas', value: stats.total },
+          { label: 'Sedang dikerjakan', value: stats.inProgress },
+          { label: 'Prioritas tinggi', value: stats.highPriority, tone: 'text-rose-500' },
+          { label: 'Selesai', value: stats.done, tone: 'text-emerald-600' },
+        ].map((m, i) => (
+          <div key={i} className={cn("border-hairline px-5 py-4", i < 3 && "border-r", i < 2 && "border-b md:border-b-0")}>
+            <div className="text-xs text-slate-400">{m.label}</div>
+            <div className={cn("tabular mt-1 text-[19px] leading-tight font-semibold", m.tone || "text-slate-900")}>{m.value}</div>
+          </div>
+        ))}
       </div>
 
       {/* FILTERS & LIST */}
@@ -380,7 +339,7 @@ export default function TaskTrackerPage() {
 
         <div className="grid gap-3">
           {filteredTasks.length === 0 ? (
-            <div className="py-20 flex flex-col items-center justify-center bg-white rounded-3xl border border-dashed text-slate-400">
+            <div className="py-20 flex flex-col items-center justify-center bg-white rounded-lg border border-dashed text-slate-400">
               <CheckSquare className="w-12 h-12 mb-3 opacity-20" />
               <p className="font-bold">Belum ada task yang sesuai kriteria.</p>
             </div>
@@ -407,8 +366,8 @@ export default function TaskTrackerPage() {
                     </div>
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h4 className="font-black text-slate-800 leading-tight">{task.title}</h4>
-                        <Badge variant="outline" className={cn("text-[8px] font-black uppercase px-2 py-0 border-transparent", PRIORITY_COLORS[task.priority])}>
+                        <h4 className="font-bold text-slate-800 leading-tight">{task.title}</h4>
+                        <Badge variant="outline" className={cn("text-[11px] font-bold uppercase px-2 py-0 border-transparent", PRIORITY_COLORS[task.priority])}>
                           {task.priority}
                         </Badge>
                       </div>
@@ -422,19 +381,19 @@ export default function TaskTrackerPage() {
                                 title={`${assignee.name} (${assignee.role})`}
                                 className="w-5 h-5 bg-emerald-50 border border-white rounded-full flex items-center justify-center overflow-hidden ring-1 ring-slate-100 shrink-0"
                               >
-                                <span className="text-[9px] font-black text-emerald-600 uppercase">
+                                <span className="text-[11px] font-bold text-emerald-600 uppercase">
                                   {assignee.name.charAt(0)}
                                 </span>
                               </div>
                             ))}
                           </div>
-                          <span className="text-[10px] font-bold text-slate-600 max-w-[200px] truncate">
+                          <span className="text-[11px] font-bold text-slate-600 max-w-[200px] truncate">
                             {taskAssignees.map(u => u.name).join(", ") || "Belum ada assignee"}
                           </span>
                         </div>
                         <div className="flex items-center gap-1.5 text-slate-400">
                           <Calendar className="w-3 h-3" />
-                          <span className="text-[10px] font-bold">{format(new Date(task.dueDate), "dd MMM yyyy")}</span>
+                          <span className="text-[11px] font-bold">{format(new Date(task.dueDate), "dd MMM yyyy")}</span>
                         </div>
                       </div>
                       
@@ -448,7 +407,7 @@ export default function TaskTrackerPage() {
                       value={task.status} 
                       onValueChange={(val) => updateTask(task.id, { status: val as TaskStatus })}
                     >
-                      <SelectTrigger className="h-9 w-32 text-xs font-black rounded-lg border-slate-200">
+                      <SelectTrigger className="h-9 w-32 text-xs font-bold rounded-lg border-slate-200">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -480,22 +439,22 @@ export default function TaskTrackerPage() {
 
       {/* TASK DETAIL MODAL */}
       <Dialog open={!!selectedTask} onOpenChange={(open) => !open && setSelectedTask(null)}>
-        <DialogContent className="sm:max-w-2xl rounded-[2.5rem] p-0 overflow-hidden border-none shadow-2xl">
+        <DialogContent className="sm:max-w-2xl rounded-2xl p-0 overflow-hidden border-none shadow-sm">
           {activeTask && (
             <div className="flex flex-col h-[85vh]">
               <div className="bg-slate-900 p-8 text-white">
                 <div className="flex items-center gap-2 mb-2">
-                   <Badge className={cn("text-[10px] font-black uppercase rounded-lg border-none", PRIORITY_COLORS[activeTask.priority])}>
+                   <Badge className={cn("text-[11px] font-bold uppercase rounded-lg border-none", PRIORITY_COLORS[activeTask.priority])}>
                       {activeTask.priority} Priority
                    </Badge>
-                   <Badge className={cn("text-[10px] font-black uppercase rounded-lg border-none", STATUS_COLORS[activeTask.status])}>
+                   <Badge className={cn("text-[11px] font-bold uppercase rounded-lg border-none", STATUS_COLORS[activeTask.status])}>
                       {activeTask.status}
                    </Badge>
                 </div>
-                <h3 className="text-2xl font-black uppercase tracking-tight">{activeTask.title}</h3>
-                <p className="text-slate-400 text-xs mt-2 uppercase tracking-widest font-bold">Dibuat pada {format(new Date(activeTask.createdAt), "dd MMM yyyy HH:mm")}</p>
+                <h3 className="text-2xl font-bold ">{activeTask.title}</h3>
+                <p className="text-slate-400 text-xs mt-2  font-bold">Dibuat pada {format(new Date(activeTask.createdAt), "dd MMM yyyy HH:mm")}</p>
                 <div className="mt-4 flex items-center gap-2 flex-wrap">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Assignee:</span>
+                  <span className="text-[11px] font-bold text-slate-400 ">Assignee:</span>
                   <div className="flex items-center gap-1.5 flex-wrap">
                     {users.filter(u => {
                       if (activeTask.assignedToIds && Array.isArray(activeTask.assignedToIds) && activeTask.assignedToIds.length > 0) {
@@ -503,7 +462,7 @@ export default function TaskTrackerPage() {
                       }
                       return u.id === activeTask.assignedToId
                     }).map(u => (
-                      <span key={u.id} className="text-[10px] font-bold bg-slate-800 text-slate-300 px-2.5 py-1 rounded-xl border border-slate-700">
+                      <span key={u.id} className="text-[11px] font-bold bg-slate-800 text-slate-300 px-2.5 py-1 rounded-xl border border-slate-700">
                         {u.name} ({u.role})
                       </span>
                     ))}
@@ -514,8 +473,8 @@ export default function TaskTrackerPage() {
               <div className="flex-1 overflow-y-auto p-8 space-y-8 bg-slate-50">
                 {/* DESCRIPTION */}
                 <section className="space-y-3">
-                  <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Deskripsi Pekerjaan</h4>
-                  <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                  <h4 className="text-[11px] font-bold  text-slate-400">Deskripsi Pekerjaan</h4>
+                  <div className="bg-white p-6 rounded-lg border border-slate-100 shadow-sm">
                     <p className="text-sm text-slate-600 font-medium leading-relaxed">{activeTask.description || "Tidak ada deskripsi."}</p>
                   </div>
                 </section>
@@ -523,7 +482,7 @@ export default function TaskTrackerPage() {
                 {/* ATTACHMENTS */}
                 <section className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Lampiran & Bukti ( {activeTask.attachments?.length || 0} )</h4>
+                    <h4 className="text-[11px] font-bold  text-slate-400">Lampiran & Bukti ( {activeTask.attachments?.length || 0} )</h4>
                     <div className="flex gap-2">
                        <input 
                          type="file" 
@@ -536,10 +495,10 @@ export default function TaskTrackerPage() {
                            e.target.value = ""; // Reset value so the same file can be selected again
                          }}
                        />
-                       <Button variant="outline" size="sm" onClick={() => document.getElementById(`file-upload-${activeTask.id}`)?.click()} className="h-8 rounded-xl text-[10px] font-black border-slate-200">
+                       <Button variant="outline" size="sm" onClick={() => document.getElementById(`file-upload-${activeTask.id}`)?.click()} className="h-8 rounded-xl text-[11px] font-bold border-slate-200">
                           UPLOAD FILE
                        </Button>
-                       <Button variant="outline" size="sm" onClick={() => setIsUrlModalOpen(true)} className="h-8 rounded-xl text-[10px] font-black border-slate-200">
+                       <Button variant="outline" size="sm" onClick={() => setIsUrlModalOpen(true)} className="h-8 rounded-xl text-[11px] font-bold border-slate-200">
                           TAMBAH LINK
                        </Button>
                     </div>
@@ -552,13 +511,13 @@ export default function TaskTrackerPage() {
                             {at.type === 'file' ? <ImageIcon className="w-5 h-5" /> : <ArrowUpRight className="w-5 h-5" />}
                          </div>
                          <div className="min-w-0">
-                            <p className="text-[10px] font-black text-slate-800 uppercase truncate">{at.name}</p>
-                            <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{at.type}</p>
+                            <p className="text-[11px] font-bold text-slate-800 uppercase truncate">{at.name}</p>
+                            <p className="text-[11px] font-bold text-slate-400 ">{at.type}</p>
                          </div>
                       </a>
                     ))}
                     {(!activeTask.attachments || activeTask.attachments.length === 0) && (
-                      <div className="col-span-2 py-8 text-center border-2 border-dashed border-slate-200 rounded-3xl text-slate-400 text-[10px] font-bold uppercase tracking-widest">
+                      <div className="col-span-2 py-8 text-center border-2 border-dashed border-slate-200 rounded-lg text-slate-400 text-[11px] font-bold ">
                          Belum ada lampiran bukti kerja.
                       </div>
                     )}
@@ -567,19 +526,19 @@ export default function TaskTrackerPage() {
 
                 {/* COMMENTS */}
                 <section className="space-y-4">
-                  <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Diskusi Pekerjaan ( {activeTask.comments?.length || 0} )</h4>
+                  <h4 className="text-[11px] font-bold  text-slate-400">Diskusi Pekerjaan ( {activeTask.comments?.length || 0} )</h4>
                   <div className="space-y-3">
                     {activeTask.comments?.map((c, i) => {
                       const commUser = users.find(u => u.id === c.userId)
                       return (
                         <div key={i} className="flex gap-3">
-                           <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-black text-slate-500 shrink-0">
+                           <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-[11px] font-bold text-slate-500 shrink-0">
                               {commUser?.name.charAt(0)}
                            </div>
                            <div className="flex-1 bg-white p-4 rounded-2xl rounded-tl-none border border-slate-100 shadow-sm">
                               <div className="flex items-center justify-between mb-1">
-                                 <span className="text-[10px] font-black text-slate-800">{commUser?.name}</span>
-                                 <span className="text-[8px] font-bold text-slate-400">{format(new Date(c.date), "HH:mm")}</span>
+                                 <span className="text-[11px] font-bold text-slate-800">{commUser?.name}</span>
+                                 <span className="text-[11px] font-bold text-slate-400">{format(new Date(c.date), "HH:mm")}</span>
                               </div>
                               <p className="text-xs text-slate-600 font-medium leading-relaxed">{c.text}</p>
                            </div>
@@ -612,13 +571,13 @@ export default function TaskTrackerPage() {
 
       {/* URL INPUT DIALOG */}
       <Dialog open={isUrlModalOpen} onOpenChange={setIsUrlModalOpen}>
-         <DialogContent className="sm:max-w-md rounded-3xl">
+         <DialogContent className="sm:max-w-md rounded-lg">
             <DialogHeader>
-               <DialogTitle className="text-lg font-black uppercase tracking-tight">Tambah Link Bukti</DialogTitle>
+               <DialogTitle className="text-lg font-bold ">Tambah Link Bukti</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-4">
                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase text-slate-400">Nama Link</Label>
+                  <Label className="text-[11px] font-bold uppercase text-slate-400">Nama Link</Label>
                   <Input 
                     placeholder="Misal: Google Drive Bukti Foto" 
                     value={newLink.name}
@@ -627,7 +586,7 @@ export default function TaskTrackerPage() {
                   />
                </div>
                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase text-slate-400">URL Alamat Link</Label>
+                  <Label className="text-[11px] font-bold uppercase text-slate-400">URL Alamat Link</Label>
                   <Input 
                     placeholder="https://..." 
                     value={newLink.url}
@@ -638,7 +597,7 @@ export default function TaskTrackerPage() {
             </div>
             <DialogFooter>
                <Button 
-                 className="w-full h-12 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black"
+                 className="w-full h-12 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
                  onClick={() => selectedTask && handleAddLink(selectedTask.id)}
                >
                   Lampirkan Link
@@ -649,13 +608,13 @@ export default function TaskTrackerPage() {
 
       {/* ADD TASK DIALOG */}
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-        <DialogContent className="sm:max-w-md rounded-3xl">
+        <DialogContent className="sm:max-w-md rounded-lg">
           <DialogHeader>
-            <DialogTitle className="text-xl font-black">Buat Task Baru</DialogTitle>
+            <DialogTitle className="text-xl font-bold">Buat Task Baru</DialogTitle>
           </DialogHeader>
           <div className="grid gap-5 py-4">
             <div className="space-y-2">
-              <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Judul Task</Label>
+              <Label className="text-xs font-bold  text-slate-500">Judul Task</Label>
               <Input 
                 placeholder="Misal: Pick up barang di Vendor A" 
                 className="h-11 rounded-xl border-slate-200 font-medium"
@@ -664,7 +623,7 @@ export default function TaskTrackerPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Deskripsi / Instruksi</Label>
+              <Label className="text-xs font-bold  text-slate-500">Deskripsi / Instruksi</Label>
               <Input 
                 placeholder="Detail pengerjaan task..." 
                 className="h-11 rounded-xl border-slate-200 font-medium"
@@ -674,7 +633,7 @@ export default function TaskTrackerPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Prioritas</Label>
+                <Label className="text-xs font-bold  text-slate-500">Prioritas</Label>
                 <Select 
                    value={newTask.priority} 
                    onValueChange={(val) => setNewTask({...newTask, priority: val as TaskPriority})}
@@ -690,7 +649,7 @@ export default function TaskTrackerPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Deadline</Label>
+                <Label className="text-xs font-bold  text-slate-500">Deadline</Label>
                 <Input 
                   type="date" 
                   className="h-11 rounded-xl border-slate-200 font-medium"
@@ -700,7 +659,7 @@ export default function TaskTrackerPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Assign Ke User (Bisa lebih dari 1)</Label>
+              <Label className="text-xs font-bold  text-slate-500">Assign Ke User (Bisa lebih dari 1)</Label>
               <Popover>
                 <PopoverTrigger render={
                   <Button
@@ -716,7 +675,7 @@ export default function TaskTrackerPage() {
                     <ChevronDown className="h-4 w-4 opacity-50" />
                   </Button>
                 } />
-                <PopoverContent className="w-80 p-3 bg-white shadow-2xl rounded-2xl border border-slate-100" side="bottom" align="start">
+                <PopoverContent className="w-80 p-3 bg-white shadow-sm rounded-2xl border border-slate-100" side="bottom" align="start">
                   <div className="space-y-2 max-h-60 overflow-y-auto">
                     {users.map((user) => {
                       const isChecked = newTask.assignedToIds.includes(user.id);
@@ -742,7 +701,7 @@ export default function TaskTrackerPage() {
                           />
                           <div className="flex flex-col text-left">
                             <span className="text-xs font-bold text-slate-800 leading-none">{user.name}</span>
-                            <span className="text-[9px] font-medium text-slate-400 uppercase tracking-widest mt-1">({user.role})</span>
+                            <span className="text-[11px] font-medium text-slate-400  mt-1">({user.role})</span>
                           </div>
                         </div>
                       );
@@ -754,7 +713,7 @@ export default function TaskTrackerPage() {
           </div>
           <DialogFooter>
             <Button 
-               className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black h-12 rounded-xl shadow-lg shadow-emerald-100"
+               className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-12 rounded-xl shadow-sm"
                onClick={handleAddTask}
             >
               Simpan & Assign Task

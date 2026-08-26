@@ -24,7 +24,7 @@ import { PENDING_WELCOME_KEY } from "@/lib/onboarding/state"
 import { toast } from "sonner"
 
 const formSchema = zodSchema.object({
-  pin: zodSchema.string().min(4, "PIN must be at least 4 digits").max(6, "PIN can be up to 6 digits"),
+  pin: zodSchema.string().min(4, "PIN minimal 4 angka").max(6, "PIN maksimal 6 angka"),
 })
 
 export default function LoginForm() {
@@ -90,7 +90,7 @@ export default function LoginForm() {
           router.push('/dashboard')
       }
     } else {
-      toast.error("Invalid PIN code. Please try again.")
+      toast.error("PIN salah. Coba lagi.")
       setIsLoading(false)
     }
   }
@@ -102,8 +102,8 @@ export default function LoginForm() {
         {/* PIN Code Input */}
         <div className="space-y-4">
           <div className="flex flex-col items-center space-y-2">
-            <Label htmlFor="pin" className="text-sm font-bold text-slate-500 tracking-wider uppercase">Enter Security PIN</Label>
-            <p className="text-xs text-slate-400">Please enter your secure access code</p>
+            <Label htmlFor="pin" className="text-[13px] font-medium text-slate-500">PIN kamu</Label>
+            <p className="text-xs text-slate-400">4–6 angka</p>
           </div>
           
           <div className="relative text-slate-400 focus-within:text-emerald-600 transition-colors">
@@ -117,7 +117,7 @@ export default function LoginForm() {
               autoComplete="one-time-code"
               maxLength={6}
               placeholder="••••••" 
-              className="pl-16 h-20 rounded-3xl border-slate-200 bg-white shadow-xl text-4xl text-center tracking-[1em] font-black text-slate-800 focus-visible:ring-emerald-500 transition-all hover:border-emerald-200"
+              className="h-16 rounded-lg border-input bg-card pl-16 text-center text-[26px] font-semibold tracking-[0.6em] text-slate-900"
               {...form.register("pin")} 
             />
           </div>
@@ -128,23 +128,23 @@ export default function LoginForm() {
 
         {/* Submit Button */}
         <Button 
-          className="w-full h-16 rounded-3xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xl tracking-wide shadow-lg shadow-emerald-200 transition-all hover:scale-[1.02] active:scale-95 mt-8 border-none" 
+          className="mt-8 h-[52px] w-full text-[15px]" 
           type="submit" 
           disabled={isLoading}
         >
           {isLoading ? (
             <>
               <Loader2 className="mr-2 h-6 w-6 animate-spin" />
-              Verifying...
+              Memeriksa...
             </>
           ) : (
-             "Access Dashboard"
+             "Masuk"
           )}
         </Button>
 
         <div className="flex flex-col items-center pt-4">
-          <p className="text-center text-xs font-semibold text-slate-400 italic">
-             Contact admin if you forgot your access PIN
+          <p className="text-center text-xs text-slate-400">
+             Lupa PIN? Minta admin sistem yang reset.
           </p>
         </div>
 

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ShoppingBasket, RefreshCw, Printer, Plus, Search, Check, ChevronsUpDown, Trash2, FileText, X, Download, Loader2, CheckCircle2, Store, Carrot, Apple, Laptop, ShoppingCart, Warehouse, AlertTriangle, ChevronDown, ChevronUp } from "lucide-react"
+import Link from "next/link"
 import React, { useEffect, useMemo, useState } from "react"
 import { v4 as uuidv4 } from "uuid"
 import { toast } from "sonner"
@@ -746,10 +747,14 @@ export default function ShoppingListPage() {
    * cara bayar baru ada setelah Sifa melepas dokumennya — lembar yang dicetak sebelum
    * itu isinya tebakan Admin PO, dan itu yang dibawa orang ke pasar.
    */
-  const printSavedDocument = (purchaseId: string, titleOverride?: string) => {
-    const saved = purchaseItems.filter(pi => pi.purchaseId === purchaseId)
-    const docItems: ShoppingListDocumentItem[] = saved.map(i => {
+  const savedDocumentItems = (purchaseId?: string | null): ShoppingListDocumentItem[] => {
+    if (!purchaseId) return []
+    return purchaseItems.filter(pi => pi.purchaseId === purchaseId).map(i => {
       const product = products.find(p => p.id === i.productId)
+      // Vendor pilihan Finance ditulis ke plannedVendorId; vendorId baru terisi setelah
+      // barangnya benar-benar dibeli. Membaca vendorId saja bikin lembar yang dibawa ke
+      // pasar tertulis "Tanpa Vendor" padahal Finance sudah menunjuk satu.
+      const vendorId = i.vendorId || i.plannedVendorId
       return {
         productId: i.productId,
         productName: product?.name || i.productId,
@@ -760,16 +765,79 @@ export default function ShoppingListPage() {
         sellPrice: product?.sellingPrice || 0,
         purchaseMethod: i.purchaseMethod as 'Pasar' | 'Online' | 'Vendor',
         paymentMethod: i.paymentMethod,
-        vendorId: i.vendorId,
-        vendorName: vendors.find(v => v.id === i.vendorId)?.companyName,
+        vendorId,
+        vendorName: vendors.find(v => v.id === vendorId)?.companyName,
       }
     })
-    handleOpenPdfPreview(docItems.filter(item => item.purchaseMethod === 'Pasar'), titleOverride)
+  }
+
+  const printSavedDocument = (purchaseId: string, titleOverride?: string) => {
+    handleOpenPdfPreview(
+      savedDocumentItems(purchaseId).filter(item => item.purchaseMethod === 'Pasar'),
+      titleOverride,
+    )
   }
 
   /** Dokumen yang rencananya belum diisi Finance belum boleh dicetak. */
   const belumDirencanakan = (purchaseId?: string | null) =>
     !purchaseId || purchases.find(p => p.id === purchaseId)?.status === 'Menunggu Rencana'
+
+  // Ke mana dokumen yang sudah dicompile itu pergi.
+  //
+  // Begitu dicompile, PO-nya hilang dari layar ini — disengaja, supaya tidak dibeli dua
+  // kali. Tapi selama tidak ada yang menyebut perginya ke mana, layar kosong ini terbaca
+  // "tidak ada apa-apa" padahal pekerjaannya sedang mengantre di meja orang lain.
+  const dokumenBerjalan = useMemo(() => ({
+    nungguFinance: purchases.filter(p => p.status === 'Menunggu Rencana').length,
+    siapCetak: purchases.filter(p => p.status === 'Siap Cetak').length,
+    diSourcing: purchases.filter(p => p.status === 'Pending' || p.status === 'Belanja').length,
+  }), [purchases])
+
+  /** Papan penunjuk arah ke meja berikutnya. */
+  const PenunjukLangkahBerikutnya = ({
+    nungguFinance,
+    siapCetak,
+    diSourcing,
+  }: { nungguFinance: number; siapCetak: number; diSourcing: number }) => {
+    if (nungguFinance === 0 && siapCetak === 0 && diSourcing === 0) return null
+    return (
+      <div className="space-y-3 text-left">
+        {nungguFinance > 0 && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
+            <p className="text-[11px] font-bold  text-amber-700">Menunggu Finance</p>
+            <p className="mt-1 text-sm font-bold text-slate-800">
+              {nungguFinance} dokumen belum ditentukan vendor & cara bayarnya.
+            </p>
+            <p className="mt-1 text-xs font-bold text-slate-500">
+              Ini pekerjaan Finance. Tunggu sampai dikembalikan ke sini.
+            </p>
+          </div>
+        )}
+        {siapCetak > 0 && (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4">
+            <p className="text-[11px] font-bold  text-emerald-700">Giliran lo lagi</p>
+            <p className="mt-1 text-sm font-bold text-slate-800">
+              {siapCetak} dokumen sudah direncanakan Finance dan menunggu disatukan & dicetak.
+            </p>
+            <Link
+              href="/admin/konsolidasi-belanja"
+              className="mt-3 inline-flex h-10 items-center rounded-xl bg-emerald-600 px-4 text-[11px] font-bold  text-white hover:bg-emerald-700"
+            >
+              Buka Konsolidasi Belanja
+            </Link>
+          </div>
+        )}
+        {diSourcing > 0 && (
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-[11px] font-bold  text-slate-500">Sudah di tim sourcing</p>
+            <p className="mt-1 text-sm font-bold text-slate-700">
+              {diSourcing} dokumen sedang dibelanjakan.
+            </p>
+          </div>
+        )}
+      </div>
+    )
+  }
 
   const handleOpenPdfPreview = (items: ShoppingListDocumentItem[], titleOverride?: string) => {
     const title = titleOverride || `Daftar_Belanja_${new Date().toISOString().slice(0, 10)}`
@@ -869,16 +937,16 @@ export default function ShoppingListPage() {
                                       <div className="flex justify-between items-center w-full">
                                         <span className="font-semibold">{product.name}</span>
                                         {product.weeklyPriceRange && product.weeklyPriceRange.min > 0 && product.weeklyPriceRange.max > 0 ? (
-                                          <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0 rounded border border-amber-200">
+                                          <span className="text-[11px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0 rounded border border-amber-200">
                                             Patokan: {formatRupiah(product.weeklyPriceRange.min)} - {formatRupiah(product.weeklyPriceRange.max)}
                                           </span>
                                         ) : (
-                                          <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0 rounded border border-amber-200">
+                                          <span className="text-[11px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0 rounded border border-amber-200">
                                             Patokan: {formatRupiah(product.basePrice)}
                                           </span>
                                         )}
                                       </div>
-                                      <span className="text-[10px] text-slate-500">{product.skuCode} • Stok: {product.currentStock} {product.uom}</span>
+                                      <span className="text-[11px] text-slate-500">{product.skuCode} • Stok: {product.currentStock} {product.uom}</span>
                                     </div>
                                   </div>
                                 ))
@@ -912,21 +980,21 @@ export default function ShoppingListPage() {
                       </div>
   
                       <div className="grid gap-2">
-                         <Label className="text-xs font-black text-slate-500 uppercase tracking-widest">Metode Belanja</Label>
+                         <Label className="text-xs font-bold text-slate-500 ">Metode Belanja</Label>
                          <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
                             <button 
                                className={cn(
-                                  "flex-1 flex items-center justify-center gap-2 py-2 text-xs font-black rounded-lg transition-all",
-                                  manualPurchaseMethod === 'Pasar' ? "bg-white text-emerald-600 shadow-sm" : "text-slate-500 hover:bg-white/50"
+                                  "flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all",
+                                  manualPurchaseMethod === 'Pasar' ? "bg-white text-emerald-600 shadow-sm" : "text-slate-500 hover:bg-card"
                                )}
                                onClick={() => setManualPurchaseMethod('Pasar')}
                             >
-                               <div className="relative flex items-center justify-center w-4 h-4"><Store className="w-4 h-4" /><div className="absolute -bottom-1 -right-1 flex bg-white/80 rounded-full"><Carrot className="w-2 h-2 text-orange-500 -mr-[1px]" /><Apple className="w-2 h-2 text-rose-500" /></div></div> PASAR
+                               <div className="relative flex items-center justify-center w-4 h-4"><Store className="w-4 h-4" /><div className="absolute -bottom-1 -right-1 flex bg-card rounded-full"><Carrot className="w-2 h-2 -mr-[1px]" /><Apple className="w-2 h-2 text-rose-500" /></div></div> PASAR
                             </button>
                             <button 
                                className={cn(
-                                  "flex-1 flex items-center justify-center gap-2 py-2 text-xs font-black rounded-lg transition-all",
-                                  manualPurchaseMethod === 'Online' ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:bg-white/50"
+                                  "flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all",
+                                  manualPurchaseMethod === 'Online' ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:bg-card"
                                )}
                                onClick={() => setManualPurchaseMethod('Online')}
                             >
@@ -950,11 +1018,11 @@ export default function ShoppingListPage() {
           <CardContent className="space-y-5">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               <div className="lg:col-span-2">
-                <div className="rounded-[1.75rem] border border-slate-100 bg-white/80 p-4 shadow-sm">
+                <div className="rounded-xl border border-slate-100 bg-card p-4 shadow-sm">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                     <div className="flex flex-wrap gap-3">
                       <div className="grid gap-2">
-                        <Label htmlFor="filter-delivery-date" className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                        <Label htmlFor="filter-delivery-date" className="text-[11px] font-bold  text-slate-400">
                           Filter Tanggal Kirim
                         </Label>
                         <Input
@@ -962,14 +1030,14 @@ export default function ShoppingListPage() {
                           type="date"
                           value={filterDeliveryDate}
                           onChange={(e) => setFilterDeliveryDate(e.target.value)}
-                          className="h-11 w-full rounded-xl border-slate-200 font-black text-slate-700 lg:w-[200px]"
+                          className="h-11 w-full rounded-xl border-slate-200 font-bold text-slate-700 lg:w-[200px]"
                         />
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Button
                         variant="ghost"
-                        className="h-10 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-400"
+                        className="h-10 rounded-xl text-[11px] font-bold  text-slate-400"
                         disabled={!filterDeliveryDate}
                         onClick={() => { setFilterDeliveryDate('') }}
                       >
@@ -978,7 +1046,7 @@ export default function ShoppingListPage() {
                       <Button
                         data-tour="sl-picker"
                         variant="outline"
-                        className="h-10 rounded-xl text-[10px] font-black uppercase tracking-widest"
+                        className="h-10 rounded-xl text-[11px] font-bold "
                         disabled={candidateSOs.length === 0}
                         onClick={() => setSelectedSOIds(new Set(candidateSOs.map(so => so.id)))}
                       >
@@ -986,7 +1054,7 @@ export default function ShoppingListPage() {
                       </Button>
                       <Button
                         variant="ghost"
-                        className="h-10 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-400"
+                        className="h-10 rounded-xl text-[11px] font-bold  text-slate-400"
                         disabled={candidateSOs.length === 0}
                         onClick={() => setSelectedSOIds(new Set())}
                       >
@@ -999,6 +1067,11 @@ export default function ShoppingListPage() {
                     {candidateSOs.length === 0 ? (
                       <div className="px-4 py-6 text-center text-sm font-bold text-slate-400">
                         Tidak ada PO untuk filter ini.
+                        {(dokumenBerjalan.nungguFinance + dokumenBerjalan.diSourcing) > 0 && (
+                          <span className="mt-1 block text-xs font-bold text-slate-500">
+                            {dokumenBerjalan.nungguFinance + dokumenBerjalan.diSourcing} dokumen sudah dicompile dan sedang berjalan — lihat keterangannya di bawah.
+                          </span>
+                        )}
                       </div>
                     ) : (
                       <div className="max-h-[320px] overflow-auto divide-y divide-slate-100">
@@ -1007,12 +1080,12 @@ export default function ShoppingListPage() {
                           {/* Yang menentukan satu dokumen belanja itu tanggal kirimnya,
                               bukan PO mana yang kebetulan tercentang. */}
                           <div className="flex items-center justify-between gap-3 bg-slate-100/80 px-4 py-2">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                            <span className="text-[11px] font-bold  text-slate-500">
                               Kirim {grup.label} · {grup.orders.length} PO
                             </span>
                             <button
                               type="button"
-                              className="text-[10px] font-black uppercase tracking-widest text-emerald-600 hover:text-emerald-700"
+                              className="text-[11px] font-bold  text-emerald-600 hover:text-emerald-700"
                               onClick={() => setSelectedSOIds(prev => {
                                 const ids = grup.orders.map(o => o.id)
                                 const semua = ids.every(id => prev.has(id))
@@ -1052,15 +1125,15 @@ export default function ShoppingListPage() {
                               />
                               <div className="min-w-0 flex-1">
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <span className="text-sm font-black text-slate-800">{so.poNumber}</span>
-                                  <span className="rounded-full bg-white px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-emerald-600 shadow-sm">
+                                  <span className="text-sm font-bold text-slate-800">{so.poNumber}</span>
+                                  <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-bold  text-emerald-600 shadow-sm">
                                     {items.length} item
                                   </span>
-                                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-slate-500">
+                                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold  text-slate-500">
                                     {so.status}
                                   </span>
                                   {so.shoppingListCompiledAt && (
-                                    <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-white shadow-sm">
+                                    <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[11px] font-bold  text-white shadow-sm">
                                       Sudah Masuk List
                                     </span>
                                   )}
@@ -1069,7 +1142,7 @@ export default function ShoppingListPage() {
                                   {client?.companyName || 'Unknown Client'} • PO {toDateInputValue(so.orderDate)} • Kirim {toDateInputValue(so.targetDeliveryDate)} • {formatRupiah(total)}
                                 </p>
                                 {so.shoppingListCompiledAt && (
-                                  <p className="mt-1 text-[10px] font-black uppercase tracking-widest text-emerald-600">
+                                  <p className="mt-1 text-[11px] font-bold  text-emerald-600">
                                     Dicompile {new Date(so.shoppingListCompiledAt).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}
                                   </p>
                                 )}
@@ -1085,17 +1158,17 @@ export default function ShoppingListPage() {
                 </div>
               </div>
               <div className="lg:col-span-1">
-                <div className="rounded-[1.75rem] border border-slate-100 bg-white/80 p-4 shadow-sm flex flex-col h-full">
+                <div className="rounded-xl border border-slate-100 bg-card p-4 shadow-sm flex flex-col h-full">
                   <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                     <div className="flex items-center gap-2">
                       <div className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs">
                         {pendingRejects.length}
                       </div>
                       <div>
-                        <h4 className="text-xs font-black uppercase tracking-widest text-slate-800 dark:text-slate-200">
+                        <h4 className="text-xs font-bold  text-slate-800 dark:text-slate-200">
                           Susulan (Reject & Retur)
                         </h4>
-                        <p className="text-[10px] text-slate-500 font-bold">
+                        <p className="text-[11px] text-slate-500 font-bold">
                           Barang tidak lolos QC / Retur klien
                         </p>
                       </div>
@@ -1121,10 +1194,10 @@ export default function ShoppingListPage() {
                           <div className="w-10 h-10 rounded-full bg-emerald-50 dark:bg-emerald-950/30 flex items-center justify-center mb-2">
                             <Check className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
                           </div>
-                          <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
+                          <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400 ">
                             Semua Bersih
                           </p>
-                          <p className="text-[10px] text-slate-400 mt-1 max-w-[200px]">
+                          <p className="text-[11px] text-slate-400 mt-1 max-w-[200px]">
                             Tidak ada barang reject / retur yang perlu susulan belanja.
                           </p>
                         </div>
@@ -1144,38 +1217,38 @@ export default function ShoppingListPage() {
                                 <div className="flex items-start justify-between gap-2">
                                   <div className="min-w-0 flex-1">
                                     <span className={cn(
-                                      "inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest mb-1.5",
+                                      "inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-bold  mb-1.5",
                                       isQC ? "bg-rose-50 text-rose-600 border border-rose-100" :
                                       isReturn ? "bg-amber-50 text-amber-600 border border-amber-100" :
                                       "bg-blue-50 text-blue-600 border border-blue-100"
                                     )}>
                                       {sourceLabel}
                                     </span>
-                                    <h5 className="text-xs font-black text-slate-800 dark:text-slate-100 truncate">
+                                    <h5 className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">
                                       {product?.name || 'Unknown Product'}
                                     </h5>
-                                    <p className="text-[10px] text-slate-400 font-bold mt-0.5 truncate">
+                                    <p className="text-[11px] text-slate-400 font-bold mt-0.5 truncate">
                                       {product?.skuCode || 'No SKU'}
                                     </p>
                                   </div>
                                   <div className="text-right shrink-0">
-                                    <span className="text-xs font-black text-slate-800 dark:text-slate-100">
+                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
                                       {item.qty} {product?.uom || 'pcs'}
                                     </span>
-                                    <p className="text-[9px] text-slate-400 font-bold mt-0.5">
+                                    <p className="text-[11px] text-slate-400 font-bold mt-0.5">
                                       {new Date(item.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}
                                     </p>
                                   </div>
                                 </div>
 
                                 <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-slate-50">
-                                  <p className="text-[9px] text-slate-500 font-bold italic truncate max-w-[150px]" title={item.reason}>
+                                  <p className="text-[11px] text-slate-500 font-bold italic truncate max-w-[150px]" title={item.reason}>
                                     "{item.reason || 'Tanpa keterangan'}"
                                   </p>
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    className="h-6 px-2 text-[9px] font-black uppercase tracking-widest text-emerald-600 hover:text-white hover:bg-emerald-600 border-emerald-100 hover:border-emerald-600 rounded-lg gap-1 shrink-0"
+                                    className="h-6 px-2 text-[11px] font-bold  text-emerald-600 hover:text-white hover:bg-emerald-600 border-emerald-100 hover:border-emerald-600 rounded-lg gap-1 shrink-0"
                                     onClick={() => handleAddRejectToShoppingList(item)}
                                   >
                                     <Plus className="w-2.5 h-2.5" /> Susulan
@@ -1193,96 +1266,12 @@ export default function ShoppingListPage() {
             </div>
 
             {consolidatedList.length === 0 ? (
-              lastGeneratedDoc ? (
-                <div className="rounded-[2rem] border border-emerald-100 bg-emerald-50/60 p-6 shadow-inner">
-                  <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="flex items-start gap-4">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white text-emerald-600 shadow-sm">
-                        <FileText className="h-6 w-6" />
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Dokumen List Belanja Siap</p>
-                        <h3 className="mt-1 text-lg font-black text-slate-900">Daftar Belanja untuk Tim Sourcing</h3>
-                        <p className="mt-1 text-sm font-bold text-slate-500">
-                          {lastGeneratedDoc.items.length} item • {formatRupiah(lastGeneratedDoc.items.reduce((sum, item) => sum + (item.estimatedPrice * item.totalQty), 0))}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {(() => {
-                        // Tidak ada lagi tombol "Kirim ke Finance": dokumen yang sudah
-                        // dibuat OTOMATIS muncul di Rencana Pembelian milik Finance.
-                        // Pengajuan dana terpisah dihapus — perencanaan Finance itulah
-                        // persetujuannya, dan angka tunainya baru diketahui di sana.
-                        const p = purchases.find(pr => pr.id === lastGeneratedDoc.purchaseId)
-                        const label = p?.disbursedAt ? 'Dana Sudah Diserahkan'
-                          : p?.status === 'Menunggu Rencana' ? 'Menunggu Rencana Finance'
-                          : 'Sudah Direncanakan'
-                        return (
-                          <div className="flex items-center gap-2 h-11 px-4 rounded-xl bg-slate-100 text-slate-600">
-                            <CheckCircle2 className="h-4 w-4" />
-                            <span className="text-[10px] font-black uppercase tracking-widest">{label}</span>
-                          </div>
-                        )
-                      })()}
-                      <Button
-                        variant="outline"
-                        className="h-11 rounded-xl bg-white font-black uppercase tracking-widest text-[10px]"
-                        disabled={belumDirencanakan(lastGeneratedDoc.purchaseId)}
-                        title={belumDirencanakan(lastGeneratedDoc.purchaseId)
-                          ? 'Vendor dan cara bayarnya belum ditentukan Finance — lembar ini belum final.'
-                          : undefined}
-                        onClick={() => printSavedDocument(lastGeneratedDoc.purchaseId)}
-                      >
-                        <Printer className="mr-2 h-4 w-4" />
-                        {belumDirencanakan(lastGeneratedDoc.purchaseId) ? 'Menunggu Rencana Finance' : 'Print / PDF'}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-11 w-11 rounded-xl text-slate-400 hover:bg-white hover:text-slate-700"
-                        onClick={() => setLastGeneratedDoc(null)}
-                        title="Tutup dokumen"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="mt-5 max-h-[260px] overflow-auto rounded-2xl border border-emerald-100 bg-white">
-                    <Table className="min-w-[720px]">
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-[90px]">SKU</TableHead>
-                          <TableHead>Produk</TableHead>
-                          <TableHead className="w-[80px] text-right">Qty</TableHead>
-                          <TableHead className="w-[130px] text-right">Budget</TableHead>
-                          <TableHead className="w-[130px] text-right">Subtotal</TableHead>
-                          <TableHead className="w-[130px] text-center">Lokasi · Bayar</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {lastGeneratedDoc.items.map((item, idx) => (
-                          <TableRow key={`${item.productId}-${item.salesOrderId || 'manual'}-${idx}`}>
-                            <TableCell className="text-xs font-bold text-slate-400">{item.skuCode}</TableCell>
-                            <TableCell className="text-xs font-black text-slate-700">{item.productName}</TableCell>
-                            <TableCell className="text-right text-sm font-black text-slate-700">{item.totalQty}</TableCell>
-                            <TableCell className="text-right text-xs font-bold text-slate-500">{formatRupiah(item.estimatedPrice)}</TableCell>
-                            <TableCell className="text-right text-xs font-black text-emerald-600">{formatRupiah(item.estimatedPrice * item.totalQty)}</TableCell>
-                            <TableCell className="text-center text-[10px] font-black uppercase tracking-widest text-slate-400">
-                              {LOKASI_LABEL[item.purchaseMethod] || item.purchaseMethod} · {METODE_BAYAR_LABEL[item.paymentMethod || ''] || item.paymentMethod || 'Cash'}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
+              <div className="mx-auto max-w-md py-8 text-center text-slate-500">
+                <p className="font-bold">Tidak ada PO yang menunggu disatukan.</p>
+                <div className="mt-4">
+                  <PenunjukLangkahBerikutnya {...dokumenBerjalan} />
                 </div>
-              ) : (
-                <div className="text-center py-8 text-slate-500">
-                  <p>Belum ada daftar belanja aktif.</p>
-                </div>
-              )
+              </div>
             ) : (
               <div className="space-y-6">
                 {/* Banner Susulan Pendek / Pending Rejects */}
@@ -1293,17 +1282,17 @@ export default function ShoppingListPage() {
                         {pendingRejects.length}
                       </div>
                       <div>
-                        <h4 className="text-xs font-black uppercase tracking-wider text-slate-800">
+                        <h4 className="text-xs font-bold  text-slate-800">
                           Susulan Retur & Reject QC Pending
                         </h4>
-                        <p className="text-[10px] text-slate-500">
+                        <p className="text-[11px] text-slate-500">
                           Ada {pendingRejects.length} barang retur/reject yang belum dimasukkan ke list belanja.
                         </p>
                       </div>
                     </div>
                     <Button
                       size="sm"
-                      className="bg-amber-600 hover:bg-amber-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl"
+                      className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px]  rounded-xl"
                       onClick={() => {
                         saveToHistory()
                         const newManualItems = [...manualItems]
@@ -1348,17 +1337,17 @@ export default function ShoppingListPage() {
                           <Warehouse className="w-5 h-5 text-emerald-600" />
                         </div>
                         <div>
-                          <h4 className="text-xs font-black uppercase tracking-wider text-slate-800">
+                          <h4 className="text-xs font-bold  text-slate-800">
                             Saran Alokasi dari Gudang
                           </h4>
-                          <p className="text-[10px] text-slate-500">
+                          <p className="text-[11px] text-slate-500">
                             Terdapat {suggestions.length} produk yang memiliki stok tersedia di gudang. Mau dialokasikan dari gudang?
                           </p>
                         </div>
                       </div>
                       <Button
                         size="sm"
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px]  rounded-xl"
                         onClick={() => {
                           saveToHistory()
                           setStockBookedProductIds(prev => {
@@ -1439,7 +1428,7 @@ export default function ShoppingListPage() {
                                                 ? { label: 'Susulan', cls: 'bg-orange-100 text-orange-700' }
                                                 : { label: 'Manual', cls: 'bg-slate-200 text-slate-600' }
                                             return (
-                                              <span className={cn("w-fit text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded", cat.cls)}>
+                                              <span className={cn("w-fit text-[11px] font-bold  px-1.5 py-0.5 rounded", cat.cls)}>
                                                 {cat.label}
                                               </span>
                                             )
@@ -1451,7 +1440,7 @@ export default function ShoppingListPage() {
                                              return (
                                                <span
                                                  className={cn(
-                                                   "w-fit text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded flex items-center gap-1",
+                                                   "w-fit text-[11px] font-bold  px-1.5 py-0.5 rounded flex items-center gap-1",
                                                    stillNeeded <= 0 ? "bg-emerald-100 text-emerald-700" : "bg-orange-100 text-orange-700"
                                                  )}
                                                  title={`Sudah dibeli ${alreadyBought} di PO sebelumnya. Sisa: ${Math.max(0, stillNeeded)}`}
@@ -1461,11 +1450,11 @@ export default function ShoppingListPage() {
                                              )
                                            })()}
                                           {product?.weeklyPriceRange && product.weeklyPriceRange.min > 0 && product.weeklyPriceRange.max > 0 ? (
-                                            <span className="text-[9px] font-bold text-amber-600 w-fit" title="Harga terendah-tertinggi minggu ini (Kamis-Rabu)">
+                                            <span className="text-[11px] font-bold text-amber-600 w-fit" title="Harga terendah-tertinggi minggu ini (Kamis-Rabu)">
                                               Patokan: {formatRupiah(product.weeklyPriceRange.min)} - {formatRupiah(product.weeklyPriceRange.max)}
                                             </span>
                                           ) : (
-                                            <span className="text-[9px] font-bold text-amber-600 w-fit" title="Harga Acuan (Base Price)">
+                                            <span className="text-[11px] font-bold text-amber-600 w-fit" title="Harga Acuan (Base Price)">
                                               Patokan: {formatRupiah(product?.basePrice || 0)}
                                             </span>
                                           )}
@@ -1474,7 +1463,7 @@ export default function ShoppingListPage() {
                                             const short = item.totalQty > avail
                                             return (
                                               <span className={cn(
-                                                "w-fit text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded flex items-center gap-1",
+                                                "w-fit text-[11px] font-bold  px-1.5 py-0.5 rounded flex items-center gap-1",
                                                 short ? "bg-rose-50 text-rose-600" : "bg-amber-100 text-amber-700"
                                               )}>
                                                 <Warehouse className="w-2.5 h-2.5" /> Dari Gudang
@@ -1498,7 +1487,7 @@ export default function ShoppingListPage() {
                                         <div className="flex flex-col items-end gap-1">
                                           <Input 
                                             type="number"
-                                            className="h-8 w-20 text-right text-xs font-black border-slate-200"
+                                            className="h-8 w-20 text-right text-xs font-bold border-slate-200"
                                             placeholder="0"
                                             value={item.totalQty || ''}
                                             onChange={(e) => {
@@ -1517,7 +1506,7 @@ export default function ShoppingListPage() {
                                             const stillNeeded = Math.max(0, item.totalQty - alreadyBought)
                                             return (
                                               <span className={cn(
-                                                "text-[9px] font-black px-1.5 py-0.5 rounded",
+                                                "text-[11px] font-bold px-1.5 py-0.5 rounded",
                                                 stillNeeded === 0 ? "text-emerald-600 bg-emerald-50" : "text-orange-600 bg-orange-50"
                                               )}>
                                                 beli {stillNeeded}
@@ -1525,7 +1514,7 @@ export default function ShoppingListPage() {
                                             )
                                           })()}
                                           {!item.fromStock && (product?.currentStock || 0) > 0 && (product?.currentStock || 0) < item.kebutuhan && (
-                                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded text-slate-500 bg-slate-100">
+                                            <span className="text-[11px] font-bold px-1.5 py-0.5 rounded text-slate-500 bg-slate-100">
                                               {product?.currentStock} dari gudang + {item.totalQty} dibeli
                                             </span>
                                           )}
@@ -1533,10 +1522,10 @@ export default function ShoppingListPage() {
                                       </TableCell>
                                       <TableCell className="text-right pr-4">
                                          <div className="flex flex-col items-end">
-                                            <span className="font-black text-blue-600">{formatRupiah(item.sellPrice)}</span>
+                                            <span className="font-bold text-blue-600">{formatRupiah(item.sellPrice)}</span>
                                             {item.sellPrice > 0 && item.estimatedPrice > 0 && (
                                                <span className={cn(
-                                                  "text-[9px] font-bold px-1 rounded",
+                                                  "text-[11px] font-bold px-1 rounded",
                                                   item.sellPrice > item.estimatedPrice ? "text-emerald-500 bg-emerald-50" : "text-rose-500 bg-rose-50"
                                                )}>
                                                   {item.sellPrice > item.estimatedPrice ? 'Margin OK' : 'Low Margin!'}
@@ -1550,7 +1539,7 @@ export default function ShoppingListPage() {
                                           mengisinya, di Rencana Pembelian. */}
                                       <TableCell className="text-right text-slate-500 pr-4 text-xs font-bold">
                                          {formatRupiah(item.estimatedPrice)}
-                                         <span className="block text-[9px] text-slate-400 font-bold">patokan</span>
+                                         <span className="block text-[11px] text-slate-400 font-bold">patokan</span>
                                       </TableCell>
                                       <TableCell className="text-right font-bold text-emerald-600 pr-4">{formatRupiah(item.estimatedPrice * item.totalQty)}</TableCell>
                                       <TableCell className="text-center">
@@ -1565,7 +1554,7 @@ export default function ShoppingListPage() {
                                             <button
                                                onClick={() => toggleStockBooked(rowKey(item))}
                                                className={cn(
-                                                  "px-2 py-1 text-[9px] font-black uppercase rounded-md border transition-all hover:scale-105",
+                                                  "px-2 py-1 text-[11px] font-bold uppercase rounded-md border transition-all",
                                                   item.fromStock
                                                      ? "bg-amber-100 border-amber-300 text-amber-700"
                                                      : "bg-slate-50 border-slate-200 text-slate-400"
@@ -1593,7 +1582,7 @@ export default function ShoppingListPage() {
                                                   }
                                                   toast.error("Item ini tidak bisa dihapus dari sini.")
                                                }}
-                                               className="p-1.5 rounded-md border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 hover:scale-105 transition-all"
+                                               className="p-1.5 rounded-md border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 transition-all"
                                                title="Hapus item dari list"
                                             >
                                                <Trash2 className="w-3.5 h-3.5" />
@@ -1616,12 +1605,12 @@ export default function ShoppingListPage() {
                 {/* PR Selector — opsional sebelum compile */}
                 <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 mt-4">
                   <div className="flex items-center justify-between mb-3">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                    <p className="text-[11px] font-bold  text-slate-500">
                       Pilih Purchase Request (Opsional — Bisa diajukan otomatis)
                     </p>
                     {selectedPRId && (
                       <button
-                        className="text-[10px] font-bold text-slate-400 hover:text-slate-600 underline"
+                        className="text-[11px] font-bold text-slate-400 hover:text-slate-600 underline"
                         onClick={() => setSelectedPRId('')}
                       >
                         Batal pilih
@@ -1657,26 +1646,26 @@ export default function ShoppingListPage() {
                             />
                             <div className="min-w-0 flex-1">
                               <div className="flex items-start justify-between gap-2">
-                                <p className="text-sm font-black text-slate-800 leading-tight">{pr.title}</p>
+                                <p className="text-sm font-bold text-slate-800 leading-tight">{pr.title}</p>
                                 <div className="flex items-center gap-1.5 shrink-0">
                                   {usageCount > 0 && (
-                                    <span className="rounded-full bg-blue-100 text-blue-700 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest">
+                                    <span className="rounded-full bg-muted text-slate-600 px-2 py-0.5 text-[11px] font-bold ">
                                       {usageCount}× dipakai
                                     </span>
                                   )}
-                                  <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-white">
+                                  <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[11px] font-bold  text-white">
                                     Approved
                                   </span>
                                 </div>
                               </div>
                               <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
-                                <span className="text-[10px] font-bold text-slate-500">{pr.category}</span>
-                                <span className="text-[10px] font-black text-emerald-700">{formatRupiah(pr.amount)}</span>
+                                <span className="text-[11px] font-bold text-slate-500">{pr.category}</span>
+                                <span className="text-[11px] font-bold text-emerald-700">{formatRupiah(pr.amount)}</span>
                                 {pr.approvedByCfo && (
-                                  <span className="text-[10px] font-bold text-slate-400">CFO: {pr.approvedByCfo}</span>
+                                  <span className="text-[11px] font-bold text-slate-400">CFO: {pr.approvedByCfo}</span>
                                 )}
                                 {pr.description && (
-                                  <span className="text-[10px] text-slate-400 truncate max-w-[200px]" title={pr.description}>{pr.description}</span>
+                                  <span className="text-[11px] text-slate-400 truncate max-w-[200px]" title={pr.description}>{pr.description}</span>
                                 )}
                               </div>
                             </div>
@@ -1688,7 +1677,7 @@ export default function ShoppingListPage() {
                 </div>
 
                 <div className="flex justify-end pt-2 gap-3">
-                  <Button data-tour="sl-generate" onClick={handleGenerateDocument} disabled={isLoading} className="bg-emerald-600 hover:bg-emerald-700 shadow-md shadow-emerald-500/20">
+                  <Button data-tour="sl-generate" onClick={handleGenerateDocument} disabled={isLoading} className="bg-emerald-600 hover:bg-emerald-700 shadow-md">
                     {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShoppingBasket className="mr-2 h-4 w-4" />}
                     {isLoading ? "Generating..." : "Buat Dokumen List"}
                   </Button>
@@ -1703,7 +1692,7 @@ export default function ShoppingListPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
-                <FileText className="h-5 w-5 text-blue-500" />
+                <FileText className="h-5 w-5" />
                 Riwayat List Belanja
               </CardTitle>
               <CardDescription>Semua dokumen belanja yang pernah dibuat</CardDescription>
@@ -1729,24 +1718,24 @@ export default function ShoppingListPage() {
                       >
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-xs font-black text-slate-700 group-hover:text-blue-700 transition-colors">{purchase.advanceCode || purchase.id.slice(0, 8)}</span>
-                            <span className="rounded-full bg-white px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-blue-600 shadow-sm border">
+                            <span className="text-xs font-bold text-slate-700 group-hover:text-blue-700 transition-colors">{purchase.advanceCode || purchase.id.slice(0, 8)}</span>
+                            <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-bold  text-blue-600 shadow-sm border">
                               {items.length} item
                             </span>
                             {isSettled ? (
-                              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-emerald-700">
+                              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold  text-emerald-700">
                                 ✓ Selesai
                               </span>
                             ) : hasBeenTransferred ? (
-                              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-amber-700">
+                              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold  text-amber-700">
                                 Dana Ditransfer
                               </span>
                             ) : sentToFinance ? (
-                              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-blue-700">
+                              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-bold  text-blue-700">
                                 Sudah Direncanakan
                               </span>
                             ) : (
-                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-slate-500">
+                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold  text-slate-500">
                                 Menunggu Rencana
                               </span>
                             )}
@@ -1756,14 +1745,14 @@ export default function ShoppingListPage() {
                           </p>
                         </div>
                         <div className="flex gap-2 shrink-0 items-center">
-                          <span className="text-[9px] font-black uppercase tracking-widest text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                          <span className="text-[11px] font-bold  text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
                             <Search className="w-3 h-3" /> Detail
                           </span>
                           {!hasBeenTransferred && !isSettled && (
                             <Button
                               size="sm"
                               variant="outline"
-                              className="h-8 rounded-lg border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-600 text-[10px] font-black uppercase tracking-widest"
+                              className="h-8 rounded-lg border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-600 text-[11px] font-bold "
                               onClick={(e) => { e.stopPropagation(); handleDeletePurchase(purchase.id) }}
                               disabled={isDeletingPurchase === purchase.id}
                               title="Hapus dokumen list belanja"
@@ -1786,21 +1775,21 @@ export default function ShoppingListPage() {
       </div>
 
       <Dialog open={!!pdfPreview} onOpenChange={(open) => !open && setPdfPreview(null)}>
-        <DialogContent className="max-w-[96vw] sm:max-w-[96vw] w-[96vw] h-[96vh] p-0 rounded-[2rem] overflow-hidden border-none bg-slate-900 shadow-2xl flex flex-col">
+        <DialogContent className="max-w-[96vw] sm:max-w-[96vw] w-[96vw] h-[96vh] p-0 rounded-xl overflow-hidden border-none bg-slate-900 shadow-sm flex flex-col">
           <DialogHeader className="p-6 bg-slate-900 text-white flex flex-row items-center justify-between shrink-0 space-y-0">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400">
                 <FileText className="w-5 h-5" />
               </div>
               <div>
-                <DialogTitle className="text-lg font-black tracking-tight">Preview Daftar Belanja</DialogTitle>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Cek dokumen sebelum download atau print</p>
+                <DialogTitle className="text-lg font-bold tracking-tight">Preview Daftar Belanja</DialogTitle>
+                <p className="text-[11px] font-bold text-slate-400 ">Cek dokumen sebelum download atau print</p>
               </div>
             </div>
             <Button
               variant="ghost"
               size="icon"
-              className="rounded-xl text-slate-400 hover:bg-white/10 hover:text-white"
+              className="rounded-xl text-slate-400 hover:bg-slate-700 hover:text-white"
               onClick={() => setPdfPreview(null)}
             >
               <X className="w-5 h-5" />
@@ -1809,14 +1798,14 @@ export default function ShoppingListPage() {
           <div className="flex-1 bg-slate-800 p-4 overflow-hidden">
             {pdfPreview && <PdfCanvasPreview url={pdfPreview.url} />}
           </div>
-          <DialogFooter className="p-5 bg-slate-900 border-t border-white/10 gap-3 sm:justify-between">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+          <DialogFooter className="p-5 bg-slate-900 border-t border-border gap-3 sm:justify-between">
+            <p className="text-[11px] font-bold  text-slate-500">
               File belum diunduh sampai klik Download.
             </p>
             <div className="flex gap-3">
               <Button
                 variant="outline"
-                className="h-11 rounded-xl border-white/10 bg-white/10 text-white hover:bg-white hover:text-slate-900 font-black uppercase tracking-widest text-[10px]"
+                className="h-11 rounded-xl border-slate-700 bg-slate-800 text-white hover:bg-white hover:text-slate-900 font-bold  text-[11px]"
                 onClick={() => {
                   if (!pdfPreview) return
                   const printWindow = window.open(pdfPreview.url, '_blank')
@@ -1826,7 +1815,7 @@ export default function ShoppingListPage() {
                 <Printer className="w-4 h-4 mr-2" /> Print
               </Button>
               <Button
-                className="h-11 rounded-xl bg-white text-slate-900 hover:bg-slate-100 font-black uppercase tracking-widest text-[10px]"
+                className="h-11 rounded-xl bg-white text-slate-900 hover:bg-slate-100 font-bold  text-[11px]"
                 onClick={() => {
                   if (!pdfPreview) return
                   const link = document.createElement('a')
@@ -1860,28 +1849,28 @@ export default function ShoppingListPage() {
                     <FileText className="w-5 h-5" />
                   </div>
                   <div>
-                    <DialogTitle className="text-base font-black tracking-tight">
+                    <DialogTitle className="text-base font-bold tracking-tight">
                       Detail Dokumen Belanja #{histPurchase?.advanceCode || histPurchase?.id.slice(0, 8)}
                     </DialogTitle>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    <p className="text-[11px] font-bold text-slate-400 ">
                       {histPurchase ? new Date(histPurchase.date).toLocaleString('id-ID', { dateStyle: 'long', timeStyle: 'short' }) : ''}
                     </p>
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 pt-2">
-                  <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-blue-600 border border-blue-100">
+                  <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-bold  text-blue-600 border border-blue-100">
                     {histItems.length} item
                   </span>
                   {histSettled ? (
-                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-emerald-700">✓ Selesai</span>
+                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold  text-emerald-700">✓ Selesai</span>
                   ) : histTransferred ? (
-                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-amber-700">Dana Ditransfer</span>
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold  text-amber-700">Dana Ditransfer</span>
                   ) : histSentToFinance ? (
-                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-blue-700">Menunggu Finance</span>
+                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-bold  text-blue-700">Menunggu Finance</span>
                   ) : (
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-slate-500">Draft</span>
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold  text-slate-500">Draft</span>
                   )}
-                  <span className="text-[11px] font-black text-slate-700">Total: {formatRupiah(histTotal)}</span>
+                  <span className="text-[11px] font-bold text-slate-700">Total: {formatRupiah(histTotal)}</span>
                 </div>
               </DialogHeader>
               <div className="flex-1 overflow-auto min-h-0">
@@ -1891,13 +1880,13 @@ export default function ShoppingListPage() {
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-slate-50">
-                        <TableHead className="text-[10px] font-black uppercase tracking-widest w-[80px]">SKU</TableHead>
-                        <TableHead className="text-[10px] font-black uppercase tracking-widest">Nama Produk</TableHead>
-                        <TableHead className="text-[10px] font-black uppercase tracking-widest text-right w-[80px]">Qty</TableHead>
-                        <TableHead className="text-[10px] font-black uppercase tracking-widest text-right w-[120px]">Est. Harga</TableHead>
-                        <TableHead className="text-[10px] font-black uppercase tracking-widest text-right w-[120px]">Subtotal</TableHead>
-                        <TableHead className="text-[10px] font-black uppercase tracking-widest text-center w-[110px]">Lokasi · Bayar</TableHead>
-                        <TableHead className="text-[10px] font-black uppercase tracking-widest w-[120px]">Vendor</TableHead>
+                        <TableHead className="text-[11px] font-bold  w-[80px]">SKU</TableHead>
+                        <TableHead className="text-[11px] font-bold ">Nama Produk</TableHead>
+                        <TableHead className="text-[11px] font-bold  text-right w-[80px]">Qty</TableHead>
+                        <TableHead className="text-[11px] font-bold  text-right w-[120px]">Est. Harga</TableHead>
+                        <TableHead className="text-[11px] font-bold  text-right w-[120px]">Subtotal</TableHead>
+                        <TableHead className="text-[11px] font-bold  text-center w-[110px]">Lokasi · Bayar</TableHead>
+                        <TableHead className="text-[11px] font-bold  w-[120px]">Vendor</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1911,17 +1900,17 @@ export default function ShoppingListPage() {
                           : 'bg-purple-50 text-purple-700 border-purple-200'
                         return (
                           <TableRow key={idx} className="text-sm">
-                            <TableCell className="text-[10px] text-slate-400 font-bold">{prod?.skuCode || item.productId.slice(0, 8)}</TableCell>
+                            <TableCell className="text-[11px] text-slate-400 font-bold">{prod?.skuCode || item.productId.slice(0, 8)}</TableCell>
                             <TableCell className="font-medium text-xs">{prod?.name || item.productId}</TableCell>
                             <TableCell className="text-right text-xs font-bold">{item.qtyTarget} {prod?.uom || ''}</TableCell>
                             <TableCell className="text-right text-xs">{formatRupiah(item.estimatedUnitPrice)}</TableCell>
                             <TableCell className="text-right text-xs font-bold text-emerald-600">{formatRupiah(item.estimatedUnitPrice * item.qtyTarget)}</TableCell>
                             <TableCell className="text-center">
-                              <span className={cn("px-1.5 py-0.5 rounded text-[9px] font-black uppercase border", methodColor)}>
+                              <span className={cn("px-1.5 py-0.5 rounded text-[11px] font-bold uppercase border", methodColor)}>
                                 {LOKASI_LABEL[item.purchaseMethod || ''] || item.purchaseMethod} · {METODE_BAYAR_LABEL[item.paymentMethod || ''] || item.paymentMethod || 'Cash'}
                               </span>
                             </TableCell>
-                            <TableCell className="text-[10px] text-slate-500 font-bold">{vnd?.companyName || '—'}</TableCell>
+                            <TableCell className="text-[11px] text-slate-500 font-bold">{vnd?.companyName || '—'}</TableCell>
                           </TableRow>
                         )
                       })}
@@ -1933,7 +1922,7 @@ export default function ShoppingListPage() {
                 <Button variant="outline" onClick={() => setSelectedHistoryPurchaseId(null)}>Tutup</Button>
                 {histPurchase && (
                   <Button
-                    className="bg-slate-800 hover:bg-slate-900 text-white font-black text-[10px] uppercase tracking-widest"
+                    className="bg-slate-800 hover:bg-slate-900 text-white font-bold text-[11px] "
                     disabled={belumDirencanakan(histPurchase.id)}
                     title={belumDirencanakan(histPurchase.id)
                       ? 'Vendor dan cara bayarnya belum ditentukan Finance — lembar ini belum final.'

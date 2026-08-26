@@ -7,7 +7,10 @@ import { Badge } from "@/components/ui/badge"
 import { ArrowUpFromLine, Package, Truck, CheckCircle2, Circle, ShieldCheck, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import Link from "next/link"
 import { releaseForDelivery } from "@/lib/dispatch"
+import { WorksheetPrintButton } from "@/components/worksheet-print-button"
+import { qty as qtyTeks } from "@/lib/worksheet-rows"
 
 export default function OutboundPage() {
   const salesOrders = useAppStore(state => state.salesOrders)
@@ -34,31 +37,53 @@ export default function OutboundPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-3xl font-black tracking-tight text-slate-900 uppercase">Outbound <span className="text-blue-600">/ Pengeluaran</span></h2>
+          <h2 className="text-3xl font-bold tracking-tight text-slate-900 uppercase">Outbound <span className="text-blue-600">/ Pengeluaran</span></h2>
           <p className="text-slate-500 font-bold">Persiapkan barang untuk dikirim ke klien (Packing & Handover).</p>
         </div>
+        <WorksheetPrintButton
+          kind="outbound"
+          title="LEMBAR BARANG KELUAR"
+          label="Print Lembar Keluar"
+          rows={packingOrders.flatMap(so => {
+            const client = clients.find(c => c.id === so.clientId)
+            return salesOrderItems
+              .filter(i => i.salesOrderId === so.id)
+              .map(i => {
+                const product = products.find(p => p.id === i.productId)
+                return {
+                  group: `${so.poNumber} — ${client?.companyName || 'Klien'}`,
+                  cells: [
+                    so.poNumber,
+                    client?.companyName || '—',
+                    product?.name || i.productId,
+                    qtyTeks(i.qtyFinal ?? i.qty, product?.uom),
+                  ],
+                }
+              })
+          })}
+        />
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <Card className="liquid-card border-blue-100">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-[10px] font-black uppercase text-slate-400">Antrean Packing</CardTitle>
-            <Package className="h-5 w-5 text-blue-500" />
+            <CardTitle className="text-[11px] font-bold uppercase text-slate-400">Antrean Packing</CardTitle>
+            <Package className="h-5 w-5" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black text-slate-800">{packingOrders.length}</div>
-            <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase">PO menunggu dipacking</p>
+            <div className="text-3xl font-bold text-slate-800">{packingOrders.length}</div>
+            <p className="text-[11px] font-bold text-slate-400 mt-1 uppercase">PO menunggu dipacking</p>
           </CardContent>
         </Card>
 
         <Card className="liquid-card border-emerald-100">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-[10px] font-black uppercase text-slate-400">Siap Serah Terima</CardTitle>
+            <CardTitle className="text-[11px] font-bold uppercase text-slate-400">Siap Serah Terima</CardTitle>
             <Truck className="h-5 w-5 text-emerald-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black text-slate-800">{handoverOrders.length}</div>
-            <p className="text-[10px] font-bold text-emerald-600 mt-1 uppercase">Awaiting Logistics Pickup</p>
+            <div className="text-3xl font-bold text-slate-800">{handoverOrders.length}</div>
+            <p className="text-[11px] font-bold text-emerald-600 mt-1 uppercase">Awaiting Logistics Pickup</p>
           </CardContent>
         </Card>
       </div>
@@ -66,8 +91,8 @@ export default function OutboundPage() {
       <div className="grid gap-8 grid-cols-1 lg:grid-cols-2">
         {/* LEFT COLUMN: PACKING QUEUE */}
         <div className="space-y-4">
-           <h3 className="text-sm font-black uppercase text-slate-400 px-1 flex items-center gap-2">
-              <Package className="w-4 h-4 text-blue-500" /> Antrean Packing (In-Process)
+           <h3 className="text-sm font-bold uppercase text-slate-400 px-1 flex items-center gap-2">
+              <Package className="w-4 h-4" /> Antrean Packing (In-Process)
            </h3>
            {packingOrders.length === 0 ? (
              <Card className="border-dashed h-40 flex flex-col items-center justify-center text-slate-400 bg-slate-50/50">
@@ -82,10 +107,10 @@ export default function OutboundPage() {
                  <Card key={so.id} className="overflow-hidden border-blue-100 dark:border-blue-900/50 shadow-sm liquid-card">
                    <div className="p-4 bg-blue-50/50 border-b flex justify-between items-center">
                       <div>
-                         <p className="text-[10px] font-black text-blue-600 uppercase tracking-tighter">Packing Phase</p>
-                         <h4 className="font-black text-slate-800">{so.poNumber}</h4>
+                         <p className="text-[11px] font-bold text-blue-600 ">Packing Phase</p>
+                         <h4 className="font-bold text-slate-800">{so.poNumber}</h4>
                       </div>
-                      <Badge className="bg-blue-600 text-white border-none text-[10px] font-black uppercase tracking-widest">{client?.companyName.substring(0, 15)}...</Badge>
+                      <Badge className="bg-blue-600 text-white border-none text-[11px] font-bold ">{client?.companyName.substring(0, 15)}...</Badge>
                    </div>
                    <CardContent className="p-4 space-y-4">
                       <ul className="space-y-2">
@@ -109,16 +134,16 @@ export default function OutboundPage() {
                                      <div className="text-right">
                                        {hasAdjustment ? (
                                          <div className="flex items-center gap-2">
-                                           <span className="text-xs font-black text-slate-300 line-through">{item.qty}</span>
-                                           <span className="text-xs font-black text-amber-600">{displayQty} {product?.uom}</span>
+                                           <span className="text-xs font-bold text-slate-300 line-through">{item.qty}</span>
+                                           <span className="text-xs font-bold text-amber-600">{displayQty} {product?.uom}</span>
                                          </div>
                                        ) : (
-                                         <span className="text-xs font-black text-slate-400">{displayQty} {product?.uom}</span>
+                                         <span className="text-xs font-bold text-slate-400">{displayQty} {product?.uom}</span>
                                        )}
                                      </div>
                                    </div>
                                    {hasAdjustment && (
-                                     <div className="mt-2 ml-8 flex items-start gap-1.5 text-[10px] font-bold text-amber-600 bg-amber-100/60 px-3 py-1.5 rounded-xl">
+                                     <div className="mt-2 ml-8 flex items-start gap-1.5 text-[11px] font-bold text-amber-600 bg-amber-100/60 px-3 py-1.5 rounded-xl">
                                        <AlertTriangle className="w-3 h-3 mt-0.5 flex-shrink-0" />
                                        <span>{item.qtyAdjustmentReason || 'Qty disesuaikan setelah QC'}</span>
                                      </div>
@@ -129,7 +154,7 @@ export default function OutboundPage() {
                        </ul>
                       <Button 
                          onClick={() => handleRelease(so.id)}
-                         className="w-full bg-blue-600 hover:bg-blue-700 h-12 font-black rounded-2xl shadow-lg shadow-blue-100"
+                         className="w-full bg-blue-600 hover:bg-blue-700 h-12 font-bold rounded-2xl shadow-sm"
                          disabled={items.some(i => !i.isPacked)}
                       >
                          Siap Serah Terima <ArrowUpFromLine className="w-4 h-4 ml-2" />
@@ -143,7 +168,7 @@ export default function OutboundPage() {
 
         {/* RIGHT COLUMN: HANDOVER PENDING */}
         <div className="space-y-4">
-           <h3 className="text-sm font-black uppercase text-slate-400 px-1 flex items-center gap-2">
+           <h3 className="text-sm font-bold uppercase text-slate-400 px-1 flex items-center gap-2">
               <Truck className="w-4 h-4 text-emerald-500" /> Menunggu Pickup Kurir (Siap Kirim)
            </h3>
            {handoverOrders.length === 0 ? (
@@ -157,16 +182,42 @@ export default function OutboundPage() {
                  <Card key={so.id} className="overflow-hidden border-emerald-100 dark:border-emerald-900/50 shadow-sm liquid-card opacity-80 hover:opacity-100 transition-opacity">
                    <div className="p-4 bg-emerald-50/50 border-b flex justify-between items-center">
                       <div>
-                         <p className="text-[10px] font-black text-emerald-600 uppercase tracking-tighter">Ready for Handover</p>
-                         <h4 className="font-black text-slate-800">{so.poNumber}</h4>
+                         <p className="text-[11px] font-bold text-emerald-600 ">Ready for Handover</p>
+                         <h4 className="font-bold text-slate-800">{so.poNumber}</h4>
                       </div>
-                      <Badge className="bg-emerald-600 text-white border-none text-[10px] font-black uppercase tracking-widest">Handover Pending</Badge>
+                      <Badge className="bg-emerald-600 text-white border-none text-[11px] font-bold ">Handover Pending</Badge>
                    </div>
-                   <CardContent className="p-4">
-                      <div className="bg-white rounded-2xl p-4 border border-emerald-50 text-xs font-bold text-slate-500 italic flex items-start gap-2">
-                         <ShieldCheck className="w-4 h-4 text-emerald-500 mt-0.5" />
-                         Menunggu kurir melakukan scan checklist serah terima di aplikasi mereka.
+                   <CardContent className="p-4 space-y-3">
+                      {/* Isinya ditampilkan, bukan cuma nomor PO-nya. Kartu yang cuma
+                          bilang "menunggu" tanpa menyebut barangnya terbaca seperti
+                          antrean kosong — dan gudang tidak tahu apa yang sedang menunggu. */}
+                      <div className="rounded-2xl border border-emerald-50 bg-white divide-y">
+                        {salesOrderItems.filter(i => i.salesOrderId === so.id).map(i => {
+                          const product = products.find(p => p.id === i.productId)
+                          return (
+                            <div key={i.id} className="flex items-center justify-between px-3 py-2">
+                              <span className="text-xs font-bold text-slate-700">{product?.name || i.productId}</span>
+                              <span className="text-xs font-black text-slate-500">
+                                {i.qtyFinal ?? i.qty} {product?.uom}
+                              </span>
+                            </div>
+                          )
+                        })}
                       </div>
+
+                      <div className="bg-white rounded-2xl p-4 border border-emerald-50 text-xs font-bold text-slate-500 flex items-start gap-2">
+                         <ShieldCheck className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />
+                         {/* Kurir tidak memakai aplikasi — mereka cuma menerima kertasnya.
+                             Kalimat lama menyuruh menunggu sesuatu yang tidak akan pernah
+                             terjadi, dan PO-nya diam di sini sampai ada yang curiga. */}
+                         <span>Serahkan barangnya ke kurir, lalu catat di layar <b>Serah Terima</b>.</span>
+                      </div>
+
+                      <Link href="/courier/handover">
+                        <Button className="h-10 w-full rounded-xl bg-emerald-600 text-[10px] font-black uppercase tracking-widest text-white hover:bg-emerald-700">
+                          <Truck className="mr-2 h-4 w-4" /> Buka Serah Terima
+                        </Button>
+                      </Link>
                    </CardContent>
                  </Card>
                )

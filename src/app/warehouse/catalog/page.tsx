@@ -151,32 +151,31 @@ export default function WarehouseCatalogPage() {
       {/* HEADER SECTION */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black tracking-tight text-slate-900 uppercase">
-             Katalog <span className="text-emerald-600">Barang & Stok</span>
+          <h1 className="text-[19px] leading-tight font-semibold text-slate-900">Katalog <span className="text-emerald-600">Barang & Stok</span>
           </h1>
-          <p className="text-slate-400 font-bold mt-1 uppercase text-[10px] tracking-widest">
+          <p className="text-slate-400 font-bold mt-1 uppercase text-[11px] tracking-widest">
             Inventory Management & Multi-Warehouse Stock Ledger
           </p>
         </div>
         
         <div className="flex items-center gap-3">
-          <Card className="bg-white/80 dark:bg-slate-900 backdrop-blur-md px-6 py-4 rounded-[2rem] border-white dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none">
+          <Card className="bg-card dark:bg-slate-900 px-6 py-4 rounded-xl border-white dark:border-slate-800 shadow-sm dark:shadow-none">
             <div className="flex flex-row items-center gap-6 whitespace-nowrap">
               <div className="flex items-center gap-3">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total SKU:</p>
-                <p className="text-xl font-black text-slate-900 dark:text-white leading-none">{products.length}</p>
+                <p className="text-[11px] font-bold text-slate-400 ">Total SKU:</p>
+                <p className="text-xl font-bold text-slate-900 dark:text-white leading-none">{products.length}</p>
               </div>
               <div className="w-px h-6 bg-slate-200 dark:bg-slate-800" />
               <div className="flex items-center gap-3">
-                <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Stok Utama:</p>
-                <p className="text-xl font-black text-emerald-600 leading-none">
+                <p className="text-[11px] font-bold text-emerald-400 ">Stok Utama:</p>
+                <p className="text-xl font-bold text-emerald-600 leading-none">
                   {products.reduce((acc, p) => acc + p.currentStock, 0).toLocaleString()}
                 </p>
               </div>
               <div className="w-px h-6 bg-slate-200 dark:bg-slate-800" />
               <div className="flex items-center gap-3">
-                <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Stok B2C:</p>
-                <p className="text-xl font-black text-blue-600 leading-none">
+                <p className="text-[11px] font-bold text-blue-400 ">Stok B2C:</p>
+                <p className="text-xl font-bold text-blue-600 leading-none">
                   {products.reduce((acc, p) => acc + (p.b2cStock || 0), 0).toLocaleString()}
                 </p>
               </div>
@@ -187,20 +186,20 @@ export default function WarehouseCatalogPage() {
 
       <Tabs defaultValue="main" className="w-full">
         <TabsList className="bg-slate-100 p-1 rounded-2xl mb-6">
-          <TabsTrigger value="main" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest flex items-center gap-2">
+          <TabsTrigger value="main" className="rounded-xl px-8 font-bold uppercase text-[11px] tracking-widest flex items-center gap-2">
             <Database className="w-4 h-4" /> Gudang Utama (Main WH)
           </TabsTrigger>
-          <TabsTrigger value="b2c" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest flex items-center gap-2">
-            <Layers className="w-4 h-4 text-blue-500" /> Gudang B2C (Peralihan WH)
+          <TabsTrigger value="b2c" className="rounded-xl px-8 font-bold uppercase text-[11px] tracking-widest flex items-center gap-2">
+            <Layers className="w-4 h-4" /> Gudang B2C (Peralihan WH)
           </TabsTrigger>
-          <TabsTrigger value="ledger" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest flex items-center gap-2">
+          <TabsTrigger value="ledger" className="rounded-xl px-8 font-bold uppercase text-[11px] tracking-widest flex items-center gap-2">
             <History className="w-4 h-4 text-emerald-500" /> Ledger Mutasi Stok
           </TabsTrigger>
         </TabsList>
 
         {/* TAB 1: MAIN WAREHOUSE */}
         <TabsContent value="main">
-          <Card className="bg-white dark:bg-slate-900 shadow-2xl shadow-slate-200/50 dark:shadow-none border-none rounded-[2.5rem] overflow-hidden">
+          <Card className="bg-white dark:bg-slate-900 shadow-sm dark:shadow-none border-none rounded-2xl overflow-hidden">
             <CardHeader className="p-8 pb-4">
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                 <div className="relative flex-1 max-w-sm">
@@ -215,7 +214,7 @@ export default function WarehouseCatalogPage() {
                 
                 <div className="flex flex-wrap items-center gap-3">
                   <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-2xl border border-slate-100/55">
-                    <span className="text-[10px] font-black text-slate-400 uppercase pl-3 flex items-center gap-1.5 border-r pr-3 mr-1">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase pl-3 flex items-center gap-1.5 border-r pr-3 mr-1">
                       <Filter className="w-3 h-3" /> Status
                     </span>
                     <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v ?? '')}>
@@ -231,7 +230,7 @@ export default function WarehouseCatalogPage() {
                   </div>
 
                   <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-2xl border border-slate-100/55">
-                    <span className="text-[10px] font-black text-slate-400 uppercase pl-3 flex items-center gap-1.5 border-r pr-3 mr-1">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase pl-3 flex items-center gap-1.5 border-r pr-3 mr-1">
                       <ArrowUpDown className="w-3 h-3" /> Urutan
                     </span>
                     <Select value={sortBy} onValueChange={(val) => setSortBy(val as SortField)}>
@@ -260,17 +259,17 @@ export default function WarehouseCatalogPage() {
                 <Table>
                   <TableHeader className="bg-slate-50/50 dark:bg-slate-800/30">
                     <TableRow className="border-none">
-                      <TableHead className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest cursor-pointer hover:text-slate-900" onClick={() => toggleSort('skuCode')}>
+                      <TableHead className="px-8 py-5 text-[11px] font-bold uppercase text-slate-400 tracking-widest cursor-pointer hover:text-slate-900" onClick={() => toggleSort('skuCode')}>
                         SKU Code {sortBy === 'skuCode' && (sortOrder === 'asc' ? '↑' : '↓')}
                       </TableHead>
-                      <TableHead className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest cursor-pointer hover:text-slate-900" onClick={() => toggleSort('name')}>
+                      <TableHead className="px-8 py-5 text-[11px] font-bold uppercase text-slate-400 tracking-widest cursor-pointer hover:text-slate-900" onClick={() => toggleSort('name')}>
                         Nama Barang {sortBy === 'name' && (sortOrder === 'asc' ? '↑' : '↓')}
                       </TableHead>
-                      <TableHead className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Satuan (UOM)</TableHead>
-                      <TableHead className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right cursor-pointer hover:text-slate-900" onClick={() => toggleSort('currentStock')}>
+                      <TableHead className="px-8 py-5 text-[11px] font-bold uppercase text-slate-400 tracking-widest">Satuan (UOM)</TableHead>
+                      <TableHead className="px-8 py-5 text-[11px] font-bold uppercase text-slate-400 tracking-widest text-right cursor-pointer hover:text-slate-900" onClick={() => toggleSort('currentStock')}>
                         Stok Utama {sortBy === 'currentStock' && (sortOrder === 'asc' ? '↑' : '↓')}
                       </TableHead>
-                      <TableHead className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest text-center">Status</TableHead>
+                      <TableHead className="px-8 py-5 text-[11px] font-bold uppercase text-slate-400 tracking-widest text-center">Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -279,7 +278,7 @@ export default function WarehouseCatalogPage() {
                         <TableCell colSpan={5} className="h-64 text-center">
                           <div className="flex flex-col items-center gap-3 opacity-20">
                             <Search className="w-12 h-12" />
-                            <p className="text-sm font-black uppercase tracking-widest">Barang tidak ditemukan</p>
+                            <p className="text-sm font-bold ">Barang tidak ditemukan</p>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -287,28 +286,28 @@ export default function WarehouseCatalogPage() {
                       processedMainProducts.map((p) => (
                         <TableRow key={p.id} className="border-b border-slate-50 hover:bg-slate-50/50 dark:hover:bg-slate-800/10 group">
                           <TableCell className="px-8 py-4">
-                            <span className="font-mono text-xs font-black text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white">{p.skuCode}</span>
+                            <span className="font-mono text-xs font-bold text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white">{p.skuCode}</span>
                           </TableCell>
-                          <TableCell className="px-8 py-4 font-black text-slate-800 dark:text-slate-200 text-sm">{p.name}</TableCell>
+                          <TableCell className="px-8 py-4 font-bold text-slate-800 dark:text-slate-200 text-sm">{p.name}</TableCell>
                           <TableCell className="px-8 py-4">
-                            <Badge variant="secondary" className="bg-slate-100 dark:bg-slate-800 text-slate-500 border-none font-bold text-[10px] uppercase px-3 py-1 rounded-full">
+                            <Badge variant="secondary" className="bg-slate-100 dark:bg-slate-800 text-slate-500 border-none font-bold text-[11px] uppercase px-3 py-1 rounded-full">
                               {p.uom}
                             </Badge>
                           </TableCell>
-                          <TableCell className="px-8 py-4 text-right text-xl font-black text-slate-900 dark:text-white">
+                          <TableCell className="px-8 py-4 text-right text-xl font-bold text-slate-900 dark:text-white">
                             {p.currentStock.toLocaleString()}
                           </TableCell>
                           <TableCell className="px-8 py-4">
                             <div className="flex justify-center">
                               {p.currentStock > 0 ? (
                                 <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100">
-                                  <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                  <span className="text-[9px] font-black uppercase">Ready</span>
+                                  <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                  <span className="text-[11px] font-bold uppercase">Ready</span>
                                 </div>
                               ) : (
                                 <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-slate-50 text-slate-400 border border-slate-100">
                                   <div className="h-1.5 w-1.5 rounded-full bg-slate-300" />
-                                  <span className="text-[9px] font-black uppercase">Kosong</span>
+                                  <span className="text-[11px] font-bold uppercase">Kosong</span>
                                 </div>
                               )}
                             </div>
@@ -325,7 +324,7 @@ export default function WarehouseCatalogPage() {
 
         {/* TAB 2: B2C WAREHOUSE */}
         <TabsContent value="b2c">
-          <Card className="bg-white dark:bg-slate-900 shadow-2xl shadow-slate-200/50 dark:shadow-none border-none rounded-[2.5rem] overflow-hidden">
+          <Card className="bg-white dark:bg-slate-900 shadow-sm dark:shadow-none border-none rounded-2xl overflow-hidden">
             <CardHeader className="p-8 pb-4">
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                 <div className="relative flex-1 max-w-sm">
@@ -340,7 +339,7 @@ export default function WarehouseCatalogPage() {
                 
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-2xl border border-slate-100/55">
-                    <span className="text-[10px] font-black text-slate-400 uppercase pl-3 flex items-center gap-1.5 border-r pr-3 mr-1">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase pl-3 flex items-center gap-1.5 border-r pr-3 mr-1">
                       <ArrowUpDown className="w-3 h-3" /> Urutan
                     </span>
                     <Select value={sortBy} onValueChange={(val) => setSortBy(val as SortField)}>
@@ -369,17 +368,17 @@ export default function WarehouseCatalogPage() {
                 <Table>
                   <TableHeader className="bg-slate-50/50 dark:bg-slate-800/30">
                     <TableRow className="border-none">
-                      <TableHead className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest cursor-pointer hover:text-slate-900" onClick={() => toggleSort('skuCode')}>
+                      <TableHead className="px-8 py-5 text-[11px] font-bold uppercase text-slate-400 tracking-widest cursor-pointer hover:text-slate-900" onClick={() => toggleSort('skuCode')}>
                         SKU Code {sortBy === 'skuCode' && (sortOrder === 'asc' ? '↑' : '↓')}
                       </TableHead>
-                      <TableHead className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest cursor-pointer hover:text-slate-900" onClick={() => toggleSort('name')}>
+                      <TableHead className="px-8 py-5 text-[11px] font-bold uppercase text-slate-400 tracking-widest cursor-pointer hover:text-slate-900" onClick={() => toggleSort('name')}>
                         Nama Barang {sortBy === 'name' && (sortOrder === 'asc' ? '↑' : '↓')}
                       </TableHead>
-                      <TableHead className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Satuan (UOM)</TableHead>
-                      <TableHead className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right">
+                      <TableHead className="px-8 py-5 text-[11px] font-bold uppercase text-slate-400 tracking-widest">Satuan (UOM)</TableHead>
+                      <TableHead className="px-8 py-5 text-[11px] font-bold uppercase text-slate-400 tracking-widest text-right">
                         Stok B2C (Peralihan)
                       </TableHead>
-                      <TableHead className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest text-center">Status</TableHead>
+                      <TableHead className="px-8 py-5 text-[11px] font-bold uppercase text-slate-400 tracking-widest text-center">Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -388,7 +387,7 @@ export default function WarehouseCatalogPage() {
                         <TableCell colSpan={5} className="h-64 text-center">
                           <div className="flex flex-col items-center gap-3 opacity-20">
                             <Search className="w-12 h-12" />
-                            <p className="text-sm font-black uppercase tracking-widest">Tidak ada barang di Gudang B2C</p>
+                            <p className="text-sm font-bold ">Tidak ada barang di Gudang B2C</p>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -396,22 +395,22 @@ export default function WarehouseCatalogPage() {
                       processedB2CProducts.map((p) => (
                         <TableRow key={p.id} className="border-b border-slate-50 hover:bg-slate-50/50 dark:hover:bg-slate-800/10 group">
                           <TableCell className="px-8 py-4">
-                            <span className="font-mono text-xs font-black text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white">{p.skuCode}</span>
+                            <span className="font-mono text-xs font-bold text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white">{p.skuCode}</span>
                           </TableCell>
-                          <TableCell className="px-8 py-4 font-black text-slate-800 dark:text-slate-200 text-sm">{p.name}</TableCell>
+                          <TableCell className="px-8 py-4 font-bold text-slate-800 dark:text-slate-200 text-sm">{p.name}</TableCell>
                           <TableCell className="px-8 py-4">
-                            <Badge variant="secondary" className="bg-slate-100 dark:bg-slate-800 text-slate-500 border-none font-bold text-[10px] uppercase px-3 py-1 rounded-full">
+                            <Badge variant="secondary" className="bg-slate-100 dark:bg-slate-800 text-slate-500 border-none font-bold text-[11px] uppercase px-3 py-1 rounded-full">
                               {p.uom}
                             </Badge>
                           </TableCell>
-                          <TableCell className="px-8 py-4 text-right text-xl font-black text-blue-600 dark:text-blue-400">
+                          <TableCell className="px-8 py-4 text-right text-xl font-bold text-blue-600 dark:text-blue-400">
                             {(p.b2cStock || 0).toLocaleString()}
                           </TableCell>
                           <TableCell className="px-8 py-4">
                             <div className="flex justify-center">
                               <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-600 border border-blue-100">
                                 <div className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-                                <span className="text-[9px] font-black uppercase">Peralihan</span>
+                                <span className="text-[11px] font-bold uppercase">Peralihan</span>
                               </div>
                             </div>
                           </TableCell>
@@ -427,12 +426,12 @@ export default function WarehouseCatalogPage() {
 
         {/* TAB 3: LEDGER MUTASI STOK */}
         <TabsContent value="ledger">
-          <Card className="bg-white dark:bg-slate-900 shadow-2xl shadow-slate-200/50 dark:shadow-none border-none rounded-[2.5rem] overflow-hidden">
+          <Card className="bg-white dark:bg-slate-900 shadow-sm dark:shadow-none border-none rounded-2xl overflow-hidden">
             <CardHeader className="p-8 pb-4">
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                 <div>
-                  <CardTitle className="text-lg font-black text-slate-900 dark:text-white uppercase">Buku Besar Mutasi Stok</CardTitle>
-                  <CardDescription className="text-slate-400 font-bold uppercase text-[9px] tracking-wider">Jurnal pergerakan barang, batch, cost, dan kedaluarsa</CardDescription>
+                  <CardTitle className="text-lg font-bold text-slate-900 dark:text-white uppercase">Buku Besar Mutasi Stok</CardTitle>
+                  <CardDescription className="text-slate-400 font-bold uppercase text-[11px] tracking-wider">Jurnal pergerakan barang, batch, cost, dan kedaluarsa</CardDescription>
                 </div>
                 
                 {/* Search & Warehouse Filters */}
@@ -465,16 +464,16 @@ export default function WarehouseCatalogPage() {
                 <Table>
                   <TableHeader className="bg-slate-50/50 dark:bg-slate-800/30">
                     <TableRow className="border-none">
-                      <TableHead className="px-6 py-4 text-[9px] font-black uppercase text-slate-400 tracking-wider">Tanggal & Jam</TableHead>
-                      <TableHead className="px-6 py-4 text-[9px] font-black uppercase text-slate-400 tracking-wider">Nama Barang / SKU</TableHead>
-                      <TableHead className="px-6 py-4 text-[9px] font-black uppercase text-slate-400 tracking-wider">Gudang</TableHead>
-                      <TableHead className="px-6 py-4 text-[9px] font-black uppercase text-slate-400 tracking-wider">Aktivitas</TableHead>
-                      <TableHead className="px-6 py-4 text-[9px] font-black uppercase text-slate-400 tracking-wider">Batch No</TableHead>
-                      <TableHead className="px-6 py-4 text-[9px] font-black uppercase text-slate-400 tracking-wider">Expired Date</TableHead>
-                      <TableHead className="px-6 py-4 text-[9px] font-black uppercase text-slate-400 tracking-wider text-right">Cost</TableHead>
-                      <TableHead className="px-6 py-4 text-[9px] font-black uppercase text-slate-400 tracking-wider text-right">Delta</TableHead>
-                      <TableHead className="px-6 py-4 text-[9px] font-black uppercase text-slate-400 tracking-wider text-right">Saldo Akhir</TableHead>
-                      <TableHead className="px-6 py-4 text-[9px] font-black uppercase text-slate-400 tracking-wider text-center">User</TableHead>
+                      <TableHead className="px-6 py-4 text-[11px] font-bold uppercase text-slate-400 tracking-wider">Tanggal & Jam</TableHead>
+                      <TableHead className="px-6 py-4 text-[11px] font-bold uppercase text-slate-400 tracking-wider">Nama Barang / SKU</TableHead>
+                      <TableHead className="px-6 py-4 text-[11px] font-bold uppercase text-slate-400 tracking-wider">Gudang</TableHead>
+                      <TableHead className="px-6 py-4 text-[11px] font-bold uppercase text-slate-400 tracking-wider">Aktivitas</TableHead>
+                      <TableHead className="px-6 py-4 text-[11px] font-bold uppercase text-slate-400 tracking-wider">Batch No</TableHead>
+                      <TableHead className="px-6 py-4 text-[11px] font-bold uppercase text-slate-400 tracking-wider">Expired Date</TableHead>
+                      <TableHead className="px-6 py-4 text-[11px] font-bold uppercase text-slate-400 tracking-wider text-right">Cost</TableHead>
+                      <TableHead className="px-6 py-4 text-[11px] font-bold uppercase text-slate-400 tracking-wider text-right">Delta</TableHead>
+                      <TableHead className="px-6 py-4 text-[11px] font-bold uppercase text-slate-400 tracking-wider text-right">Saldo Akhir</TableHead>
+                      <TableHead className="px-6 py-4 text-[11px] font-bold uppercase text-slate-400 tracking-wider text-center">User</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -483,30 +482,30 @@ export default function WarehouseCatalogPage() {
                         <TableCell colSpan={10} className="h-64 text-center">
                           <div className="flex flex-col items-center gap-3 opacity-20">
                             <History className="w-12 h-12" />
-                            <p className="text-sm font-black uppercase tracking-widest">Belum ada riwayat mutasi stok</p>
+                            <p className="text-sm font-bold ">Belum ada riwayat mutasi stok</p>
                           </div>
                         </TableCell>
                       </TableRow>
                     ) : (
                       processedMovements.map((m) => (
                         <TableRow key={m.id} className="border-b border-slate-50 hover:bg-slate-50/50 dark:hover:bg-slate-800/10">
-                          <TableCell className="px-6 py-3 font-mono text-[10px] text-slate-400 whitespace-nowrap">
+                          <TableCell className="px-6 py-3 font-mono text-[11px] text-slate-400 whitespace-nowrap">
                             {new Date(m.date).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}
                           </TableCell>
                           <TableCell className="px-6 py-3">
-                            <p className="font-extrabold text-xs text-slate-800 dark:text-slate-200">{m.productName || "Unknown Product"}</p>
-                            <p className="font-mono text-[9px] text-slate-400 uppercase mt-0.5">{m.skuCode || "-"}</p>
+                            <p className="font-semibold text-xs text-slate-800 dark:text-slate-200">{m.productName || "Unknown Product"}</p>
+                            <p className="font-mono text-[11px] text-slate-400 uppercase mt-0.5">{m.skuCode || "-"}</p>
                           </TableCell>
                           <TableCell className="px-6 py-3">
                             {m.warehouseId === 'b2c' ? (
-                              <Badge className="bg-blue-50 text-blue-700 border-blue-100 text-[8px] font-black uppercase">B2C</Badge>
+                              <Badge className="bg-blue-50 text-blue-700 border-blue-100 text-[11px] font-bold uppercase">B2C</Badge>
                             ) : (
-                              <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 text-[8px] font-black uppercase">Utama</Badge>
+                              <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 text-[11px] font-bold uppercase">Utama</Badge>
                             )}
                           </TableCell>
                           <TableCell className="px-6 py-3">
-                            <p className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-tight">{m.kind.replace(/_/g, " ")}</p>
-                            {m.note && <p className="text-[9px] text-slate-400 italic max-w-[200px] truncate mt-0.5">{m.note}</p>}
+                            <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300 ">{m.kind.replace(/_/g, " ")}</p>
+                            {m.note && <p className="text-[11px] text-slate-400 italic max-w-[200px] truncate mt-0.5">{m.note}</p>}
                           </TableCell>
                           <TableCell className="px-6 py-3 font-mono text-xs text-slate-500">{m.batchNumber || "-"}</TableCell>
                           <TableCell className="px-6 py-3 font-mono text-xs text-slate-500 whitespace-nowrap">
@@ -522,17 +521,17 @@ export default function WarehouseCatalogPage() {
                           </TableCell>
                           <TableCell className="px-6 py-3 text-right">
                             <span className={cn(
-                              "font-black text-xs",
+                              "font-bold text-xs",
                               m.stockDelta > 0 ? "text-emerald-600" : m.stockDelta < 0 ? "text-rose-600" : "text-slate-500"
                             )}>
                               {m.stockDelta > 0 ? "+" : ""}{m.stockDelta}
                             </span>
                           </TableCell>
-                          <TableCell className="px-6 py-3 text-right font-black text-xs text-slate-900 dark:text-white">
+                          <TableCell className="px-6 py-3 text-right font-bold text-xs text-slate-900 dark:text-white">
                             {m.resultingStock}
                           </TableCell>
                           <TableCell className="px-6 py-3 text-center whitespace-nowrap">
-                            <span className="text-[9px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded uppercase">
+                            <span className="text-[11px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded uppercase">
                               {getUserName(m.createdByUserId)}
                             </span>
                           </TableCell>

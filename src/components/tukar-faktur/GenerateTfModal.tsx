@@ -44,9 +44,12 @@ export function GenerateTfModal({ open, onOpenChange }: Props) {
   const [clientId, setClientId] = useState("")
   const [selectedInvIds, setSelectedInvIds] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState(false)
+  // Baris yang barusan diklik saat berpindah klien, supaya tidak tertimpa pilihan
+  // otomatis yang jalan begitu kliennya berubah.
+  const [pilihanBaru, setPilihanBaru] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!open) { setClientId(""); setSelectedInvIds(new Set()) }
+    if (!open) { setClientId(""); setSelectedInvIds(new Set()); setPilihanBaru(null) }
   }, [open])
 
   const today = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d }, [open])
@@ -95,8 +98,49 @@ export function GenerateTfModal({ open, onOpenChange }: Props) {
     candidateGroups.forEach(g => {
       if (g.period.periodEnd < today) g.invoices.forEach(i => next.add(i.id))
     })
+    if (pilihanBaru) next.add(pilihanBaru)
     setSelectedInvIds(next)
-  }, [candidateGroups, today])
+  }, [candidateGroups, today, pilihanBaru])
+
+  /**
+   * Semua pesanan yang siap ditukar-fakturkan, dikelompokkan per klien.
+   *
+   * Dulu kliennya harus dipilih dulu di dropdown baru daftarnya muncul — artinya harus
+   * tahu duluan klien mana yang punya tagihan menunggu, padahal itu justru yang mau
+   * dilihat. Sekarang semuanya tampil sejak awal: nomor PO, nama klien, tanggal kirim.
+   */
+  const perKlien = useMemo(() => {
+    const layak = invoices.filter(inv =>
+      !inv.tukarFakturId && daysLeftInTfWindow(inv.issueDate, today) >= 0 && isInvoiceIssued(inv)
+    )
+    const map = new Map<string, { nama: string; baris: Array<{ inv: Invoice; po: string; kirim: string }>; total: number }>()
+    for (const inv of layak) {
+      const so = salesOrders.find(s2 => s2.id === inv.salesOrderId)
+      const nama = clients.find(c => c.id === inv.clientId)?.companyName || 'Klien'
+      if (!map.has(inv.clientId)) map.set(inv.clientId, { nama, baris: [], total: 0 })
+      const g = map.get(inv.clientId)!
+      g.baris.push({
+        inv,
+        po: so?.poNumber || inv.id.slice(0, 8),
+        kirim: so?.targetDeliveryDate ? new Date(so.targetDeliveryDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }) : '—',
+      })
+      g.total += inv.totalAmount
+    }
+    return [...map.entries()]
+      .map(([id, g]) => ({ id, ...g }))
+      .sort((a, b) => a.nama.localeCompare(b.nama))
+  }, [invoices, salesOrders, clients, today, isInvoiceIssued])
+
+  /** Satu tukar faktur untuk satu klien — memilih pesanan klien lain berarti pindah. */
+  const pilihBaris = (invClientId: string, invId: string, checked: boolean) => {
+    if (invClientId !== clientId) {
+      setClientId(invClientId)
+      setPilihanBaru(invId)
+      return
+    }
+    setPilihanBaru(null)
+    toggleInvoice(invId, checked)
+  }
 
   function toggleInvoice(id: string, checked: boolean) {
     setSelectedInvIds(prev => {
@@ -177,7 +221,7 @@ export function GenerateTfModal({ open, onOpenChange }: Props) {
           console.error("[GenerateTfModal] cleanup delete failed", cleanupErr)
         }
       }
-      toast.error(`Generate TF gagal: ${msg}`, { duration: 10000 })
+      toast.error(`Gagal membuat tukar faktur: ${msg}`, { duration: 10000 })
     } finally {
       setBusy(false)
     }
@@ -185,67 +229,79 @@ export function GenerateTfModal({ open, onOpenChange }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl rounded-[2rem] bg-white p-8">
-        <DialogHeader>
-          <DialogTitle className="text-xl font-black">Generate Tukar Faktur</DialogTitle>
+      <DialogContent className="flex max-h-[88vh] w-[95vw] max-w-3xl flex-col gap-0 overflow-hidden rounded-2xl bg-white p-0 sm:max-w-3xl">
+        <DialogHeader className="shrink-0 border-b px-6 py-4">
+          <DialogTitle className="text-lg font-bold">Buat Tukar Faktur</DialogTitle>
           <DialogDescription className="text-slate-500">
-            Pilih klien, periode terdeteksi otomatis (Sen-Min atau dipotong di akhir bulan). Centang invoice yang mau dimasukkan.
+            Centang pesanan yang mau ditagihkan. Satu tukar faktur untuk satu klien —
+            memilih pesanan klien lain otomatis berpindah ke klien itu.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="my-4 space-y-4">
-          <div>
-            <label className="text-xs font-bold uppercase tracking-widest text-slate-400">Klien</label>
-            <select
-              className="mt-2 w-full h-11 rounded-xl border border-slate-200 px-4 text-sm bg-white"
-              value={clientId}
-              onChange={e => setClientId(e.target.value)}
-            >
-              <option value="">— Pilih klien —</option>
-              {eligibleClients.map(c => <option key={c.id} value={c.id}>{c.companyName}</option>)}
-            </select>
-            <p className="mt-1 text-[11px] text-slate-400">
-              Hanya klien dengan invoice 14 hari terakhir yang belum di-TF ({eligibleClients.length} klien).
+        <div className="flex-1 space-y-3 overflow-y-auto px-6 py-4">
+          {perKlien.length === 0 && (
+            <p className="py-8 text-center text-sm italic text-slate-500">
+              Belum ada pesanan terkirim yang menunggu ditukarfakturkan.
             </p>
-          </div>
-
-          {clientId && candidateGroups.length === 0 && (
-            <p className="text-sm text-slate-500 italic">Tidak ada invoice klien ini dalam 14 hari terakhir yang belum di-TF.</p>
           )}
 
-          {candidateGroups.map(g => (
-            <div key={g.key} className="border border-slate-100 rounded-2xl p-4 bg-slate-50">
-              <div className="flex justify-between items-center mb-3">
-                <div>
-                  <p className="font-bold text-sm">
-                    Periode {g.period.periodStart.toLocaleDateString("id-ID", { day: "2-digit", month: "short" })} – {g.period.periodEnd.toLocaleDateString("id-ID", { day: "2-digit", month: "short" })}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    Issue default: {g.period.issueDate.toLocaleDateString("id-ID")} · {g.invoices.length} invoice · {formatRupiah(g.total)}
-                  </p>
+          {perKlien.map(k => {
+            const aktif = k.id === clientId
+            return (
+              <div
+                key={k.id}
+                className={`rounded-2xl border p-4 ${aktif ? 'border-emerald-300 bg-emerald-50/50' : 'border-slate-100 bg-slate-50'}`}
+              >
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-bold text-slate-800">{k.nama}</p>
+                    <p className="text-xs text-slate-500">
+                      {k.baris.length} pesanan · {formatRupiah(k.total)}
+                    </p>
+                  </div>
+                  {aktif && (
+                    <span className="rounded-full bg-emerald-600 px-2 py-1 text-[11px] font-bold text-white">
+                      Klien terpilih
+                    </span>
+                  )}
                 </div>
-                {g.period.periodEnd >= today && (
-                  <span className="text-[10px] font-bold uppercase text-amber-600 bg-amber-100 px-2 py-1 rounded-full">Period belum selesai</span>
-                )}
+
+                <div className="space-y-1.5">
+                  {k.baris.map(({ inv, po, kirim }) => (
+                    <label
+                      key={inv.id}
+                      className={`flex cursor-pointer items-center gap-3 rounded-xl px-2 py-1.5 text-sm ${
+                        aktif ? 'hover:bg-white' : 'opacity-60 hover:opacity-100'
+                      }`}
+                    >
+                      <Checkbox
+                        checked={selectedInvIds.has(inv.id)}
+                        onCheckedChange={(checked) => pilihBaris(k.id, inv.id, checked as boolean)}
+                      />
+                      <span className="font-medium text-slate-800">{po}</span>
+                      <span className="text-xs text-slate-400">kirim {kirim}</span>
+                      <span className="ml-auto font-medium text-slate-600">{formatRupiah(inv.totalAmount)}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
-              <div className="space-y-2">
-                {g.invoices.map(inv => (
-                  <label key={inv.id} className="flex items-center gap-3 text-sm cursor-pointer">
-                    <Checkbox checked={selectedInvIds.has(inv.id)} onCheckedChange={(checked) => toggleInvoice(inv.id, checked)} />
-                    <span className="font-medium">{inv.id.slice(0, 8)}</span>
-                    <span className="text-slate-500">{formatRupiah(inv.totalAmount)}</span>
-                    <span className="text-xs text-slate-400 ml-auto">issued {inv.issueDate.slice(0,10)}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          ))}
+            )
+          })}
+
+          {clientId && candidateGroups.some(g => g.period.periodEnd >= today) && (
+            <p className="rounded-xl bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-700">
+              Ada pesanan yang periodenya belum selesai minggu ini. Boleh diterbitkan sekarang,
+              tapi tagihan minggu berjalan jadi terpotong.
+            </p>
+          )}
         </div>
 
-        <DialogFooter className="gap-2">
+        <DialogFooter className="shrink-0 gap-2 border-t bg-slate-50 px-6 py-4">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>Batal</Button>
-          <Button variant="outline" onClick={() => runGenerate("Draft")} disabled={busy || !clientId}>Save as Draft</Button>
-          <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => runGenerate("Issue")} disabled={busy || !clientId}>Issue Sekarang</Button>
+          <Button variant="outline" onClick={() => runGenerate("Draft")} disabled={busy || selectedInvIds.size === 0}>Simpan Draft</Button>
+          <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => runGenerate("Issue")} disabled={busy || selectedInvIds.size === 0}>
+            Terbitkan Sekarang{selectedInvIds.size > 0 ? ` (${selectedInvIds.size})` : ''}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -514,13 +514,13 @@ export default function InvoicesPage() {
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
-            className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-2xl h-12 px-5 font-black uppercase text-[11px] tracking-widest"
+            className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-2xl h-12 px-5 font-bold uppercase text-[11px] tracking-widest"
             onClick={() => setIsManualReceivableOpen(true)}
           >
             <FilePlus2 className="w-4 h-4 mr-2" /> Input Piutang
           </Button>
           <Button
-            className="bg-slate-900 text-white hover:bg-slate-800 rounded-2xl h-12 px-6 font-black uppercase text-[11px] tracking-widest shadow-xl"
+            className="bg-slate-900 text-white hover:bg-slate-800 rounded-2xl h-12 px-6 font-bold uppercase text-[11px] tracking-widest shadow-sm"
             onClick={() => setIsTukarFakturOpen(true)}
           >
             <Plus className="w-4 h-4 mr-2" /> Buat Tukar Faktur
@@ -552,19 +552,19 @@ export default function InvoicesPage() {
           </div>
 
           <Tabs defaultValue="regular" className="space-y-6">
-            <TabsList className="bg-slate-100 p-1.5 rounded-[1.5rem] h-14">
-              <TabsTrigger value="regular" className="rounded-[1rem] px-6 font-black uppercase text-[10px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-md">
+            <TabsList className="bg-slate-100 p-1.5 rounded-xl h-14">
+              <TabsTrigger value="regular" className="rounded-lg px-6 font-bold uppercase text-[11px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-md">
                 Invoice Reguler ({regularInvoices.length})
               </TabsTrigger>
-              <TabsTrigger value="manual" className="rounded-[1rem] px-6 font-black uppercase text-[10px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-md">
+              <TabsTrigger value="manual" className="rounded-lg px-6 font-bold uppercase text-[11px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-md">
                 Piutang Manual ({manualInvoices.length})
               </TabsTrigger>
-              <TabsTrigger value="consolidated" className="rounded-[1rem] px-6 font-black uppercase text-[10px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-md">
+              <TabsTrigger value="consolidated" className="rounded-lg px-6 font-bold uppercase text-[11px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-md">
                 Tukar Faktur ({batchRows.length})
               </TabsTrigger>
             </TabsList>
 
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-amber-700">
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[11px] font-bold  text-amber-700">
               Pembayaran invoice reguler diterima melalui Tukar Faktur. Piutang manual bisa langsung dicatat pembayarannya dari tab Piutang Manual.
             </div>
 
@@ -611,7 +611,7 @@ export default function InvoicesPage() {
                                   {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                                 </Button>
                               </TableCell>
-                              <TableCell className="font-medium text-[10px] text-slate-400 font-mono">{inv.id.substring(0, 8)}</TableCell>
+                              <TableCell className="font-medium text-[11px] text-slate-400 font-mono">{inv.id.substring(0, 8)}</TableCell>
                               <TableCell className="font-semibold">{so?.poNumber || '-'}</TableCell>
                               <TableCell className="font-medium">{client?.companyName}</TableCell>
                               <TableCell>
@@ -678,7 +678,7 @@ export default function InvoicesPage() {
                             {isExpanded && (
                               <TableRow key={`exp-${inv.id}`} className="bg-slate-50/50 dark:bg-slate-900/50">
                                 <TableCell colSpan={10} className="p-4 pt-0">
-                                  <div className="bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm animate-in slide-in-from-top-2 duration-200">
+                                  <div className="bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm duration-200">
                                     <div className="flex items-center justify-between mb-4">
                                       <h4 className="text-sm font-bold flex items-center gap-2">
                                         <History className="w-4 h-4 text-emerald-600" />
@@ -704,13 +704,13 @@ export default function InvoicesPage() {
                                                 </div>
                                                 <div>
                                                   <p className="text-sm font-bold">{formatRupiah(p.amount)}</p>
-                                                  <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                                                  <div className="flex items-center gap-2 text-[11px] text-slate-500">
                                                     <CalendarIcon className="w-3 h-3" />
                                                     {format(new Date(p.date), 'dd MMM yyyy, HH:mm')}
                                                   </div>
                                                 </div>
                                               </div>
-                                              <Badge variant="secondary" className="text-[10px] bg-slate-100 font-medium">Sukses</Badge>
+                                              <Badge variant="secondary" className="text-[11px] bg-slate-100 font-medium">Sukses</Badge>
                                             </div>
                                           ))}
                                         </div>
@@ -842,7 +842,7 @@ export default function InvoicesPage() {
                             {isExpanded && (
                               <TableRow key={`exp-manual-${inv.id}`} className="bg-slate-50/50 dark:bg-slate-900/50">
                                 <TableCell colSpan={9} className="p-4 pt-0">
-                                  <div className="bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm animate-in slide-in-from-top-2 duration-200">
+                                  <div className="bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm duration-200">
                                     <div className="flex items-center justify-between mb-4">
                                       <h4 className="text-sm font-bold flex items-center gap-2">
                                         <History className="w-4 h-4 text-emerald-600" />
@@ -868,13 +868,13 @@ export default function InvoicesPage() {
                                                 </div>
                                                 <div>
                                                   <p className="text-sm font-bold">{formatRupiah(p.amount)}</p>
-                                                  <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                                                  <div className="flex items-center gap-2 text-[11px] text-slate-500">
                                                     <CalendarIcon className="w-3 h-3" />
                                                     {format(new Date(p.date), 'dd MMM yyyy, HH:mm')}
                                                   </div>
                                                 </div>
                                               </div>
-                                              <Badge variant="secondary" className="text-[10px] bg-slate-100 font-medium">Sukses</Badge>
+                                              <Badge variant="secondary" className="text-[11px] bg-slate-100 font-medium">Sukses</Badge>
                                             </div>
                                           ))}
                                         </div>
@@ -960,7 +960,7 @@ export default function InvoicesPage() {
                               <TableCell className="max-w-[320px]">
                                 <div className="flex flex-wrap gap-1">
                                   {poLabels.map(po => (
-                                    <span key={po} className="px-2 py-1 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold">
+                                    <span key={po} className="px-2 py-1 rounded-full bg-slate-100 text-slate-600 text-[11px] font-bold">
                                       {po}
                                     </span>
                                   ))}
@@ -1031,13 +1031,13 @@ export default function InvoicesPage() {
                             {isExpanded && (
                               <TableRow key={`exp-consolidated-${inv.id}`} className="bg-slate-50/50 dark:bg-slate-900/50">
                                 <TableCell colSpan={10} className="p-4 pt-0">
-                                  <div className="bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm animate-in slide-in-from-top-2 duration-200">
+                                  <div className="bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm duration-200">
                                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                                       {/* Left Column: Constituent PO Invoices */}
                                       <div className="space-y-4">
                                         <div className="flex items-center justify-between">
                                           <h4 className="text-sm font-bold flex items-center gap-2">
-                                            <Receipt className="w-4 h-4 text-indigo-600" />
+                                            <Receipt className="w-4 h-4" />
                                             Daftar PO (Invoice Asal)
                                           </h4>
                                           <span className="text-xs text-slate-500 font-medium bg-indigo-50 dark:bg-indigo-950/30 px-2.5 py-1 rounded-full border border-indigo-100 dark:border-indigo-900">
@@ -1049,12 +1049,12 @@ export default function InvoicesPage() {
                                           <Table>
                                             <TableHeader className="bg-slate-50 dark:bg-slate-900/50">
                                               <TableRow className="hover:bg-transparent">
-                                                <TableHead className="h-9 text-[10px] font-bold uppercase tracking-wider">Ref PO</TableHead>
-                                                <TableHead className="h-9 text-[10px] font-bold uppercase tracking-wider">Jatuh Tempo</TableHead>
-                                                <TableHead className="h-9 text-right text-[10px] font-bold uppercase tracking-wider">Total</TableHead>
-                                                <TableHead className="h-9 text-right text-[10px] font-bold uppercase tracking-wider">Sisa</TableHead>
-                                                <TableHead className="h-9 text-[10px] font-bold uppercase tracking-wider">Status</TableHead>
-                                                <TableHead className="h-9 text-right text-[10px] font-bold uppercase tracking-wider">Aksi</TableHead>
+                                                <TableHead className="h-9 text-[11px] font-bold ">Ref PO</TableHead>
+                                                <TableHead className="h-9 text-[11px] font-bold ">Jatuh Tempo</TableHead>
+                                                <TableHead className="h-9 text-right text-[11px] font-bold ">Total</TableHead>
+                                                <TableHead className="h-9 text-right text-[11px] font-bold ">Sisa</TableHead>
+                                                <TableHead className="h-9 text-[11px] font-bold ">Status</TableHead>
+                                                <TableHead className="h-9 text-right text-[11px] font-bold ">Aksi</TableHead>
                                               </TableRow>
                                             </TableHeader>
                                             <TableBody>
@@ -1082,9 +1082,9 @@ export default function InvoicesPage() {
                                                       </TableCell>
                                                       <TableCell className="py-2.5">
                                                         <Badge variant={child.status === 'Paid' ? 'default' : 'outline'} className={
-                                                          child.status === 'Paid' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[9px] px-1.5 py-0' :
-                                                            child.status === 'Unpaid' ? 'bg-rose-500/10 text-rose-600 border-rose-500/20 text-[9px] px-1.5 py-0' :
-                                                              'bg-amber-500/10 text-amber-600 border-amber-500/20 text-[9px] px-1.5 py-0'
+                                                          child.status === 'Paid' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[11px] px-1.5 py-0' :
+                                                            child.status === 'Unpaid' ? 'bg-rose-500/10 text-rose-600 border-rose-500/20 text-[11px] px-1.5 py-0' :
+                                                              'bg-amber-500/10 text-amber-600 border-amber-500/20 text-[11px] px-1.5 py-0'
                                                         }>
                                                           {child.status}
                                                         </Badge>
@@ -1094,7 +1094,7 @@ export default function InvoicesPage() {
                                                           <Button
                                                             size="sm"
                                                             variant="outline"
-                                                            className="border-emerald-200 bg-emerald-50/30 hover:bg-emerald-50 text-emerald-700 font-bold h-7 px-2.5 text-[10px] rounded-md transition-colors"
+                                                            className="border-emerald-200 bg-emerald-50/30 hover:bg-emerald-50 text-emerald-700 font-bold h-7 px-2.5 text-[11px] rounded-md transition-colors"
                                                             onClick={() => {
                                                               setActiveInvoice(inv);
                                                               setPaymentAmount(childUnpaid);
@@ -1144,13 +1144,13 @@ export default function InvoicesPage() {
                                                     </div>
                                                     <div>
                                                       <p className="text-sm font-bold">{formatRupiah(p.amount)}</p>
-                                                      <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                                                      <div className="flex items-center gap-2 text-[11px] text-slate-500">
                                                         <CalendarIcon className="w-3 h-3" />
                                                         {format(new Date(p.date), 'dd MMM yyyy, HH:mm')}
                                                       </div>
                                                     </div>
                                                   </div>
-                                                  <Badge variant="secondary" className="text-[10px] bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/50 font-medium">Sukses</Badge>
+                                                  <Badge variant="secondary" className="text-[11px] bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/50 font-medium">Sukses</Badge>
                                                 </div>
                                               ))}
                                             </div>
@@ -1263,7 +1263,7 @@ export default function InvoicesPage() {
             </p>
 
             <Button
-              className="w-full h-14 bg-emerald-600 hover:bg-emerald-700 text-white font-black tracking-wide rounded-2xl"
+              className="w-full h-14 bg-emerald-600 hover:bg-emerald-700 text-white font-bold tracking-wide rounded-2xl"
               onClick={handleCreateManualReceivable}
               disabled={isCreatingManualReceivable}
             >
@@ -1374,7 +1374,7 @@ export default function InvoicesPage() {
                       <div key={child.id} className="flex items-center justify-between gap-4 p-2 bg-slate-50 dark:bg-slate-900 rounded border border-slate-100 dark:border-slate-800">
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-semibold truncate">{childSo?.poNumber || child.id.substring(0, 8)}</p>
-                          <p className="text-[10px] text-slate-500">Sisa: {formatRupiah(childUnpaid)}</p>
+                          <p className="text-[11px] text-slate-500">Sisa: {formatRupiah(childUnpaid)}</p>
                         </div>
                         <div className="relative w-40">
                           <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-semibold">Rp</span>
@@ -1405,7 +1405,7 @@ export default function InvoicesPage() {
             </p>
 
             <Button
-              className="w-full h-14 bg-emerald-600 hover:bg-emerald-700 text-lg font-black tracking-wide shadow-lg shadow-emerald-200 dark:shadow-none mt-2 rounded-2xl border-none"
+              className="w-full h-14 bg-emerald-600 hover:bg-emerald-700 text-lg font-bold tracking-wide shadow-sm dark:shadow-none mt-2 rounded-2xl border-none"
               onClick={handleRecordPayment}
               disabled={isRecordingPayment || !paymentBankAccountId || paymentAmount <= 0 || (activeInvoice?.isConsolidated && totalAllocated !== paymentAmount)}
             >
@@ -1417,22 +1417,22 @@ export default function InvoicesPage() {
 
       {/* TUKAR FAKTUR MODAL */}
       <Dialog open={isTukarFakturOpen} onOpenChange={setIsTukarFakturOpen}>
-        <DialogContent className="sm:max-w-4xl p-0 overflow-hidden rounded-[2.5rem] border-none shadow-2xl">
+        <DialogContent className="sm:max-w-4xl p-0 overflow-hidden rounded-2xl border-none shadow-sm">
            <DialogHeader className="p-8 bg-slate-900 text-white relative">
               <div className="absolute top-0 right-0 p-8 opacity-10">
                  <FileText className="w-24 h-24" />
               </div>
               <div className="relative z-10">
-                 <Badge className="bg-emerald-500 text-white border-none px-4 py-1 rounded-full font-black uppercase text-[9px] tracking-widest mb-4">New Workflow</Badge>
-                 <DialogTitle className="text-3xl font-black uppercase tracking-tighter">Proses Tukar Faktur</DialogTitle>
-                 <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-1 opacity-70">Konsolidasi banyak PO menjadi satu tagihan resmi</p>
+                 <Badge className="bg-emerald-500 text-white border-none px-4 py-1 rounded-full font-bold uppercase text-[11px] tracking-widest mb-4">New Workflow</Badge>
+                 <DialogTitle className="text-3xl font-bold ">Proses Tukar Faktur</DialogTitle>
+                 <p className="text-slate-400 font-bold uppercase text-[11px] tracking-widest mt-1 opacity-70">Konsolidasi banyak PO menjadi satu tagihan resmi</p>
               </div>
            </DialogHeader>
 
            <div className="p-10 bg-slate-50 space-y-8">
                <div className="grid grid-cols-1 gap-6">
                   <div className="space-y-2">
-                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Cari & Pilih Client (Hanya Dengan Outstanding PO)</label>
+                     <label className="text-[11px] font-bold uppercase text-slate-400 tracking-widest ml-1">Cari & Pilih Client (Hanya Dengan Outstanding PO)</label>
                      <Popover open={isTfClientSearchOpen} onOpenChange={setIsTfClientSearchOpen}>
                         <PopoverTrigger className="w-full h-14 rounded-2xl bg-white border-none shadow-sm font-bold flex justify-between items-center px-4 hover:bg-slate-50 transition-colors outline-none text-left overflow-hidden">
                            <span className="truncate">
@@ -1440,7 +1440,7 @@ export default function InvoicesPage() {
                            </span>
                            <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </PopoverTrigger>
-                        <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-2 rounded-2xl shadow-2xl border-none">
+                        <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-2 rounded-2xl shadow-sm border-none">
                            <div className="flex items-center border-b border-slate-100 p-2 mb-2">
                               <Search className="mr-2 h-4 w-4 text-slate-400" />
                               <input
@@ -1489,11 +1489,11 @@ export default function InvoicesPage() {
 
               <div className="space-y-4">
                  <div className="flex justify-between items-end px-2">
-                    <h4 className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Pilih PO Terkirim (Settled)</h4>
-                    <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">{selectedPOIds.length} Terpilih</span>
+                    <h4 className="text-[11px] font-bold  text-slate-400">Pilih PO Terkirim (Settled)</h4>
+                    <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">{selectedPOIds.length} Terpilih</span>
                  </div>
                  
-                 <div className="max-h-[300px] overflow-y-auto rounded-[2rem] border border-slate-200 bg-white shadow-inner">
+                 <div className="max-h-[300px] overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-inner">
                     <Table>
                        <TableHeader className="bg-slate-50/50">
                           <TableRow>
@@ -1516,7 +1516,7 @@ export default function InvoicesPage() {
                                 </TableCell>
                                 <TableCell className="font-bold">{so.poNumber}</TableCell>
                                 <TableCell className="text-slate-500 text-xs font-medium">{format(new Date(so.orderDate), 'dd/MM/yyyy')}</TableCell>
-                                <TableCell className="text-right font-black">{formatRupiah(calculateSOTotal(so.id))}</TableCell>
+                                <TableCell className="text-right font-bold">{formatRupiah(calculateSOTotal(so.id))}</TableCell>
                              </TableRow>
                           ))}
                           {outstandingSalesOrders.length === 0 && (
@@ -1532,13 +1532,13 @@ export default function InvoicesPage() {
               <div className="flex gap-4 pt-4">
                  <Button 
                     variant="ghost" 
-                    className="flex-1 h-16 rounded-2xl font-black uppercase text-[10px] tracking-widest text-slate-400"
+                    className="flex-1 h-16 rounded-2xl font-bold uppercase text-[11px] tracking-widest text-slate-400"
                     onClick={() => setIsTukarFakturOpen(false)}
                  >
                     Batalkan
                  </Button>
                  <Button 
-                    className="flex-[2] h-16 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[11px] tracking-widest shadow-xl shadow-emerald-200"
+                    className="flex-[2] h-16 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold uppercase text-[11px] tracking-widest shadow-sm"
                     disabled={selectedPOIds.length === 0 || isConsolidating}
                     onClick={handleCreateConsolidatedInvoice}
                  >
@@ -1561,7 +1561,7 @@ export default function InvoicesPage() {
         <Dialog open onOpenChange={(o) => { if (!o) setCnInvoice(null) }}>
           <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle className="font-black">Credit Note</DialogTitle>
+              <DialogTitle className="font-bold">Credit Note</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs font-bold space-y-1">
@@ -1570,21 +1570,21 @@ export default function InvoicesPage() {
                 <p className="text-slate-500">Sisa yang bisa dikoreksi {formatRupiah(creditLimit(cnInvoice))}</p>
               </div>
               <div>
-                <label className="text-[10px] font-black uppercase text-slate-500">Nilai koreksi</label>
+                <label className="text-[11px] font-bold uppercase text-slate-500">Nilai koreksi</label>
                 <Input type="number" value={cnAmount || ''} onChange={e => setCnAmount(Number(e.target.value))}
                   className="h-11 font-bold" placeholder="0" />
               </div>
               <div>
-                <label className="text-[10px] font-black uppercase text-slate-500">Alasan</label>
+                <label className="text-[11px] font-bold uppercase text-slate-500">Alasan</label>
                 <Input value={cnReason} onChange={e => setCnReason(e.target.value)}
                   className="h-11 font-bold" placeholder="Contoh: 5 kg ditolak klien, salah harga tier" />
               </div>
-              <p className="text-[10px] text-slate-400 font-bold">
+              <p className="text-[11px] text-slate-400 font-bold">
                 Tagihan klien turun sebesar ini dan pendapatan ikut dikoreksi. Stok tidak
                 tersentuh — barang yang benar-benar kembali diproses lewat retur customer.
               </p>
               <Button disabled={cnBusy} onClick={handleCreateCreditNote}
-                className="w-full h-12 font-black bg-amber-600 hover:bg-amber-700">
+                className="w-full h-12 font-bold bg-amber-600 hover:bg-amber-700">
                 {cnBusy ? "Memproses..." : "Terbitkan Credit Note"}
               </Button>
             </div>

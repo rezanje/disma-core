@@ -413,9 +413,9 @@ export default function VendorsPage() {
                         </div>
                         {aging != null && (
                           aging > 0 ? (
-                            <div className="text-[10px] font-black text-rose-500">+{aging}h lewat</div>
+                            <div className="text-[11px] font-bold text-rose-500">+{aging}h lewat</div>
                           ) : (
-                            <div className="text-[10px] font-bold text-emerald-600">sisa {Math.abs(aging)}h</div>
+                            <div className="text-[11px] font-bold text-emerald-600">sisa {Math.abs(aging)}h</div>
                           )
                         )}
                       </div>
@@ -453,16 +453,16 @@ export default function VendorsPage() {
           {/* Summary cards */}
           <div className="grid grid-cols-3 gap-3 py-2">
             <div className="rounded-xl border bg-purple-50 border-purple-100 p-3">
-              <p className="text-[10px] font-black uppercase tracking-widest text-purple-700">Total Hutang</p>
-              <p className="text-lg font-black text-purple-700">{formatRupiah(detailStats?.outstanding ?? 0)}</p>
+              <p className="text-[11px] font-bold  text-purple-700">Total Hutang</p>
+              <p className="text-lg font-bold text-purple-700">{formatRupiah(detailStats?.outstanding ?? 0)}</p>
             </div>
             <div className="rounded-xl border bg-rose-50 border-rose-100 p-3">
-              <p className="text-[10px] font-black uppercase tracking-widest text-rose-700">Tagihan Belum Lunas</p>
-              <p className="text-lg font-black text-rose-700">{detailStats?.unpaidCount ?? 0}</p>
+              <p className="text-[11px] font-bold  text-rose-700">Tagihan Belum Lunas</p>
+              <p className="text-lg font-bold text-rose-700">{detailStats?.unpaidCount ?? 0}</p>
             </div>
             <div className="rounded-xl border bg-slate-50 border-slate-200 p-3">
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-600">Total Pernah Belanja</p>
-              <p className="text-lg font-black text-slate-700">{formatRupiah(detailStats?.everSpent ?? 0)}</p>
+              <p className="text-[11px] font-bold  text-slate-600">Total Pernah Belanja</p>
+              <p className="text-lg font-bold text-slate-700">{formatRupiah(detailStats?.everSpent ?? 0)}</p>
             </div>
           </div>
 
@@ -470,11 +470,11 @@ export default function VendorsPage() {
           <div className="rounded-md border">
             <div className="flex items-center justify-between px-3 py-2 bg-emerald-50/60 border-b">
               <div className="flex items-center gap-2">
-                <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700">
+                <p className="text-[11px] font-bold  text-emerald-700">
                   Katalog Harga ({detailVendorPrices.length})
                 </p>
                 {pendingPricesCount > 0 && (
-                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-black">
+                  <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-bold">
                     {pendingPricesCount} pending
                   </span>
                 )}
@@ -483,7 +483,7 @@ export default function VendorsPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-7 text-[10px] font-black gap-1"
+                  className="h-7 text-[11px] font-bold gap-1"
                   onClick={handleCopyLink}
                 >
                   {copiedLink ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
@@ -491,7 +491,7 @@ export default function VendorsPage() {
                 </Button>
                 <Button
                   size="sm"
-                  className="h-7 text-[10px] font-black gap-1"
+                  className="h-7 text-[11px] font-bold gap-1"
                   onClick={() => setIsAddPriceOpen(true)}
                 >
                   <Plus className="h-3 w-3" /> Tambah Harga
@@ -507,12 +507,12 @@ export default function VendorsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-slate-50">
-                      <TableHead className="text-[9px] uppercase font-black">Produk</TableHead>
-                      <TableHead className="text-[9px] uppercase font-black text-right">Harga Beli</TableHead>
-                      <TableHead className="text-[9px] uppercase font-black">Berlaku s/d</TableHead>
-                      <TableHead className="text-[9px] uppercase font-black">Update</TableHead>
-                      <TableHead className="text-[9px] uppercase font-black text-center">Status</TableHead>
-                      <TableHead className="text-[9px] uppercase font-black w-[80px]"></TableHead>
+                      <TableHead className="text-[11px] uppercase font-bold">Produk</TableHead>
+                      <TableHead className="text-[11px] uppercase font-bold text-right">Harga Beli</TableHead>
+                      <TableHead className="text-[11px] uppercase font-bold">Berlaku s/d</TableHead>
+                      <TableHead className="text-[11px] uppercase font-bold">Update</TableHead>
+                      <TableHead className="text-[11px] uppercase font-bold text-center">Status</TableHead>
+                      <TableHead className="text-[11px] uppercase font-bold w-[80px]"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -526,21 +526,21 @@ export default function VendorsPage() {
                           <TableCell className="text-xs font-bold">
                             {productName}
                             {!vp.productId && (
-                              <span className="ml-1 text-[9px] px-1 py-0.5 rounded bg-amber-50 text-amber-600 font-black">request</span>
+                              <span className="ml-1 text-[11px] px-1 py-0.5 rounded bg-amber-50 text-amber-600 font-bold">request</span>
                             )}
-                            <div className="text-[9px] text-slate-400">{vp.uom}</div>
+                            <div className="text-[11px] text-slate-400">{vp.uom}</div>
                           </TableCell>
-                          <TableCell className="text-right text-xs font-black text-emerald-700">
+                          <TableCell className="text-right text-xs font-bold text-emerald-700">
                             {formatRupiah(vp.price)}
                           </TableCell>
                           <TableCell className="text-xs text-slate-500">
                             {format(parseISO(vp.validTo), 'd MMM yy', { locale: localeId })}
                           </TableCell>
-                          <TableCell className="text-[10px] text-slate-400">
+                          <TableCell className="text-[11px] text-slate-400">
                             {format(parseISO(vp.lastUpdated), 'd MMM yy', { locale: localeId })}
                           </TableCell>
                           <TableCell className="text-center">
-                            <span className={`text-[9px] px-1.5 py-0.5 rounded font-black ${
+                            <span className={`text-[11px] px-1.5 py-0.5 rounded font-bold ${
                               displayStatus === 'active' ? 'bg-emerald-100 text-emerald-700' :
                               displayStatus === 'pending' ? 'bg-amber-100 text-amber-700' :
                               displayStatus === 'expired' ? 'bg-slate-100 text-slate-500' :
@@ -587,13 +587,13 @@ export default function VendorsPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-slate-50">
-                  <TableHead className="text-[10px] uppercase font-black">No. Tagihan</TableHead>
-                  <TableHead className="text-[10px] uppercase font-black">Tgl Tagihan</TableHead>
-                  <TableHead className="text-[10px] uppercase font-black">Jatuh Tempo</TableHead>
-                  <TableHead className="text-[10px] uppercase font-black text-right">Total</TableHead>
-                  <TableHead className="text-[10px] uppercase font-black text-right">Terbayar</TableHead>
-                  <TableHead className="text-[10px] uppercase font-black text-right">Sisa</TableHead>
-                  <TableHead className="text-[10px] uppercase font-black text-center">Status</TableHead>
+                  <TableHead className="text-[11px] uppercase font-bold">No. Tagihan</TableHead>
+                  <TableHead className="text-[11px] uppercase font-bold">Tgl Tagihan</TableHead>
+                  <TableHead className="text-[11px] uppercase font-bold">Jatuh Tempo</TableHead>
+                  <TableHead className="text-[11px] uppercase font-bold text-right">Total</TableHead>
+                  <TableHead className="text-[11px] uppercase font-bold text-right">Terbayar</TableHead>
+                  <TableHead className="text-[11px] uppercase font-bold text-right">Sisa</TableHead>
+                  <TableHead className="text-[11px] uppercase font-bold text-center">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -613,9 +613,9 @@ export default function VendorsPage() {
                         <TableCell className="text-xs">{format(parseISO(b.dueDate), 'd MMM yy', { locale: localeId })}</TableCell>
                         <TableCell className="text-right text-xs font-medium">{formatRupiah(b.totalAmount)}</TableCell>
                         <TableCell className="text-right text-xs text-slate-500">{formatRupiah(b.amountPaid || 0)}</TableCell>
-                        <TableCell className="text-right text-xs font-black text-purple-700">{formatRupiah(outstanding > 0 ? outstanding : 0)}</TableCell>
+                        <TableCell className="text-right text-xs font-bold text-purple-700">{formatRupiah(outstanding > 0 ? outstanding : 0)}</TableCell>
                         <TableCell className="text-center">
-                          <span className={`text-[10px] px-2 py-0.5 rounded-lg font-black ${
+                          <span className={`text-[11px] px-2 py-0.5 rounded-lg font-bold ${
                             b.status === 'Paid' ? 'bg-emerald-100 text-emerald-700' :
                             b.status === 'PartialPaid' ? 'bg-yellow-100 text-yellow-700' :
                             b.status === 'Cancelled' ? 'bg-slate-100 text-slate-500' :

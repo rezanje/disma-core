@@ -130,7 +130,11 @@ export default function PurchasePlanPage() {
       // belakangan dan Transfer dibayar dari rekening kantor.
       const tunai = cashNeeded(lines)
       await updatePurchase(active.id, {
-        status: 'Pending',
+        // Dikembalikan ke Admin PO, bukan langsung dilempar ke sourcing. Beberapa
+        // dokumen untuk hari kirim yang sama masih harus disatukan jadi satu lembar
+        // cetak — kalau langsung ke sourcing, orang pasar memegang tiga kertas terpisah
+        // dan mendatangi lapak yang sama tiga kali.
+        status: 'Siap Cetak',
         budgetAmount: tunai,
         plannedBy: currentUser?.name || currentUser?.id,
         plannedAt: new Date().toISOString(),
@@ -144,7 +148,7 @@ export default function PurchasePlanPage() {
         await updatePurchaseRequest(pr.id, { amount: tunai })
       }
 
-      toast.success(`Rencana dilepas ke sourcing. Uang tunai yang perlu disiapkan ${formatRupiah(tunai)}.`)
+      toast.success(`Rencana selesai, dikembalikan ke Admin PO untuk dicetak. Uang tunai yang perlu disiapkan ${formatRupiah(tunai)}.`)
       setOpenId(null)
     } catch (e) {
       toast.error("Gagal melepas rencana: " + (e instanceof Error ? e.message : String(e)))
@@ -183,8 +187,8 @@ export default function PurchasePlanPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-black text-slate-800 tracking-tight">Rencana Pembelian</h2>
-        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+        <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Rencana Pembelian</h2>
+        <p className="text-[11px] font-bold text-slate-400  mt-1">
           Tentukan beli ke siapa, lewat jalur apa, dan dibayar bagaimana — sebelum sourcing jalan
         </p>
       </div>
@@ -198,7 +202,7 @@ export default function PurchasePlanPage() {
         <Card className="py-20 text-center border-dashed">
           <CardContent className="flex flex-col items-center gap-3">
             <PackageCheck className="w-14 h-14 text-slate-200" />
-            <p className="font-black text-slate-500">Tidak ada dokumen yang menunggu rencana.</p>
+            <p className="font-bold text-slate-500">Tidak ada dokumen yang menunggu rencana.</p>
             <p className="text-xs text-slate-400 max-w-md">
               Dokumen muncul di sini setelah Admin PO menggabungkan PO jadi daftar belanja.
             </p>
@@ -213,7 +217,7 @@ export default function PurchasePlanPage() {
               key={p.id}
               size="sm"
               variant={active?.id === p.id ? "default" : "outline"}
-              className="font-black text-[11px]"
+              className="font-bold text-[11px]"
               onClick={() => setOpenId(p.id)}
             >
               {p.advanceCode || p.id.slice(0, 8)}
@@ -227,15 +231,15 @@ export default function PurchasePlanPage() {
           <CardContent className="p-0">
             <div className="p-5 flex justify-between items-center border-b bg-slate-50 dark:bg-slate-900/50">
               <div>
-                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Dokumen Belanja</p>
-                <h3 className="font-black text-lg">{active.advanceCode || active.id.slice(0, 8)}</h3>
+                <p className="text-[11px] font-bold uppercase text-slate-400 tracking-widest">Dokumen Belanja</p>
+                <h3 className="font-bold text-lg">{active.advanceCode || active.id.slice(0, 8)}</h3>
                 <p className="text-xs text-slate-500 font-bold">{lines.length} barang</p>
               </div>
               <div className="text-right space-y-1">
-                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Uang tunai perlu disiapkan</p>
-                <p className="text-xl font-black text-emerald-600">{formatRupiah(cashNeeded(lines))}</p>
+                <p className="text-[11px] font-bold uppercase text-slate-400 tracking-widest">Uang tunai perlu disiapkan</p>
+                <p className="text-xl font-bold text-emerald-600">{formatRupiah(cashNeeded(lines))}</p>
                 {belum.length > 0 && (
-                  <p className="text-[10px] font-black uppercase text-amber-600 flex items-center gap-1 justify-end">
+                  <p className="text-[11px] font-bold uppercase text-amber-600 flex items-center gap-1 justify-end">
                     <AlertTriangle className="w-3 h-3" /> {belum.length} barang belum direncanakan
                   </p>
                 )}
@@ -244,7 +248,7 @@ export default function PurchasePlanPage() {
 
             {/* Alat bantu: urutkan, kelompokkan, pilih beramai-ramai. */}
             <div className="px-5 py-3 border-b bg-white dark:bg-slate-950 flex flex-wrap items-center gap-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Urutkan</label>
+              <label className="text-[11px] font-bold  text-slate-400">Urutkan</label>
               <select
                 className="h-9 rounded-lg border border-slate-200 px-2 text-xs font-bold bg-white dark:bg-slate-900"
                 value={urut}
@@ -256,7 +260,7 @@ export default function PurchasePlanPage() {
                 <option value="nilai">Nilai terbesar</option>
               </select>
 
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Kelompokkan</label>
+              <label className="text-[11px] font-bold  text-slate-400">Kelompokkan</label>
               <select
                 className="h-9 rounded-lg border border-slate-200 px-2 text-xs font-bold bg-white dark:bg-slate-900"
                 value={kelompok}
@@ -269,14 +273,14 @@ export default function PurchasePlanPage() {
                 <option value="jalur">Per jalur beli</option>
               </select>
 
-              <div className="ml-auto text-[10px] font-black uppercase tracking-widest text-slate-400">
+              <div className="ml-auto text-[11px] font-bold  text-slate-400">
                 {pilih.size > 0 ? `${pilih.size} dipilih` : `${lines.length} barang`}
               </div>
             </div>
 
             {terpilih.length > 0 && (
               <div className="px-5 py-3 border-b bg-emerald-50/70 dark:bg-emerald-950/20 flex flex-wrap items-center gap-2">
-                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700 flex items-center gap-2">
+                <span className="text-[11px] font-bold  text-emerald-700 flex items-center gap-2">
                   {massalJalan && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   {massalJalan ? `Menyimpan ${terpilih.length} barang…` : `Terapkan ke ${terpilih.length} barang`}
                 </span>
@@ -333,7 +337,7 @@ export default function PurchasePlanPage() {
 
                 <Button
                   variant="ghost"
-                  className="h-9 font-black text-[10px] uppercase tracking-widest text-slate-400"
+                  className="h-9 font-bold text-[11px]  text-slate-400"
                   disabled={massalJalan}
                   onClick={() => setPilih(new Set())}
                 >
@@ -349,7 +353,7 @@ export default function PurchasePlanPage() {
               <div className="mx-5 mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="text-sm font-black text-amber-800 flex items-center gap-2">
+                    <p className="text-sm font-bold text-amber-800 flex items-center gap-2">
                       <AlertTriangle className="w-4 h-4" /> Daftar ini berubah setelah dikirim
                     </p>
                     <p className="text-[11px] font-bold text-amber-700/80 mt-0.5">
@@ -363,7 +367,7 @@ export default function PurchasePlanPage() {
                   </div>
                   <Button
                     variant="outline"
-                    className="h-9 font-black text-[10px] uppercase tracking-widest shrink-0 bg-white"
+                    className="h-9 font-bold text-[11px]  shrink-0 bg-white"
                     onClick={async () => {
                       await updatePurchase(active.id, { revisedAt: undefined, revisedBy: undefined, revisionNote: undefined })
                       toast.success("Ditandai sudah dilihat.")
@@ -386,14 +390,14 @@ export default function PurchasePlanPage() {
                       onChange={() => setPilih(prev => toggleAll(idTampil, prev))}
                     />
                   </TableHead>
-                  <TableHead className="text-[10px] font-black">Barang</TableHead>
-                  <TableHead className="text-[10px] font-black">Untuk PO</TableHead>
-                  <TableHead className="text-[10px] font-black text-center w-24">Qty</TableHead>
-                  <TableHead className="text-[10px] font-black w-32">Harga perkiraan</TableHead>
-                  <TableHead className="text-[10px] font-black">Beli online?</TableHead>
-                  <TableHead className="text-[10px] font-black">Barangnya gimana</TableHead>
-                  <TableHead className="text-[10px] font-black">Vendor</TableHead>
-                  <TableHead className="text-[10px] font-black">Cara bayar</TableHead>
+                  <TableHead className="text-[11px] font-bold">Barang</TableHead>
+                  <TableHead className="text-[11px] font-bold">Untuk PO</TableHead>
+                  <TableHead className="text-[11px] font-bold text-center w-24">Qty</TableHead>
+                  <TableHead className="text-[11px] font-bold w-32">Harga perkiraan</TableHead>
+                  <TableHead className="text-[11px] font-bold">Beli online?</TableHead>
+                  <TableHead className="text-[11px] font-bold">Barangnya gimana</TableHead>
+                  <TableHead className="text-[11px] font-bold">Vendor</TableHead>
+                  <TableHead className="text-[11px] font-bold">Cara bayar</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -409,7 +413,7 @@ export default function PurchasePlanPage() {
                               checked={g.rows.length > 0 && g.rows.every(r => pilih.has(r.id))}
                               onChange={() => setPilih(prev => toggleAll(g.rows.map(r => r.id), prev))}
                             />
-                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                            <span className="text-[11px] font-bold  text-slate-500">
                               {g.label} · {g.rows.length} barang
                             </span>
                           </div>
@@ -440,13 +444,13 @@ export default function PurchasePlanPage() {
                       </TableCell>
                       <TableCell>
                         <p className="font-bold text-sm">{product?.name}</p>
-                        <p className="text-[9px] text-slate-400 font-bold uppercase">{product?.skuCode}</p>
+                        <p className="text-[11px] text-slate-400 font-bold uppercase">{product?.skuCode}</p>
                       </TableCell>
                       <TableCell className="text-xs font-bold text-slate-500">
                         {so?.poNumber || '—'}
-                        <span className="block text-[9px] text-slate-400">{client?.companyName}</span>
+                        <span className="block text-[11px] text-slate-400">{client?.companyName}</span>
                       </TableCell>
-                      <TableCell className="text-center font-black text-sm">
+                      <TableCell className="text-center font-bold text-sm">
                         {line.qtyTarget} {product?.uom}
                       </TableCell>
 
@@ -467,7 +471,7 @@ export default function PurchasePlanPage() {
                           placeholder="0"
                           onChange={e => setLine(line.id, { estimatedUnitPrice: parseNumber(e.target.value) })}
                         />
-                        <span className="block text-[9px] text-slate-400 font-bold mt-0.5">
+                        <span className="block text-[11px] text-slate-400 font-bold mt-0.5">
                           per {product?.uom || 'unit'}
                         </span>
                       </TableCell>
@@ -502,7 +506,7 @@ export default function PurchasePlanPage() {
                           ))}
                         </select>
                         {isOnline && (
-                          <p className="text-[9px] text-slate-400 mt-1">Online selalu masuk gudang</p>
+                          <p className="text-[11px] text-slate-400 mt-1">Online selalu masuk gudang</p>
                         )}
                       </TableCell>
 
@@ -518,7 +522,7 @@ export default function PurchasePlanPage() {
                           emptyLabel={isPasar ? '— Nanti dari lapangan —' : '— Kosongkan —'}
                         />
                         {isPasar && (
-                          <p className="text-[9px] text-slate-400 mt-1">
+                          <p className="text-[11px] text-slate-400 mt-1">
                             Boleh diisi sebagai incaran; vendor aslinya dari kertas belanja
                           </p>
                         )}
@@ -548,20 +552,20 @@ export default function PurchasePlanPage() {
             <div className="p-5 border-t flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
               <p className="text-xs font-bold text-slate-500 flex items-center gap-2">
                 <ShoppingBag className="w-4 h-4" />
-                Sourcing baru bisa melihat dokumen ini setelah rencananya dilepas.
+                Dikembalikan ke Admin PO untuk disatukan dan dicetak, baru sampai ke sourcing.
               </p>
               <Button
                 disabled={belum.length > 0 || releasing || lines.length === 0}
                 className={cn(
-                  "h-12 px-8 font-black rounded-xl",
+                  "h-12 px-8 font-bold rounded-xl",
                   belum.length === 0 && lines.length > 0
-                    ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/25"
+                    ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
                     : "bg-slate-200 text-slate-400"
                 )}
                 onClick={release}
               >
                 <ClipboardList className="w-4 h-4 mr-2" />
-                {belum.length > 0 ? `${belum.length} Barang Belum Direncanakan` : "Lepas ke Sourcing"}
+                {belum.length > 0 ? `${belum.length} Barang Belum Direncanakan` : "Kirim Balik ke Admin PO"}
               </Button>
             </div>
           </CardContent>

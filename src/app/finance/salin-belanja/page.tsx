@@ -45,35 +45,43 @@ export default function SalinBelanjaPage() {
   const salesOrders = useAppStore(s => s.salesOrders)
   const salesOrderItems = useAppStore(s => s.salesOrderItems)
   const bankAccounts = useAppStore(s => s.bankAccounts)
-  const users = useAppStore(s => s.users)
   const currentUser = useAppStore(s => s.currentUser)
   const minMarginPct = useAppStore(s => s.minMarginPct)
   const addExpense = useAppStore(s => s.addExpense)
 
-  const [openId, setOpenId] = useState<string | null>(null)
   const [draft, setDraft] = useState<Record<string, Partial<ReportLine>>>({})
   const [pilih, setPilih] = useState<Set<string>>(new Set())
   const [pocketId, setPocketId] = useState("")
-  const [atasNama, setAtasNama] = useState("")
   const [foto, setFoto] = useState<string | null>(null)
   const [catatan, setCatatan] = useState("")
   const [ops, setOps] = useState<OpsRow[]>([])
-  const [sisaFisik, setSisaFisik] = useState<number | null>(null)
-  const [alasanSelisih, setAlasanSelisih] = useState("")
   const [kirim, setKirim] = useState(false)
 
   // Dokumen yang rencananya sudah dilepas dan laporannya belum masuk.
+  //
+  // Semuanya disalin sekaligus, bukan satu tab per dokumen. Yang pulang dari pasar itu
+  // SATU lembar hasil gabungan beberapa dokumen — memaksa penyalinnya berpindah tab
+  // sambil mencari baris mana milik dokumen mana adalah cara paling rapi untuk membuat
+  // salah ketik jadi rutin.
   const menunggu = purchases.filter(p =>
     ['Pending', 'Belanja'].includes(p.status) &&
     p.reconciliationStatus !== 'Laporan Masuk' && p.reconciliationStatus !== 'Terverifikasi')
-  const aktif = openId ? purchases.find(p => p.id === openId) : menunggu[0]
+  const idMenunggu = menunggu.map(p => p.id).join('|')
 
   // Barang yang dibeli sendiri di pasar. Kiriman vendor dan belanja online tidak lewat
   // kertas ini — vendor mengantar sendiri, online dipesan Finance dari mejanya.
   const baris = useMemo(
-    () => purchaseItems.filter(pi => pi.purchaseId === aktif?.id && (pi.purchaseMethod === 'Pasar' || !pi.purchaseMethod)),
-    [purchaseItems, aktif?.id],
+    () => {
+      const ids = new Set(idMenunggu ? idMenunggu.split('|') : [])
+      return purchaseItems.filter(pi => ids.has(pi.purchaseId) && (pi.purchaseMethod === 'Pasar' || !pi.purchaseMethod))
+    },
+    [purchaseItems, idMenunggu],
   )
+
+  const kodeDokumen = (purchaseId: string) => {
+    const p = purchases.find(x => x.id === purchaseId)
+    return p?.advanceCode || purchaseId.slice(0, 8)
+  }
 
   const nilai = (id: string, field: keyof ReportLine) => draft[id]?.[field]
   const set = (id: string, patch: Partial<ReportLine>) =>
@@ -101,12 +109,23 @@ export default function SalinBelanjaPage() {
 
   const totalBelanja = lines.filter(l => l.isChecked).reduce((s, l) => s + l.qtyPurchased * l.actualUnitPrice, 0)
   const totalOps = ops.reduce((s, o) => s + o.nominal, 0)
-  const uangDibawa = Number(aktif?.disbursedAmount || aktif?.budgetAmount || 0)
-  const sisaSeharusnya = uangDibawa - totalBelanja - totalOps
-  const selisihKas = sisaFisik === null ? 0 : sisaFisik - sisaSeharusnya
 
   const namaProduk = (productId: string) => products.find(p => p.id === productId)?.name || productId
+
+  // Kantong tidak ditanyakan lagi. Sourcing menarik dari kantong mingguannya sendiri,
+  // jadi jawabannya selalu sama dan menanyakannya tiap hari cuma satu klik yang bisa
+  // salah. Tetap dipakai di pembukuan: tanpa kantong, belanja tercatat tapi tidak ada
+  // rekening yang berkurang, dan selisihnya baru ketahuan berbulan-bulan kemudian.
+  //
+  // Ditanyakan HANYA kalau kantongnya lebih dari satu — di situ menebak berarti
+  // memotong uang orang yang salah.
   const kantong = pocketOwners(bankAccounts)
+  const kantongTunggal = kantong.length === 1 ? kantong[0] : null
+  const kantongTerpakai = kantongTunggal || kantong.find(b => b.id === pocketId) || null
+  // Yang belanja di lapangan = pemilik kantongnya. Kalau itu bukan yang mengetik,
+  // foto kertasnya tetap wajib — aturan buktinya tidak ikut disederhanakan.
+  const atasNama = kantongTerpakai?.ownerUserId || ""
+  const pocketDipakai = kantongTerpakai?.id || ""
   const terpilih = lines.filter(l => pilih.has(l.id))
 
   const massal = (patch: Partial<ReportLine>) => {
@@ -119,27 +138,23 @@ export default function SalinBelanjaPage() {
     toast.success(`${terpilih.length} baris diubah.`)
   }
 
-  const masalah = aktif ? reportProblems(
-    { purchaseIds: [aktif.id], lines, pocketBankAccountId: pocketId || null, onBehalfOfUserId: atasNama || null, proofImage: foto, ceilings: batas },
+  const masalah = menunggu.length > 0 ? reportProblems(
+    { purchaseIds: menunggu.map(p => p.id), lines, pocketBankAccountId: pocketDipakai || null, onBehalfOfUserId: atasNama || null, proofImage: foto, ceilings: batas },
     namaProduk, currentUser?.id,
   ) : ['Belum ada dokumen belanja yang menunggu laporan.']
 
   const simpan = async () => {
-    if (!aktif || masalah.length > 0) return
-    if (sisaFisik !== null && selisihKas !== 0 && !alasanSelisih.trim()) {
-      toast.error("Sisa uangnya tidak cocok. Tulis dulu kenapa.")
-      return
-    }
+    if (menunggu.length === 0 || masalah.length > 0) return
     setKirim(true)
     const t = toast.loading("Menyimpan salinan kertas belanja…")
     try {
       const res = await submitShoppingReport(useAppStore.getState, {
-        purchaseIds: [aktif.id],
+        purchaseIds: menunggu.map(p => p.id),
         lines,
-        pocketBankAccountId: pocketId || null,
+        pocketBankAccountId: pocketDipakai || null,
         onBehalfOfUserId: atasNama || null,
         proofImage: foto,
-        reconciliationNote: [catatan, alasanSelisih && `Selisih kas: ${alasanSelisih}`].filter(Boolean).join(' | '),
+        reconciliationNote: catatan,
       })
       if (!res.ok) { toast.error(res.problems.join(' · '), { id: t }); return }
       res.warnings.forEach(w => toast.warning(w))
@@ -151,7 +166,9 @@ export default function SalinBelanjaPage() {
           id: uuidv4(),
           date: new Date().toISOString(),
           reporterId: currentUser?.id || 'system',
-          purchaseId: aktif.id,
+          // Satu perjalanan ke pasar, satu kantong. Biaya parkir tidak bisa dibelah
+          // per dokumen, jadi dibebankan ke dokumen pertama hari itu.
+          purchaseId: menunggu[0].id,
           category: (o.kategori || 'Lainnya') as OperationalExpense['category'],
           amount: o.nominal,
           description: o.keterangan || o.kategori,
@@ -161,8 +178,7 @@ export default function SalinBelanjaPage() {
       }
 
       toast.success(`Salinan tersimpan. Belanja ${formatRupiah(totalBelanja)}${totalOps > 0 ? ` + ops ${formatRupiah(totalOps)}` : ''}.`, { id: t })
-      setDraft({}); setPilih(new Set()); setOps([]); setFoto(null); setSisaFisik(null); setAlasanSelisih(""); setCatatan("")
-      setOpenId(null)
+      setDraft({}); setPilih(new Set()); setOps([]); setFoto(null); setCatatan("")
     } catch (e) {
       toast.error("Gagal menyimpan: " + (e instanceof Error ? e.message : String(e)), { id: t })
     } finally {
@@ -174,8 +190,8 @@ export default function SalinBelanjaPage() {
     <AuthGuard allowedRoles={['finance', 'admin_po', 'super_admin', 'coo']}>
       <div className="space-y-6 pb-24">
         <div>
-          <h2 className="text-2xl font-black text-slate-800 tracking-tight">Salin Kertas Belanja</h2>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+          <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Salin Kertas Belanja</h2>
+          <p className="text-[11px] font-bold text-slate-400  mt-1">
             Urutan kolomnya sama dengan lembar yang dibawa ke pasar — tinggal disalin
           </p>
         </div>
@@ -184,7 +200,7 @@ export default function SalinBelanjaPage() {
           <Card className="py-20 text-center border-dashed">
             <CardContent className="flex flex-col items-center gap-3">
               <ClipboardList className="w-14 h-14 text-slate-200" />
-              <p className="font-black text-slate-500">Tidak ada kertas belanja yang menunggu disalin.</p>
+              <p className="font-bold text-slate-500">Tidak ada kertas belanja yang menunggu disalin.</p>
               <p className="text-xs text-slate-400 max-w-md">
                 Dokumen muncul di sini setelah Finance melepas rencananya ke sourcing.
               </p>
@@ -192,52 +208,47 @@ export default function SalinBelanjaPage() {
           </Card>
         )}
 
-        {menunggu.length > 1 && (
-          <div className="flex gap-2 flex-wrap">
-            {menunggu.map(p => (
-              <Button key={p.id} size="sm" variant={aktif?.id === p.id ? "default" : "outline"}
-                className="font-black text-[11px]" onClick={() => { setOpenId(p.id); setDraft({}); setPilih(new Set()) }}>
-                {p.advanceCode || p.id.slice(0, 8)}
-              </Button>
-            ))}
-          </div>
-        )}
-
-        {aktif && (
+        {menunggu.length > 0 && (
           <Card className="overflow-hidden">
             <CardContent className="p-0">
               <div className="p-5 flex flex-wrap justify-between items-center gap-4 border-b bg-slate-50 dark:bg-slate-900/50">
                 <div>
-                  <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Kertas Belanja</p>
-                  <h3 className="font-black text-lg">{aktif.advanceCode || aktif.id.slice(0, 8)}</h3>
-                  <p className="text-xs text-slate-500 font-bold">{baris.length} barang · uang dibawa {formatRupiah(uangDibawa)}</p>
+                  <p className="text-[11px] font-bold uppercase text-slate-400 tracking-widest">Kertas Belanja</p>
+                  <h3 className="font-bold text-lg">
+                    {menunggu.length === 1
+                      ? kodeDokumen(menunggu[0].id)
+                      : `${menunggu.length} dokumen sekaligus`}
+                  </h3>
+                  <p className="text-xs text-slate-500 font-bold">{baris.length} barang siap disalin</p>
+                  {menunggu.length > 1 && (
+                    <p className="mt-0.5 text-[11px] font-bold text-slate-400">
+                      {menunggu.map(p => kodeDokumen(p.id)).join(' · ')}
+                    </p>
+                  )}
                 </div>
-                <div className="flex flex-wrap gap-3">
-                  <div className="w-52">
-                    <Label className="text-[10px] font-black uppercase text-slate-500">Kantong yang dipotong</Label>
-                    <SearchSelect
-                      value={pocketId}
-                      onChange={setPocketId}
-                      options={kantong.map(b => ({ value: b.id, label: b.name }))}
-                      placeholder="— Pilih kantong —"
-                    />
-                  </div>
-                  <div className="w-52">
-                    <Label className="text-[10px] font-black uppercase text-slate-500">Yang belanja di lapangan</Label>
-                    <SearchSelect
-                      value={atasNama}
-                      onChange={setAtasNama}
-                      options={users.filter(u => ['sourcing', 'gudang', 'kurir'].includes(u.role)).map(u => ({ value: u.id, label: u.name }))}
-                      placeholder="— Saya sendiri —"
-                      emptyLabel="— Saya sendiri —"
-                    />
-                  </div>
+                <div className="flex flex-wrap items-end gap-3">
+                  {kantongTunggal ? (
+                    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 dark:bg-slate-900">
+                      <p className="text-[11px] font-bold  text-slate-400">Dipotong dari kantong</p>
+                      <p className="text-sm font-bold text-slate-700">{kantongTunggal.name}</p>
+                    </div>
+                  ) : (
+                    <div className="w-60">
+                      <Label className="text-[11px] font-bold uppercase text-slate-500">Kantong yang dipotong</Label>
+                      <SearchSelect
+                        value={pocketId}
+                        onChange={setPocketId}
+                        options={kantong.map(b2 => ({ value: b2.id, label: b2.name || b2.id }))}
+                        placeholder="— Pilih kantong —"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
 
               {terpilih.length > 0 && (
                 <div className="px-5 py-3 border-b bg-emerald-50/70 flex flex-wrap items-center gap-2">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700">
+                  <span className="text-[11px] font-bold  text-emerald-700">
                     {terpilih.length} baris dipilih
                   </span>
                   <div className="w-44">
@@ -259,11 +270,11 @@ export default function SalinBelanjaPage() {
                     <option value="Tempo">Tempo</option>
                     <option value="Transfer">Transfer</option>
                   </select>
-                  <Button variant="outline" className="h-9 font-black text-[10px] uppercase"
+                  <Button variant="outline" className="h-9 font-bold text-[11px] uppercase"
                     onClick={() => massal({ isChecked: false, qtyPurchased: 0 })}>
                     Tandai kosong di pasar
                   </Button>
-                  <Button variant="ghost" className="h-9 font-black text-[10px] uppercase text-slate-400"
+                  <Button variant="ghost" className="h-9 font-bold text-[11px] uppercase text-slate-400"
                     onClick={() => setPilih(new Set())}>
                     Batal pilih
                   </Button>
@@ -279,14 +290,14 @@ export default function SalinBelanjaPage() {
                           checked={lines.length > 0 && lines.every(l => pilih.has(l.id))}
                           onChange={() => setPilih(prev => toggleAll(lines.map(l => l.id), prev))} />
                       </TableHead>
-                      <TableHead className="text-[10px] font-black">SKU</TableHead>
-                      <TableHead className="text-[10px] font-black">Nama Barang</TableHead>
-                      <TableHead className="text-[10px] font-black text-center">Qty Beli</TableHead>
-                      <TableHead className="text-[10px] font-black text-right">Harga Patokan</TableHead>
-                      <TableHead className="text-[10px] font-black bg-amber-50">Harga Beli Asli</TableHead>
-                      <TableHead className="text-[10px] font-black bg-amber-50">Qty Asli</TableHead>
-                      <TableHead className="text-[10px] font-black bg-amber-50">Vendor</TableHead>
-                      <TableHead className="text-[10px] font-black bg-amber-50">Catatan</TableHead>
+                      <TableHead className="text-[11px] font-bold">SKU</TableHead>
+                      <TableHead className="text-[11px] font-bold">Nama Barang</TableHead>
+                      <TableHead className="text-[11px] font-bold text-center">Qty Beli</TableHead>
+                      <TableHead className="text-[11px] font-bold text-right">Harga Patokan</TableHead>
+                      <TableHead className="text-[11px] font-bold bg-amber-50">Harga Beli Asli</TableHead>
+                      <TableHead className="text-[11px] font-bold bg-amber-50">Qty Asli</TableHead>
+                      <TableHead className="text-[11px] font-bold bg-amber-50">Vendor</TableHead>
+                      <TableHead className="text-[11px] font-bold bg-amber-50">Catatan</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -303,12 +314,15 @@ export default function SalinBelanjaPage() {
                               checked={pilih.has(l.id)}
                               onChange={() => setPilih(prev => { const n = new Set(prev); n.has(l.id) ? n.delete(l.id) : n.add(l.id); return n })} />
                           </TableCell>
-                          <TableCell className="text-[10px] font-bold text-slate-400">{product?.skuCode}</TableCell>
+                          <TableCell className="text-[11px] font-bold text-slate-400">{product?.skuCode}</TableCell>
                           <TableCell>
                             <p className="font-bold text-sm">{product?.name}</p>
-                            <p className="text-[9px] text-slate-400 font-bold uppercase">{so?.poNumber || '—'}</p>
+                            <p className="text-[11px] text-slate-400 font-bold uppercase">
+                              {so?.poNumber || '—'}
+                              {menunggu.length > 1 && ` · ${kodeDokumen(l.purchaseId)}`}
+                            </p>
                           </TableCell>
-                          <TableCell className="text-center font-black text-sm">{pi.qtyTarget} {product?.uom}</TableCell>
+                          <TableCell className="text-center font-bold text-sm">{pi.qtyTarget} {product?.uom}</TableCell>
                           <TableCell className="text-right text-xs font-bold text-slate-500">{formatRupiah(pi.estimatedUnitPrice || 0)}</TableCell>
 
                           <TableCell className="bg-amber-50/40">
@@ -319,10 +333,25 @@ export default function SalinBelanjaPage() {
                               placeholder="0"
                               onChange={e => set(l.id, { actualUnitPrice: parseNumber(e.target.value) })}
                             />
+                            {/* Batas 0 = sistem tidak tahu harga jualnya (belanja stok atau
+                                barang belum pernah dijual). Diamnya harus terbaca sebagai
+                                "belum ketahuan", bukan "aman". */}
+                            {!ceil && (
+                              <p className="mt-1 text-[11px] text-slate-400">
+                                Belum ada patokan untung — barang ini tidak menempel ke pesanan klien.
+                              </p>
+                            )}
+                            {/* Angka batasnya ditulis apa adanya — biar ruang tawar
+                                kelihatan SEBELUM nawar, bukan setelah kena merah. */}
+                            {ceil > 0 && !lewat && (
+                              <p className="tabular mt-1 text-[11px] text-slate-400">
+                                Batas {formatRupiah(ceil)}
+                              </p>
+                            )}
                             {lewat && (
                               <>
-                                <p className="text-[9px] font-black text-rose-600 mt-1">
-                                  Lewat batas {overByPct(l.actualUnitPrice, ceil)}% — alasannya?
+                                <p className="text-[11px] font-bold text-rose-600 mt-1">
+                                  Lewat batas {formatRupiah(ceil)} ({overByPct(l.actualUnitPrice, ceil)}%) — alasannya?
                                 </p>
                                 <Input
                                   className="h-8 mt-1 text-xs border-rose-200"
@@ -375,8 +404,8 @@ export default function SalinBelanjaPage() {
               {/* Ops ada di bawah tabel, sama seperti di kertasnya. */}
               <div className="p-5 border-t space-y-3">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-black uppercase tracking-widest text-slate-500">Pengeluaran Operasional</p>
-                  <Button variant="outline" size="sm" className="font-black text-[10px] uppercase"
+                  <p className="text-xs font-bold  text-slate-500">Pengeluaran Operasional</p>
+                  <Button variant="outline" size="sm" className="font-bold text-[11px] uppercase"
                     onClick={() => setOps(prev => [...prev, { id: uuidv4(), kategori: 'Bensin', nominal: 0, keterangan: '' }])}>
                     <Plus className="w-3.5 h-3.5 mr-1" /> Tambah baris
                   </Button>
@@ -412,51 +441,34 @@ export default function SalinBelanjaPage() {
                 ))}
               </div>
 
-              {/* Rekap uang: satu-satunya tempat selisih kas ketahuan hari itu juga. */}
+              {/* Rekap uang: bukan rekonsiliasi, cuma supaya salah ketik nol kelihatan.
+                  Kantong sourcing diisi mingguan dan ditarik seperlunya, jadi tidak ada
+                  uang titipan per perjalanan yang perlu dicocokkan di sini. Saldo
+                  kantongnya sendiri yang jadi pemeriksanya, di layar Pantau Harian. */}
               <div className="p-5 border-t bg-slate-50 dark:bg-slate-900/50 space-y-3">
                 <div className="grid gap-2 md:grid-cols-2 text-sm">
-                  <div className="flex justify-between"><span className="font-bold text-slate-500">Uang dibawa</span><span className="font-black">{formatRupiah(uangDibawa)}</span></div>
-                  <div className="flex justify-between"><span className="font-bold text-slate-500">Belanja</span><span className="font-black">{formatRupiah(totalBelanja)}</span></div>
-                  <div className="flex justify-between"><span className="font-bold text-slate-500">Operasional</span><span className="font-black">{formatRupiah(totalOps)}</span></div>
-                  <div className="flex justify-between"><span className="font-bold text-slate-500">Sisa seharusnya</span><span className="font-black text-emerald-600">{formatRupiah(sisaSeharusnya)}</span></div>
-                </div>
-
-                <div className="flex flex-wrap items-end gap-3">
-                  <div>
-                    <Label className="text-[10px] font-black uppercase text-slate-500">Sisa uang yang dikembalikan</Label>
-                    <Input
-                      type="text" inputMode="numeric"
-                      className="h-10 w-40 text-right font-bold"
-                      placeholder="—"
-                      value={sisaFisik === null ? '' : formatNumber(sisaFisik)}
-                      onChange={e => setSisaFisik(e.target.value.trim() === '' ? null : parseNumber(e.target.value))}
-                    />
+                  <div className="flex justify-between"><span className="font-bold text-slate-500">Belanja</span><span className="font-bold">{formatRupiah(totalBelanja)}</span></div>
+                  <div className="flex justify-between"><span className="font-bold text-slate-500">Operasional</span><span className="font-bold">{formatRupiah(totalOps)}</span></div>
+                  <div className="flex justify-between md:col-span-2 border-t pt-2">
+                    <span className="font-bold text-slate-500">Total dipotong dari kantong</span>
+                    <span className="font-bold text-emerald-600">{formatRupiah(totalBelanja + totalOps)}</span>
                   </div>
-                  {sisaFisik !== null && selisihKas !== 0 && (
-                    <div className="flex-1 min-w-[240px]">
-                      <Label className="text-[10px] font-black uppercase text-amber-700">
-                        {selisihKas > 0 ? 'Lebih' : 'Kurang'} {formatRupiah(Math.abs(selisihKas))} — kenapa?
-                      </Label>
-                      <Input className="h-10 border-amber-200" placeholder="Misal: kembalian belum dihitung, ada ongkos tak terduga"
-                        value={alasanSelisih} onChange={e => setAlasanSelisih(e.target.value)} />
-                    </div>
-                  )}
                 </div>
 
                 <div className="grid gap-3 md:grid-cols-2">
                   <div>
-                    <Label className="text-[10px] font-black uppercase text-slate-500">Foto kertasnya</Label>
+                    <Label className="text-[11px] font-bold uppercase text-slate-500">Foto kertasnya (opsional)</Label>
                     <ReceiptUpload label="Foto lembar belanja" currentFile={foto || undefined} onFileSelect={setFoto} />
                   </div>
                   <div>
-                    <Label className="text-[10px] font-black uppercase text-slate-500">Catatan</Label>
+                    <Label className="text-[11px] font-bold uppercase text-slate-500">Catatan</Label>
                     <Input className="h-10" placeholder="Opsional" value={catatan} onChange={e => setCatatan(e.target.value)} />
                   </div>
                 </div>
 
                 {masalah.length > 0 && (
                   <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-1">
-                    <p className="text-xs font-black text-amber-800 flex items-center gap-2">
+                    <p className="text-xs font-bold text-amber-800 flex items-center gap-2">
                       <AlertTriangle className="w-4 h-4" /> Belum bisa disimpan
                     </p>
                     {masalah.map((m, i) => <p key={i} className="text-[11px] font-bold text-amber-900">{m}</p>)}
@@ -464,11 +476,11 @@ export default function SalinBelanjaPage() {
                 )}
 
                 <div className="flex justify-between items-center gap-4">
-                  <Badge variant="outline" className="font-black text-[10px] uppercase">
+                  <Badge variant="outline" className="font-bold text-[11px] uppercase">
                     {lines.filter(l => l.isChecked).length} dari {lines.length} barang kebeli
                   </Badge>
                   <Button
-                    className="h-12 px-8 bg-emerald-600 hover:bg-emerald-700 font-black"
+                    className="h-12 px-8 bg-emerald-600 hover:bg-emerald-700 font-bold"
                     disabled={kirim || masalah.length > 0}
                     onClick={simpan}
                   >

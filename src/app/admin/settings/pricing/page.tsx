@@ -90,7 +90,7 @@ export default function PricingSettingsPage() {
             </Button>
           </Link>
           <div>
-            <h2 className="text-3xl font-black tracking-tight flex items-center gap-3 text-slate-800">
+            <h2 className="text-3xl font-bold tracking-tight flex items-center gap-3 text-slate-800">
               <TrendingUp className="text-emerald-600 w-8 h-8" /> Pricing Margins
             </h2>
             <p className="text-slate-500 font-medium text-sm">
@@ -99,10 +99,10 @@ export default function PricingSettingsPage() {
           </div>
         </div>
 
-        <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-white">
+        <Card className="border-none shadow-sm rounded-lg overflow-hidden bg-white">
           <CardHeader className="p-8 border-b border-slate-50">
-            <CardTitle className="text-xl font-black text-slate-900">Tier Margin Setup</CardTitle>
-            <CardDescription className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
+            <CardTitle className="text-xl font-bold text-slate-900">Tier Margin Setup</CardTitle>
+            <CardDescription className="text-xs font-bold text-slate-400  mt-1">
               Rumusan margin penawaran harga client
             </CardDescription>
           </CardHeader>
@@ -119,10 +119,10 @@ export default function PricingSettingsPage() {
                 return (
                   <div key={tier} className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center border-b border-slate-50 pb-4 last:border-0 last:pb-0">
                     <div>
-                      <Label htmlFor={`margin-${tier}`} className="text-xs font-black uppercase text-slate-700 tracking-wider">
+                      <Label htmlFor={`margin-${tier}`} className="text-xs font-bold uppercase text-slate-700 tracking-wider">
                         {labels[tier] || tier}
                       </Label>
-                      <p className="text-[10px] text-slate-400 mt-0.5">Margin default dihitung dari base HPP barang.</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">Margin default dihitung dari base HPP barang.</p>
                     </div>
                     <div className="relative">
                       <Input
@@ -137,7 +137,7 @@ export default function PricingSettingsPage() {
                         }}
                         className="h-11 rounded-xl border-slate-200 pr-12 font-bold font-mono text-slate-700"
                       />
-                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">%</span>
+                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">%</span>
                     </div>
                   </div>
                 )
@@ -145,26 +145,26 @@ export default function PricingSettingsPage() {
             </div>
 
             <div className="pt-6 border-t border-slate-100 flex justify-end">
-              <Button onClick={handleSave} className="bg-slate-900 border-none rounded-xl h-11 px-6 shadow-xl text-white font-bold hover:bg-slate-800">
+              <Button onClick={handleSave} className="bg-slate-900 border-none rounded-xl h-11 px-6 shadow-sm text-white font-bold hover:bg-slate-800">
                 <Save className="w-4 h-4 mr-2" /> Simpan Margin
               </Button>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-white">
+        <Card className="border-none shadow-sm rounded-lg overflow-hidden bg-white">
           <CardHeader className="p-8 border-b border-slate-50">
-            <CardTitle className="text-xl font-black text-slate-900 flex items-center gap-2">
+            <CardTitle className="text-xl font-bold text-slate-900 flex items-center gap-2">
               <ShieldAlert className="w-5 h-5 text-rose-500" /> Batas Harga Beli
             </CardTitle>
-            <CardDescription className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
+            <CardDescription className="text-xs font-bold text-slate-400  mt-1">
               Untung minimum yang harus tersisa saat sourcing belanja
             </CardDescription>
           </CardHeader>
           <CardContent className="p-8 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
               <div>
-                <Label htmlFor="min-margin" className="text-xs font-black uppercase text-slate-700 tracking-wider">
+                <Label htmlFor="min-margin" className="text-xs font-bold uppercase text-slate-700 tracking-wider">
                   Margin Minimum Belanja
                 </Label>
                 <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
@@ -183,12 +183,12 @@ export default function PricingSettingsPage() {
                   onChange={(e) => setMinMargin(parseFloat(e.target.value) || 0)}
                   className="h-11 rounded-xl border-slate-200 pr-12 font-bold font-mono text-slate-700"
                 />
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">%</span>
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">%</span>
               </div>
             </div>
 
             <div className="pt-6 border-t border-slate-100 flex justify-end">
-              <Button onClick={handleSaveMinMargin} className="bg-slate-900 border-none rounded-xl h-11 px-6 shadow-xl text-white font-bold hover:bg-slate-800">
+              <Button onClick={handleSaveMinMargin} className="bg-slate-900 border-none rounded-xl h-11 px-6 shadow-sm text-white font-bold hover:bg-slate-800">
                 <Save className="w-4 h-4 mr-2" /> Simpan Batas
               </Button>
             </div>

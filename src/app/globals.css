@@ -4,11 +4,164 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ──────────────────────────────────────────────────────────────
+   Disma — redesign "Kokpit tenang".
+   Sumber: design_handoff_disma_ui_redesign/README.md + globals-patch.css
+
+   ponytail: the whole app hardcodes `slate-*` / `emerald-*` (and a
+   long tail of blue/violet/orange) utility classes across 72 pages.
+   Re-tinting those ramps here re-themes every page without touching
+   a single page file. Ramp di luar palet dipetakan ke lima warna
+   makna, jadi halaman lama ikut masuk palet tanpa disunting.
+   ────────────────────────────────────────────────────────────── */
+@theme {
+  /* netral — tinta & kertas */
+  --color-slate-50:  #f4f6f3;
+  --color-slate-100: #eaeee9;
+  --color-slate-200: #dde2da;
+  --color-slate-300: #c3cbc0;
+  --color-slate-400: #6f7a72; /* NAIK KONTRAS: dipakai sebagai teks kecil */
+  --color-slate-500: #57615a;
+  --color-slate-600: #57615a;
+  --color-slate-700: #3f4843;
+  --color-slate-800: #2a332e;
+  --color-slate-900: #17231d;
+  --color-slate-950: #0e1512;
+
+  --color-gray-50:  #f4f6f3;
+  --color-gray-100: #eaeee9;
+  --color-gray-200: #dde2da;
+  --color-gray-300: #c3cbc0;
+  --color-gray-400: #6f7a72;
+  --color-gray-500: #57615a;
+  --color-gray-600: #57615a;
+  --color-gray-700: #3f4843;
+  --color-gray-800: #2a332e;
+  --color-gray-900: #17231d;
+  --color-gray-950: #0e1512;
+
+  /* aksen hijau — primary #16803c, #2fbf5f hanya untuk data & rail */
+  --color-emerald-50:  #e4f4e9;
+  --color-emerald-100: #cbead5;
+  --color-emerald-200: #a5dcb7;
+  --color-emerald-300: #74c993;
+  --color-emerald-400: #46b874;
+  --color-emerald-500: #2fbf5f;
+  --color-emerald-600: #16803c;
+  --color-emerald-700: #12692f;
+  --color-emerald-800: #0f5427;
+  --color-emerald-900: #0c4420;
+  --color-emerald-950: #072813;
+
+  --color-green-50:  #e4f4e9;
+  --color-green-100: #cbead5;
+  --color-green-200: #a5dcb7;
+  --color-green-300: #74c993;
+  --color-green-400: #46b874;
+  --color-green-500: #2fbf5f;
+  --color-green-600: #16803c;
+  --color-green-700: #12692f;
+  --color-green-800: #0f5427;
+  --color-green-900: #0c4420;
+  --color-green-950: #072813;
+
+  /* ── pemetaan warna di luar palet ke lima warna makna ── */
+
+  /* biru & indigo & ungu & sky → tinta netral */
+  --color-blue-50:    #eef1ed;
+  --color-blue-100:   #dde2da;
+  --color-blue-500:   #3f4843;
+  --color-blue-600:   #17231d;
+  --color-blue-700:   #0e1512;
+  --color-blue-800:   #0e1512;
+  --color-indigo-50:  #eef1ed;
+  --color-indigo-100: #dde2da;
+  --color-indigo-500: #3f4843;
+  --color-indigo-600: #17231d;
+  --color-indigo-700: #0e1512;
+  --color-violet-50:  #eef1ed;
+  --color-violet-100: #dde2da;
+  --color-violet-500: #3f4843;
+  --color-violet-600: #17231d;
+  --color-violet-700: #0e1512;
+  --color-purple-50:  #eef1ed;
+  --color-purple-100: #dde2da;
+  --color-purple-500: #3f4843;
+  --color-purple-600: #17231d;
+  --color-purple-700: #0e1512;
+  --color-sky-50:     #eef1ed;
+  --color-sky-100:    #dde2da;
+  --color-sky-500:    #57615a;
+  --color-sky-600:    #3f4843;
+  --color-sky-700:    #17231d;
+  --color-sky-800:    #0e1512;
+
+  /* oranye & amber & kuning → peringatan oker */
+  --color-orange-50:  #fdf8ef;
+  --color-orange-100: #f7efe0;
+  --color-orange-200: #ecdcc0;
+  --color-orange-500: #a86a12;
+  --color-orange-600: #8f5a0f;
+  --color-orange-700: #7a5210;
+  --color-orange-800: #7a5210;
+  --color-amber-50:   #fdf8ef;
+  --color-amber-100:  #f7efe0;
+  --color-amber-200:  #ecdcc0;
+  --color-amber-300:  #ecdcc0;
+  --color-amber-400:  #c08a2a;
+  --color-amber-500:  #a86a12;
+  --color-amber-600:  #8f5a0f;
+  --color-amber-700:  #7a5210;
+  --color-amber-800:  #7a5210;
+  --color-amber-900:  #5c3d0c;
+  --color-yellow-50:  #fdf8ef;
+  --color-yellow-100: #f7efe0;
+  --color-yellow-500: #a86a12;
+  --color-yellow-600: #8f5a0f;
+  --color-yellow-700: #7a5210;
+
+  /* rose & red → risiko merah tanah */
+  --color-rose-50:  #fbeae6;
+  --color-rose-100: #f6d8d1;
+  --color-rose-200: #eec3b8;
+  --color-rose-300: #e0a08f;
+  --color-rose-500: #c0442f;
+  --color-rose-600: #a93a27;
+  --color-rose-700: #8f3020;
+  --color-rose-800: #8f3020;
+  --color-rose-900: #6f2519;
+  --color-red-50:   #fbeae6;
+  --color-red-100:  #f6d8d1;
+  --color-red-200:  #eec3b8;
+  --color-red-500:  #c0442f;
+  --color-red-600:  #a93a27;
+  --color-red-700:  #8f3020;
+  --color-red-800:  #8f3020;
+  --color-red-900:  #6f2519;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sora), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-sans: var(--font-jakarta), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: var(--font-geist-mono);
+
+  --color-rail: var(--rail);
+  --color-rail-2: var(--rail-2);
+  --color-rail-field: var(--rail-field);
+  --color-rail-ink: var(--rail-ink);
+  --color-rail-ink-2: var(--rail-ink-2);
+  --color-rail-label: var(--rail-label);
+  --color-rail-accent: var(--rail-accent);
+  --color-rail-divider: var(--rail-divider);
+
+  --color-hairline: var(--hairline);
+  --color-hairline-row: var(--hairline-row);
+  --color-row-head: var(--row-head);
+  --color-row-selected: var(--row-selected);
+  --color-row-risk: var(--row-risk);
+  --color-row-warning: var(--row-warning);
+
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -38,82 +191,128 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* radius rata — kartu 8px, kontrol 7px. Nilai lama membuat
+     rounded-2xl = 20px dan rounded-3xl = 24px. */
+  --radius-sm:  6px;
+  --radius-md:  7px;
+  --radius-lg:  8px;
+  --radius-xl:  8px;
+  --radius-2xl: 8px;
+  --radius-3xl: 10px;
+  --radius-4xl: 12px;
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.6 0.18 160); /* Emerald Green */
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0.05 160);
-  --secondary-foreground: oklch(0.205 0.1 160);
-  --muted: oklch(0.97 0.01 160);
-  --muted-foreground: oklch(0.556 0.01 160);
-  --accent: oklch(0.9 0.1 160);
-  --accent-foreground: oklch(0.205 0.1 160);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0 0 0 / 15%);
-  --input: oklch(0 0 0 / 10%);
-  --ring: oklch(0.6 0.18 160);
-  --chart-1: oklch(0.6 0.18 160); /* Emerald */
-  --chart-2: oklch(0.5 0.25 160); /* Darker Emerald */
-  --chart-3: oklch(0.4 0.12 180);
-  --chart-4: oklch(0.7 0.1 150);
-  --chart-5: oklch(0.8 0.08 140);
-  --radius: 1.25rem;
-  --sidebar: oklch(1 0 0 / 40%);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.6 0.18 160);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(1 0 0 / 20%);
-  --sidebar-accent-foreground: oklch(0.205 0.1 160);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.6 0.18 160);
+  --background: #f4f6f3;
+  --foreground: #17231d;
+  --card: #ffffff;
+  --card-foreground: #17231d;
+  --popover: #ffffff;
+  --popover-foreground: #17231d;
+
+  /* tombol utama = hijau DISMA, bukan hijau-hitam */
+  --primary: #16803c;
+  --primary-foreground: #ffffff;
+  --secondary: #ffffff;
+  --secondary-foreground: #3f4843;
+  --muted: #eef1ed;
+  --muted-foreground: #6f7a72;
+  --accent: #e4f4e9;
+  --accent-foreground: #16803c;
+  --destructive: #c0442f;
+  --border: #e2e6e0;
+  --input: #dde2da;
+  --ring: #16803c;
+
+  /* garis dalam kartu & antar baris tabel */
+  --hairline: #eef1ed;
+  --hairline-row: #f2f4f1;
+  --row-head: #fafbf9;
+  --row-selected: #f6faf7;
+  --row-risk: #fdf8f6;
+  --row-warning: #fdfaf4;
+
+  /* rail */
+  --rail: #17231d;
+  --rail-2: #2a3a31;
+  --rail-field: #212e27;
+  --rail-ink: #ffffff;
+  --rail-ink-2: #b3beb8;
+  --rail-label: #8b9992;
+  --rail-accent: #2fbf5f;
+  --rail-divider: #253028;
+
+  /* grafik — tinta + hijau, tanpa biru */
+  --chart-1: #17231d;
+  --chart-2: #16803c;
+  --chart-3: #57615a;
+  --chart-4: #a86a12;
+  --chart-5: #c0442f;
+
+  --radius: 0.5rem;
+
+  --sidebar: #17231d;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #2fbf5f;
+  --sidebar-primary-foreground: #08130c;
+  --sidebar-accent: #2a3a31;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #253028;
+  --sidebar-ring: #2fbf5f;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0 / 40%);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0 / 60%);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.6 0.18 160);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.269 0 0 / 40%);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0 / 40%);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0 / 40%);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.6 0.18 160);
-  --chart-1: oklch(0.6 0.18 160);
-  --chart-2: oklch(0.5 0.25 160);
-  --chart-3: oklch(0.4 0.12 180);
-  --chart-4: oklch(0.7 0.1 150);
-  --chart-5: oklch(0.8 0.08 140);
-  --sidebar: oklch(0.205 0 0 / 40%);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.6 0.18 160);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0 / 40%);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.6 0.18 160);
+  --background: #121815;
+  --foreground: #eef2ef;
+  --card: #1a221e;
+  --card-foreground: #eef2ef;
+  --popover: #1a221e;
+  --popover-foreground: #eef2ef;
+
+  --primary: #2fbf5f;
+  --primary-foreground: #08130c;
+  --secondary: #222b26;
+  --secondary-foreground: #eef2ef;
+  --muted: #222b26;
+  --muted-foreground: #b0bab4;
+  --accent: #1e3a2a;
+  --accent-foreground: #3ed172;
+  --destructive: #e8836e;
+  --border: #2c3630;
+  --input: #2c3630;
+  --ring: #3ed172;
+
+  --hairline: #232d28;
+  --hairline-row: #202a25;
+  --row-head: #1d2621;
+  --row-selected: #1e3a2a;
+  --row-risk: #35211d;
+  --row-warning: #332a1c;
+
+  --rail: #0e1512;
+  --rail-2: #1f2b25;
+  --rail-field: #182019;
+  --rail-ink: #ffffff;
+  --rail-ink-2: #b3beb8;
+  --rail-label: #8b9992;
+  --rail-accent: #3ed172;
+  --rail-divider: #1b241f;
+
+  --chart-1: #eef2ef;
+  --chart-2: #3ed172;
+  --chart-3: #b0bab4;
+  --chart-4: #e0ac5c;
+  --chart-5: #e8836e;
+
+  --sidebar: #0e1512;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #3ed172;
+  --sidebar-primary-foreground: #08130c;
+  --sidebar-accent: #1f2b25;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #1b241f;
+  --sidebar-ring: #3ed172;
 }
 
 @layer base {
@@ -121,48 +320,113 @@
     @apply border-border outline-ring/50 font-sans;
   }
   body {
-    @apply text-slate-900 min-h-screen relative font-sans overflow-x-hidden;
-    background-color: #f8fafc;
-    background-image: 
-      radial-gradient(at 0% 0%, hsla(210,100%,98%,1) 0, transparent 50%), 
-      radial-gradient(at 50% 0%, hsla(220,100%,95%,1) 0, transparent 50%), 
-      radial-gradient(at 100% 0%, hsla(230,100%,98%,1) 0, transparent 50%),
-      radial-gradient(at 0% 100%, hsla(210,100%,95%,1) 0, transparent 50%),
-      radial-gradient(at 100% 100%, hsla(220,100%,98%,1) 0, transparent 50%);
-    background-attachment: fixed;
+    /* ponytail: latar rata, tanpa gradasi. Gradasi radial yang lama
+       repaint tiap scroll dan bikin HP tim lapangan berat. */
+    @apply bg-background text-foreground min-h-screen relative font-sans overflow-x-hidden;
   }
-
 
   html, body, h1, h2, h3, h4, h5, h6, p, span, div, table, input, button {
     @apply font-sans;
   }
+
+  /* Jaring pengaman selama 72 halaman belum dirapikan satu-satu.
+     Halaman lama menulis font-bold/font-extrabold pada hampir setiap
+     elemen; di sini bobotnya diturunkan ke maksimum 600 supaya
+     hierarki kembali terlihat.
+     HAPUS blok ini setelah className halaman-halaman itu dibersihkan
+     (langkah 7 di PANDUAN-CLAUDE-CODE.md). */
+  .font-bold,
+  .font-extrabold,
+  .font-black {
+    font-weight: 600;
+  }
+
+  /* Label 11px huruf besar berjarak lebar: jaraknya dinormalkan
+     supaya tetap terbaca. */
+  .uppercase {
+    letter-spacing: 0.02em;
+  }
+
+  /* angka rupiah rata lurus */
+  td, th, .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    letter-spacing: -0.02em;
+    font-weight: 600;
+  }
+
+  /* fokus terlihat — banyak tombol memakai outline-none tanpa ganti */
+  :is(button, a, [role="button"], input, select, textarea):focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
 }
 
 @layer components {
-  .liquid-card {
-    @apply bg-white/40 backdrop-blur-2xl border border-white/40 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.05)] rounded-[3rem] transition-all duration-500 hover:bg-white/50 hover:shadow-[0_40px_80px_-20px_rgba(0,82,255,0.08)] hover:-translate-y-2;
-  }
-  
-  .liquid-nav-pill {
-    @apply bg-white/60 backdrop-blur-xl border border-white/50 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] rounded-full px-6 py-2 transition-all duration-300;
-  }
-
-  .emoji-3d {
-    @apply inline-block drop-shadow-[0_4px_4px_rgba(0,0,0,0.3)] hover:scale-125 hover:-rotate-12 transition-all duration-300 cursor-default;
+  /* nama kelas dipertahankan (dipakai di ~30 berkas), isinya
+     dirapatkan: radius 8px, tanpa bayangan. */
+  .liquid-card,
+  .glass-card,
+  .soft-card {
+    @apply bg-card border border-border rounded-lg;
   }
 
   .glass-panel {
-    @apply bg-white/20 backdrop-blur-3xl border border-white/30 shadow-[0_30px_100px_-20px_rgba(0,0,0,0.1)] rounded-[4rem];
+    @apply bg-card border border-border rounded-lg;
   }
-  
-  /* Updated for compatibility during switch - Using direct utilities instead of @apply on custom classes */
-  .soft-card { @apply bg-white/40 backdrop-blur-2xl border border-white/40 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.05)] rounded-[3rem]; }
-  .soft-sidebar { @apply bg-white/60 backdrop-blur-xl border border-white/50 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] rounded-full; }
-  .glass-card { @apply bg-white/40 backdrop-blur-2xl border border-white/40 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.05)] rounded-[3rem]; }
-  .glass-topbar { @apply bg-white/40 backdrop-blur-xl border-none; }
+
+  .liquid-nav-pill,
+  .soft-sidebar {
+    @apply bg-card border border-border rounded-md px-4;
+  }
+
+  .glass-topbar {
+    @apply bg-card border-b border-border;
+  }
+
+  /* emoji dekoratif dibuang dari UI */
+  .emoji-3d {
+    display: none;
+  }
 }
 
 @layer utilities {
+  /* menu kiri gelap. Anak-anaknya masih memakai kelas slate/emerald
+     bawaan halaman, jadi ditimpa di sini sekali saja daripada
+     menyunting ratusan className. */
+  .app-rail {
+    background-color: var(--rail);
+    color: var(--rail-ink);
+    border-color: var(--rail-divider);
+  }
+  .app-rail :is(.text-slate-400, .text-slate-500, .text-slate-600) {
+    color: var(--rail-ink-2);
+  }
+  .app-rail :is(.text-slate-700, .text-slate-800, .text-slate-900) {
+    color: var(--rail-ink);
+  }
+  .app-rail :is(.bg-white, .bg-slate-50, .bg-slate-100) {
+    background-color: var(--rail-2);
+  }
+  .app-rail :is(.border-slate-100, .border-slate-200) {
+    border-color: var(--rail-divider);
+  }
+  .app-rail :is(.hover\:bg-emerald-50:hover, .hover\:bg-slate-50:hover, .hover\:bg-slate-100:hover) {
+    background-color: var(--rail-2);
+  }
+  /* logo Disma berwarna gelap — dibalik jadi putih di atas rail */
+  .app-rail img {
+    filter: brightness(0) invert(1);
+  }
+  .app-rail :is(.hover\:text-emerald-600:hover, .text-emerald-500, .text-emerald-600) {
+    color: var(--rail-accent);
+  }
+  .app-rail .bg-emerald-50 {
+    background-color: var(--rail-2);
+  }
+
   .pb-safe {
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }

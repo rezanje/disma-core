@@ -305,39 +305,39 @@ export default function APAgingPage() {
     <AuthGuard allowedRoles={['finance', 'super_admin', 'ceo']}>
       <div className="p-4 md:p-8 max-w-[1500px] mx-auto space-y-6 pb-24">
         {/* Header */}
-        <header className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white -mx-4 md:mx-0 p-6 md:p-8 md:rounded-[2.5rem] shadow-xl border border-slate-100">
+        <header className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white -mx-4 md:mx-0 p-6 md:p-8 md:rounded-2xl shadow-sm border border-slate-100">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-purple-600 text-white rounded-[1.5rem] flex items-center justify-center shadow-lg">
+            <div className="w-14 h-14 bg-purple-600 text-white rounded-xl flex items-center justify-center shadow-sm">
               <ClipboardList className="w-7 h-7" />
             </div>
             <div>
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight">AP Aging — Hutang Vendor</h1>
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">AP Aging — Hutang Vendor</h1>
               <p className="text-sm text-slate-400 font-medium">Catat & track kewajiban ke supplier</p>
             </div>
           </div>
           <div className="flex flex-wrap lg:flex-nowrap gap-3 items-stretch w-full lg:w-auto">
             <div className="bg-purple-50 border border-purple-100 rounded-2xl px-5 py-3 flex-1 lg:flex-none">
-              <p className="text-[10px] font-black text-purple-700 uppercase tracking-widest">Total Outstanding</p>
+              <p className="text-[11px] font-bold text-purple-700 ">Total Outstanding</p>
               {isSyncing ? (
-                <div className="h-7 w-32 bg-purple-100 rounded-lg animate-pulse mt-1" />
+                <div className="h-7 w-32 bg-purple-100 rounded-lg mt-1" />
               ) : (
-                <p className="text-xl font-black text-purple-700">{formatRupiah(totalOutstanding)}</p>
+                <p className="text-xl font-bold text-purple-700">{formatRupiah(totalOutstanding)}</p>
               )}
             </div>
             <div className="bg-blue-50 border border-blue-100 rounded-2xl px-5 py-3 flex-1 lg:flex-none">
-              <p className="text-[10px] font-black text-blue-700 uppercase tracking-widest">Jatuh Tempo Pekan Ini</p>
+              <p className="text-[11px] font-bold text-blue-700 ">Jatuh Tempo Pekan Ini</p>
               {isSyncing ? (
-                <div className="h-7 w-32 bg-blue-100 rounded-lg animate-pulse mt-1" />
+                <div className="h-7 w-32 bg-blue-100 rounded-lg mt-1" />
               ) : (
-                <p className="text-xl font-black text-blue-700">{formatRupiah(dueThisWeek)}</p>
+                <p className="text-xl font-bold text-blue-700">{formatRupiah(dueThisWeek)}</p>
               )}
             </div>
             <div className="bg-rose-50 border border-rose-100 rounded-2xl px-5 py-3 flex-1 lg:flex-none">
-              <p className="text-[10px] font-black text-rose-700 uppercase tracking-widest">Overdue ({overdueCount})</p>
+              <p className="text-[11px] font-bold text-rose-700 ">Overdue ({overdueCount})</p>
               {isSyncing ? (
-                <div className="h-7 w-32 bg-rose-100 rounded-lg animate-pulse mt-1" />
+                <div className="h-7 w-32 bg-rose-100 rounded-lg mt-1" />
               ) : (
-                <p className="text-xl font-black text-rose-700">{formatRupiah(totalOverdue)}</p>
+                <p className="text-xl font-bold text-rose-700">{formatRupiah(totalOverdue)}</p>
               )}
             </div>
             <Button onClick={() => setIsAddOpen(true)} className="bg-purple-600 hover:bg-purple-700 font-bold rounded-xl h-auto px-6 w-full lg:w-auto py-3 lg:py-0">
@@ -354,17 +354,17 @@ export default function APAgingPage() {
               onClick={() => setBucketFilter(bucketFilter === bucket ? 'all' : bucket)}
               className={`rounded-2xl border p-4 text-left transition-all ${BUCKET_COLOR[bucket]} ${bucketFilter === bucket ? 'ring-2 ring-offset-2 ring-slate-400' : 'hover:shadow-md'}`}
             >
-              <p className="text-[10px] font-black uppercase tracking-widest opacity-80">{BUCKET_LABEL[bucket]}</p>
-              <p className="text-lg font-black mt-1 tracking-tight">{formatRupiah(totals[bucket])}</p>
+              <p className="text-[11px] font-bold  opacity-80">{BUCKET_LABEL[bucket]}</p>
+              <p className="text-lg font-bold mt-1 tracking-tight">{formatRupiah(totals[bucket])}</p>
             </button>
           ))}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
           {/* TOP debt vendor */}
-          <Card className="lg:col-span-2 rounded-[2rem] border-slate-100 shadow-sm">
+          <Card className="lg:col-span-2 rounded-xl border-slate-100 shadow-sm">
             <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-lg font-black">
+              <CardTitle className="flex items-center gap-2 text-lg font-bold">
                 <Trophy className="w-5 h-5 text-amber-500" /> TOP Hutang Vendor
               </CardTitle>
             </CardHeader>
@@ -374,7 +374,7 @@ export default function APAgingPage() {
               )}
               {topByVendor.slice(0, 20).map((v, idx) => (
                 <div key={v.vendorId} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-slate-50 border border-transparent hover:border-slate-100">
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-sm ${idx === 0 ? 'bg-amber-100 text-amber-700' : idx === 1 ? 'bg-slate-200 text-slate-700' : idx === 2 ? 'bg-orange-100 text-orange-700' : 'bg-slate-50 text-slate-400'}`}>
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm ${idx === 0 ? 'bg-amber-100 text-amber-700' : idx === 1 ? 'bg-slate-200 text-slate-700' : idx === 2 ? 'bg-orange-100 text-orange-700' : 'bg-slate-50 text-slate-400'}`}>
                     {idx + 1}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -387,7 +387,7 @@ export default function APAgingPage() {
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="font-black text-sm text-purple-700">{formatRupiah(v.total)}</p>
+                    <p className="font-bold text-sm text-purple-700">{formatRupiah(v.total)}</p>
                   </div>
                 </div>
               ))}
@@ -395,10 +395,10 @@ export default function APAgingPage() {
           </Card>
 
           {/* Bills table */}
-          <Card className="lg:col-span-3 rounded-[2rem] border-slate-100 shadow-sm">
+          <Card className="lg:col-span-3 rounded-xl border-slate-100 shadow-sm">
             <CardHeader className="pb-3">
               <div className="flex justify-between items-center">
-                <CardTitle className="flex items-center gap-2 text-lg font-black">
+                <CardTitle className="flex items-center gap-2 text-lg font-bold">
                   <AlertTriangle className="w-5 h-5 text-rose-500" /> Daftar Hutang
                 </CardTitle>
                 <Badge className={bucketFilter !== 'all' ? `${BUCKET_COLOR[bucketFilter]}` : 'bg-slate-100 text-slate-600'}>
@@ -446,15 +446,15 @@ export default function APAgingPage() {
                 <div className="flex gap-1 items-center">
                   <Input
                     type="date"
-                    className="h-10 rounded-xl text-[10px] flex-1 px-1.5"
+                    className="h-10 rounded-xl text-[11px] flex-1 px-1.5"
                     value={startDate}
                     onChange={e => setStartDate(e.target.value)}
                     placeholder="Dari"
                   />
-                  <span className="text-slate-400 text-[10px]">s/d</span>
+                  <span className="text-slate-400 text-[11px]">s/d</span>
                   <Input
                     type="date"
-                    className="h-10 rounded-xl text-[10px] flex-1 px-1.5"
+                    className="h-10 rounded-xl text-[11px] flex-1 px-1.5"
                     value={endDate}
                     onChange={e => setEndDate(e.target.value)}
                     placeholder="Sampai"
@@ -466,15 +466,15 @@ export default function APAgingPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-slate-50">
-                    <TableHead className="text-[10px] uppercase font-black tracking-wide">No. Tagihan</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black tracking-wide">Vendor</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black tracking-wide">Tgl Tagihan</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black tracking-wide">Jatuh Tempo</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black tracking-wide text-right">Total</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black tracking-wide text-right">Terbayar</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black tracking-wide text-right">Outstanding</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black tracking-wide text-center">Status</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black tracking-wide text-center">Aksi</TableHead>
+                    <TableHead className="text-[11px] uppercase font-bold tracking-wide">No. Tagihan</TableHead>
+                    <TableHead className="text-[11px] uppercase font-bold tracking-wide">Vendor</TableHead>
+                    <TableHead className="text-[11px] uppercase font-bold tracking-wide">Tgl Tagihan</TableHead>
+                    <TableHead className="text-[11px] uppercase font-bold tracking-wide">Jatuh Tempo</TableHead>
+                    <TableHead className="text-[11px] uppercase font-bold tracking-wide text-right">Total</TableHead>
+                    <TableHead className="text-[11px] uppercase font-bold tracking-wide text-right">Terbayar</TableHead>
+                    <TableHead className="text-[11px] uppercase font-bold tracking-wide text-right">Outstanding</TableHead>
+                    <TableHead className="text-[11px] uppercase font-bold tracking-wide text-center">Status</TableHead>
+                    <TableHead className="text-[11px] uppercase font-bold tracking-wide text-center">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -499,9 +499,9 @@ export default function APAgingPage() {
                         <div className="text-xs font-bold">{format(parseISO(b.dueDate), 'd MMM yy', { locale: localeId })}</div>
                         {b.status !== 'Paid' && b.status !== 'Cancelled' && (
                           b.agingDays > 0 ? (
-                            <div className="text-[10px] text-rose-500 font-black">+{b.agingDays}h lewat</div>
+                            <div className="text-[11px] text-rose-500 font-bold">+{b.agingDays}h lewat</div>
                           ) : (
-                            <div className="text-[10px] text-emerald-600 font-bold">sisa {Math.abs(b.agingDays)}h</div>
+                            <div className="text-[11px] text-emerald-600 font-bold">sisa {Math.abs(b.agingDays)}h</div>
                           )
                         )}
                       </TableCell>
@@ -511,11 +511,11 @@ export default function APAgingPage() {
                       <TableCell className="text-right text-xs text-slate-500">
                         {formatRupiah(b.amountPaid || 0)}
                       </TableCell>
-                      <TableCell className="text-right font-black text-sm text-purple-700">
+                      <TableCell className="text-right font-bold text-sm text-purple-700">
                         {formatRupiah(b.outstanding)}
                       </TableCell>
                       <TableCell className="text-center">
-                        <span className={`text-[10px] px-2 py-0.5 rounded-lg font-black ${
+                        <span className={`text-[11px] px-2 py-0.5 rounded-lg font-bold ${
                           b.status === 'Paid' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
                           b.status === 'PartialPaid' ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
                           b.status === 'Cancelled' ? 'bg-slate-100 text-slate-500 border-slate-200' :
@@ -559,7 +559,7 @@ export default function APAgingPage() {
       <Dialog open={isAddOpen} onOpenChange={(open) => { setIsAddOpen(open); if (!open) resetAddForm() }}>
         <DialogContent className="sm:max-w-2xl max-h-[88vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-xl font-black">Catat Hutang Vendor</DialogTitle>
+            <DialogTitle className="text-xl font-bold">Catat Hutang Vendor</DialogTitle>
             <DialogDescription>Buat AP entry. Jurnal akan dibuat otomatis: Debit kategori, Credit Utang Usaha.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -610,7 +610,7 @@ export default function APAgingPage() {
               <Label>Nominal Total (Rp)</Label>
               <Input
                 type="text"
-                className="h-12 rounded-xl text-xl font-black text-purple-700"
+                className="h-12 rounded-xl text-xl font-bold text-purple-700"
                 placeholder="0"
                 value={formatNumber(fAmount)}
                 onChange={e => setFAmount(parseNumber(e.target.value))}
@@ -618,7 +618,7 @@ export default function APAgingPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button className="w-full h-11 font-black rounded-xl bg-purple-600 hover:bg-purple-700" onClick={handleAddBill}>
+            <Button className="w-full h-11 font-bold rounded-xl bg-purple-600 hover:bg-purple-700" onClick={handleAddBill}>
               Simpan Hutang Vendor
             </Button>
           </DialogFooter>
@@ -629,12 +629,12 @@ export default function APAgingPage() {
       <Dialog open={!!payingBill} onOpenChange={(open) => { if (!open) { setPayingBill(null); resetPayForm() } }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle className="text-xl font-black">Bayar Hutang Vendor</DialogTitle>
+            <DialogTitle className="text-xl font-bold">Bayar Hutang Vendor</DialogTitle>
             <DialogDescription>
               {payingBill && (
                 <>
                   <span className="font-bold text-slate-700">{payingBill.vendorName}</span> · {payingBill.billNumber}
-                  <br />Outstanding: <span className="font-black text-purple-700">{formatRupiah(payingBill.outstanding)}</span>
+                  <br />Outstanding: <span className="font-bold text-purple-700">{formatRupiah(payingBill.outstanding)}</span>
                 </>
               )}
             </DialogDescription>
@@ -677,7 +677,7 @@ export default function APAgingPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button className="w-full h-11 font-black rounded-xl bg-emerald-600 hover:bg-emerald-700" onClick={handlePay} disabled={isPaying}>
+            <Button className="w-full h-11 font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700" onClick={handlePay} disabled={isPaying}>
               {isPaying ? "Memproses..." : "Simpan Pembayaran"}
             </Button>
           </DialogFooter>

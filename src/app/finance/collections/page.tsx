@@ -135,36 +135,36 @@ export default function ARCollectionsPage() {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-200">
+          <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-sm shadow-indigo-200">
             <History className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="text-3xl font-black tracking-tight text-slate-900">Daily Chase</h2>
-            <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">AR Collections Command Center</p>
+            <h2 className="text-3xl font-bold tracking-tight text-slate-900">Daily Chase</h2>
+            <p className="text-xs text-slate-500 font-bold  mt-1">AR Collections Command Center</p>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="liquid-card border-none shadow-xl bg-slate-900 text-white">
+        <Card className="liquid-card shadow-sm bg-slate-900 text-white">
           <CardContent className="p-6">
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Total Outstanding Portfolio</p>
-            <h3 className="text-2xl font-black">{formatRupiah(stats.total)}</h3>
+            <p className="text-[11px] font-bold  text-slate-400 mb-1">Total Outstanding Portfolio</p>
+            <h3 className="text-2xl font-bold">{formatRupiah(stats.total)}</h3>
             <div className="flex items-center gap-2 mt-2">
-               <Badge className="bg-emerald-500/20 text-emerald-400 border-none text-[8px] font-black uppercase">Realtime Sync</Badge>
+               <Badge className="bg-emerald-500/20 text-emerald-400 border-none text-[11px] font-bold uppercase">Realtime Sync</Badge>
             </div>
           </CardContent>
         </Card>
-        <Card className="liquid-card border-none shadow-xl">
+        <Card className="liquid-card shadow-sm">
           <CardContent className="p-6">
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Overdue Invoices</p>
-            <h3 className="text-2xl font-black text-rose-600">{stats.overdueCount} Tagihan</h3>
+            <p className="text-[11px] font-bold  text-slate-400 mb-1">Overdue Invoices</p>
+            <h3 className="text-2xl font-bold text-rose-600">{stats.overdueCount} Tagihan</h3>
           </CardContent>
         </Card>
-        <Card className="liquid-card border-none shadow-xl">
+        <Card className="liquid-card shadow-sm">
           <CardContent className="p-6">
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Critical (&gt;60 Days)</p>
-            <h3 className="text-2xl font-black text-rose-800">{stats.criticalCount} Tagihan</h3>
+            <p className="text-[11px] font-bold  text-slate-400 mb-1">Critical (&gt;60 Days)</p>
+            <h3 className="text-2xl font-bold text-rose-800">{stats.criticalCount} Tagihan</h3>
           </CardContent>
         </Card>
       </div>
@@ -173,7 +173,7 @@ export default function ARCollectionsPage() {
         <div className="md:col-span-2 relative">
           <Input 
             placeholder="Cari client atau nomor invoice..." 
-            className="h-14 pl-12 rounded-full bg-white border-none shadow-lg font-bold text-slate-700 focus-visible:ring-indigo-500/20"
+            className="h-14 pl-12 rounded-full bg-white border-none shadow-sm font-bold text-slate-700 focus-visible:ring-indigo-500/20"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -185,8 +185,8 @@ export default function ARCollectionsPage() {
                key={age}
                variant={filterAging === age ? 'default' : 'outline'}
                className={cn(
-                 "flex-1 h-14 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all",
-                 filterAging === age ? "bg-indigo-600 shadow-lg shadow-indigo-200" : "bg-white border-none shadow-md hover:bg-slate-50"
+                 "flex-1 h-14 rounded-2xl font-bold text-[11px]  transition-all",
+                 filterAging === age ? "bg-indigo-600 shadow-sm shadow-indigo-200" : "bg-white border-none shadow-md hover:bg-slate-50"
                )}
                onClick={() => setFilterAging(age)}
              >
@@ -198,27 +198,27 @@ export default function ARCollectionsPage() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-6">
         <TabsList className="bg-slate-100 p-1 rounded-2xl h-12 w-fit mb-4">
-          <TabsTrigger value="invoice" className="rounded-xl px-6 font-black uppercase text-[10px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-sm">
+          <TabsTrigger value="invoice" className="rounded-xl px-6 font-bold uppercase text-[11px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-sm">
             Invoice Individual
           </TabsTrigger>
-          <TabsTrigger value="client" className="rounded-xl px-6 font-black uppercase text-[10px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-sm">
+          <TabsTrigger value="client" className="rounded-xl px-6 font-bold uppercase text-[11px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-sm">
             Rekap per Klien
           </TabsTrigger>
-          <TabsTrigger value="alert" className="rounded-xl px-6 font-black uppercase text-[10px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-sm">
+          <TabsTrigger value="alert" className="rounded-xl px-6 font-bold uppercase text-[11px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-sm">
             Alert Jatuh Tempo
           </TabsTrigger>
         </TabsList>
         
         <TabsContent value="invoice" className="m-0">
-          <div className="liquid-card overflow-hidden bg-white border border-slate-100 shadow-xl rounded-[2.5rem]">
+          <div className="liquid-card overflow-hidden bg-white border border-slate-100 shadow-sm rounded-2xl">
             <Table>
               <TableHeader className="bg-slate-50/50">
                 <TableRow>
-                  <TableHead className="pl-8 py-6 font-black text-[10px] uppercase text-indigo-600">Invoice & Client</TableHead>
-                  <TableHead className="font-black text-[10px] uppercase text-slate-400 text-center">Aging Status</TableHead>
-                  <TableHead className="text-right font-black text-[10px] uppercase text-slate-400">Amount Due</TableHead>
-                  <TableHead className="text-right font-black text-[10px] uppercase text-slate-400">Last Follow-up</TableHead>
-                  <TableHead className="text-center font-black text-[10px] uppercase text-slate-400">Actions</TableHead>
+                  <TableHead className="pl-8 py-6 font-bold text-[11px] uppercase text-indigo-600">Invoice & Client</TableHead>
+                  <TableHead className="font-bold text-[11px] uppercase text-slate-400 text-center">Aging Status</TableHead>
+                  <TableHead className="text-right font-bold text-[11px] uppercase text-slate-400">Amount Due</TableHead>
+                  <TableHead className="text-right font-bold text-[11px] uppercase text-slate-400">Last Follow-up</TableHead>
+                  <TableHead className="text-center font-bold text-[11px] uppercase text-slate-400">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -227,7 +227,7 @@ export default function ARCollectionsPage() {
                     <TableCell colSpan={5} className="h-64 text-center">
                        <div className="flex flex-col items-center gap-2">
                           <CheckCircle2 className="w-12 h-12 text-emerald-400" />
-                          <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Semua tagihan aman atau filter tidak ditemukan.</p>
+                          <p className="text-slate-400 font-bold  text-xs">Semua tagihan aman atau filter tidak ditemukan.</p>
                        </div>
                     </TableCell>
                   </TableRow>
@@ -236,34 +236,34 @@ export default function ARCollectionsPage() {
                     <TableRow key={inv.id} className="hover:bg-slate-50/80 transition-colors border-b border-slate-50">
                       <TableCell className="pl-8 py-6">
                         <div className="flex flex-col">
-                          <span className="font-black text-slate-900 text-base">{inv.clientName}</span>
+                          <span className="font-bold text-slate-900 text-base">{inv.clientName}</span>
                           <div className="flex items-center gap-2 mt-1">
-                             <span className="text-[10px] font-black text-indigo-500 uppercase tracking-tighter bg-indigo-50 px-2 py-0.5 rounded-md">#{inv.id.substring(0,8)}</span>
-                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate max-w-[150px]">{inv.clientPic}</span>
+                             <span className="text-[11px] font-bold text-indigo-500  bg-indigo-50 px-2 py-0.5 rounded-md">#{inv.id.substring(0,8)}</span>
+                             <span className="text-[11px] font-bold text-slate-400  truncate max-w-[150px]">{inv.clientPic}</span>
                           </div>
                         </div>
                       </TableCell>
                       <TableCell className="text-center">
                          <div className="flex flex-col items-center">
                             <Badge className={cn(
-                              "text-[9px] font-black uppercase rounded-full px-3 py-1 border shadow-sm",
+                              "text-[11px] font-bold uppercase rounded-full px-3 py-1 border shadow-sm",
                               inv.agingDays <= 0 ? "bg-emerald-100 text-emerald-700 border-emerald-200" :
                               inv.agingDays <= 30 ? "bg-amber-100 text-amber-700 border-amber-200" :
                               "bg-rose-100 text-rose-700 border-rose-200"
                             )}>
                               {inv.agingDays <= 0 ? 'Not Overdue' : `${inv.agingDays} Days Late`}
                             </Badge>
-                            <span className="text-[9px] font-bold text-slate-400 uppercase mt-1">Due: {format(new Date(inv.dueDate), 'dd MMM')}</span>
+                            <span className="text-[11px] font-bold text-slate-400 uppercase mt-1">Due: {format(new Date(inv.dueDate), 'dd MMM')}</span>
                          </div>
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex flex-col">
-                          <span className="font-black text-slate-900 text-lg">{formatRupiah(inv.totalAmount - inv.amountPaid)}</span>
-                          <span className="text-[9px] font-bold text-slate-400 uppercase">of {formatRupiah(inv.totalAmount)}</span>
+                          <span className="font-bold text-slate-900 text-lg">{formatRupiah(inv.totalAmount - inv.amountPaid)}</span>
+                          <span className="text-[11px] font-bold text-slate-400 uppercase">of {formatRupiah(inv.totalAmount)}</span>
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
-                         <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                         <span className="text-[11px] font-bold text-slate-500 ">
                            {inv.lastRemindedAt ? format(new Date(inv.lastRemindedAt), 'dd MMM HH:mm') : 'Never'}
                          </span>
                       </TableCell>
@@ -272,7 +272,7 @@ export default function ARCollectionsPage() {
                            <Button 
                             size="icon" 
                             variant="ghost" 
-                            className="h-10 w-10 rounded-full text-indigo-600 hover:bg-indigo-50"
+                            className="h-10 w-10 rounded-full hover:bg-indigo-50"
                             onClick={() => setInvoicePreview({ id: inv.id, isConsolidated: inv.isConsolidated || false })}
                            >
                              <ArrowUpRight className="w-5 h-5" />
@@ -299,14 +299,14 @@ export default function ARCollectionsPage() {
         </TabsContent>
         
         <TabsContent value="client" className="m-0">
-          <div className="liquid-card overflow-hidden bg-white border border-slate-100 shadow-xl rounded-[2.5rem]">
+          <div className="liquid-card overflow-hidden bg-white border border-slate-100 shadow-sm rounded-2xl">
             <Table>
               <TableHeader className="bg-slate-50/50">
                 <TableRow>
-                  <TableHead className="pl-8 py-6 font-black text-[10px] uppercase text-indigo-600">Client & Contact</TableHead>
-                  <TableHead className="font-black text-[10px] uppercase text-slate-400 text-center">Unpaid Invoices</TableHead>
-                  <TableHead className="text-right font-black text-[10px] uppercase text-slate-400">Total Outstanding AR</TableHead>
-                  <TableHead className="text-center font-black text-[10px] uppercase text-slate-400">Actions</TableHead>
+                  <TableHead className="pl-8 py-6 font-bold text-[11px] uppercase text-indigo-600">Client & Contact</TableHead>
+                  <TableHead className="font-bold text-[11px] uppercase text-slate-400 text-center">Unpaid Invoices</TableHead>
+                  <TableHead className="text-right font-bold text-[11px] uppercase text-slate-400">Total Outstanding AR</TableHead>
+                  <TableHead className="text-center font-bold text-[11px] uppercase text-slate-400">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -315,7 +315,7 @@ export default function ARCollectionsPage() {
                     <TableCell colSpan={4} className="h-64 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <CheckCircle2 className="w-12 h-12 text-emerald-400" />
-                        <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">No client debt records found.</p>
+                        <p className="text-slate-400 font-bold  text-xs">No client debt records found.</p>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -324,16 +324,16 @@ export default function ARCollectionsPage() {
                     <TableRow key={client.id} className="hover:bg-slate-50/80 transition-colors border-b border-slate-50">
                       <TableCell className="pl-8 py-6">
                         <div className="flex flex-col">
-                          <span className="font-black text-slate-900 text-base">{client.companyName}</span>
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">PIC: {client.picName} ({client.phone || '-'})</span>
+                          <span className="font-bold text-slate-900 text-base">{client.companyName}</span>
+                          <span className="text-[11px] font-bold text-slate-400  mt-1">PIC: {client.picName} ({client.phone || '-'})</span>
                         </div>
                       </TableCell>
                       <TableCell className="text-center">
-                        <Badge className="bg-indigo-100 text-indigo-700 border-none text-[9px] font-black uppercase px-2.5 py-1 rounded-full">
+                        <Badge className="bg-indigo-100 text-indigo-700 border-none text-[11px] font-bold uppercase px-2.5 py-1 rounded-full">
                           {invoiceCount} Tagihan
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right font-black text-slate-900 text-lg">
+                      <TableCell className="text-right font-bold text-slate-900 text-lg">
                         {formatRupiah(totalDebt)}
                       </TableCell>
                       <TableCell>
@@ -371,14 +371,14 @@ export default function ARCollectionsPage() {
         </TabsContent>
         
         <TabsContent value="alert" className="m-0">
-          <div className="liquid-card overflow-hidden bg-white border border-slate-100 shadow-xl rounded-[2.5rem]">
+          <div className="liquid-card overflow-hidden bg-white border border-slate-100 shadow-sm rounded-2xl">
             <Table>
               <TableHeader className="bg-slate-50/50">
                 <TableRow>
-                  <TableHead className="pl-8 py-6 font-black text-[10px] uppercase text-indigo-600">Invoice & Client</TableHead>
-                  <TableHead className="font-black text-[10px] uppercase text-slate-400 text-center">Overdue Aging</TableHead>
-                  <TableHead className="text-right font-black text-[10px] uppercase text-slate-400">Amount Due</TableHead>
-                  <TableHead className="text-center font-black text-[10px] uppercase text-slate-400">Actions</TableHead>
+                  <TableHead className="pl-8 py-6 font-bold text-[11px] uppercase text-indigo-600">Invoice & Client</TableHead>
+                  <TableHead className="font-bold text-[11px] uppercase text-slate-400 text-center">Overdue Aging</TableHead>
+                  <TableHead className="text-right font-bold text-[11px] uppercase text-slate-400">Amount Due</TableHead>
+                  <TableHead className="text-center font-bold text-[11px] uppercase text-slate-400">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -387,7 +387,7 @@ export default function ARCollectionsPage() {
                     <TableCell colSpan={4} className="h-64 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <CheckCircle2 className="w-12 h-12 text-emerald-400" />
-                        <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">All invoices are within terms. No overdue alerts!</p>
+                        <p className="text-slate-400 font-bold  text-xs">All invoices are within terms. No overdue alerts!</p>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -396,25 +396,25 @@ export default function ARCollectionsPage() {
                     <TableRow key={inv.id} className="hover:bg-slate-50/80 transition-colors border-b border-slate-50">
                       <TableCell className="pl-8 py-6">
                         <div className="flex flex-col">
-                          <span className="font-black text-slate-900 text-base">{inv.clientName}</span>
+                          <span className="font-bold text-slate-900 text-base">{inv.clientName}</span>
                           <div className="flex items-center gap-2 mt-1">
-                            <span className="text-[10px] font-black text-indigo-500 uppercase tracking-tighter bg-indigo-50 px-2 py-0.5 rounded-md">#{inv.id.substring(0,8)}</span>
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate max-w-[150px]">PIC: {inv.clientPic}</span>
+                            <span className="text-[11px] font-bold text-indigo-500  bg-indigo-50 px-2 py-0.5 rounded-md">#{inv.id.substring(0,8)}</span>
+                            <span className="text-[11px] font-bold text-slate-400  truncate max-w-[150px]">PIC: {inv.clientPic}</span>
                           </div>
                         </div>
                       </TableCell>
                       <TableCell className="text-center">
                         <div className="flex flex-col items-center">
-                          <Badge className="text-[9px] font-black uppercase rounded-full px-3 py-1 bg-rose-100 text-rose-700 border border-rose-200 shadow-sm">
+                          <Badge className="text-[11px] font-bold uppercase rounded-full px-3 py-1 bg-rose-100 text-rose-700 border border-rose-200 shadow-sm">
                             {inv.agingDays <= 0 ? 'Due Today' : `${inv.agingDays} Days Overdue`}
                           </Badge>
-                          <span className="text-[9px] font-bold text-slate-400 uppercase mt-1">Due: {format(new Date(inv.dueDate), 'dd MMM yyyy')}</span>
+                          <span className="text-[11px] font-bold text-slate-400 uppercase mt-1">Due: {format(new Date(inv.dueDate), 'dd MMM yyyy')}</span>
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex flex-col">
-                          <span className="font-black text-slate-900 text-lg">{formatRupiah(inv.totalAmount - inv.amountPaid)}</span>
-                          <span className="text-[9px] font-bold text-slate-400 uppercase">of {formatRupiah(inv.totalAmount)}</span>
+                          <span className="font-bold text-slate-900 text-lg">{formatRupiah(inv.totalAmount - inv.amountPaid)}</span>
+                          <span className="text-[11px] font-bold text-slate-400 uppercase">of {formatRupiah(inv.totalAmount)}</span>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -422,7 +422,7 @@ export default function ARCollectionsPage() {
                           <Button 
                             size="icon" 
                             variant="ghost" 
-                            className="h-10 w-10 rounded-full text-indigo-600 hover:bg-indigo-50"
+                            className="h-10 w-10 rounded-full hover:bg-indigo-50"
                             onClick={() => setInvoicePreview({ id: inv.id, isConsolidated: inv.isConsolidated || false })}
                           >
                             <ArrowUpRight className="w-5 h-5" />

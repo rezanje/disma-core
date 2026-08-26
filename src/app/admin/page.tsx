@@ -30,17 +30,17 @@ export default function AdminDashboard() {
       case 'finance':
         return <FinanceDashboard />
       default:
-        return <div className="p-8 text-center text-slate-500 font-bold uppercase tracking-widest bg-white rounded-[3rem] border border-dashed border-slate-200">Select a role to view dashboard summary</div>
+        return <div className="p-8 text-center text-slate-500 font-bold  bg-white rounded-2xl border border-dashed border-slate-200">Select a role to view dashboard summary</div>
     }
   }
 
   return (
-    <div className="animate-in fade-in duration-700 slide-in-from-bottom-4">
+    <div className=" duration-150">
       <div className="mb-6">
-        <h2 className="text-xl font-extrabold text-slate-800 tracking-tight capitalize">
+        <h2 className="text-xl font-semibold text-slate-800 tracking-tight capitalize">
           Welcome back, {currentUser.name.split(' ')[0]}!
         </h2>
-        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
+        <p className="text-xs font-bold text-slate-400  mt-1">
           {currentUser.role.replace('_', ' ')} Dashboard • {new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' })}
         </p>
       </div>

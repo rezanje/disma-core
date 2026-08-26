@@ -29,6 +29,17 @@ assert.equal(l.opsSpent, 150_000);
 assert.equal(l.expectedReturns, 1_050_000);
 assert.equal(l.variance, null);
 
+// Pencairan lewat satu pintu menulis budgetTransferDate DAN disbursedAt. Itu model
+// pool, bukan uang muka lama — kalau terbaca legacy, settlement-nya memposting jurnal
+// HPP kedua di atas jurnal yang sudah dibuat kantong sourcing.
+const lewatDisbursement = purchase({
+  budgetTransferDate: '2026-08-26T00:00:00.000Z',
+  disbursedAt: '2026-08-26T00:00:00.000Z',
+  budgetAmount: 5_000_000,
+});
+assert.equal(isLegacyAdvance(lewatDisbursement), false);
+assert.equal(computeSettlement(lewatDisbursement, [item(10_000, 400)], []).isLegacy, false);
+
 // New model: no transfer, so we compare realised spend against the approved budget.
 const fresh = purchase({ budgetAmount: 5_000_000 });
 assert.equal(isLegacyAdvance(fresh), false);

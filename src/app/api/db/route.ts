@@ -90,6 +90,34 @@ export async function GET(request: Request) {
         }
     };
 
+    // Baca ulang beberapa baris tertentu, by id.
+    //
+    // Dipakai alur yang menulis lewat fungsi database (RPC) lalu perlu melihat
+    // hasilnya. Pembacaannya HARUS lewat sini: kunci publik di browser dihalangi
+    // RLS dan mengembalikan NOL baris tanpa error, jadi layarnya diam-diam tidak
+    // pernah menerima hasil tulisannya sendiri (Tukar Faktur terbit bernilai Rp0).
+    //
+    // Daftar tabelnya dikunci: rute ini memakai kunci server, jadi nama tabel dari
+    // luar tidak boleh langsung dipercaya.
+    const READABLE_BY_ID = new Set(['tukar_faktur', 'invoices', 'purchases', 'sales_orders']);
+    const table = searchParams.get('table');
+    if (table) {
+      if (!READABLE_BY_ID.has(table)) {
+        return NextResponse.json({ error: `Table ${table} tidak boleh dibaca lewat jalur ini.` }, { status: 400 });
+      }
+      const ids = (searchParams.get('ids') || '').split(',').map(s => s.trim()).filter(Boolean);
+      if (ids.length === 0) return NextResponse.json({ rows: [] });
+      const { data, error } = await withRetry(
+        async () => await supabase.from(table).select('*').in('id', ids),
+        `select ${table} by ids`,
+      );
+      if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json(
+        { rows: toCamel(data || []) },
+        { headers: { 'Cache-Control': 'no-store, max-age=0' } },
+      );
+    }
+
     // --- GROUP 1: Core (users, clients, products, settings) ---
     if (group === '1') {
       const [users, clients, products, appSettings] = await Promise.all([

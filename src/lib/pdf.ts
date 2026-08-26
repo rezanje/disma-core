@@ -1,4 +1,4 @@
-import { worksheetColumns, columnOffsets } from "./worksheet-columns"
+import { worksheetColumns, columnOffsets, type WorksheetKind } from "./worksheet-columns"
 import { jsPDF } from "jspdf"
 import { format } from "date-fns"
 import { useAppStore } from "./store"
@@ -523,6 +523,73 @@ export function generateTukarFakturBundle(invoiceId: string, outputType: 'save' 
   doc.save(`Tukar_Faktur_${inv.id.substring(0,8)}.pdf`)
 }
 
+/**
+ * Bagian bawah lembar: biaya operasional yang keluar dari kantong yang sama.
+ *
+ * Parkir, kuli dan bensin dibayar tunai di lapangan dari uang belanja. Tanpa tempat
+ * menulisnya di kertas ini, angkanya nyangkut di sobekan struk atau di ingatan — dan
+ * yang tidak tercatat jadi selisih kas yang tidak bisa dijelaskan siapa pun.
+ * Kategorinya sama persis dengan pilihan di layar Biaya Operasional supaya menyalinnya
+ * tetap menyalin, bukan menafsirkan.
+ */
+const KATEGORI_OPS = [
+  'Bensin / Transport',
+  'Biaya Tol',
+  'Karcis Parkir',
+  'Kuli / Bongkar Muat',
+  'Uang Makan',
+  'Lainnya',
+]
+
+function drawCatatanOperasional(doc: jsPDF, y: number, pageRight: number, pageBottom: number): number {
+  // Dua kolom, bukan satu daftar panjang: kertasnya landscape — lebar berlimpah, tinggi
+  // yang mahal. Satu kolom mendorong bagian ini ke halaman kedua yang isinya cuma ini,
+  // dan lembar kedua yang gampang ketinggalan di mobil sama saja dengan tidak dicatat.
+  const barisOps = Math.ceil(KATEGORI_OPS.length / 2)
+  const tinggiOps = 14 + barisOps * 8 + 12
+  if (y > pageBottom - tinggiOps) {
+    doc.addPage()
+    y = 24
+  }
+
+  y += 8
+  doc.setFillColor(240, 240, 240)
+  doc.rect(14, y - 6, pageRight - 14, 10, 'F')
+  doc.setFont("helvetica", "bold")
+  doc.setFontSize(9)
+  doc.text("CATATAN OPERASIONAL", 16, y + 1)
+  doc.setFont("helvetica", "normal")
+  doc.setFontSize(8)
+  doc.text("Nominal", 60, y + 1)
+  doc.text("Keterangan / Bukti", 96, y + 1)
+  doc.text("Nominal", 197, y + 1)
+  doc.text("Keterangan / Bukti", 235, y + 1)
+  doc.setFontSize(9)
+  y += 14
+
+  doc.setDrawColor(190, 190, 190)
+  for (let i = 0; i < barisOps; i++) {
+    const kiri = KATEGORI_OPS[i]
+    const kanan = KATEGORI_OPS[i + barisOps]
+    doc.text(kiri, 16, y)
+    doc.line(60, y + 1, 92, y + 1)
+    doc.line(96, y + 1, 148, y + 1)
+    if (kanan) {
+      doc.text(kanan, 155, y)
+      doc.line(197, y + 1, 231, y + 1)
+      doc.line(235, y + 1, pageRight, y + 1)
+    }
+    y += 8
+  }
+  doc.setDrawColor(0, 0, 0)
+
+  doc.setFont("helvetica", "bold")
+  doc.text("TOTAL OPERASIONAL", 16, y + 3)
+  doc.line(60, y + 4, 92, y + 4)
+  doc.setFont("helvetica", "normal")
+  return y + 8
+}
+
 function buildShoppingListPDF(
   items: Array<{productId: string, productName: string, skuCode: string, uom?: string, totalQty: number, estimatedPrice: number, purchaseMethod?: string, paymentMethod?: string, vendorName?: string}>,
   titleOverride?: string
@@ -533,6 +600,10 @@ function buildShoppingListPDF(
   // OPTIMIZATION: Enable compression
   const doc = new jsPDF({ compress: true, orientation: 'landscape' })
   const pageRight = doc.internal.pageSize.getWidth() - 14
+  // Landscape A4 tingginya 210mm. Ambang pindah halaman dulu ditulis 260/275 — angka
+  // untuk kertas portrait — jadi tidak pernah tercapai dan baris ke sekian tercetak
+  // di luar kertas. Diambil dari ukuran halaman supaya ikut kalau orientasinya berubah.
+  const pageBottom = doc.internal.pageSize.getHeight() - 18
   drawHeader(doc, titleOverride || "LEMBAR BELANJA HARIAN", `SL-${format(new Date(), 'yyyyMMdd-HHmm')}`, new Date())
 
   // Urutan kolom dikunci di worksheet-columns.ts dan sama persis dengan urutan
@@ -590,9 +661,9 @@ function buildShoppingListPDF(
     const groupItems = groupedItems[vName]
     
     // Check if we need a new page before drawing vendor header
-    if (y > 260) {
+    if (y > pageBottom - 20) {
       doc.addPage()
-      y = 20
+      y = 24
     }
 
     // Draw Vendor Header
@@ -607,9 +678,9 @@ function buildShoppingListPDF(
 
     groupItems.forEach(item => {
       // Check if we need a new page for the row
-      if (y > 275) {
+      if (y > pageBottom) {
         doc.addPage()
-        y = 20
+        y = 24
       }
 
       doc.text(item.skuCode, colX[0], y)
@@ -620,7 +691,12 @@ function buildShoppingListPDF(
 
       doc.text(`${item.totalQty}${item.uom ? ' ' + item.uom : ''}`, colX[2], y)
 
-      const priceText = item.paymentMethod === 'Transfer' ? '(Dibayar Kantor)' : formatRupiah(item.estimatedPrice)
+      // Harga patokan hanya berarti untuk barang yang dibayar tunai di tempat. Tempo
+      // ditagih belakangan dan Transfer sudah dibayar kantor — mencetak angkanya bikin
+      // orang menjumlahkannya jadi uang yang harus dibawa, padahal tidak.
+      const priceText = item.paymentMethod === 'Transfer' ? '(Dibayar Kantor)'
+        : item.paymentMethod === 'Tempo' ? '(Tempo / Ditagih)'
+        : formatRupiah(item.estimatedPrice)
       doc.text(priceText, colX[3], y)
 
       // Adjust y based on number of lines in product name
@@ -641,7 +717,122 @@ function buildShoppingListPDF(
     y += 4; // Add a small gap between vendor groups
   })
 
+  // Bagian bawah kertas: biaya operasional yang keluar dari kantong yang sama.
+  //
+  // Parkir, kuli dan bensin dibayar tunai di lapangan dari uang belanja. Tanpa tempat
+  // menulisnya di kertas ini, angkanya nyangkut di sobekan struk atau di ingatan — dan
+  // yang tidak tercatat jadi selisih kas yang tidak bisa dijelaskan siapa pun.
+  // Kategorinya sama persis dengan pilihan di layar Biaya Operasional supaya
+  // menyalinnya tetap menyalin, bukan menafsirkan.
+  y = drawCatatanOperasional(doc, y, pageRight, pageBottom)
+
   return doc
+}
+
+/**
+ * Lembar kerja lapangan, satu bentuk untuk semua tahap.
+ *
+ * Sourcing bekerja 23:00-09:00, kurir dari 06:00, sementara yang mengetik ke aplikasi
+ * baru masuk jam 10. Tiga tahap di antaranya — terima barang, QC, barang keluar,
+ * serah terima — terjadi saat tidak ada satu pun orang kantor di tempat. Selama tidak
+ * ada kertasnya, yang tercatat adalah ingatan orang enam jam kemudian.
+ *
+ * Kolom tercetak diisi sistem, kolom tulis tangan dibiarkan bergaris. Urutannya dikunci
+ * di worksheet-columns.ts dan sama persis dengan layar penyalinannya, supaya menyalin
+ * tetap menyalin dan bukan menafsirkan.
+ */
+export type WorksheetRow = {
+  /** Isi kolom tercetak, urut. Kolom tulis tangan tidak perlu diisi. */
+  cells: string[];
+  /** Judul kelompok di atas baris ini — misal nomor PO atau nama vendor. */
+  group?: string;
+};
+
+function buildWorksheetPDF(
+  kind: WorksheetKind,
+  title: string,
+  rows: WorksheetRow[],
+  opts?: { catatanOperasional?: boolean },
+) {
+  const doc = new jsPDF({ compress: true, orientation: 'landscape' })
+  const pageRight = doc.internal.pageSize.getWidth() - 14
+  const pageBottom = doc.internal.pageSize.getHeight() - 18
+  drawHeader(doc, title, `WS-${format(new Date(), 'yyyyMMdd-HHmm')}`, new Date())
+
+  const cols = worksheetColumns(kind)
+  const colX = columnOffsets(cols, 16)
+  const tercetak = cols.filter(c => !c.handwritten)
+
+  let y = 70
+  doc.setFillColor(240, 240, 240)
+  doc.rect(14, y, pageRight - 14, 10, 'F')
+  doc.setFont("helvetica", "bold")
+  doc.setFontSize(9)
+  cols.forEach((c, i) => doc.text(c.header, colX[i], y + 7))
+  doc.setFont("helvetica", "normal")
+  y += 18
+
+  let grupSekarang: string | null = null
+  rows.forEach(row => {
+    if (row.group && row.group !== grupSekarang) {
+      if (y > pageBottom - 20) { doc.addPage(); y = 24 }
+      grupSekarang = row.group
+      doc.setFillColor(230, 245, 240)
+      doc.rect(14, y - 6, pageRight - 14, 9, 'F')
+      doc.setFont("helvetica", "bold")
+      doc.setTextColor(10, 100, 70)
+      doc.text(row.group, 16, y)
+      doc.setTextColor(0, 0, 0)
+      doc.setFont("helvetica", "normal")
+      y += 10
+    }
+
+    if (y > pageBottom) { doc.addPage(); y = 24 }
+
+    let tinggi = 8
+    tercetak.forEach((c, i) => {
+      const idx = cols.indexOf(c)
+      const teks = row.cells[i] ?? ''
+      const baris = doc.splitTextToSize(String(teks), c.width - 4)
+      doc.text(baris, colX[idx], y)
+      tinggi = Math.max(tinggi, baris.length * 5)
+    })
+
+    doc.setDrawColor(190, 190, 190)
+    cols.forEach((c, i) => {
+      if (!c.handwritten) return
+      doc.line(colX[i], y + 1, colX[i] + c.width - 4, y + 1)
+    })
+    doc.setDrawColor(0, 0, 0)
+
+    y += tinggi + 2
+  })
+
+  if (opts?.catatanOperasional) {
+    y = drawCatatanOperasional(doc, y, pageRight, pageBottom)
+  }
+
+  // Tanda tangan: kertas tanpa nama yang mengisinya tidak bisa ditanya ke siapa pun
+  // kalau angkanya meleset.
+  if (y > pageBottom - 30) { doc.addPage(); y = 24 }
+  y += 12
+  doc.setFontSize(9)
+  doc.setFont("helvetica", "normal")
+  doc.text('Diisi oleh: ______________________', 16, y)
+  doc.text('Tanggal / Jam: ______________________', 110, y)
+  doc.text('Diperiksa: ______________________', 210, y)
+
+  return doc
+}
+
+/** blob: URL untuk preview di layar. */
+export function generateWorksheetPDFDataUrl(
+  kind: WorksheetKind,
+  title: string,
+  rows: WorksheetRow[],
+  opts?: { catatanOperasional?: boolean },
+) {
+  return buildWorksheetPDF(kind, title, rows, opts).output('bloburl').toString()
 }
 
 export function generateShoppingListPDFDataUrl(

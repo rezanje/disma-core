@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { useAppStore } from "@/lib/store"
-import { Plus, Pencil, Trash2, Share2, DollarSign, Receipt, TrendingUp, History, FileText, Download, Upload, Eye, Search, Filter, Printer, Mail, ChevronRight, ChevronDown, CheckCircle2, X, Loader2, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react"
+import { Plus, Pencil, Trash2, Share2, DollarSign, Receipt, TrendingUp, History, FileText, Download, Upload, Eye, Search, Filter, Printer, Mail, ChevronRight, ChevronDown, CheckCircle2, X, Loader2, ArrowUp, ArrowDown, ArrowUpDown, AlertTriangle } from "lucide-react"
 import { v4 as uuidv4 } from "uuid"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { cn, formatRupiah } from "@/lib/utils"
+import { cn, formatRupiah, formatRupiahShort } from "@/lib/utils"
 import { clientDeletionBlockers, describeBlockers } from "@/lib/client-delete"
 import { format, parseISO, differenceInDays } from "date-fns"
 import { generateInvoicePDF, generateTukarFakturBundle } from "@/lib/pdf"
@@ -61,6 +61,8 @@ export default function ClientsPage() {
   const [isOpen, setIsOpen] = useState(false)
   const [editingClient, setEditingClient] = useState<Client | null>(null)
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
+  // Panel ringkas di kanan tabel. Halaman detail lama tetap ada, dibuka dari panel.
+  const [panelClientId, setPanelClientId] = useState<string | null>(null)
 
   // Listen to URL search param detailId to auto-select client details
   useEffect(() => {
@@ -112,6 +114,7 @@ export default function ClientsPage() {
   const [historyEndDate, setHistoryEndDate] = useState("")
 
   const selectedClient = clients.find(c => c.id === selectedClientId)
+
 
   const isHistoryDateInSelectedRange = (dateStr: string) => {
     if (!dateStr) return false
@@ -371,6 +374,14 @@ export default function ClientsPage() {
     return getClientOutstandingARSingle(clientId)
   }
 
+  // Angka di judul & spanduk dibaca dari data klien apa adanya — bukan target.
+  const ringkasanKlien = useMemo(() => {
+    const total = clients.length
+    const belumLengkap = clients.filter(c => !c.picName || !c.phone || !c.address).length
+    const punyaPiutang = clients.filter(c => getClientOutstandingAR(c.id) > 0).length
+    return { total, belumLengkap, punyaPiutang }
+  }, [clients, getClientOutstandingAR])
+
   const getClientLifetimeRevenueSingle = (cId: string): number => {
     const client = clients.find(c => c.id === cId)
     if (!client) return 0
@@ -391,6 +402,66 @@ export default function ClientsPage() {
       : activeInvoices
     return totalJanMay + activeNonImported.reduce((sum, inv) => sum + inv.totalAmount, 0)
   }
+
+  /**
+   * Omzet 6 bulan terakhir — dihitung dari tanggal terbit invoice, bukan dari
+   * angka lifetime. Invoice impor Jan–Mei tidak ikut karena tanggalnya di luar
+   * jendela dan totalOrderJanMay bukan data per-invoice.
+   */
+  const getClientRevenue6M = (clientId: string): number => {
+    const batas = new Date()
+    batas.setMonth(batas.getMonth() - 6)
+    const client = clients.find(c => c.id === clientId)
+    if (!client) return 0
+    const ids = client.isBrand
+      ? new Set([clientId, ...clients.filter(c => c.parentId === clientId).map(c => c.id)])
+      : new Set([clientId])
+    const relevan = invoices.filter(inv => {
+      if (!ids.has(inv.clientId)) return false
+      if ((inv as any).supersededByInvoiceId) return false
+      if (!inv.issueDate) return false
+      return new Date(inv.issueDate) >= batas
+    })
+    const consolidatedSOIds = new Set(
+      relevan.filter((inv: any) => inv.isConsolidated && inv.salesOrderIds?.length > 0)
+        .flatMap((inv: any) => inv.salesOrderIds)
+    )
+    return relevan
+      .filter((inv: Invoice) => !(inv.salesOrderId && consolidatedSOIds.has(inv.salesOrderId) && !(inv as any).isConsolidated))
+      .reduce((sum, inv) => sum + Number(inv.totalAmount || 0), 0)
+  }
+
+  const panelClient = clients.find(c => c.id === panelClientId) || null
+
+  /** Angka panel: jumlah pesanan 6 bulan, rata-rata hari bayar, 3 pesanan terakhir. */
+  const panelStats = useMemo(() => {
+    if (!panelClient) return { orderCount: 0, avgPayDays: null as number | null, lastOrders: [] as { id: string; poNumber: string; tanggal: string; total: number }[] }
+    const batas = new Date()
+    batas.setMonth(batas.getMonth() - 6)
+    const ids = panelClient.isBrand
+      ? new Set([panelClient.id, ...clients.filter(c => c.parentId === panelClient.id).map(c => c.id)])
+      : new Set([panelClient.id])
+
+    const orders = salesOrders
+      .filter(so => ids.has(so.clientId))
+      .sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime())
+
+    const orderCount = orders.filter(so => new Date(so.orderDate) >= batas).length
+
+    const lunas = invoices.filter(inv => ids.has(inv.clientId) && inv.paidDate && inv.issueDate)
+    const avgPayDays = lunas.length === 0 ? null : Math.round(
+      lunas.reduce((sum, inv) => sum + Math.max(0, (new Date(inv.paidDate as string).getTime() - new Date(inv.issueDate).getTime()) / 86400000), 0) / lunas.length
+    )
+
+    const lastOrders = orders.slice(0, 3).map(so => ({
+      id: so.id,
+      poNumber: so.poNumber,
+      tanggal: format(new Date(so.orderDate), 'dd MMM'),
+      total: salesOrderItems.filter(i => i.salesOrderId === so.id).reduce((sum, i) => sum + Number(i.subtotal || 0), 0),
+    }))
+
+    return { orderCount, avgPayDays, lastOrders }
+  }, [panelClient, clients, salesOrders, salesOrderItems, invoices])
 
   const getClientLifetimeRevenue = (clientId: string): number => {
     const client = clients.find(c => c.id === clientId)
@@ -593,7 +664,7 @@ export default function ClientsPage() {
     return (
       <TableHead 
         className={cn(
-          "h-auto py-6 select-none cursor-pointer hover:bg-slate-100/50 transition-colors font-black text-[10px] uppercase tracking-widest",
+          "h-auto py-6 select-none cursor-pointer hover:bg-slate-100/50 transition-colors font-bold text-[11px] ",
           align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left",
           isActive ? "text-emerald-600" : "text-slate-400",
           field === "companyName" ? "pl-4" : ""
@@ -678,33 +749,33 @@ export default function ClientsPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className="liquid-card border-none bg-slate-900 text-white shadow-xl">
+          <Card className="liquid-card bg-slate-900 text-white shadow-sm">
             <CardContent className="p-6">
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Lifetime Revenue</p>
-              <h3 className="text-2xl font-black">{formatRupiah(totalLifetimeRevenue)}</h3>
+              <p className="text-[11px] font-bold  text-slate-400 mb-1">Lifetime Revenue</p>
+              <h3 className="text-2xl font-bold">{formatRupiah(totalLifetimeRevenue)}</h3>
             </CardContent>
           </Card>
-          <Card className="liquid-card border-none shadow-xl">
+          <Card className="liquid-card shadow-sm">
             <CardContent className="p-6">
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Active Outstanding</p>
-              <h3 className="text-2xl font-black text-rose-600">{formatRupiah(totalOutstanding)}</h3>
+              <p className="text-[11px] font-bold  text-slate-400 mb-1">Active Outstanding</p>
+              <h3 className="text-2xl font-bold text-rose-600">{formatRupiah(totalOutstanding)}</h3>
             </CardContent>
           </Card>
-          <Card className="liquid-card border-none shadow-xl">
+          <Card className="liquid-card shadow-sm">
             <CardContent className="p-6">
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Jatuh Tempo Terdekat</p>
-              <h3 className="text-lg font-black">{nearestDue ? format(nearestDue, 'dd MMM yyyy') : '-'}</h3>
+              <p className="text-[11px] font-bold  text-slate-400 mb-1">Jatuh Tempo Terdekat</p>
+              <h3 className="text-lg font-bold">{nearestDue ? format(nearestDue, 'dd MMM yyyy') : '-'}</h3>
             </CardContent>
           </Card>
-          <Card className="liquid-card border-none shadow-xl">
+          <Card className="liquid-card shadow-sm">
             <CardContent className="p-6">
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Avg Payment Cycle</p>
-              <h3 className="text-2xl font-black text-emerald-600">{avgDaysToPay} Hari</h3>
+              <p className="text-[11px] font-bold  text-slate-400 mb-1">Avg Payment Cycle</p>
+              <h3 className="text-2xl font-bold text-emerald-600">{avgDaysToPay} Hari</h3>
             </CardContent>
           </Card>
         </div>
 
-        <div className="bg-white rounded-[2.5rem] shadow-xl overflow-hidden min-h-[600px] flex flex-col border border-slate-100">
+        <div className="bg-white rounded-2xl shadow-sm overflow-hidden min-h-[600px] flex flex-col border border-slate-100">
           <div className="p-8 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="w-14 h-14 rounded-2xl bg-white shadow-sm flex items-center justify-center text-2xl border border-slate-100">
@@ -712,20 +783,20 @@ export default function ClientsPage() {
               </div>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h2 className="text-2xl font-black tracking-tight text-slate-900">{selectedClient.companyName}</h2>
+                  <h2 className="text-2xl font-bold tracking-tight text-slate-900">{selectedClient.companyName}</h2>
                   {selectedClient.isBrand && (
-                    <Badge className="bg-indigo-100 hover:bg-indigo-100 border-none text-indigo-700 text-[9px] font-black uppercase px-2 py-0.5 rounded-full shadow-sm">
-                      🏢 Brand / Group
+                    <Badge className="bg-indigo-100 hover:bg-indigo-100 border-none text-indigo-700 text-[11px] font-bold uppercase px-2 py-0.5 rounded-full shadow-sm">
+                      Grup
                     </Badge>
                   )}
                 </div>
                 <div className="flex items-center gap-2 mt-1">
-                   <Badge className={cn("text-[9px] font-black uppercase px-2 py-0.5 rounded-full border shadow-sm", getClientHealth(selectedClient.id).color)}>
+                   <Badge className={cn("text-[11px] font-bold uppercase px-2 py-0.5 rounded-full border shadow-sm", getClientHealth(selectedClient.id).color)}>
                      {getClientHealth(selectedClient.id).label}
                    </Badge>
-                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Client ID: {selectedClient.id.substring(0,8)}</span>
+                   <span className="text-[11px] font-bold text-slate-400 ">Client ID: {selectedClient.id.substring(0,8)}</span>
                    {selectedClient.parentId && (
-                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                     <span className="text-[11px] font-bold text-slate-400 ">
                        • Cabang dari: {clients.find(c => c.id === selectedClient.parentId)?.companyName || 'Unknown'}
                      </span>
                    )}
@@ -741,7 +812,7 @@ export default function ClientsPage() {
                     <TabsTrigger 
                       key={tab} 
                       value={tab.toLowerCase().replace(/[^a-z0-9]+/g, '-')} 
-                      className="rounded-none border-b-2 border-transparent data-[state=active]:border-emerald-500 data-[state=active]:bg-transparent data-[state=active]:text-emerald-600 font-black uppercase text-[10px] tracking-[0.2em] px-0 h-full transition-all"
+                      className="rounded-none border-b-2 border-transparent data-[state=active]:border-emerald-500 data-[state=active]:bg-transparent data-[state=active]:text-emerald-600 font-bold uppercase text-[11px] tracking-[0.2em] px-0 h-full transition-all"
                     >
                       {tab}
                     </TabsTrigger>
@@ -753,41 +824,41 @@ export default function ClientsPage() {
                <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                   <div className="space-y-6">
                     <div>
-                      <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-4">Contact Information</h4>
+                      <h4 className="text-[11px] font-bold uppercase text-slate-400 tracking-widest mb-4">Contact Information</h4>
                       <div className="space-y-4">
                         <div className="flex justify-between border-b border-slate-50 pb-2">
                            <span className="text-sm font-bold text-slate-500">PIC Name</span>
-                           <span className="text-sm font-black text-slate-900">{selectedClient.picName}</span>
+                           <span className="text-sm font-bold text-slate-900">{selectedClient.picName}</span>
                         </div>
                         <div className="flex justify-between border-b border-slate-50 pb-2">
                            <span className="text-sm font-bold text-slate-500">Email Address</span>
-                           <span className="text-sm font-black text-slate-900">{selectedClient.email || '-'}</span>
+                           <span className="text-sm font-bold text-slate-900">{selectedClient.email || '-'}</span>
                         </div>
                         <div className="flex justify-between border-b border-slate-50 pb-2">
                            <span className="text-sm font-bold text-slate-500">Phone Number</span>
-                           <span className="text-sm font-black text-slate-900">{selectedClient.phone || '-'}</span>
+                           <span className="text-sm font-bold text-slate-900">{selectedClient.phone || '-'}</span>
                         </div>
                       </div>
                     </div>
                   </div>
                   <div className="space-y-6">
                     <div>
-                      <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-4">Billing Address</h4>
-                      <div className="p-6 rounded-3xl bg-slate-50 border border-slate-100 text-sm font-bold text-slate-600 leading-relaxed">
+                      <h4 className="text-[11px] font-bold uppercase text-slate-400 tracking-widest mb-4">Billing Address</h4>
+                      <div className="p-6 rounded-lg bg-slate-50 border border-slate-100 text-sm font-bold text-slate-600 leading-relaxed">
                         {selectedClient.address}
                       </div>
                     </div>
                     <div>
-                      <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-4">Account Settings</h4>
+                      <h4 className="text-[11px] font-bold uppercase text-slate-400 tracking-widest mb-4">Account Settings</h4>
                       <div className="space-y-4">
                         <div className="flex justify-between border-b border-slate-50 pb-2">
                            <span className="text-sm font-bold text-slate-500">Payment Terms</span>
-                           <span className="text-sm font-black text-emerald-600">{selectedClient.paymentTermDays} Days</span>
+                           <span className="text-sm font-bold text-emerald-600">{selectedClient.paymentTermDays} Days</span>
                         </div>
                         {selectedClient.isBrand && (
                           <div className="flex justify-between border-b border-slate-50 pb-2">
                              <span className="text-sm font-bold text-slate-500">Tipe Akun</span>
-                             <span className="text-sm font-black text-indigo-600">BRAND INDUK / GROUP</span>
+                             <span className="text-sm font-bold text-indigo-600">BRAND INDUK / GROUP</span>
                           </div>
                         )}
                         {selectedClient.parentId && (
@@ -795,7 +866,7 @@ export default function ClientsPage() {
                              <span className="text-sm font-bold text-slate-500">Brand Induk</span>
                              <button 
                                onClick={() => setSelectedClientId(selectedClient.parentId!)}
-                               className="text-sm font-black text-indigo-600 hover:underline text-left"
+                               className="text-sm font-bold text-indigo-600 hover:underline text-left"
                              >
                                {clients.find(c => c.id === selectedClient.parentId)?.companyName || 'Unknown'}
                              </button>
@@ -812,12 +883,12 @@ export default function ClientsPage() {
                 <Table>
                   <TableHeader className="bg-slate-50">
                     <TableRow>
-                      <TableHead className="font-black text-[10px] uppercase pl-8 py-4">Nama Outlet</TableHead>
-                      <TableHead className="font-black text-[10px] uppercase">PIC</TableHead>
-                      <TableHead className="font-black text-[10px] uppercase">No Telp</TableHead>
-                      <TableHead className="font-black text-[10px] uppercase text-right">Outstanding AR</TableHead>
-                      <TableHead className="font-black text-[10px] uppercase text-right">Lifetime Revenue</TableHead>
-                      <TableHead className="font-black text-[10px] uppercase text-center">Status / Health</TableHead>
+                      <TableHead className="font-bold text-[11px] uppercase pl-8 py-4">Nama Outlet</TableHead>
+                      <TableHead className="font-bold text-[11px] uppercase">PIC</TableHead>
+                      <TableHead className="font-bold text-[11px] uppercase">No Telp</TableHead>
+                      <TableHead className="font-bold text-[11px] uppercase text-right">Outstanding AR</TableHead>
+                      <TableHead className="font-bold text-[11px] uppercase text-right">Lifetime Revenue</TableHead>
+                      <TableHead className="font-bold text-[11px] uppercase text-center">Status / Health</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -838,19 +909,19 @@ export default function ClientsPage() {
                             className="hover:bg-slate-50 cursor-pointer transition-colors"
                             onClick={() => setSelectedClientId(branch.id)}
                           >
-                            <TableCell className="pl-8 py-5 font-black text-slate-900 text-xs hover:underline">
+                            <TableCell className="pl-8 py-5 font-bold text-slate-900 text-xs hover:underline">
                               {branch.companyName}
                             </TableCell>
                             <TableCell className="text-xs font-bold text-slate-600">{branch.picName}</TableCell>
                             <TableCell className="text-xs font-bold text-slate-600">{branch.phone || '-'}</TableCell>
                             <TableCell className="text-right">
-                              <span className={cn("font-black", branchAR > 0 ? "text-rose-600" : "text-emerald-600")}>
+                              <span className={cn("font-bold", branchAR > 0 ? "text-rose-600" : "text-emerald-600")}>
                                 {formatRupiah(branchAR)}
                               </span>
                             </TableCell>
-                            <TableCell className="text-right font-black text-slate-900">{formatRupiah(branchRev)}</TableCell>
+                            <TableCell className="text-right font-bold text-slate-900">{formatRupiah(branchRev)}</TableCell>
                             <TableCell className="text-center">
-                              <Badge className={cn("text-[9px] font-black uppercase rounded-full px-2 py-0.5 border shadow-sm", branchHealth.color)}>
+                              <Badge className={cn("text-[11px] font-bold uppercase rounded-full px-2 py-0.5 border shadow-sm", branchHealth.color)}>
                                 {branchHealth.label}
                               </Badge>
                             </TableCell>
@@ -867,11 +938,11 @@ export default function ClientsPage() {
                <Table>
                  <TableHeader className="bg-slate-50">
                     <TableRow>
-                       <TableHead className="font-black text-[10px] uppercase pl-8 py-4">PO Number</TableHead>
-                       <TableHead className="font-black text-[10px] uppercase">Order Date</TableHead>
-                       <TableHead className="font-black text-[10px] uppercase">Target Delivery</TableHead>
-                       <TableHead className="font-black text-[10px] uppercase text-right">Value</TableHead>
-                       <TableHead className="font-black text-[10px] uppercase text-center">Status</TableHead>
+                       <TableHead className="font-bold text-[11px] uppercase pl-8 py-4">PO Number</TableHead>
+                       <TableHead className="font-bold text-[11px] uppercase">Order Date</TableHead>
+                       <TableHead className="font-bold text-[11px] uppercase">Target Delivery</TableHead>
+                       <TableHead className="font-bold text-[11px] uppercase text-right">Value</TableHead>
+                       <TableHead className="font-bold text-[11px] uppercase text-center">Status</TableHead>
                     </TableRow>
                  </TableHeader>
                  <TableBody>
@@ -906,9 +977,9 @@ export default function ClientsPage() {
                            <TableRow key={so.id} className="hover:bg-slate-50 transition-colors">
                               <TableCell className="pl-8 py-5 text-xs">
                                 <div className="flex flex-col">
-                                  <span className="font-black text-slate-900">{so.poNumber}</span>
+                                  <span className="font-bold text-slate-900">{so.poNumber}</span>
                                   {selectedClient.isBrand && so.clientId !== selectedClient.id && (
-                                    <span className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">
+                                    <span className="text-[11px] font-bold text-slate-400 uppercase mt-0.5">
                                       Outlet: {clients.find(c => c.id === so.clientId)?.companyName || 'Unknown'}
                                     </span>
                                   )}
@@ -916,14 +987,14 @@ export default function ClientsPage() {
                               </TableCell>
                               <TableCell className="text-xs font-bold text-slate-600">{format(new Date(so.orderDate), 'dd MMM yyyy')}</TableCell>
                               <TableCell className="text-xs font-bold text-slate-600">{format(new Date(so.targetDeliveryDate), 'dd MMM yyyy')}</TableCell>
-                              <TableCell className="text-right font-black text-slate-900">{formatRupiah(total)}</TableCell>
+                              <TableCell className="text-right font-bold text-slate-900">{formatRupiah(total)}</TableCell>
                               <TableCell className="text-center">
                                  <div className="flex flex-col items-center gap-1">
-                                    <Badge className={cn("text-[9px] font-black uppercase rounded-full px-2 py-0.5 border shadow-sm", finStatus.color)}>
+                                    <Badge className={cn("text-[11px] font-bold uppercase rounded-full px-2 py-0.5 border shadow-sm", finStatus.color)}>
                                       {finStatus.label}
                                     </Badge>
                                     {so.status !== 'Terkirim' && so.status !== 'Selesai' && so.status !== 'Batal' && (
-                                       <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Status: {so.status}</span>
+                                       <span className="text-[11px] font-bold text-slate-400 ">Status: {so.status}</span>
                                     )}
                                  </div>
                               </TableCell>
@@ -939,12 +1010,12 @@ export default function ClientsPage() {
                <Table>
                  <TableHeader className="bg-slate-50">
                     <TableRow>
-                       <TableHead className="font-black text-[10px] uppercase pl-8 py-4">Invoice ID</TableHead>
-                       <TableHead className="font-black text-[10px] uppercase">Issue Date</TableHead>
-                       <TableHead className="font-black text-[10px] uppercase">Due Date</TableHead>
-                       <TableHead className="font-black text-[10px] uppercase text-right">Total</TableHead>
-                       <TableHead className="font-black text-[10px] uppercase text-right">Remaining</TableHead>
-                       <TableHead className="font-black text-[10px] uppercase text-center">Status</TableHead>
+                       <TableHead className="font-bold text-[11px] uppercase pl-8 py-4">Invoice ID</TableHead>
+                       <TableHead className="font-bold text-[11px] uppercase">Issue Date</TableHead>
+                       <TableHead className="font-bold text-[11px] uppercase">Due Date</TableHead>
+                       <TableHead className="font-bold text-[11px] uppercase text-right">Total</TableHead>
+                       <TableHead className="font-bold text-[11px] uppercase text-right">Remaining</TableHead>
+                       <TableHead className="font-bold text-[11px] uppercase text-center">Status</TableHead>
                     </TableRow>
                  </TableHeader>
                  <TableBody>
@@ -955,9 +1026,9 @@ export default function ClientsPage() {
                         <TableRow key={inv.id} className="hover:bg-slate-50 cursor-pointer transition-colors" onClick={() => setInvoicePreview({ id: inv.id, isConsolidated: inv.isConsolidated || false })}>
                            <TableCell className="pl-8 py-5 text-xs">
                              <div className="flex flex-col">
-                               <span className="font-black text-indigo-600 uppercase">{inv.id.substring(0,8)}</span>
+                               <span className="font-bold text-indigo-600 uppercase">{inv.id.substring(0,8)}</span>
                                {selectedClient.isBrand && inv.clientId !== selectedClient.id && (
-                                 <span className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">
+                                 <span className="text-[11px] font-bold text-slate-400 uppercase mt-0.5">
                                    Outlet: {clients.find(c => c.id === inv.clientId)?.companyName || 'Unknown'}
                                  </span>
                                )}
@@ -965,11 +1036,11 @@ export default function ClientsPage() {
                            </TableCell>
                            <TableCell className="text-xs font-bold text-slate-600">{format(new Date(inv.issueDate), 'dd MMM yyyy')}</TableCell>
                            <TableCell className="text-xs font-bold text-slate-600">{format(new Date(inv.dueDate), 'dd MMM yyyy')}</TableCell>
-                           <TableCell className="text-right font-black text-slate-900">{formatRupiah(inv.totalAmount)}</TableCell>
-                           <TableCell className="text-right font-black text-rose-600">{formatRupiah(inv.totalAmount - inv.amountPaid)}</TableCell>
+                           <TableCell className="text-right font-bold text-slate-900">{formatRupiah(inv.totalAmount)}</TableCell>
+                           <TableCell className="text-right font-bold text-rose-600">{formatRupiah(inv.totalAmount - inv.amountPaid)}</TableCell>
                            <TableCell className="text-center">
                               <Badge className={cn(
-                                "text-[9px] font-black uppercase rounded-full px-2 py-0.5 border shadow-sm",
+                                "text-[11px] font-bold uppercase rounded-full px-2 py-0.5 border shadow-sm",
                                 inv.status === 'Paid' ? "bg-emerald-100 text-emerald-700 border-emerald-200" : "bg-rose-100 text-rose-700 border-rose-200"
                               )}>
                                 {inv.status}
@@ -1011,7 +1082,7 @@ export default function ClientsPage() {
                             <SelectTrigger className="h-10 rounded-xl bg-slate-50 border-slate-200 text-xs font-bold text-slate-700 shadow-sm">
                                <SelectValue placeholder="Pilih Waktu" />
                             </SelectTrigger>
-                            <SelectContent className="rounded-xl border-slate-200 shadow-xl">
+                            <SelectContent className="rounded-xl border-slate-200 shadow-sm">
                                <SelectItem value="all">Semua Waktu</SelectItem>
                                <SelectItem value="7days">7 Hari Terakhir</SelectItem>
                                <SelectItem value="30days">30 Hari Terakhir</SelectItem>
@@ -1031,7 +1102,7 @@ export default function ClientsPage() {
                                <SelectTrigger className="h-10 rounded-xl bg-slate-50 border-slate-200 text-xs font-bold text-slate-700 shadow-sm">
                                   <SelectValue placeholder="Pilih Outlet" />
                                </SelectTrigger>
-                               <SelectContent className="rounded-xl border-slate-200 shadow-xl">
+                               <SelectContent className="rounded-xl border-slate-200 shadow-sm">
                                   <SelectItem value="all">Semua Outlet & Induk</SelectItem>
                                   <SelectItem value="parent_only">Hanya Induk</SelectItem>
                                   {brandBranches.map(branch => (
@@ -1053,7 +1124,7 @@ export default function ClientsPage() {
                             <SelectTrigger className="h-10 rounded-xl bg-slate-50 border-slate-200 text-xs font-bold text-slate-700 shadow-sm">
                                <SelectValue placeholder="Urutkan" />
                             </SelectTrigger>
-                            <SelectContent className="rounded-xl border-slate-200 shadow-xl">
+                            <SelectContent className="rounded-xl border-slate-200 shadow-sm">
                                <SelectItem value="qty">Urutkan: Kuantitas Terbanyak</SelectItem>
                                <SelectItem value="revenue">Urutkan: Pendapatan Tertinggi</SelectItem>
                                <SelectItem value="name">Urutkan: Nama Produk</SelectItem>
@@ -1064,7 +1135,7 @@ export default function ClientsPage() {
 
                    {/* Custom Date Picker Inputs */}
                    {historyTimeFilter === 'custom' && (
-                      <div className="flex flex-col sm:flex-row items-center gap-4 p-4 bg-slate-50 border border-slate-100 rounded-2xl animate-in fade-in slide-in-from-top-2 duration-200">
+                      <div className="flex flex-col sm:flex-row items-center gap-4 p-4 bg-slate-50 border border-slate-100 rounded-2xl duration-200">
                          <div className="flex items-center gap-2 w-full sm:w-auto">
                             <Label className="text-xs font-bold text-slate-500 whitespace-nowrap">Mulai:</Label>
                             <Input 
@@ -1090,8 +1161,8 @@ export default function ClientsPage() {
                    {clientProductHistory.length > 0 && (
                       <div className="bg-slate-50 border border-slate-100 p-6 rounded-2xl shadow-sm mb-4">
                          <div className="mb-4">
-                            <h4 className="text-sm font-black text-slate-800">Top 5 Produk Terlaris</h4>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Berdasarkan Volume Kuantitas Terkirim (qtyFinal)</p>
+                            <h4 className="text-sm font-bold text-slate-800">Top 5 Produk Terlaris</h4>
+                            <p className="text-[11px] font-bold text-slate-400  mt-0.5">Berdasarkan Volume Kuantitas Terkirim (qtyFinal)</p>
                          </div>
                          <div className="h-60 w-full">
                             <ResponsiveContainer width="100%" height="100%">
@@ -1126,13 +1197,13 @@ export default function ClientsPage() {
                       <Table>
                          <TableHeader className="bg-slate-50">
                             <TableRow>
-                               <TableHead className="font-black text-[10px] uppercase pl-6 py-4">SKU</TableHead>
-                               <TableHead className="font-black text-[10px] uppercase">Nama Produk</TableHead>
-                               <TableHead className="font-black text-[10px] uppercase">Kategori</TableHead>
-                               <TableHead className="font-black text-[10px] uppercase text-right">Kuantitas</TableHead>
-                               <TableHead className="font-black text-[10px] uppercase text-right">Avg Price</TableHead>
-                               <TableHead className="font-black text-[10px] uppercase text-right">Total Nilai</TableHead>
-                               <TableHead className="font-black text-[10px] uppercase text-center">Terakhir Dipesan</TableHead>
+                               <TableHead className="font-bold text-[11px] uppercase pl-6 py-4">SKU</TableHead>
+                               <TableHead className="font-bold text-[11px] uppercase">Nama Produk</TableHead>
+                               <TableHead className="font-bold text-[11px] uppercase">Kategori</TableHead>
+                               <TableHead className="font-bold text-[11px] uppercase text-right">Kuantitas</TableHead>
+                               <TableHead className="font-bold text-[11px] uppercase text-right">Avg Price</TableHead>
+                               <TableHead className="font-bold text-[11px] uppercase text-right">Total Nilai</TableHead>
+                               <TableHead className="font-bold text-[11px] uppercase text-center">Terakhir Dipesan</TableHead>
                             </TableRow>
                          </TableHeader>
                          <TableBody>
@@ -1145,24 +1216,24 @@ export default function ClientsPage() {
                             ) : (
                                clientProductHistory.map((item) => (
                                   <TableRow key={item.productId} className="hover:bg-slate-50 transition-colors">
-                                     <TableCell className="pl-6 py-4 text-xs font-black text-slate-500 uppercase">
+                                     <TableCell className="pl-6 py-4 text-xs font-bold text-slate-500 uppercase">
                                         {item.skuCode}
                                      </TableCell>
                                      <TableCell className="text-xs font-bold text-slate-900">
                                         {item.productName}
                                      </TableCell>
                                      <TableCell className="text-xs text-slate-600">
-                                        <Badge className="bg-slate-100 text-slate-600 hover:bg-slate-100 border-none text-[9px] font-black uppercase px-2 py-0.5 rounded-full">
+                                        <Badge className="bg-slate-100 text-slate-600 hover:bg-slate-100 border-none text-[11px] font-bold uppercase px-2 py-0.5 rounded-full">
                                            {item.category}
                                         </Badge>
                                      </TableCell>
-                                     <TableCell className="text-right text-xs font-black text-slate-700">
+                                     <TableCell className="text-right text-xs font-bold text-slate-700">
                                         {item.totalQtyFinal} {item.uom}
                                      </TableCell>
-                                     <TableCell className="text-right text-xs font-black text-slate-700">
+                                     <TableCell className="text-right text-xs font-bold text-slate-700">
                                         {formatRupiah(item.avgPrice)}
                                      </TableCell>
-                                     <TableCell className="text-right text-xs font-black text-emerald-600">
+                                     <TableCell className="text-right text-xs font-bold text-emerald-600">
                                         {formatRupiah(item.totalValue)}
                                      </TableCell>
                                      <TableCell className="text-center text-xs font-bold text-slate-500">
@@ -1181,10 +1252,10 @@ export default function ClientsPage() {
                <Table>
                  <TableHeader className="bg-slate-50">
                     <TableRow>
-                       <TableHead className="font-black text-[10px] uppercase pl-8 py-4">Payment Date</TableHead>
-                       <TableHead className="font-black text-[10px] uppercase">Amount</TableHead>
-                       <TableHead className="font-black text-[10px] uppercase">Method</TableHead>
-                       <TableHead className="font-black text-[10px] uppercase">Notes</TableHead>
+                       <TableHead className="font-bold text-[11px] uppercase pl-8 py-4">Payment Date</TableHead>
+                       <TableHead className="font-bold text-[11px] uppercase">Amount</TableHead>
+                       <TableHead className="font-bold text-[11px] uppercase">Method</TableHead>
+                       <TableHead className="font-bold text-[11px] uppercase">Notes</TableHead>
                     </TableRow>
                  </TableHeader>
                  <TableBody>
@@ -1200,14 +1271,14 @@ export default function ClientsPage() {
                              <div className="flex flex-col">
                                <span className="font-bold text-slate-600">{format(new Date(p.date), 'dd MMM yyyy')}</span>
                                {selectedClient.isBrand && invoices.find(inv => inv.id === p.invId)?.clientId !== selectedClient.id && (
-                                 <span className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">
+                                 <span className="text-[11px] font-bold text-slate-400 uppercase mt-0.5">
                                    Outlet: {clients.find(c => c.id === invoices.find(inv => inv.id === p.invId)?.clientId)?.companyName || 'Unknown'}
                                  </span>
                                )}
                              </div>
                            </TableCell>
-                           <TableCell className="font-black text-emerald-600 text-base">{formatRupiah(p.amount)}</TableCell>
-                           <TableCell className="text-xs font-black uppercase text-slate-500 bg-slate-100 px-2 py-0.5 rounded-lg w-fit">{p.method || '-'}</TableCell>
+                           <TableCell className="font-bold text-emerald-600 text-base">{formatRupiah(p.amount)}</TableCell>
+                           <TableCell className="text-xs font-bold uppercase text-slate-500 bg-slate-100 px-2 py-0.5 rounded-lg w-fit">{p.method || '-'}</TableCell>
                            <TableCell className="text-xs text-slate-400 italic font-medium">{p.note || '-'}</TableCell>
                         </TableRow>
                       ))
@@ -1217,14 +1288,14 @@ export default function ClientsPage() {
             </TabsContent>
 
             <TabsContent value="notes" className="p-8 flex-1 flex flex-col gap-4">
-               <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Internal Collection Notes</Label>
+               <Label className="text-[11px] font-bold uppercase text-slate-400 tracking-widest">Internal Collection Notes</Label>
                <textarea 
-                  className="flex-1 w-full min-h-[300px] p-6 rounded-3xl bg-slate-50 border border-slate-100 text-sm font-bold text-slate-700 leading-relaxed focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all"
+                  className="flex-1 w-full min-h-[300px] p-6 rounded-lg bg-slate-50 border border-slate-100 text-sm font-bold text-slate-700 leading-relaxed focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all"
                   placeholder="Catatan untuk tim collection Sifa... (contoh: 'Owner susah dihubungi tiap Jumat', 'Minta invoice dipisah per unit')"
                   value={selectedClient.notes || ""}
                   onChange={(e) => updateClient(selectedClient.id, { notes: e.target.value })}
                />
-               <p className="text-[10px] text-slate-400 italic font-bold uppercase tracking-widest">* Catatan ini hanya terlihat oleh tim admin/finance internal.</p>
+               <p className="text-[11px] text-slate-400 italic font-bold ">* Catatan ini hanya terlihat oleh tim admin/finance internal.</p>
             </TabsContent>
           </Tabs>
         </div>
@@ -1244,28 +1315,28 @@ export default function ClientsPage() {
         <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open && !isDeleting) setDeleteTarget(null) }}>
           <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle className="text-sm font-black uppercase tracking-wider text-rose-600">
+              <DialogTitle className="text-sm font-bold  text-rose-600">
                 Hapus Klien
               </DialogTitle>
             </DialogHeader>
             {deleteTarget && (
               <div className="space-y-4">
                 <p className="text-sm font-bold text-slate-700">
-                  Hapus <span className="font-black text-slate-950">{deleteTarget.companyName}</span> dari daftar klien?
+                  Hapus <span className="font-bold text-slate-950">{deleteTarget.companyName}</span> dari daftar klien?
                 </p>
                 <div className="rounded-2xl bg-slate-50 p-3 space-y-1">
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Yang ikut terhapus</p>
+                  <p className="text-[11px] font-bold  text-slate-400">Yang ikut terhapus</p>
                   <p className="text-xs font-bold text-slate-600">
                     Daftar harga khusus klien ini
                     {clientPrices.filter(p => p.clientId === deleteTarget.id).length > 0
                       ? ` (${clientPrices.filter(p => p.clientId === deleteTarget.id).length} baris)`
                       : ' (belum ada)'}
                   </p>
-                  <p className="text-[10px] font-bold text-slate-400 pt-1">
+                  <p className="text-[11px] font-bold text-slate-400 pt-1">
                     Klien ini belum punya PO, tagihan, atau tukar faktur — jadi tidak ada riwayat yang hilang.
                   </p>
                 </div>
-                <p className="text-[10px] font-black uppercase tracking-wider text-rose-500">
+                <p className="text-[11px] font-bold  text-rose-500">
                   Tindakan ini tidak bisa dibatalkan
                 </p>
                 <div className="flex gap-2">
@@ -1273,14 +1344,14 @@ export default function ClientsPage() {
                     variant="outline"
                     onClick={() => setDeleteTarget(null)}
                     disabled={isDeleting}
-                    className="flex-1 rounded-xl h-11 font-extrabold text-[10px] uppercase tracking-wider"
+                    className="flex-1 rounded-xl h-11 font-semibold text-[11px] "
                   >
                     Batal
                   </Button>
                   <Button
                     onClick={handleConfirmDelete}
                     disabled={isDeleting}
-                    className="flex-1 bg-rose-600 hover:bg-rose-700 text-white rounded-xl h-11 font-extrabold text-[10px] uppercase tracking-wider"
+                    className="flex-1 bg-rose-600 hover:bg-rose-700 text-white rounded-xl h-11 font-semibold text-[11px] "
                   >
                     {isDeleting ? 'Menghapus...' : 'Ya, Hapus'}
                   </Button>
@@ -1297,10 +1368,11 @@ export default function ClientsPage() {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="flex items-center gap-4">
-          <span className="text-4xl emoji-3d">👥</span>
           <div>
-            <h2 className="text-3xl font-black tracking-tight text-slate-900">Clients Database</h2>
-            <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Kelola data pelanggan & kondisi piutang</p>
+            <h2 className="text-[19px] leading-tight font-semibold text-slate-900">Klien</h2>
+            <p className="mt-[3px] text-[12.5px] text-slate-400">
+              {ringkasanKlien.total} outlet · {ringkasanKlien.punyaPiutang} punya piutang aktif · {ringkasanKlien.belumLengkap} outlet belum lengkap datanya
+            </p>
           </div>
         </div>
         
@@ -1407,31 +1479,31 @@ export default function ClientsPage() {
               }
               input.click()
             }}>
-            <Upload className="mr-2 h-4 w-4" /> Import CSV
+            <Upload className="mr-2 h-4 w-4" /> Impor CSV
           </Button>
 
           <Dialog open={isOpen} onOpenChange={(open) => {
             setIsOpen(open)
             if (!open) resetForm()
           }}>
-            <DialogTrigger render={<Button className="bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-full h-12 px-6 shadow-[0_10px_30px_rgba(16,185,129,0.3)] hover:-translate-y-1 transition-all" />}>
+            <DialogTrigger render={<Button className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-full h-12 px-6 shadow-[0_10px_30px_rgba(16,185,129,0.3)] transition-all" />}>
               <div className="flex items-center">
-                <Plus className="mr-2 h-5 w-5" /> Add New Client
+                <Plus className="mr-2 h-4 w-4" /> Tambah outlet
               </div>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px] rounded-3xl border-none shadow-2xl">
+            <DialogContent className="sm:max-w-[500px] rounded-lg border-none shadow-sm">
               <form onSubmit={async (e) => {
                 e.preventDefault();
                 await handleSave();
               }}>
                 <DialogHeader>
-                  <DialogTitle className="text-xl font-black">
+                  <DialogTitle className="text-xl font-bold">
                     {editingClient ? "Edit Client" : "Add New Client"}
                   </DialogTitle>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="companyName" className="text-xs font-black uppercase text-slate-400 tracking-widest">Company Name</Label>
+                    <Label htmlFor="companyName" className="text-xs font-bold uppercase text-slate-400 tracking-widest">Company Name</Label>
                     <Input 
                       id="companyName" 
                       required
@@ -1442,7 +1514,7 @@ export default function ClientsPage() {
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="picName" className="text-xs font-black uppercase text-slate-400 tracking-widest">PIC Name</Label>
+                    <Label htmlFor="picName" className="text-xs font-bold uppercase text-slate-400 tracking-widest">PIC Name</Label>
                     <Input 
                       id="picName" 
                       required
@@ -1453,7 +1525,7 @@ export default function ClientsPage() {
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="email" className="text-xs font-black uppercase text-slate-400 tracking-widest">Email</Label>
+                    <Label htmlFor="email" className="text-xs font-bold uppercase text-slate-400 tracking-widest">Email</Label>
                     <Input 
                       id="email" 
                       type="email"
@@ -1464,7 +1536,7 @@ export default function ClientsPage() {
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="phone" className="text-xs font-black uppercase text-slate-400 tracking-widest">Phone Number</Label>
+                    <Label htmlFor="phone" className="text-xs font-bold uppercase text-slate-400 tracking-widest">Phone Number</Label>
                     <Input 
                       id="phone" 
                       value={formData.phone}
@@ -1474,7 +1546,7 @@ export default function ClientsPage() {
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="address" className="text-xs font-black uppercase text-slate-400 tracking-widest">Address</Label>
+                    <Label htmlFor="address" className="text-xs font-bold uppercase text-slate-400 tracking-widest">Address</Label>
                     <Input 
                       id="address" 
                       value={formData.address}
@@ -1484,7 +1556,7 @@ export default function ClientsPage() {
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="paymentTerms" className="text-xs font-black uppercase text-slate-400 tracking-widest">Payment Terms (Days)</Label>
+                    <Label htmlFor="paymentTerms" className="text-xs font-bold uppercase text-slate-400 tracking-widest">Payment Terms (Days)</Label>
                     <Input 
                       id="paymentTerms" 
                       type="number"
@@ -1495,7 +1567,7 @@ export default function ClientsPage() {
                   </div>
 
                   <div className="grid gap-2">
-                    <Label htmlFor="defaultPriceTier" className="text-xs font-black uppercase text-slate-400 tracking-widest">Default Price Tier</Label>
+                    <Label htmlFor="defaultPriceTier" className="text-xs font-bold uppercase text-slate-400 tracking-widest">Default Price Tier</Label>
                     <Select 
                       value={formData.defaultPriceTier}
                       onValueChange={(val) => setFormData({ ...formData, defaultPriceTier: val as ClientPriceTier })}
@@ -1503,7 +1575,7 @@ export default function ClientsPage() {
                       <SelectTrigger id="defaultPriceTier" className="h-11 rounded-xl bg-white border-slate-200 text-xs font-bold text-slate-700">
                         <SelectValue placeholder="Pilih Tier..." />
                       </SelectTrigger>
-                      <SelectContent className="rounded-2xl border-none shadow-2xl">
+                      <SelectContent className="rounded-2xl border-none shadow-sm">
                         <SelectItem value="Standard">Standard (No default tier)</SelectItem>
                         {['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4', 'Tier 5'].map((tier) => {
                           const margin = tierMargins?.[tier as ClientPriceTier] ?? 0;
@@ -1534,14 +1606,14 @@ export default function ClientsPage() {
                           })
                         }}
                       />
-                      <Label htmlFor="isBrand" className="text-xs font-black uppercase text-slate-700 tracking-wider cursor-pointer">
+                      <Label htmlFor="isBrand" className="text-xs font-bold uppercase text-slate-700 tracking-wider cursor-pointer">
                         Brand / Induk Group
                       </Label>
                     </div>
 
                     {!formData.isBrand && (
                       <div className="grid gap-1">
-                        <Label htmlFor="parentId" className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                        <Label htmlFor="parentId" className="text-[11px] font-bold uppercase text-slate-400 tracking-widest">
                           Hubungkan ke Brand
                         </Label>
                         <Select 
@@ -1555,7 +1627,7 @@ export default function ClientsPage() {
                               ) : undefined}
                             </SelectValue>
                           </SelectTrigger>
-                          <SelectContent className="rounded-2xl border-none shadow-2xl">
+                          <SelectContent className="rounded-2xl border-none shadow-sm">
                             <SelectItem value="none">Independent (Tidak Ada)</SelectItem>
                             {clients
                               .filter(c => c.isBrand && c.id !== editingClient?.id)
@@ -1572,7 +1644,7 @@ export default function ClientsPage() {
                 </div>
                 <div className="flex justify-end gap-3 mt-4">
                   <Button type="button" variant="outline" className="rounded-full h-12 px-6 font-bold" onClick={() => setIsOpen(false)} disabled={isSaving}>Cancel</Button>
-                  <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-full h-12 px-6 shadow-lg shadow-emerald-500/20" disabled={isSaving}>
+                  <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-full h-12 px-6 shadow-sm" disabled={isSaving}>
                     {isSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Menyimpan...</> : "Save Client"}
                   </Button>
                 </div>
@@ -1607,7 +1679,7 @@ export default function ClientsPage() {
             <SelectTrigger className="h-14 rounded-full bg-white border-none shadow-[0_8px_30px_rgba(0,0,0,0.06)] font-bold text-slate-700 focus:ring-emerald-500/20">
               <SelectValue placeholder="Sort By" />
             </SelectTrigger>
-            <SelectContent className="rounded-2xl border-none shadow-2xl">
+            <SelectContent className="rounded-2xl border-none shadow-sm">
               <SelectItem value="companyName-asc">Sort: Nama Client (A-Z)</SelectItem>
               <SelectItem value="companyName-desc">Sort: Nama Client (Z-A)</SelectItem>
               <SelectItem value="totalRevenue-desc">Sort: Total Transaksi (Tertinggi)</SelectItem>
@@ -1628,7 +1700,7 @@ export default function ClientsPage() {
             <SelectTrigger className="h-14 rounded-full bg-white border-none shadow-[0_8px_30px_rgba(0,0,0,0.06)] font-bold text-slate-700 focus:ring-emerald-500/20">
               <SelectValue placeholder="Filter Hutang" />
             </SelectTrigger>
-            <SelectContent className="rounded-2xl border-none shadow-2xl">
+            <SelectContent className="rounded-2xl border-none shadow-sm">
               <SelectItem value="all">Semua Client</SelectItem>
               <SelectItem value="has_debt">Ada Hutang Saja</SelectItem>
             </SelectContent>
@@ -1637,12 +1709,12 @@ export default function ClientsPage() {
       </div>
 
       {selectedClientIds.length > 0 && (
-        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 p-5 bg-indigo-50/80 border border-indigo-100 rounded-3xl mt-6 animate-in fade-in slide-in-from-top-3 duration-300">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 p-5 bg-indigo-50/80 border border-indigo-100 rounded-lg mt-6 duration-300">
           <div className="flex items-center gap-3">
-            <span className="text-xs font-black text-indigo-800 uppercase tracking-widest bg-indigo-100 px-3 py-1.5 rounded-full shadow-sm">
+            <span className="text-xs font-bold text-indigo-800  bg-indigo-100 px-3 py-1.5 rounded-full shadow-sm">
               {selectedClientIds.length} Client Terpilih
             </span>
-            <span className="text-xs text-slate-500 font-bold uppercase tracking-tight">Massal Action:</span>
+            <span className="text-xs text-slate-500 font-bold ">Massal Action:</span>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <div className="w-56">
@@ -1661,7 +1733,7 @@ export default function ClientsPage() {
                     )}
                   </SelectValue>
                 </SelectTrigger>
-                <SelectContent className="rounded-2xl border-none shadow-2xl">
+                <SelectContent className="rounded-2xl border-none shadow-sm">
                   <SelectItem value="none">Lepas dari Brand (Mandiri)</SelectItem>
                   {clients
                     .filter(c => c.isBrand)
@@ -1675,7 +1747,7 @@ export default function ClientsPage() {
             </div>
             <Button 
               size="sm" 
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[10px] uppercase tracking-wider px-5 py-2.5 rounded-xl shadow-lg shadow-indigo-500/20"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px]  px-5 py-2.5 rounded-xl shadow-sm shadow-indigo-500/20"
               onClick={handleBulkAssignBrand}
             >
               Masukin ke Induk Brand
@@ -1683,7 +1755,7 @@ export default function ClientsPage() {
             <Button 
               size="sm" 
               variant="ghost"
-              className="text-slate-500 hover:text-slate-800 text-[10px] font-black uppercase tracking-wider px-3"
+              className="text-slate-500 hover:text-slate-800 text-[11px] font-bold  px-3"
               onClick={() => {
                 setSelectedClientIds([])
                 setBulkParentId("")
@@ -1695,7 +1767,31 @@ export default function ClientsPage() {
         </div>
       )}
 
-      <div className="liquid-card overflow-hidden mt-6 bg-white border border-slate-100 shadow-xl">
+      {ringkasanKlien.belumLengkap > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-200 bg-row-warning px-5 py-4">
+          <AlertTriangle className="h-4 w-4 flex-none text-amber-500" />
+          <p className="min-w-0 flex-1 text-[13px] leading-snug text-slate-700">
+            {ringkasanKlien.belumLengkap} outlet belum punya nama PIC, nomor telepon, atau alamat.{' '}
+            <span className="text-amber-500">
+              Kurir jalan tanpa nomor yang bisa dihubungi, dan tagih via WhatsApp jatuh ke input manual tiap kali.
+            </span>
+          </p>
+          <Button
+            variant="dark"
+            size="sm"
+            onClick={() => {
+              const target = processedClients.find(c => !c.picName || !c.phone || !c.address)
+              if (target) setPanelClientId(target.id)
+              else toast.success('Semua outlet sudah lengkap datanya.')
+            }}
+          >
+            Lengkapi sekarang
+          </Button>
+        </div>
+      )}
+
+      <div className={cn("mt-6 grid items-start gap-[18px]", panelClient && "lg:grid-cols-[1fr_360px]")}>
+        <div className="overflow-hidden rounded-lg border border-border bg-card">
         <Table>
           <TableHeader className="bg-slate-50/50 border-b border-slate-100">
             <TableRow className="hover:bg-transparent">
@@ -1707,24 +1803,24 @@ export default function ClientsPage() {
                   onChange={toggleSelectAll}
                 />
               </TableHead>
-              {renderSortHeader("companyName", "Company Info", "left")}
-              {renderSortHeader("picName", "PIC / Contact", "left")}
-              {renderSortHeader("totalRevenue", "Total Revenue", "right")}
-              {renderSortHeader("outstandingAR", "Outstanding AR", "right")}
-              {renderSortHeader("nearestDue", "Nearest Due", "center")}
-              {renderSortHeader("health", "Health", "center")}
+              {renderSortHeader("companyName", "Nama outlet", "left")}
+              {renderSortHeader("picName", "PIC & telepon", "left")}
+              {renderSortHeader("totalRevenue", "Omzet 6 bln", "right")}
+              {renderSortHeader("outstandingAR", "Piutang", "right")}
+              {renderSortHeader("nearestDue", "Jatuh tempo terdekat", "center")}
+              {renderSortHeader("health", "Status", "center")}
             </TableRow>
           </TableHeader>
           <TableBody>
             {processedClients.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-48 text-center text-slate-400 italic font-bold uppercase tracking-widest">
-                  Belum ada data client yang sesuai...
+                <TableCell colSpan={7} className="h-48 text-center text-slate-400 italic font-bold ">
+                  Tidak ada outlet yang cocok dengan pencarian.
                 </TableCell>
               </TableRow>
             ) : (
               processedClients.map((client: Client) => {
-                const totalRevenue = getClientLifetimeRevenue(client.id)
+                const totalRevenue = getClientRevenue6M(client.id)
                 const nearestDue = getNearestDueDate(client.id)
                 const health = getClientHealth(client.id)
                 const totalDebt = getClientOutstandingAR(client.id)
@@ -1736,10 +1832,11 @@ export default function ClientsPage() {
                   <TableRow 
                     key={client.id} 
                     className={cn(
-                      "hover:bg-slate-50/80 transition-colors group border-b border-slate-50 text-sm cursor-pointer",
-                      isSelected && "bg-indigo-50/20 hover:bg-indigo-50/30"
+                      "group cursor-pointer border-b border-hairline-row text-[12.5px] transition-colors duration-150 hover:bg-row-head",
+                      /Macet|Bermasalah|Buruk/i.test(health.label) && "bg-row-risk",
+                      isSelected && "bg-row-selected"
                     )}
-                    onClick={() => setSelectedClientId(client.id)}
+                    onClick={() => setPanelClientId(client.id)}
                   >
                     <TableCell className="w-16 text-center pl-8 py-6" onClick={(e) => e.stopPropagation()}>
                       <input 
@@ -1752,25 +1849,25 @@ export default function ClientsPage() {
                     <TableCell className="py-6 pl-4">
                       <div className="flex flex-col">
                         <div className="flex items-center gap-2 mb-2 flex-wrap">
-                          <span className="font-black text-slate-800 tracking-tight text-base leading-none">{client.companyName}</span>
+                          <span className="font-bold text-slate-800 tracking-tight text-base leading-none">{client.companyName}</span>
                           {client.isBrand && (
-                            <Badge className="bg-indigo-100 hover:bg-indigo-100 border-none text-indigo-700 text-[9px] font-black uppercase px-2 py-0.5 rounded-full shadow-sm">
-                              🏢 Brand / Group
+                            <Badge className="bg-indigo-100 hover:bg-indigo-100 border-none text-indigo-700 text-[11px] font-bold uppercase px-2 py-0.5 rounded-full shadow-sm">
+                              Grup
                             </Badge>
                           )}
                         </div>
                         <div className="flex items-center gap-1.5 flex-wrap">
-                           <Badge variant="outline" className="text-[9px] font-black border-slate-200 text-slate-500 bg-slate-50 h-5 px-2 rounded-full uppercase">
-                              {client.paymentTermDays}D Terms
+                           <Badge variant="outline" className="text-[11px] font-bold border-slate-200 text-slate-500 bg-slate-50 h-5 px-2 rounded-full uppercase">
+                              tempo {client.paymentTermDays} hari
                            </Badge>
                            {client.isBrand && (
-                             <span className="text-[10px] text-indigo-500 font-bold uppercase tracking-tight">
+                             <span className="text-[11px] text-indigo-500 font-bold ">
                                • {outletsCount} Outlet
                              </span>
                            )}
                            {parentClient && (
-                             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tight flex items-center gap-1">
-                               • Cabang dari: <span className="text-slate-600 font-extrabold">{parentClient.companyName}</span>
+                             <span className="text-[11px] text-slate-400 font-bold  flex items-center gap-1">
+                               • Cabang dari: <span className="text-slate-600 font-semibold">{parentClient.companyName}</span>
                              </span>
                            )}
                         </div>
@@ -1778,23 +1875,29 @@ export default function ClientsPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col">
-                        <span className="font-bold text-slate-700">{client.picName}</span>
-                        <span className="text-[10px] text-slate-400 font-black uppercase mt-0.5 tracking-tighter">{client.phone || '-'}</span>
+                        {/* Sel kosong ditulis apa adanya — strip kosong bikin orang
+                            mengira datanya ada tapi gagal tampil. */}
+                        <span className={cn("text-[13px]", client.picName ? "font-medium text-slate-900" : "text-slate-300")}>
+                          {client.picName || 'belum diisi'}
+                        </span>
+                        <span className={cn("mt-0.5 text-[11.5px]", client.phone ? "text-slate-500" : "text-slate-300")}>
+                          {client.phone || 'belum diisi'}
+                        </span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right font-black text-slate-900 text-base">
+                    <TableCell className="text-right font-bold text-slate-900 text-base">
                       {formatRupiah(totalRevenue)}
                     </TableCell>
                     <TableCell className="text-right">
-                      <span className={cn("font-black text-base", totalDebt > 0 ? "text-rose-600" : "text-emerald-600")}>
+                      <span className={cn("font-bold text-base", totalDebt > 0 ? "text-rose-600" : "text-emerald-600")}>
                         {formatRupiah(totalDebt)}
                       </span>
                     </TableCell>
-                    <TableCell className="text-center font-black text-xs text-slate-500">
+                    <TableCell className="text-center font-bold text-xs text-slate-500">
                       {nearestDue ? format(nearestDue, 'dd MMM yyyy') : '-'}
                     </TableCell>
                     <TableCell className="text-center">
-                       <Badge className={cn("text-[9px] font-black uppercase rounded-full px-2 py-0.5 border shadow-sm", health.color)}>
+                       <Badge className={cn("text-[11px] font-bold uppercase rounded-full px-2 py-0.5 border shadow-sm", health.color)}>
                          {health.label}
                        </Badge>
                     </TableCell>
@@ -1804,19 +1907,93 @@ export default function ClientsPage() {
             )}
           </TableBody>
         </Table>
+        </div>
+
+        {/* Panel ringkas — tabel tetap terlihat. Detail lengkap dibuka dari sini. */}
+        {panelClient && (
+          <aside className="rounded-lg border border-border bg-card lg:sticky lg:top-6">
+            <div className="border-b border-hairline px-5 py-4">
+              <h3 className="text-sm leading-snug font-semibold text-slate-900">{panelClient.companyName}</h3>
+              <p className="mt-1.5 flex flex-wrap items-center gap-2 text-[11.5px] text-slate-400">
+                <span className="rounded-[5px] bg-emerald-50 px-2 py-1 font-medium text-emerald-600">
+                  {panelClient.defaultPriceTier || 'Standard'}
+                </span>
+                tempo {panelClient.paymentTermDays} hari
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2">
+              {[
+                { label: 'Omzet 6 bulan', value: formatRupiahShort(getClientRevenue6M(panelClient.id)) },
+                { label: 'Piutang', value: formatRupiahShort(getClientOutstandingAR(panelClient.id)), tone: getClientOutstandingAR(panelClient.id) > 0 },
+                { label: 'Pesanan 6 bulan', value: String(panelStats.orderCount) },
+                { label: 'Rata-rata bayar', value: panelStats.avgPayDays === null ? 'belum ada data' : `${panelStats.avgPayDays} hari` },
+              ].map((m, i) => (
+                <div key={i} className={cn("border-hairline px-5 py-4", i % 2 === 0 && "border-r", i < 2 && "border-b")}>
+                  <div className="text-xs text-slate-400">{m.label}</div>
+                  <div className={cn("tabular mt-1 text-[17px] leading-tight font-semibold", m.tone ? "text-rose-500" : "text-slate-900")}>
+                    {m.value}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {(!panelClient.picName || !panelClient.phone || !panelClient.address) && (
+              <div className="border-b border-hairline bg-row-warning px-5 py-4">
+                <p className="text-[12.5px] font-medium text-amber-500">Data kontak belum lengkap</p>
+                <div className="mt-2 space-y-1.5">
+                  {[
+                    { label: 'Nama PIC', value: panelClient.picName },
+                    { label: 'No telepon / WA', value: panelClient.phone },
+                    { label: 'Alamat kirim', value: panelClient.address },
+                  ].map(f => (
+                    <div key={f.label} className="flex justify-between gap-3 text-[12.5px]">
+                      <span className="text-slate-500">{f.label}</span>
+                      <span className={f.value ? "text-slate-900" : "text-slate-300"}>{f.value || 'belum diisi'}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="border-b border-hairline px-5 py-4">
+              <p className="text-[12.5px] font-medium text-slate-900">Pesanan terakhir</p>
+              {panelStats.lastOrders.length === 0 ? (
+                <p className="mt-2 text-[12.5px] text-slate-400">Belum ada pesanan.</p>
+              ) : (
+                <div className="mt-2 space-y-1.5">
+                  {panelStats.lastOrders.map(o => (
+                    <div key={o.id} className="flex justify-between gap-3 text-[12.5px]">
+                      <span className="min-w-0 truncate text-slate-500">
+                        <span className="font-mono text-[11.5px]">{o.poNumber}</span> {o.tanggal}
+                      </span>
+                      <span className="tabular flex-none text-slate-900">{formatRupiahShort(o.total)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2 px-5 py-4">
+              <Button size="sm" onClick={() => setSelectedClientId(panelClient.id)}>Buka detail lengkap</Button>
+              <Button size="sm" variant="outline" onClick={() => handleEdit(panelClient)}>Ubah data</Button>
+              <Button size="sm" variant="ghost" onClick={() => setPanelClientId(null)}>Tutup</Button>
+            </div>
+          </aside>
+        )}
       </div>
 
       {/* DIALOG: CLIENT HISTORY & DOCUMENT ARCHIVE */}
       <Dialog open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
-        <DialogContent className="max-w-5xl sm:max-w-5xl w-[95vw] max-h-[92vh] overflow-hidden flex flex-col p-0 rounded-[2.5rem] border-none shadow-2xl">
+        <DialogContent className="max-w-5xl sm:max-w-5xl w-[95vw] max-h-[92vh] overflow-hidden flex flex-col p-0 rounded-2xl border-none shadow-sm">
           <DialogHeader className="p-8 bg-slate-900 text-white shrink-0">
              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-3xl bg-white/10 flex items-center justify-center text-emerald-400 shadow-inner">
+                <div className="w-14 h-14 rounded-lg bg-card flex items-center justify-center text-emerald-400 shadow-inner">
                   <History className="w-8 h-8" />
                 </div>
                 <div>
-                   <DialogTitle className="text-2xl font-black tracking-tight">{selectedHistoryClient?.companyName}</DialogTitle>
-                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400 mt-1 flex items-center gap-2">
+                   <DialogTitle className="text-2xl font-bold tracking-tight">{selectedHistoryClient?.companyName}</DialogTitle>
+                   <p className="text-[11px] font-bold  text-emerald-400 mt-1 flex items-center gap-2">
                      <FileText className="w-3 h-3" /> Arsip Dokumen & Riwayat Transaksi
                    </p>
                 </div>
@@ -1827,16 +2004,16 @@ export default function ClientsPage() {
              <Tabs defaultValue="orders" className="w-full">
                 <div className="px-8 pt-6 pb-0 bg-white border-b border-slate-100 flex justify-center">
                    <TabsList className="bg-slate-100 p-1 rounded-2xl h-12 w-fit mb-4">
-                      <TabsTrigger value="orders" className="rounded-xl px-6 font-black uppercase text-[10px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                      <TabsTrigger value="orders" className="rounded-xl px-6 font-bold uppercase text-[11px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-sm">
                          Order & Item
                       </TabsTrigger>
-                      <TabsTrigger value="purchases" className="rounded-xl px-6 font-black uppercase text-[10px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                      <TabsTrigger value="purchases" className="rounded-xl px-6 font-bold uppercase text-[11px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-sm">
                          Belanja
                       </TabsTrigger>
-                      <TabsTrigger value="billing" className="rounded-xl px-6 font-black uppercase text-[10px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                      <TabsTrigger value="billing" className="rounded-xl px-6 font-bold uppercase text-[11px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-sm">
                          Invoice
                       </TabsTrigger>
-                      <TabsTrigger value="payments" className="rounded-xl px-6 font-black uppercase text-[10px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                      <TabsTrigger value="payments" className="rounded-xl px-6 font-bold uppercase text-[11px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-sm">
                          Riwayat Pembayaran
                       </TabsTrigger>
                    </TabsList>
@@ -1858,24 +2035,24 @@ export default function ClientsPage() {
                              const soTotal = items.reduce((s, it) => s + ((it.qtyFinal ?? it.qty) * it.unitPrice), 0)
                              const productName = (id: string) => products.find(p => p.id === id)?.name || id.slice(0,8)
                              return (
-                               <div key={so.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300">
+                               <div key={so.id} className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300">
                                   <div className="flex justify-between items-start mb-4">
                                      <div>
-                                        <span className="text-[10px] font-black tracking-widest uppercase text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">{so.poNumber}</span>
-                                        <p className="text-xs font-black text-slate-400 uppercase tracking-tight mt-2">{new Date(so.orderDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                                        <span className="text-[11px] font-bold  text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">{so.poNumber}</span>
+                                        <p className="text-xs font-bold text-slate-400  mt-2">{new Date(so.orderDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                                      </div>
                                      <div className="flex flex-col items-end gap-1">
-                                        <Badge variant="outline" className="font-black text-[10px] uppercase rounded-full">
+                                        <Badge variant="outline" className="font-bold text-[11px] uppercase rounded-full">
                                           {so.status}
                                         </Badge>
-                                        <span className="text-lg font-black text-emerald-700 tracking-tight">{formatRupiah(soTotal)}</span>
+                                        <span className="text-lg font-bold text-emerald-700 tracking-tight">{formatRupiah(soTotal)}</span>
                                      </div>
                                   </div>
 
                                   {/* LINE ITEMS */}
                                   {items.length > 0 && (
                                     <div className="mb-4 bg-slate-50 rounded-2xl p-4 border border-slate-100">
-                                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2">Item ({items.length})</p>
+                                      <p className="text-[11px] font-bold  text-slate-400 mb-2">Item ({items.length})</p>
                                       <div className="space-y-1.5">
                                         {items.map(it => {
                                           const qty = it.qtyFinal ?? it.qty
@@ -1889,7 +2066,7 @@ export default function ClientsPage() {
                                                   {qty} × {formatRupiah(it.unitPrice)}
                                                   {adjusted && <span className="text-amber-600 ml-1">(adj from {it.qty})</span>}
                                                 </span>
-                                                <span className="font-black text-slate-800 min-w-[110px] text-right">{formatRupiah(sub)}</span>
+                                                <span className="font-bold text-slate-800 min-w-[110px] text-right">{formatRupiah(sub)}</span>
                                               </div>
                                             </div>
                                           )
@@ -1910,7 +2087,7 @@ export default function ClientsPage() {
                                          >
                                            <Eye className="w-3.5 h-3.5" />
                                          </Button>
-                                         <span className="text-[7px] font-black uppercase text-emerald-600/50">SJ</span>
+                                         <span className="text-[7px] font-bold uppercase text-emerald-600/50">SJ</span>
                                        </div>
                                      )}
                                      {so.archivedBaUrl && (
@@ -1923,13 +2100,13 @@ export default function ClientsPage() {
                                          >
                                            <Eye className="w-3.5 h-3.5" />
                                          </Button>
-                                         <span className="text-[7px] font-black uppercase text-indigo-600/50">BA</span>
+                                         <span className="text-[7px] font-bold uppercase text-indigo-600/50">BA</span>
                                        </div>
                                      )}
                                    </div>
                                   ) : (
                                     <div className="py-3 px-4 rounded-2xl bg-slate-50 border border-dashed border-slate-200">
-                                       <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center italic">Dokumen belum diarsipkan (Order {so.status})</p>
+                                       <p className="text-[11px] text-slate-400 font-bold  text-center italic">Dokumen belum diarsipkan (Order {so.status})</p>
                                     </div>
                                   )}
                                </div>
@@ -1963,29 +2140,29 @@ export default function ClientsPage() {
                           const actual = itemsForP.reduce((s, it) => s + (it.actualUnitPrice * it.qtyPurchased), 0)
                           const target = itemsForP.reduce((s, it) => s + (it.estimatedUnitPrice * it.qtyTarget), 0)
                           return (
-                            <div key={p.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+                            <div key={p.id} className="bg-white p-6 rounded-xl border border-slate-100 shadow-sm">
                               <div className="flex justify-between items-start mb-4">
                                 <div>
-                                  <span className="text-[10px] font-black tracking-widest uppercase text-violet-600 bg-violet-50 px-3 py-1 rounded-full">{p.id.slice(0,8)}</span>
-                                  <p className="text-xs font-black text-slate-400 uppercase tracking-tight mt-2">{new Date(p.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                                  <span className="text-[11px] font-bold  text-violet-600 bg-violet-50 px-3 py-1 rounded-full">{p.id.slice(0,8)}</span>
+                                  <p className="text-xs font-bold text-slate-400  mt-2">{new Date(p.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                                 </div>
                                 <div className="flex flex-col items-end gap-1">
-                                  <Badge variant="outline" className="font-black text-[10px] uppercase rounded-full">{p.status}</Badge>
-                                  <span className="text-[10px] font-bold text-slate-400">Target {formatRupiah(target)} → Actual {formatRupiah(actual)}</span>
+                                  <Badge variant="outline" className="font-bold text-[11px] uppercase rounded-full">{p.status}</Badge>
+                                  <span className="text-[11px] font-bold text-slate-400">Target {formatRupiah(target)} → Actual {formatRupiah(actual)}</span>
                                 </div>
                               </div>
                               <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
-                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2">Item Belanja ({itemsForP.length})</p>
+                                <p className="text-[11px] font-bold  text-slate-400 mb-2">Item Belanja ({itemsForP.length})</p>
                                 <div className="space-y-1.5">
                                   {itemsForP.map(it => (
                                     <div key={it.id} className="flex justify-between items-center text-xs">
                                       <div className="flex flex-col">
                                         <span className="font-bold text-slate-700">{productName(it.productId)}</span>
-                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">via {poNumberOf(it.salesOrderId)} {it.purchaseMethod ? `· ${it.purchaseMethod}` : ''}</span>
+                                        <span className="text-[11px] font-bold text-slate-400 ">via {poNumberOf(it.salesOrderId)} {it.purchaseMethod ? `· ${it.purchaseMethod}` : ''}</span>
                                       </div>
                                       <div className="flex items-center gap-3">
                                         <span className="text-slate-500 font-mono">{it.qtyPurchased}/{it.qtyTarget} × {formatRupiah(it.actualUnitPrice || it.estimatedUnitPrice)}</span>
-                                        <span className="font-black text-slate-800 min-w-[110px] text-right">{formatRupiah(it.actualUnitPrice * it.qtyPurchased)}</span>
+                                        <span className="font-bold text-slate-800 min-w-[110px] text-right">{formatRupiah(it.actualUnitPrice * it.qtyPurchased)}</span>
                                       </div>
                                     </div>
                                   ))}
@@ -2022,20 +2199,20 @@ export default function ClientsPage() {
                       return (
                         <>
                           <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 flex justify-between items-center">
-                             <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700">Total Terbayar</span>
-                             <span className="text-2xl font-black text-emerald-700 tracking-tight">{formatRupiah(total)}</span>
+                             <span className="text-[11px] font-bold  text-emerald-700">Total Terbayar</span>
+                             <span className="text-2xl font-bold text-emerald-700 tracking-tight">{formatRupiah(total)}</span>
                           </div>
                           <div className="space-y-3">
                             {rows.map((r, idx) => (
                               <div key={idx} className="bg-white p-4 rounded-2xl border border-slate-100 flex justify-between items-center">
                                 <div className="flex flex-col">
                                   <div className="flex items-center gap-2">
-                                    <span className="text-[10px] font-black tracking-widest uppercase text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">{r.invId.startsWith('TF-') ? r.invId : r.invId.slice(0,8)}</span>
-                                    {r.isConsol && <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none text-[8px] font-black uppercase">Tukar Faktur</Badge>}
+                                    <span className="text-[11px] font-bold  text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">{r.invId.startsWith('TF-') ? r.invId : r.invId.slice(0,8)}</span>
+                                    {r.isConsol && <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none text-[11px] font-bold uppercase">Tukar Faktur</Badge>}
                                   </div>
-                                  <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">{format(new Date(r.date), 'dd MMM yyyy')} {r.method ? `· ${r.method}` : ''} {r.note ? `· ${r.note}` : ''}</p>
+                                  <p className="text-[11px] font-bold text-slate-400 uppercase mt-1">{format(new Date(r.date), 'dd MMM yyyy')} {r.method ? `· ${r.method}` : ''} {r.note ? `· ${r.note}` : ''}</p>
                                 </div>
-                                <span className="font-black text-emerald-700">{formatRupiah(r.amount)}</span>
+                                <span className="font-bold text-emerald-700">{formatRupiah(r.amount)}</span>
                               </div>
                             ))}
                           </div>
@@ -2069,24 +2246,24 @@ export default function ClientsPage() {
                             visibleArchive
                               .sort((a,b) => new Date(b.issueDate).getTime() - new Date(a.issueDate).getTime())
                            .map(inv => (
-                             <div key={inv.id} className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300">
+                             <div key={inv.id} className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300">
                                 <div className="flex justify-between items-start">
                                    <div>
                                       <div className="flex items-center gap-2">
-                                         <span className="text-[10px] font-black tracking-widest uppercase text-blue-600 bg-blue-50 px-3 py-1 rounded-full">{inv.id.substring(0,8)}</span>
-                                         {inv.isConsolidated && <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none text-[8px] font-black uppercase">Consolidated</Badge>}
+                                         <span className="text-[11px] font-bold  text-blue-600 bg-blue-50 px-3 py-1 rounded-full">{inv.id.substring(0,8)}</span>
+                                         {inv.isConsolidated && <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none text-[11px] font-bold uppercase">Consolidated</Badge>}
                                       </div>
-                                      <p className="text-sm font-black text-slate-700 uppercase tracking-tight mt-2">{formatRupiah(inv.totalAmount)}</p>
+                                      <p className="text-sm font-bold text-slate-700  mt-2">{formatRupiah(inv.totalAmount)}</p>
                                       {inv.isConsolidated && inv.consolidatedOrderNumbers && (
-                                          <p className="text-[9px] font-black text-emerald-600 uppercase tracking-tight bg-emerald-50 w-fit px-2 py-0.5 rounded-lg mt-1 border border-emerald-100 italic">
+                                          <p className="text-[11px] font-bold text-emerald-600  bg-emerald-50 w-fit px-2 py-0.5 rounded-lg mt-1 border border-emerald-100 italic">
                                             {inv.consolidatedOrderNumbers.join(', ')}
                                           </p>
                                        )}
-                                      <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">Tempo: {format(new Date(inv.dueDate), 'dd MMM yyyy')}</p>
+                                      <p className="text-[11px] font-bold text-slate-400 uppercase mt-1">Tempo: {format(new Date(inv.dueDate), 'dd MMM yyyy')}</p>
                                    </div>
                                    <div className="flex flex-col items-end gap-2">
                                       <Badge className={cn(
-                                         "font-black text-[9px] uppercase rounded-full shadow-sm",
+                                         "font-bold text-[11px] uppercase rounded-full shadow-sm",
                                          inv.status === 'Paid' ? "bg-emerald-500 hover:bg-emerald-500" : "bg-rose-500 hover:bg-rose-500"
                                       )}>
                                          {inv.status}
@@ -2094,7 +2271,7 @@ export default function ClientsPage() {
                                       <Button 
                                          size="sm" 
                                          variant="outline" 
-                                         className="h-8 gap-2 rounded-xl border-slate-200 font-bold text-[10px] uppercase px-4"
+                                         className="h-8 gap-2 rounded-xl border-slate-200 font-bold text-[11px] uppercase px-4"
                                          onClick={() => setInvoicePreview({ id: inv.id, isConsolidated: inv.isConsolidated || false })}
                                       >
                                          <Eye className="w-3.5 h-3.5" /> Preview
@@ -2111,7 +2288,7 @@ export default function ClientsPage() {
           </div>
           
           <div className="p-6 bg-white border-t border-slate-100 shrink-0">
-             <Button className="w-full h-14 bg-slate-900 text-white font-black uppercase tracking-[0.2em] rounded-2xl" onClick={() => setIsHistoryOpen(false)}>
+             <Button className="w-full h-14 bg-slate-900 text-white font-bold  rounded-2xl" onClick={() => setIsHistoryOpen(false)}>
                 Tutup Arsip
              </Button>
           </div>
@@ -2120,20 +2297,20 @@ export default function ClientsPage() {
 
       {/* PDF PREVIEW MODAL */}
        <Dialog open={!!pdfPreview} onOpenChange={(open) => !open && setPdfPreview(null)}>
-        <DialogContent className="max-w-5xl h-[90vh] p-0 rounded-[2rem] overflow-hidden border-none bg-slate-900 shadow-2xl flex flex-col">
+        <DialogContent className="max-w-5xl h-[90vh] p-0 rounded-xl overflow-hidden border-none bg-slate-900 shadow-sm flex flex-col">
           <DialogHeader className="p-6 bg-slate-900 text-white flex flex-row items-center justify-between shrink-0">
              <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400">
                    <FileText className="w-5 h-5" />
                 </div>
                 <div>
-                   <DialogTitle className="text-lg font-black tracking-tight">{pdfPreview?.title}</DialogTitle>
-                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Client Archive Preview</p>
+                   <DialogTitle className="text-lg font-bold tracking-tight">{pdfPreview?.title}</DialogTitle>
+                   <p className="text-[11px] font-bold text-slate-400 ">Client Archive Preview</p>
                 </div>
              </div>
              <Button 
                 variant="ghost" 
-                className="text-slate-400 hover:text-white hover:bg-white/10 rounded-xl"
+                className="text-slate-400 hover:text-white hover:bg-slate-700 rounded-xl"
                 onClick={() => {
                   if (pdfPreview) {
                     const link = document.createElement('a');
@@ -2155,9 +2332,9 @@ export default function ClientsPage() {
                 />
              )}
           </div>
-          <div className="p-4 bg-slate-900 border-t border-white/5 flex justify-center sticky bottom-0">
+          <div className="p-4 bg-slate-900 border-t border-border flex justify-center sticky bottom-0">
              <Button
-                className="rounded-2xl bg-white text-slate-900 font-black px-12 h-12 uppercase text-[10px] tracking-widest"
+                className="rounded-2xl bg-white text-slate-900 font-bold px-12 h-12 uppercase text-[11px] tracking-widest"
                 onClick={() => setPdfPreview(null)}
              >
                 Tutup Preview

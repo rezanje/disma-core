@@ -114,25 +114,23 @@ export default function Sidebar({ roleName }: SidebarProps) {
   })
 
   // Sort categories (Admin first, then modules, then Global)
-  const catOrder = ['Admin', 'Finance', 'Warehouse', 'Sourcing', 'Courier', 'Global']
+  const catOrder = ['Harian', 'Uang', 'Barang', 'Sistem']
   const sortedCatKeys = Object.keys(categories).sort((a, b) => {
     return catOrder.indexOf(a) - catOrder.indexOf(b)
   })
 
   const CAT_LABELS: Record<string, string> = {
-    'Admin': 'Administrator',
-    'Finance': 'Financial',
-    'Warehouse': 'Inventory',
-    'Sourcing': 'Purchasing',
-    'Courier': 'Logistics',
-    'Global': 'System'
+    Harian: 'Harian',
+    Uang: 'Uang',
+    Barang: 'Barang',
+    Sistem: 'Sistem',
   }
 
   return (
     <div 
       className={cn(
-        "hidden md:flex flex-col fixed left-4 top-1/2 -translate-y-1/2 h-[96vh] bg-white dark:bg-slate-900 z-20 transition-all duration-500 py-6 rounded-[2.5rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] border border-slate-100 dark:border-slate-800",
-        isMinimized ? "w-20" : "w-64"
+        "app-rail hidden md:flex flex-col fixed left-0 top-0 h-screen z-20 transition-[width] duration-150 py-5",
+        isMinimized ? "w-[60px]" : "w-[212px]"
       )}
     >
       <div className={cn("px-6 mb-4 relative flex items-center", isMinimized ? "justify-center px-0" : "justify-between")}>
@@ -145,12 +143,12 @@ export default function Sidebar({ roleName }: SidebarProps) {
               height={40} 
               className="object-contain"
             />
-            <span className="text-[9px] uppercase tracking-[0.2em] text-emerald-500 font-black ml-1 bg-emerald-50 dark:bg-emerald-950/30 px-2 py-0.5 rounded-full w-fit">{roleName}</span>
+            <span className="text-[11px] uppercase tracking-[0.2em] text-emerald-500 font-bold ml-1 bg-emerald-50 dark:bg-emerald-950/30 px-2 py-0.5 rounded-full w-fit">{roleName}</span>
           </div>
         )}
         {isMinimized && (
           <div className="w-10 h-10 flex items-center justify-center mx-auto bg-slate-50 dark:bg-slate-800/50 rounded-2xl">
-            <span className="text-xl font-black text-emerald-600">D</span>
+            <span className="text-xl font-bold text-emerald-600">D</span>
           </div>
         )}
         
@@ -158,7 +156,7 @@ export default function Sidebar({ roleName }: SidebarProps) {
         <button 
           onClick={toggleSidebar}
           className={cn(
-            "absolute top-1/2 -translate-y-1/2 right-[-12px] w-6 h-6 bg-white dark:bg-slate-800 shadow-lg border border-slate-100 dark:border-slate-700 rounded-lg flex items-center justify-center text-slate-400 hover:text-emerald-600 transition-all hover:scale-110 z-30",
+            "absolute top-1/2 -translate-y-1/2 right-[-12px] w-6 h-6 bg-white dark:bg-slate-800 shadow-sm border border-slate-100 dark:border-slate-700 rounded-lg flex items-center justify-center text-slate-400 hover:text-emerald-600 transition-all z-30",
             isMinimized && "right-[-10px]"
           )}
         >
@@ -213,15 +211,15 @@ export default function Sidebar({ roleName }: SidebarProps) {
           )}>
             <Bell className="w-4 h-4" />
             {unreadCount > 0 && (
-              <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border border-white ring-2 ring-rose-500/20 animate-pulse"></span>
+              <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border border-white ring-2 ring-rose-500/20"></span>
             )}
           </DropdownMenuTrigger>
-          <DropdownMenuContent align={isMinimized ? "start" : "center"} side={isMinimized ? "right" : "bottom"} className="w-80 liquid-card p-0 border-none overflow-hidden ml-2">
+          <DropdownMenuContent align={isMinimized ? "start" : "center"} side={isMinimized ? "right" : "bottom"} className="w-80 liquid-card p-0 overflow-hidden ml-2">
              <div className="p-4 border-b bg-slate-50/50 flex items-center justify-between">
-                <h4 className="text-xs font-black uppercase tracking-widest text-slate-800">Notifications</h4>
+                <h4 className="text-xs font-bold  text-slate-800">Notifications</h4>
                 <button
                   onClick={markAllRead}
-                  className="text-[10px] font-bold text-emerald-600 hover:underline"
+                  className="text-[11px] font-bold text-emerald-600 hover:underline"
                 >
                   Mark all read
                 </button>
@@ -230,7 +228,7 @@ export default function Sidebar({ roleName }: SidebarProps) {
                 {userNotifications.length === 0 ? (
                   <div className="p-8 text-center text-slate-400">
                      <Bell className="w-8 h-8 mx-auto mb-2 opacity-20" />
-                     <p className="text-[10px] font-bold uppercase tracking-widest">No assigned tasks</p>
+                     <p className="text-[11px] font-bold ">No assigned tasks</p>
                   </div>
                 ) : (
                   userNotifications.map((n) => (
@@ -244,11 +242,11 @@ export default function Sidebar({ roleName }: SidebarProps) {
                         )}
                       >
                         <div className="flex justify-between items-start mb-1">
-                           <h5 className="text-[11px] font-black text-slate-800 leading-tight">{n.title}</h5>
+                           <h5 className="text-[11px] font-bold text-slate-800 leading-tight">{n.title}</h5>
                            {!n.read && <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />}
                         </div>
-                        <p className="text-[10px] text-slate-500 leading-snug line-clamp-2 mb-2">{n.message}</p>
-                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">
+                        <p className="text-[11px] text-slate-500 leading-snug line-clamp-2 mb-2">{n.message}</p>
+                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-tighter">
                           {new Date(n.createdAt).toLocaleString()}
                         </p>
                       </Link>
@@ -256,7 +254,7 @@ export default function Sidebar({ roleName }: SidebarProps) {
                 )}
              </div>
              <div className="p-3 bg-slate-50/50 border-t text-center">
-                <button className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-emerald-600 transition-colors">
+                <button className="text-[11px] font-bold  text-slate-400 hover:text-emerald-600 transition-colors">
                    View All Activity
                 </button>
              </div>
@@ -268,7 +266,7 @@ export default function Sidebar({ roleName }: SidebarProps) {
         {sortedCatKeys.map((catKey) => (
           <div key={catKey} className="mb-6 last:mb-0">
             {!isMinimized && (
-              <h4 className="px-4 text-[9px] font-black uppercase tracking-[0.25em] text-slate-400 dark:text-slate-500 mb-3 ml-1 text-center md:text-left">
+              <h4 className="mb-1.5 px-2 text-[10.5px] font-medium uppercase tracking-[0.08em] text-rail-label">
                 {CAT_LABELS[catKey] || catKey}
               </h4>
             )}
@@ -293,7 +291,7 @@ export default function Sidebar({ roleName }: SidebarProps) {
                         "flex items-center rounded-2xl transition-all duration-300 group relative",
                         isMinimized ? "justify-center w-12 h-12 mx-auto" : "gap-3 px-4 py-3 text-xs font-bold",
                         isActive && !hasChildren
-                          ? "bg-emerald-600 text-white shadow-lg shadow-emerald-200 dark:shadow-none"
+                          ? "bg-emerald-600 text-white shadow-sm dark:shadow-none"
                           : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50",
                         hasChildren && isExpanded && !isMinimized && "bg-slate-50/50 dark:bg-slate-800/30 text-emerald-600 dark:text-emerald-400"
                       )}
@@ -301,7 +299,7 @@ export default function Sidebar({ roleName }: SidebarProps) {
                     >
                       <div className={cn(
                         "transition-colors",
-                        (isActive && !hasChildren) ? "text-white" : "text-slate-400 group-hover:text-emerald-500",
+                        (isActive && !hasChildren) ? "text-rail-accent" : "text-rail-ink-2",
                         hasChildren && isExpanded && !isMinimized && "text-emerald-500"
                       )}>
                         {item.icon}
@@ -356,30 +354,30 @@ export default function Sidebar({ roleName }: SidebarProps) {
               "flex items-center gap-3 p-2 rounded-2xl transition-all duration-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 group",
               isMinimized ? "justify-center" : "px-3"
             )}>
-              <div className="h-10 w-10 shrink-0 rounded-xl bg-gradient-to-tr from-emerald-600 to-green-400 flex items-center justify-center text-white font-black shadow-lg shadow-emerald-200/50 dark:shadow-none transition-transform group-hover:scale-105">
+              <div className="h-10 w-10 shrink-0 rounded-xl bg-emerald-600 flex items-center justify-center text-white font-bold shadow-sm dark:shadow-none transition-transform group-">
                 {currentUser?.name?.charAt(0) || 'U'}
               </div>
               {!isMinimized && (
                 <div className="text-left flex-1 min-w-0">
-                  <p className="text-[11px] font-black text-slate-800 dark:text-slate-200 leading-none truncate">{currentUser?.name}</p>
-                  <p className="text-[9px] font-bold text-slate-400 mt-1 uppercase tracking-tighter truncate">{currentUser?.role?.replace('_', ' ')}</p>
+                  <p className="text-[11px] font-bold text-slate-800 dark:text-slate-200 leading-none truncate">{currentUser?.name}</p>
+                  <p className="text-[11px] font-bold text-slate-400 mt-1 uppercase tracking-tighter truncate">{currentUser?.role?.replace('_', ' ')}</p>
                 </div>
               )}
               {!isMinimized && <ChevronDown className="w-3 h-3 text-slate-300 group-hover:text-slate-600 transition-colors" />}
             </div>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" side={isMinimized ? "right" : "top"} className="w-56 liquid-card p-2 border-none ml-2 mb-2">
+          <DropdownMenuContent align="end" side={isMinimized ? "right" : "top"} className="w-56 liquid-card p-2 ml-2 mb-2">
             <DropdownMenuGroup>
               <DropdownMenuLabel className="px-3 py-2">
-                  <p className="text-xs font-black text-slate-800">{currentUser?.name}</p>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{currentUser?.role}</p>
+                  <p className="text-xs font-bold text-slate-800">{currentUser?.name}</p>
+                  <p className="text-[11px] text-slate-400 font-bold ">{currentUser?.role}</p>
               </DropdownMenuLabel>
               <DropdownMenuSeparator className="bg-slate-100" />
               {(currentUser?.role === 'super_admin' || currentUser?.role === 'ceo' || currentUser?.role === 'coo') && (
                 <Link href="/admin/users">
                   <DropdownMenuItem className="flex items-center gap-3 px-3 py-2.5 rounded-2xl hover:bg-emerald-50 text-emerald-600 cursor-pointer outline-none group">
                       <Shield className="w-4 h-4" />
-                      <span className="text-xs font-black uppercase tracking-tight">User & Role Management</span>
+                      <span className="text-xs font-bold uppercase tracking-tight">User & Role Management</span>
                   </DropdownMenuItem>
                 </Link>
               )}
@@ -401,7 +399,7 @@ export default function Sidebar({ roleName }: SidebarProps) {
                   className="flex items-center gap-3 px-3 py-2.5 rounded-2xl hover:bg-rose-50 text-rose-600 cursor-pointer"
               >
                   <LogOut className="w-4 h-4" />
-                  <span className="text-xs font-black uppercase tracking-tight">Log Out</span>
+                  <span className="text-xs font-bold uppercase tracking-tight">Log Out</span>
               </DropdownMenuItem>
             </DropdownMenuGroup>
           </DropdownMenuContent>

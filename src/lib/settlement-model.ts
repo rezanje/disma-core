@@ -17,13 +17,22 @@ export interface SettlementFigures {
  * Which settlement model a purchase belongs to.
  *
  * Money used to be transferred per shopping document; it now sits in the Bank Jago
- * pool and sourcers draw from it into their own pockets. `budgetTransferDate` is only
- * ever written by the old per-document transfer, so its presence dates the record.
- * Once no unsettled purchase carries it, this function and every `isLegacy` branch
- * can be deleted together.
+ * pool and sourcers draw from it into their own pockets.
+ *
+ * `budgetTransferDate` alone is NOT the marker, even though the comment here used to
+ * say so. The Disbursement screen writes that field too, so every new document read as
+ * legacy and every settlement took the legacy branch. Nothing broke only because a
+ * second guard inside `recordReconciliationSettlement` notices the pocket already
+ * booked the cash — remove that guard one day and HPP double-books silently. The old
+ * per-document transfer never wrote `disbursedAt`; the single-door disbursement always
+ * does. So legacy = budget moved, but not through that door.
+ *
+ * As of 26 Aug 2026 no purchase in the database matches. Once that is true of every
+ * backup too, this function and every `isLegacy` branch can be deleted together.
  */
-export const isLegacyAdvance = (purchase: Pick<Purchase, 'budgetTransferDate'>): boolean =>
-  Boolean(purchase.budgetTransferDate);
+export const isLegacyAdvance = (
+  purchase: Pick<Purchase, 'budgetTransferDate' | 'disbursedAt'>,
+): boolean => Boolean(purchase.budgetTransferDate) && !purchase.disbursedAt;
 
 export const computeSettlement = (
   purchase: Purchase,

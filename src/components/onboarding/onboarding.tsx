@@ -82,6 +82,7 @@ export function OnboardingProvider() {
     if (sessionStorage.getItem(PENDING_WELCOME_KEY) !== "1") return
     sessionStorage.removeItem(PENDING_WELCOME_KEY)
 
+    if (ONBOARDING_POPUP_MODE === "off") return
     if (ONBOARDING_POPUP_MODE === "once" && loadOnboarding(userId).askedWelcome) return
     setShowWelcome(true)
   }, [userId, pathname])
@@ -234,13 +235,13 @@ export function OnboardingProvider() {
 function WelcomeDialog({ onClose }: { onClose: (guided: boolean) => void }) {
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(false) }}>
-      <DialogContent className="sm:max-w-md rounded-[2rem] p-8">
+      <DialogContent className="sm:max-w-md rounded-xl p-8">
         <div className="flex flex-col items-center text-center gap-4">
-          <div className="p-4 rounded-3xl bg-emerald-50 text-emerald-600">
+          <div className="p-4 rounded-lg bg-emerald-50 text-emerald-600">
             <Compass className="w-8 h-8" />
           </div>
           <div className="space-y-1.5">
-            <h2 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">
+            <h2 className="text-xl font-bold  text-slate-900 dark:text-white">
               Mau dibimbing dulu?
             </h2>
             <p className="text-xs font-medium text-slate-500 leading-relaxed">
@@ -251,19 +252,19 @@ function WelcomeDialog({ onClose }: { onClose: (guided: boolean) => void }) {
           <div className="grid grid-cols-2 gap-2 w-full pt-2">
             <Button
               onClick={() => onClose(true)}
-              className="h-12 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[11px] uppercase tracking-wider"
+              className="h-12 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[11px] "
             >
               Bimbing Saya
             </Button>
             <Button
               variant="outline"
               onClick={() => onClose(false)}
-              className="h-12 rounded-2xl font-extrabold text-[11px] uppercase tracking-wider"
+              className="h-12 rounded-2xl font-semibold text-[11px] "
             >
               Sudah Bisa
             </Button>
           </div>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pt-1">
+          <p className="text-[11px] font-bold text-slate-400  pt-1">
             Bisa dibuka lagi kapan saja lewat tombol Panduan
           </p>
         </div>
@@ -289,14 +290,14 @@ export function GuideButton({ className, showLabel }: { className?: string; show
       <DropdownMenuTrigger title="Panduan" className={className}>
         <BookOpen className="w-4 h-4" />
         {showLabel && (
-          <span className="text-[10px] font-bold leading-none tracking-tight text-center">Panduan</span>
+          <span className="text-[11px] font-bold leading-none tracking-tight text-center">Panduan</span>
         )}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-80 liquid-card mt-2 p-2 border-none">
+      <DropdownMenuContent align="end" className="w-80 liquid-card mt-2 p-2">
         <DropdownMenuGroup>
         <DropdownMenuLabel className="px-3 py-2">
-          <p className="text-xs font-black uppercase tracking-widest text-slate-800">Panduan Alur Kerja</p>
-          <p className="text-[10px] text-slate-400 font-bold mt-0.5">Pilih alur untuk dituntun langkah demi langkah</p>
+          <p className="text-xs font-bold  text-slate-800">Panduan Alur Kerja</p>
+          <p className="text-[11px] text-slate-400 font-bold mt-0.5">Pilih alur untuk dituntun langkah demi langkah</p>
         </DropdownMenuLabel>
         <DropdownMenuSeparator className="bg-slate-100" />
         {ordered.map(flow => (
@@ -305,15 +306,15 @@ export function GuideButton({ className, showLabel }: { className?: string; show
             onClick={() => startFlow(flow.id)}
             className="flex flex-col items-start gap-1 px-3 py-3 rounded-2xl hover:bg-emerald-50 cursor-pointer outline-none"
           >
-            <span className="text-[11px] font-black text-slate-800 uppercase tracking-tight">
+            <span className="text-[11px] font-bold text-slate-800 ">
               {flow.name}
               {relevant(flow.id) && (
-                <span className="ml-2 text-[8px] font-black text-emerald-600 uppercase tracking-widest">
+                <span className="ml-2 text-[11px] font-bold text-emerald-600 ">
                   Halaman ini
                 </span>
               )}
             </span>
-            <span className="text-[10px] text-slate-500 leading-snug whitespace-normal">{flow.desc}</span>
+            <span className="text-[11px] text-slate-500 leading-snug whitespace-normal">{flow.desc}</span>
           </DropdownMenuItem>
         ))}
         </DropdownMenuGroup>

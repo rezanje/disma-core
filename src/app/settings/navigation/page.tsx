@@ -157,13 +157,13 @@ export default function NavigationSettings() {
                   {item.icon}
                 </div>
                 <div>
-                  <p className="text-sm font-black text-slate-800 flex items-center gap-2 uppercase tracking-tight">
+                  <p className="text-sm font-bold text-slate-800 flex items-center gap-2 ">
                     {item.title}
                     {platform === 'desktop' && index < 4 && !isHidden && (
-                      <span className="text-[8px] font-black uppercase text-emerald-600 px-2 py-0.5 bg-emerald-100 rounded-full">Pinned</span>
+                      <span className="text-[11px] font-bold uppercase text-emerald-600 px-2 py-0.5 bg-emerald-100 rounded-full">Pinned</span>
                     )}
                   </p>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{item.key}</p>
+                  <p className="text-[11px] font-bold text-slate-400 ">{item.key}</p>
                 </div>
               </div>
 
@@ -206,17 +206,17 @@ export default function NavigationSettings() {
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="space-y-8 duration-150">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h3 className="text-2xl font-black text-slate-900 tracking-tight">Navigasi & Menu</h3>
+          <h3 className="text-2xl font-bold text-slate-900 tracking-tight">Navigasi & Menu</h3>
           <p className="text-sm text-slate-500 font-medium">Atur tampilan menu lo secara mandiri untuk HP dan Komputer (Desktop).</p>
         </div>
         <div className="flex items-center gap-3">
           <Button variant="outline" onClick={handleReset} className="text-slate-500 font-bold hover:text-rose-600 gap-2 rounded-xl border-slate-200">
             <RotateCcw className="w-4 h-4" /> Reset Default
           </Button>
-          <Button onClick={handleSave} className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-8 h-11 rounded-xl gap-2 shadow-lg shadow-emerald-200">
+          <Button onClick={handleSave} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-8 h-11 rounded-xl gap-2 shadow-sm">
             <Save className="w-4 h-4" /> Simpan Konfigurasi
           </Button>
         </div>
@@ -224,10 +224,10 @@ export default function NavigationSettings() {
 
       <Tabs defaultValue="desktop" className="w-full">
         <TabsList className="bg-slate-100 p-1 rounded-2xl h-auto flex flex-wrap gap-1 mb-6">
-          <TabsTrigger value="desktop" className="flex-1 py-3 font-black text-xs uppercase tracking-widest rounded-xl data-[state=active]:bg-white data-[state=active]:text-emerald-600 data-[state=active]:shadow-sm">
+          <TabsTrigger value="desktop" className="flex-1 py-3 font-bold text-xs  rounded-xl data-[state=active]:bg-white data-[state=active]:text-emerald-600 data-[state=active]:shadow-sm">
             <Monitor className="w-4 h-4 mr-2" /> Desktop View
           </TabsTrigger>
-          <TabsTrigger value="mobile" className="flex-1 py-3 font-black text-xs uppercase tracking-widest rounded-xl data-[state=active]:bg-white data-[state=active]:text-emerald-600 data-[state=active]:shadow-sm">
+          <TabsTrigger value="mobile" className="flex-1 py-3 font-bold text-xs  rounded-xl data-[state=active]:bg-white data-[state=active]:text-emerald-600 data-[state=active]:shadow-sm">
             <Smartphone className="w-4 h-4 mr-2" /> Mobile View
           </TabsTrigger>
         </TabsList>
@@ -235,7 +235,7 @@ export default function NavigationSettings() {
         <TabsContent value="desktop" className="space-y-6">
           <Card className="border-none shadow-sm bg-blue-50/30">
             <CardHeader className="p-6">
-              <CardTitle className="text-sm font-black uppercase text-blue-700 tracking-widest">Desktop Preferences</CardTitle>
+              <CardTitle className="text-sm font-bold uppercase text-blue-700 tracking-widest">Desktop Preferences</CardTitle>
               <CardDescription className="text-xs font-medium text-blue-600/70">
                 Menu teratas (maksimal 4) akan dipin di bar navigasi utama.
               </CardDescription>
@@ -249,8 +249,8 @@ export default function NavigationSettings() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
                 <div className="space-y-0.5">
-                  <Label className="text-sm font-black text-slate-800">Aktifkan Mobile Bottom Nav</Label>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Tampilkan menu bar di bagian bawah untuk mode HP</p>
+                  <Label className="text-sm font-bold text-slate-800">Aktifkan Mobile Bottom Nav</Label>
+                  <p className="text-[11px] font-bold text-slate-400 ">Tampilkan menu bar di bagian bawah untuk mode HP</p>
                 </div>
                 <Switch 
                   checked={config.mobile.enabled !== false}
@@ -269,7 +269,7 @@ export default function NavigationSettings() {
           <div className={cn("space-y-6 transition-opacity duration-300", config.mobile.enabled === false && "opacity-20 pointer-events-none")}>
             <Card className="border-none shadow-sm bg-emerald-50/30">
               <CardHeader className="p-6">
-                <CardTitle className="text-sm font-black uppercase text-emerald-700 tracking-widest leading-none">Mobile Preferences</CardTitle>
+                <CardTitle className="text-sm font-bold uppercase text-emerald-700 tracking-widest leading-none">Mobile Preferences</CardTitle>
                 <CardDescription className="text-xs font-medium text-emerald-600/70">
                   Urutan dan visibilitas menu khusus untuk tampilan handphone.
                 </CardDescription>

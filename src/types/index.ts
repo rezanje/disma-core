@@ -10,7 +10,7 @@ export interface User {
 export type AccessKey = 
   // Admin & CEO
   | 'admin_hari_ini' | 'admin_dashboard' | 'admin_vendors' | 'admin_clients' | 'admin_products' 
-  | 'admin_sales_orders' | 'admin_shopping_list' | 'admin_assets' | 'admin_crm' 
+  | 'admin_sales_orders' | 'admin_shopping_list' | 'admin_konsolidasi_belanja' | 'admin_audit_pengiriman' | 'admin_assets' | 'admin_crm' 
   | 'admin_documents' | 'admin_users' | 'admin_settings' | 'admin_tasks' | 'admin_maintenance' | 'admin_price_lists' | 'admin_activity_log'
   | 'admin_purchase_requests' | 'admin_loss_analytics' | 'admin_tukar_faktur' | 'admin_dropship' | 'admin_delivery_routes'
   // Finance
@@ -204,10 +204,21 @@ export interface SalesOrderItem {
   dispatchNote?: string;  // Catatan QC per item at dispatch
 }
 
-// 'Menunggu Rencana': dokumen sudah dikompilasi Admin PO tapi Finance belum memutuskan
-// vendor, jalur beli dan cara bayarnya. Layar sourcing hanya menampilkan 'Pending' dan
-// 'Belanja', jadi barang yang belum direncanakan otomatis belum terlihat oleh sourcing.
-export type PurchaseStatus = 'Menunggu Rencana' | 'Pending' | 'Belanja' | 'Selesai';
+// Perjalanan satu dokumen belanja, berurutan:
+//
+// 'Menunggu Rencana' — Admin PO sudah menyatukan PO jadi dokumen, Finance belum
+//   memutuskan vendor, jalur beli dan cara bayarnya.
+// 'Siap Cetak'       — Finance sudah selesai merencanakan dan mengembalikannya ke
+//   Admin PO. Di sinilah beberapa dokumen disatukan jadi satu lembar cetak. Belum
+//   terlihat sourcing: yang berangkat ke pasar harus memegang lembar yang sudah final.
+// 'Pending'          — Admin PO melepasnya. Baru sekarang sourcing melihatnya dan
+//   Finance boleh mencairkan uangnya.
+// 'Belanja'          — sedang dibelanjakan di lapangan.
+// 'Selesai'          — sudah dibukukan.
+//
+// Layar sourcing hanya menampilkan 'Pending' dan 'Belanja', jadi dua tahap pertama
+// otomatis tidak terlihat oleh yang berangkat belanja.
+export type PurchaseStatus = 'Menunggu Rencana' | 'Siap Cetak' | 'Pending' | 'Belanja' | 'Selesai';
 // 'Dropship' = vendor mengantar langsung ke klien, tidak lewat gudang sama sekali.
 export type PurchaseMethod = 'Pasar' | 'Vendor' | 'Online' | 'Dropship'; // lokasi ambil barang
 export type ReconciliationStatus = 'Belum Transfer' | 'Dana Ditransfer' | 'Laporan Masuk' | 'Terverifikasi' | 'Dispute';

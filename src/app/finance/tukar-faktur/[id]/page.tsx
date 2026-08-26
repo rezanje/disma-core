@@ -121,8 +121,8 @@ export default function TukarFakturDetailPage({ params }: { params: Promise<{ id
       <Card className="p-6 rounded-2xl border-slate-100">
         <div className="flex flex-col md:flex-row justify-between gap-4">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{client?.companyName || tf.clientId}</p>
-            <h1 className="text-2xl font-black mt-1">{tf.tfNumber}</h1>
+            <p className="text-[11px] font-bold  text-slate-400">{client?.companyName || tf.clientId}</p>
+            <h1 className="text-2xl font-bold mt-1">{tf.tfNumber}</h1>
             <p className="text-sm text-slate-500 mt-1">
               Periode {formatDate(tf.periodStart)} – {formatDate(tf.periodEnd)}
               {tf.status === "Draft"
@@ -140,9 +140,9 @@ export default function TukarFakturDetailPage({ params }: { params: Promise<{ id
       </Card>
 
       <Card className="p-6 rounded-2xl border-slate-100">
-        <h2 className="text-sm font-black uppercase tracking-widest text-slate-500 mb-4">Invoice ({linkedInvoices.length})</h2>
+        <h2 className="text-sm font-bold  text-slate-500 mb-4">Invoice ({linkedInvoices.length})</h2>
         <table className="w-full text-sm">
-          <thead className="text-[11px] uppercase tracking-wider text-slate-400">
+          <thead className="text-[11px]  text-slate-400">
             <tr><th className="text-left py-2">Invoice ID</th><th className="text-right py-2">Nominal</th><th className="text-right py-2">Status</th><th className="text-right py-2">Jatuh Tempo</th></tr>
           </thead>
           <tbody>
@@ -159,8 +159,8 @@ export default function TukarFakturDetailPage({ params }: { params: Promise<{ id
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-slate-200">
-              <td className="py-3 font-black">Total</td>
-              <td className="py-3 text-right font-black">{formatRupiah(tf.totalAmount)}</td>
+              <td className="py-3 font-bold">Total</td>
+              <td className="py-3 text-right font-bold">{formatRupiah(tf.totalAmount)}</td>
               <td colSpan={2} />
             </tr>
           </tfoot>

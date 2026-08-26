@@ -1,0 +1,1294 @@
+{
+ "PARSLEY BASAH": {
+  "productId": "PRD-0151",
+  "via": "manual"
+ },
+ "KANTONG PLASTIK PUTIH SIZE 35": {
+  "productId": "PRD-1840",
+  "via": "manual"
+ },
+ "BAWANG MERAH": {
+  "new": true,
+  "uom": "Kg",
+  "category": "Sayuran",
+  "via": "baru"
+ },
+ "PETAI BESAR": {
+  "new": true,
+  "uom": "Pcs",
+  "category": "Sayuran",
+  "via": "baru"
+ },
+ "TELUR ASIN": {
+  "productId": "PRD-1331",
+  "via": "manual"
+ },
+ "KACANG MEDE": {
+  "productId": "PRD-0740",
+  "via": "manual"
+ },
+ "COCA-COLA ORIGINAL @330ML ISI 24CAN": {
+  "productId": "1ac15edf-b6d3-4645-80f2-9468b06107b7",
+  "via": "manual"
+ },
+ "DAUN JERUK": {
+  "productId": "PRD-0056",
+  "via": "manual"
+ },
+ "OREGANO DRY": {
+  "new": true,
+  "uom": "Kg",
+  "category": "Dry Goods",
+  "via": "baru"
+ },
+ "MONIN SYRUP LECI @700ML": {
+  "productId": "PRD-1043",
+  "via": "manual"
+ },
+ "BERAS SETRA RAMOS - PREMIUM @5KG": {
+  "productId": "PRD-0381",
+  "via": "manual"
+ },
+ "TEPUNG DRAGONFLY @1KG": {
+  "productId": "PRD-1369",
+  "via": "manual"
+ },
+ "MARGARINE AMANDA@200GR": {
+  "productId": "05b3a117-91d5-4f80-a922-8808e68a8c8c",
+  "via": "manual"
+ },
+ "LOBAK": {
+  "productId": "PRD-0137",
+  "via": "manual"
+ },
+ "KANTONG PLASTIK HITAM SIZE 35": {
+  "productId": "PRD-1836",
+  "via": "manual"
+ },
+ "KABOCHA ORANGE": {
+  "productId": "PRD-0132",
+  "via": "manual"
+ },
+ "KECAP INGGRIS @290ML LEA&PERRNIS W": {
+  "productId": "PRD-0764",
+  "via": "manual"
+ },
+ "LENGKOAS": {
+  "productId": "PRD-0136",
+  "via": "manual"
+ },
+ "KANTONG PLASTIK PUTIH UK 40 @500GR": {
+  "productId": "PRD-1841",
+  "via": "manual"
+ },
+ "SAGU TANI CAP PAK TANI @500GR": {
+  "productId": "PRD-1365",
+  "via": "manual"
+ },
+ "LADA HITAM BUBUK @250GR": {
+  "productId": "PRD-0890",
+  "via": "manual"
+ },
+ "SABUN CUCI MAMA LEMON @680ML": {
+  "productId": "PRD-1786",
+  "via": "manual"
+ },
+ "KETUMBAR UTUH": {
+  "productId": "PRD-0796",
+  "via": "manual"
+ },
+ "SANREMO MACARONI ELBOW @500 GR": {
+  "productId": "PRD-1206",
+  "via": "manual"
+ },
+ "DAGING GILING REGULAR": {
+  "productId": "PRD-1500",
+  "via": "manual"
+ },
+ "KANTONG PLASTIK BAWANG @1KG": {
+  "productId": "PRD-1856",
+  "via": "manual"
+ },
+ "DAUN SELEDRI LOKAL": {
+  "productId": "PRD-0075",
+  "via": "manual"
+ },
+ "DANCOW BUBUK @1KG": {
+  "productId": "PRD-1293",
+  "via": "manual"
+ },
+ "SPRITE @330ML ISI 24CAN": {
+  "new": true,
+  "uom": "Ctn",
+  "category": "Dry Goods",
+  "via": "baru"
+ },
+ "TISSUE LIVI MULTIFOLD @150LBR": {
+  "productId": "PRD-1969",
+  "via": "manual"
+ },
+ "JAMUR RED BOAT BRAND@425 GR": {
+  "new": true,
+  "uom": "Can",
+  "category": "Dry Goods",
+  "via": "baru"
+ },
+ "DELMONTE SAUCE SAMBAL @5,5KG": {
+  "productId": "PRD-0557",
+  "via": "manual"
+ },
+ "COLLATA GLAZE DARK CHOCOLATTE@1KG": {
+  "new": true,
+  "uom": "Pack",
+  "category": "Dry Goods",
+  "via": "baru"
+ },
+ "BERTOLLI BALSAMIC VINEGAR @500ML": {
+  "productId": "PRD-0346",
+  "via": "manual"
+ },
+ "ABC SIRUP LYCHEE @460ML": {
+  "productId": "PRD-1261",
+  "via": "manual"
+ },
+ "PLASTIK SEGITIGA": {
+  "productId": "PRD-1861",
+  "via": "manual"
+ },
+ "DELMONTE SAUCE SAMBAL @5.5KG": {
+  "productId": "PRD-0557",
+  "via": "manual"
+ },
+ "DELMONTE SAUCE SAMBAL @1KG": {
+  "productId": "PRD-0556",
+  "via": "manual"
+ },
+ "SANREMO FETTUCINI PASTA @500GR": {
+  "productId": "PRD-1207",
+  "via": "manual"
+ },
+ "SELEDRI STIK IMPORT": {
+  "productId": "PRD-0048",
+  "via": "manual"
+ },
+ "SUSU MILO @990GR": {
+  "productId": "3ee54c8f-3031-474e-9f13-8e07cd235182",
+  "via": "manual"
+ },
+ "SODA KUE KOEPOE @1KG": {
+  "productId": "PRD-1277",
+  "via": "manual"
+ },
+ "COCOA NIBS": {
+  "productId": "PRD-0531",
+  "via": "manual"
+ },
+ "GARAM BATA": {
+  "productId": "PRD-0610",
+  "via": "manual"
+ },
+ "CIRENG BRECXELLE ISI 20 PCS": {
+  "productId": "PRD-1490",
+  "via": "manual"
+ },
+ "KANTONG PLASTIK PE UK 6X20": {
+  "new": true,
+  "uom": "Pack",
+  "category": "ATK",
+  "via": "baru"
+ },
+ "SEMPIO GOCHUJANG@1KG": {
+  "new": true,
+  "uom": "Pack",
+  "category": "Dry Goods",
+  "via": "baru"
+ },
+ "KEWPIE SAUS TARTAR@1KG": {
+  "new": true,
+  "uom": "Pack",
+  "category": "Dry Goods",
+  "via": "baru"
+ },
+ "TEPUNG ROTI PUTIH MAMASUKA @1KG": {
+  "productId": "PRD-0953",
+  "via": "manual"
+ },
+ "SANTAN SUN KARA @1LITER": {
+  "productId": "PRD-1218",
+  "via": "manual"
+ },
+ "COCA-COLA ZERO @330ML ISI 24CAN": {
+  "new": true,
+  "uom": "Ctn",
+  "category": "Dry Goods",
+  "via": "baru"
+ },
+ "MESES COKLAT TULIP @500 GR": {
+  "new": true,
+  "uom": "Pack",
+  "category": "Dry Goods",
+  "via": "baru"
+ },
+ "BAKING PAPER LABAKER 10MX40CM": {
+  "new": true,
+  "uom": "Pack",
+  "category": "ATK",
+  "via": "baru"
+ },
+ "MADU URAY @875GR": {
+  "productId": "PRD-0934",
+  "via": "manual"
+ },
+ "HEINZ CUKA PUTIH @473ML": {
+  "productId": "PRD-0678",
+  "via": "manual"
+ },
+ "SPRITE BOTOL @390ML ISI 12 PCS": {
+  "new": true,
+  "uom": "Ctn",
+  "category": "Dry Goods",
+  "via": "baru"
+ },
+ "TEH CELUP POCI ISI 25 PCS": {
+  "new": true,
+  "uom": "Pack",
+  "category": "Dry Goods",
+  "via": "baru"
+ },
+ "SOSIS SAPI AKAI@1KG": {
+  "new": true,
+  "uom": "Pack",
+  "category": "Frozen food",
+  "via": "baru"
+ },
+ "CUMI TUBE @1KG": {
+  "productId": "PRD-1498",
+  "via": "manual"
+ },
+ "CUSTARD POWDER HERCULES@300 GR": {
+  "new": true,
+  "uom": "Pack",
+  "category": "Dry Goods",
+  "via": "baru"
+ },
+ "KANTONG PLASTIK PE UK 15X30 (1KG)": {
+  "productId": "PRD-1864",
+  "via": "manual"
+ },
+ "KANTONG PLASTIK PE UK 10X20 (1/4KG)": {
+  "productId": "PRD-1862",
+  "via": "manual"
+ },
+ "PLASTIK ROLL UK 25X40": {
+  "new": true,
+  "uom": "Pack",
+  "category": "ATK",
+  "via": "baru"
+ },
+ "KANTONG PLASTIK PUTIH UK 17": {
+  "productId": "PRD-1837",
+  "via": "manual"
+ },
+ "PEPING BAG": {
+  "productId": "PRD-1861",
+  "via": "manual"
+ },
+ "MARSHMALLOW WHITE@1KG": {
+  "new": true,
+  "uom": "Pack",
+  "category": "Dry Goods",
+  "via": "baru"
+ },
+ "COLLATA GLAZE WHITE CHOCOLATTE@1KG": {
+  "new": true,
+  "uom": "Pack",
+  "category": "Dry Goods",
+  "via": "baru"
+ },
+ "GRATED  PARMESAN CHEESE PREMIUM@200GR": {
+  "productId": "PRD-0493",
+  "via": "manual"
+ },
+ "TAHU KUNING": {
+  "productId": "PRD-1305",
+  "via": "manual"
+ },
+ "DAUN KUCAI": {
+  "productId": "PRD-0127",
+  "via": "manual"
+ },
+ "SELEDRI STIK LOKAL": {
+  "productId": "PRD-0049",
+  "via": "manual"
+ },
+ "TOGE BIASA": {
+  "productId": "PRD-0179",
+  "via": "manual"
+ },
+ "KIKKOMAN SAUCE TERIYAKI BAWANG@2,2 KG": {
+  "new": true,
+  "uom": "Jrg",
+  "category": "Dry Goods",
+  "via": "baru"
+ },
+ "KNORR TOMATO PRONTO SAUCE @2KG": {
+  "new": true,
+  "uom": "Can",
+  "category": "Dry Goods",
+  "via": "baru"
+ },
+ "TATURA NEUFCHATEL CHEESE@2KG": {
+  "new": true,
+  "uom": "Pack",
+  "category": "Dry Goods",
+  "via": "baru"
+ },
+ "COLLATA GLAZE TIRAMISU@1KG": {
+  "new": true,
+  "uom": "Pack",
+  "category": "Dry Goods",
+  "via": "baru"
+ },
+ "PAPER PLATE": {
+  "new": true,
+  "uom": "Pcs",
+  "category": "ATK",
+  "via": "baru"
+ },
+ "BELIBIS SAUCE CABAI @5KG": {
+  "productId": "PRD-1227",
+  "via": "manual"
+ },
+ "COLLATA GLAZE SPREAD GREEN TEA MATCHA @1KG": {
+  "new": true,
+  "uom": "Pack",
+  "category": "Dry Goods",
+  "via": "baru"
+ },
+ "TES TORTILLA JAGUNG BBQ@ 2KG": {
+  "new": true,
+  "uom": "Pack",
+  "category": "Dry Goods",
+  "via": "baru"
+ },
+ "RUM BUTTERFLY ESSENSE@60ML": {
+  "new": true,
+  "uom": "Btl",
+  "category": "Dry Goods",
+  "via": "baru"
+ },
+ "LAPCHIONG AROMA MALIA SOSIS AYAM@1KG": {
+  "new": true,
+  "uom": "Pack",
+  "category": "Frozen food",
+  "via": "baru"
+ },
+ "SPONS": {
+  "new": true,
+  "uom": "Kg",
+  "category": "ATK",
+  "via": "baru"
+ },
+ "KENTANG DIENG AL (1-4 PCS)": {
+  "productId": "PRD-0122",
+  "via": "manual"
+ },
+ "DELMONTE CHILI EXTRA HOT SACHET @8GR @24 PCS": {
+  "productId": "PRD-0558",
+  "via": "manual"
+ },
+ "DIAMOND UHT MILK PLAIN @1LT": {
+  "productId": "PRD-0572",
+  "via": "manual"
+ },
+ "GULAKU @1 KG": {
+  "productId": "PRD-0673",
+  "via": "auto"
+ },
+ "SUSU SUNBAY EVAPORATED MILK @380 ML": {
+  "productId": "PRD-1303",
+  "via": "auto"
+ },
+ "MILAC GOLD COOKING CREAM @1LT": {
+  "productId": "PRD-0993",
+  "via": "auto"
+ },
+ "TEPUNG SEGITIGA BIRU @1 KG": {
+  "productId": "PRD-1360",
+  "via": "auto"
+ },
+ "NANGKA MENTAH SAYUR": {
+  "productId": "PRD-0142",
+  "via": "manual"
+ },
+ "A&W SODA SARSAPILA@250 ML ISI 24 CAN": {
+  "productId": "PRD-0289",
+  "via": "auto"
+ },
+ "DELMONTE TOMAT SACHET @8GR ISI 24 PCS": {
+  "productId": "PRD-0566",
+  "via": "auto"
+ },
+ "TEPUNG ROTI PUTIH": {
+  "productId": "PRD-1355",
+  "via": "manual"
+ },
+ "LEE KUM KEE SAUS TIRAM 2.2KG": {
+  "productId": "PRD-0910",
+  "via": "auto"
+ },
+ "UDANG VANAME KUPAS (ISI 91/120) @1KG NON COOKED": {
+  "new": true,
+  "uom": "Pack",
+  "category": "Frozen food",
+  "via": "baru"
+ },
+ "SUSU EVAPORASI CARNATION @405GR": {
+  "productId": "db174071-effd-45fd-bed3-95ee10b2fe6c",
+  "via": "manual"
+ },
+ "PARE HIJAU": {
+  "productId": "PRD-0150",
+  "via": "manual"
+ },
+ "TAHU WALIK ISI 10 PCS": {
+  "productId": "PRD-1315",
+  "via": "auto"
+ },
+ "FERMIPAN YEAST @500 GR": {
+  "productId": "PRD-0601",
+  "via": "auto"
+ },
+ "WORTEL BRASTAGI": {
+  "productId": "PRD-0192",
+  "via": "auto"
+ },
+ "SUNLIGHT @4.5LTR": {
+  "new": true,
+  "uom": "Jrg",
+  "category": "ATK",
+  "via": "baru"
+ },
+ "CHILI FLAKES @ 1KG": {
+  "productId": "PRD-0507",
+  "via": "manual"
+ },
+ "GULA ROSEBRAND @1KG": {
+  "productId": "PRD-0669",
+  "via": "auto"
+ },
+ "PLASTIK SAMPAH HITAM HD 90X120": {
+  "productId": "PRD-1858",
+  "via": "auto"
+ },
+ "TAPAS SPONS": {
+  "productId": "PRD-1946",
+  "via": "manual"
+ },
+ "MAESTRO MAYONNAISE @1KG": {
+  "productId": "PRD-0937",
+  "via": "auto"
+ },
+ "GOLDENFILL CHOCOCRUNCHY@1KG": {
+  "productId": "PRD-0632",
+  "via": "auto"
+ },
+ "SKIPPY CREAMY PEANUT BUTTER @500 GR": {
+  "productId": "PRD-1275",
+  "via": "auto"
+ },
+ "PLASTIK WRAPPING MAKANAN UK 40X500CM": {
+  "productId": "PRD-1872",
+  "via": "auto"
+ },
+ "BERAS ROJO LELE @20KG": {
+  "productId": "PRD-2558",
+  "via": "manual"
+ },
+ "EBI DAGING TANPA KULIT": {
+  "productId": "PRD-0585",
+  "via": "manual"
+ },
+ "GULA PUTIH HALUS @250 GR": {
+  "productId": "PRD-0666",
+  "via": "auto"
+ },
+ "BERTOLLI WHITE VINEGAR @500ML": {
+  "productId": "PRD-0385",
+  "via": "manual"
+ },
+ "GYOZA CHICKEN FROZEN AJINOMOTO ISI 30 PCS": {
+  "productId": "PRD-2563",
+  "via": "auto"
+ },
+ "TUSUK BAMBU TEPOSUKI 10CM @100PCS": {
+  "productId": "PRD-1981",
+  "via": "manual"
+ },
+ "FANTA MERAH @330ML ISI 24 CAN": {
+  "new": true,
+  "uom": "Ctn",
+  "category": "Dry Goods",
+  "via": "baru"
+ },
+ "PLASTIK KANTONG PUTIH UK 50 @500GR": {
+  "productId": "PRD-1842",
+  "via": "manual"
+ },
+ "MONIN SYRUP CARAMEL @700ML": {
+  "productId": "PRD-1037",
+  "via": "auto"
+ },
+ "STELLA SPRAY PARFUM @400 ML": {
+  "productId": "PRD-1930",
+  "via": "auto"
+ },
+ "DELMONTE SAUCE TOMAT @1KG": {
+  "productId": "PRD-0564",
+  "via": "manual"
+ },
+ "DETERGEN RINSO @1.4 KG": {
+  "productId": "PRD-1713",
+  "via": "auto"
+ },
+ "STRUK THERMAL PMM 80X80": {
+  "productId": "PRD-1934",
+  "via": "auto"
+ },
+ "FANTA MERAH @250ML ISI 24 CAN": {
+  "productId": "PRD-0596",
+  "via": "auto"
+ },
+ "TISSUE PLENTY KITCHEN TOWEL ROLLS @2PCS": {
+  "productId": "PRD-1972",
+  "via": "manual"
+ },
+ "CHEESE CHEDAR KRAFT @2KG": {
+  "productId": "PRD-0479",
+  "via": "auto"
+ },
+ "BLUEBERRY FRUIT @125 GR": {
+  "productId": "PRD-2564",
+  "via": "auto"
+ },
+ "PLASTIK WRAPPING MAKANAN UK 30 CM": {
+  "new": true,
+  "uom": "Roll",
+  "category": "ATK",
+  "via": "baru"
+ },
+ "KNORR DEMI GLACE @1KG": {
+  "productId": "PRD-0830",
+  "via": "manual"
+ },
+ "MADU NUSANTARA @650 ML": {
+  "productId": "PRD-0930",
+  "via": "auto"
+ },
+ "TELUR PUYUH": {
+  "productId": "PRD-1336",
+  "via": "manual"
+ },
+ "PLASTIK WRAPPING MAKANAN UK 35X500CM": {
+  "productId": "PRD-1875",
+  "via": "manual"
+ },
+ "SASA TEPUNG SERBA GUNA @210GR": {
+  "productId": "PRD-1244",
+  "via": "auto"
+ },
+ "ROYCO SAPI @1 KG": {
+  "productId": "PRD-1189",
+  "via": "auto"
+ },
+ "SASA TEPUNG SERBAGUNA @1KG": {
+  "new": true,
+  "uom": "Pack",
+  "category": "Dry Goods",
+  "via": "baru"
+ },
+ "KECAP MANIS BANGO 1500ML": {
+  "productId": "PRD-0766",
+  "via": "manual"
+ },
+ "COLLATA DARK CHOCOLATE COUMPUND @1KG": {
+  "productId": "PRD-0534",
+  "via": "manual"
+ },
+ "PLASTIK KLIP 20X12 @100PCS": {
+  "productId": "PRD-1847",
+  "via": "manual"
+ },
+ "PLASTIK KLIP 30X20 @100PCS": {
+  "productId": "PRD-1848",
+  "via": "manual"
+ },
+ "KALDU JAMUR TOTOLE @1 KG": {
+  "productId": "PRD-0749",
+  "via": "auto"
+ },
+ "TISSUE LIVI KOTAK @150 LBR": {
+  "productId": "PRD-1968",
+  "via": "manual"
+ },
+ "TYJ SPRING ROLL KULIT LUMPIA@20PCS": {
+  "productId": "PRD-1406",
+  "via": "manual"
+ },
+ "PAPRIKA POWDER": {
+  "productId": "PRD-1117",
+  "via": "manual"
+ },
+ "MAIZENAKU @1 KG": {
+  "productId": "PRD-0944",
+  "via": "auto"
+ },
+ "DAUN BAWANG": {
+  "productId": "PRD-0052",
+  "via": "auto"
+ },
+ "BAWANG PUTIH KUPAS": {
+  "productId": "PRD-0023",
+  "via": "auto"
+ },
+ "BAWANG MERAH KUPAS": {
+  "productId": "PRD-0018",
+  "via": "auto"
+ },
+ "BAWANG BOMBAY": {
+  "productId": "PRD-0011",
+  "via": "auto"
+ },
+ "JAMUR CHAMPIGNON": {
+  "productId": "PRD-0092",
+  "via": "auto"
+ },
+ "TOMAT MERAH": {
+  "productId": "PRD-0183",
+  "via": "auto"
+ },
+ "BASIL": {
+  "productId": "PRD-0010",
+  "via": "auto"
+ },
+ "CABAI MERAH KERITING PETIK": {
+  "productId": "PRD-0042",
+  "via": "auto"
+ },
+ "HEAD LETTUCE": {
+  "productId": "PRD-0083",
+  "via": "auto"
+ },
+ "BABY BUNCIS": {
+  "productId": "723c1c38-1a00-4aad-835a-97249ad5d634",
+  "via": "auto"
+ },
+ "JAHE PUTIH": {
+  "productId": "PRD-0089",
+  "via": "auto"
+ },
+ "CABAI RAWIT MERAH PETIK": {
+  "productId": "PRD-0046",
+  "via": "auto"
+ },
+ "DAGING SENGKEL SAPI": {
+  "productId": "PRD-1504",
+  "via": "auto"
+ },
+ "JERUK NIPIS": {
+  "productId": "PRD-0224",
+  "via": "auto"
+ },
+ "KOL PUTIH": {
+  "productId": "PRD-0125",
+  "via": "auto"
+ },
+ "BONELESS PAHA AYAM NO SKIN": {
+  "productId": "PRD-1480",
+  "via": "auto"
+ },
+ "BAWANG BOMBAY MERAH": {
+  "productId": "PRD-0014",
+  "via": "auto"
+ },
+ "CABAI RAWIT MERAH": {
+  "productId": "PRD-0045",
+  "via": "auto"
+ },
+ "LADA PUTIH HALUS @250GR": {
+  "productId": "PRD-0897",
+  "via": "auto"
+ },
+ "BABY PAKCOY": {
+  "productId": "PRD-0008",
+  "via": "auto"
+ },
+ "BONELESS DADA AYAM NO SKIN": {
+  "productId": "PRD-1478",
+  "via": "auto"
+ },
+ "MINYAK SANIA BIB @18LTR": {
+  "productId": "PRD-1021",
+  "via": "auto"
+ },
+ "CUKA DIXIE @650ML": {
+  "productId": "PRD-0545",
+  "via": "auto"
+ },
+ "CABAI MERAH BESAR": {
+  "productId": "PRD-0039",
+  "via": "auto"
+ },
+ "GULA BATU PUTIH @500GR": {
+  "productId": "PRD-0654",
+  "via": "auto"
+ },
+ "MAMASUKA MAYONAISE @1KG": {
+  "productId": "PRD-0947",
+  "via": "auto"
+ },
+ "JERUK SUNKIST": {
+  "productId": "PRD-0229",
+  "via": "auto"
+ },
+ "KACANG PANJANG": {
+  "productId": "PRD-0108",
+  "via": "auto"
+ },
+ "STRAWBERRY @250GR": {
+  "productId": "PRD-0286",
+  "via": "auto"
+ },
+ "TERONG UNGU": {
+  "productId": "PRD-0173",
+  "via": "auto"
+ },
+ "BROKOLI": {
+  "productId": "PRD-0030",
+  "via": "auto"
+ },
+ "SASA MSG @1KG": {
+  "productId": "PRD-1237",
+  "via": "auto"
+ },
+ "PAKCOY": {
+  "productId": "PRD-0146",
+  "via": "auto"
+ },
+ "BAWANG PUTIH BANCI": {
+  "productId": "PRD-0020",
+  "via": "auto"
+ },
+ "SEREH": {
+  "productId": "PRD-0165",
+  "via": "auto"
+ },
+ "KEMBANG KOL": {
+  "productId": "PRD-0120",
+  "via": "auto"
+ },
+ "TOMAT HIJAU": {
+  "productId": "PRD-0182",
+  "via": "auto"
+ },
+ "CABAI HIJAU BESAR": {
+  "productId": "PRD-0035",
+  "via": "auto"
+ },
+ "TELUR AYAM NEGERI": {
+  "productId": "PRD-1333",
+  "via": "auto"
+ },
+ "POPOHAN": {
+  "productId": "PRD-0154",
+  "via": "auto"
+ },
+ "TIMUN": {
+  "productId": "PRD-0176",
+  "via": "auto"
+ },
+ "GAS HI-COOK @220GR": {
+  "productId": "PRD-1729",
+  "via": "auto"
+ },
+ "BUNCIS BESAR": {
+  "productId": "PRD-0032",
+  "via": "auto"
+ },
+ "KNORR CHICKEN @1KG": {
+  "productId": "PRD-0829",
+  "via": "auto"
+ },
+ "SEMANGKA MERAH": {
+  "productId": "PRD-0285",
+  "via": "auto"
+ },
+ "THINWALL SAUCE CUP 25ML": {
+  "productId": "PRD-1957",
+  "via": "auto"
+ },
+ "PLASTIK SAMPAH HITAM HD 60X100": {
+  "productId": "PRD-1859",
+  "via": "auto"
+ },
+ "CABAI MERAH KERITING": {
+  "productId": "PRD-0041",
+  "via": "auto"
+ },
+ "GARAM REFINA @500GR": {
+  "productId": "PRD-0618",
+  "via": "auto"
+ },
+ "KECAP ASIN HATI ANGSA @600ML": {
+  "productId": "PRD-0759",
+  "via": "auto"
+ },
+ "MINYAK WIJEN OH GUAN HING @600ML": {
+  "productId": "PRD-1026",
+  "via": "auto"
+ },
+ "TELUR AYAM NEGERI (OMEGA)": {
+  "productId": "PRD-1334",
+  "via": "auto"
+ },
+ "SARUNG TANGAN HITAM SHAMROCK @50PCS": {
+  "productId": "PRD-1898",
+  "via": "auto"
+ },
+ "ROYCO AYAM @1KG": {
+  "productId": "PRD-1187",
+  "via": "auto"
+ },
+ "MAIZENAKU @1KG": {
+  "productId": "PRD-0944",
+  "via": "auto"
+ },
+ "CABAI RAWIT HIJAU": {
+  "productId": "PRD-0043",
+  "via": "auto"
+ },
+ "BERAS PULEN BMW @5KG": {
+  "productId": "PRD-0380",
+  "via": "auto"
+ },
+ "SO KLIN LANTAI @800ML": {
+  "productId": "PRD-1920",
+  "via": "auto"
+ },
+ "LEMON LOKAL CALIFORNIA": {
+  "productId": "PRD-0246",
+  "via": "auto"
+ },
+ "DAUN SALAM": {
+  "productId": "PRD-0073",
+  "via": "auto"
+ },
+ "GARAM DOLPIN @500GR": {
+  "productId": "PRD-0613",
+  "via": "auto"
+ },
+ "DAUN KUNYIT": {
+  "productId": "PRD-0063",
+  "via": "auto"
+ },
+ "PAPRIKA MERAH": {
+  "productId": "PRD-0149",
+  "via": "auto"
+ },
+ "BAKING POWDER @45GR KOEPOE2": {
+  "productId": "PRD-0344",
+  "via": "auto"
+ },
+ "CABAI RAWIT HIJAU PETIK": {
+  "productId": "PRD-0044",
+  "via": "auto"
+ },
+ "SANREMO SPAGHETTI @500GR": {
+  "productId": "PRD-1215",
+  "via": "auto"
+ },
+ "KYURI": {
+  "productId": "PRD-0129",
+  "via": "auto"
+ },
+ "KACANG TANAH KULIT ARI": {
+  "productId": "PRD-0745",
+  "via": "auto"
+ },
+ "MILI LECI @565GR": {
+  "productId": "PRD-0996",
+  "via": "auto"
+ },
+ "KETUMBAR HALUS": {
+  "productId": "PRD-0799",
+  "via": "auto"
+ },
+ "CABAI MERAH KERING BESAR": {
+  "productId": "PRD-0460",
+  "via": "auto"
+ },
+ "SELADA AIR": {
+  "productId": "PRD-0162",
+  "via": "auto"
+ },
+ "TEPUNG CAKRA KEMBAR @25KG": {
+  "productId": "PRD-1344",
+  "via": "auto"
+ },
+ "CABAI MERAH BESAR PETIK": {
+  "productId": "PRD-0040",
+  "via": "auto"
+ },
+ "SARUNG TANGAN PLASTIK ISI 100PCS": {
+  "productId": "PRD-1900",
+  "via": "auto"
+ },
+ "GOLDENFILL STRAWBERRY@1KG": {
+  "productId": "PRD-0633",
+  "via": "auto"
+ },
+ "THINWALL SAUCE CUP 35ML": {
+  "productId": "PRD-1958",
+  "via": "auto"
+ },
+ "WORTEL BERASTAGI": {
+  "productId": "PRD-0192",
+  "via": "auto"
+ },
+ "PLASTIK TOMAT 12X25 (1/2KG)": {
+  "productId": "PRD-1863",
+  "via": "auto"
+ },
+ "PAPRIKA KUNING": {
+  "productId": "PRD-0148",
+  "via": "auto"
+ },
+ "STEEL WOOL": {
+  "productId": "PRD-1928",
+  "via": "auto"
+ },
+ "EMPING MENTAH": {
+  "productId": "PRD-0592",
+  "via": "auto"
+ },
+ "CONDY LEMON CONCENTRATE @200ML": {
+  "productId": "PRD-0537",
+  "via": "auto"
+ },
+ "TEPUNG CAKRA KEMBAR @1KG": {
+  "productId": "PRD-1343",
+  "via": "auto"
+ },
+ "DAUN PISANG": {
+  "productId": "PRD-0069",
+  "via": "auto"
+ },
+ "JERUK PERAS": {
+  "productId": "PRD-0225",
+  "via": "auto"
+ },
+ "AJINOMOTO @1000GR": {
+  "productId": "PRD-0305",
+  "via": "auto"
+ },
+ "LEMON IMPORT": {
+  "productId": "PRD-0244",
+  "via": "auto"
+ },
+ "LEMON LOKAL": {
+  "productId": "PRD-0245",
+  "via": "auto"
+ },
+ "THYME FRESH": {
+  "productId": "PRD-0175",
+  "via": "auto"
+ },
+ "SASA TEPUNG KENTUCKY @850GR": {
+  "productId": "PRD-1242",
+  "via": "auto"
+ },
+ "BERAS HANARO @5KG": {
+  "productId": "PRD-0369",
+  "via": "auto"
+ },
+ "GARAM KASAR ISI 10 PACK": {
+  "productId": "PRD-0617",
+  "via": "auto"
+ },
+ "DE MADERAAS MADRAS CURRY POWDER@200GR": {
+  "productId": "PRD-2559",
+  "via": "auto"
+ },
+ "KERONGKONGAN AYAM": {
+  "productId": "PRD-1571",
+  "via": "auto"
+ },
+ "TEPUNG BERAS ROSEBRAND @500GR": {
+  "productId": "PRD-1342",
+  "via": "auto"
+ },
+ "MINYAK VIPCO @1LTR": {
+  "productId": "PRD-1024",
+  "via": "auto"
+ },
+ "BERAS PANDAN WANGI @5KG": {
+  "productId": "PRD-0377",
+  "via": "auto"
+ },
+ "LADA HITAM UTUH": {
+  "productId": "PRD-0892",
+  "via": "auto"
+ },
+ "BAWANG PUTIH BUBUK": {
+  "productId": "7340e0c6-c199-422d-979b-1d590153583c",
+  "via": "auto"
+ },
+ "DAUN KARI": {
+  "productId": "PRD-0058",
+  "via": "auto"
+ },
+ "PISANG KEPOK": {
+  "productId": "PRD-0276",
+  "via": "auto"
+ },
+ "NANGKA KUPAS": {
+  "productId": "PRD-0263",
+  "via": "auto"
+ },
+ "JINTEN BUBUK": {
+  "productId": "PRD-0724",
+  "via": "auto"
+ },
+ "KUNYIT BUBUK": {
+  "productId": "PRD-0867",
+  "via": "auto"
+ },
+ "MACARONI PIPA SEDANI @1KG": {
+  "productId": "PRD-0927",
+  "via": "auto"
+ },
+ "ABC KECAP MANIS": {
+  "productId": "PRD-0292",
+  "via": "auto"
+ },
+ "BAWANG PUTIH BUBUK@1KG JAYS": {
+  "productId": "PRD-0358",
+  "via": "auto"
+ },
+ "GULA AREN": {
+  "productId": "PRD-0652",
+  "via": "auto"
+ },
+ "LIPTON YELLOW LABEL TEA @100PCS": {
+  "productId": "PRD-0917",
+  "via": "auto"
+ },
+ "APEL RED WASHINGTON": {
+  "productId": "PRD-0203",
+  "via": "auto"
+ },
+ "CABAI MERAH KERING KECIL": {
+  "productId": "PRD-0461",
+  "via": "auto"
+ },
+ "ROYCO SAPI @1KG": {
+  "productId": "PRD-1189",
+  "via": "auto"
+ },
+ "MAX CREAMER @500GR": {
+  "productId": "PRD-0967",
+  "via": "auto"
+ },
+ "BUAH NAGA": {
+  "productId": "PRD-0212",
+  "via": "auto"
+ },
+ "SAYAP AYAM": {
+  "productId": "PRD-1611",
+  "via": "auto"
+ },
+ "TULANG SOP SAPI": {
+  "productId": "PRD-2566",
+  "via": "auto"
+ },
+ "MAESTRO MUSTARD @1KG": {
+  "productId": "PRD-0939",
+  "via": "auto"
+ },
+ "PAPRIKA POWDER@1KG": {
+  "productId": "PRD-1117",
+  "via": "auto"
+ },
+ "TOMATO BEEF": {
+  "productId": "PRD-0184",
+  "via": "auto"
+ },
+ "AJINOMOTO @250GR": {
+  "productId": "PRD-0307",
+  "via": "auto"
+ },
+ "FERMIPAN YEAST @4X11GR": {
+  "productId": "PRD-0600",
+  "via": "auto"
+ },
+ "TABASCO @60ML": {
+  "productId": "PRD-1304",
+  "via": "auto"
+ },
+ "TISSUE SEE-U HAND TOWEL BROWN @20PACK": {
+  "productId": "PRD-1975",
+  "via": "auto"
+ },
+ "STRUK THERMAL 58X48": {
+  "productId": "PRD-1932",
+  "via": "auto"
+ },
+ "TOFFIECO PASTA RED VALVET@100GR": {
+  "productId": "PRD-2561",
+  "via": "auto"
+ },
+ "CEDEA CRAB STIK@1KG": {
+  "productId": "PRD-2562",
+  "via": "auto"
+ },
+ "KATSOUBUSHI @ 500 GR": {
+  "productId": "PRD-2565",
+  "via": "auto"
+ },
+ "PARSLEY DRY": {
+  "productId": "PRD-1120",
+  "via": "auto"
+ },
+ "ROSEMARY FRESH": {
+  "productId": "PRD-0157",
+  "via": "auto"
+ },
+ "UBI UNGU": {
+  "productId": "PRD-0190",
+  "via": "auto"
+ },
+ "DIAMOND FRESH MILK PLAIN": {
+  "productId": "PRD-0569",
+  "via": "auto"
+ },
+ "THINWALL SAUCE CUP @50ML": {
+  "productId": "PRD-1959",
+  "via": "auto"
+ },
+ "KEWPIE MAYONAISE ORIGINAL @1KG": {
+  "productId": "PRD-0802",
+  "via": "auto"
+ },
+ "KAYU MANIS": {
+  "productId": "PRD-0755",
+  "via": "auto"
+ },
+ "OREO COOKIE CRUMB @1KG": {
+  "productId": "PRD-1102",
+  "via": "auto"
+ },
+ "JERUK SONKIT": {
+  "productId": "PRD-0228",
+  "via": "auto"
+ },
+ "BAWANG BOMBAY BUBUK": {
+  "productId": "85680f33-6247-4f18-bffb-0add93bee765",
+  "via": "auto"
+ },
+ "LADA PUTIH UTUH": {
+  "productId": "PRD-0899",
+  "via": "auto"
+ },
+ "TEPUNG KETAN ROSEBRAND @500GR": {
+  "productId": "PRD-1349",
+  "via": "auto"
+ },
+ "KECAP IKAN ROYAL GOLD @725ML": {
+  "productId": "PRD-0762",
+  "via": "auto"
+ },
+ "BERNARDI CORNED BEEF @290GR": {
+  "productId": "PRD-0384",
+  "via": "auto"
+ },
+ "MAPLE JOE @250GR": {
+  "productId": "PRD-0958",
+  "via": "auto"
+ },
+ "SANTAN KELAPA": {
+  "productId": "PRD-1221",
+  "via": "auto"
+ },
+ "JERUK LIMO": {
+  "productId": "PRD-0221",
+  "via": "auto"
+ },
+ "DELMONTE SAUCE TOMAT @5.5KG": {
+  "productId": "PRD-0562",
+  "via": "auto"
+ },
+ "GULA MERAH BUBUK @250GR": {
+  "productId": "PRD-0661",
+  "via": "auto"
+ },
+ "MINYAK BARCO @1LTR": {
+  "productId": "PRD-1002",
+  "via": "auto"
+ },
+ "RED BULL ENERGY DRINK @250ML ISI 24CAN": {
+  "productId": "PRD-1175",
+  "via": "auto"
+ },
+ "DELMONTE PEACH HALVES @825GR": {
+  "productId": "PRD-0561",
+  "via": "auto"
+ },
+ "DAUN MINT": {
+  "productId": "PRD-0065",
+  "via": "auto"
+ },
+ "KACANG MERAH": {
+  "productId": "PRD-0741",
+  "via": "auto"
+ },
+ "PAPRIKA POWDER @1KG": {
+  "productId": "PRD-1117",
+  "via": "auto"
+ },
+ "JAMUR SHIMEJI COKELAT @150GR": {
+  "productId": "PRD-0099",
+  "via": "auto"
+ },
+ "TAHU PUTIH BESAR": {
+  "productId": "PRD-1311",
+  "via": "auto"
+ },
+ "BABY ROMAIN LETTUCE": {
+  "productId": "PRD-0009",
+  "via": "auto"
+ },
+ "LABU SIAM": {
+  "productId": "PRD-0133",
+  "via": "auto"
+ },
+ "SAWI HIJAU (CAISIM)": {
+  "productId": "PRD-0159",
+  "via": "auto"
+ },
+ "WORTEL LOKAL": {
+  "productId": "PRD-0193",
+  "via": "auto"
+ },
+ "BIJI WIJEN PUTIH": {
+  "productId": "PRD-0399",
+  "via": "auto"
+ },
+ "CABAI HIJAU BESAR PETIK": {
+  "productId": "PRD-0036",
+  "via": "auto"
+ },
+ "BLUEBERRY FROZEN@500 GR": {
+  "productId": "PRD-1477",
+  "via": "auto"
+ }
+}

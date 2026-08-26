@@ -144,8 +144,8 @@ export default function ExpensesForm() {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white/70 dark:bg-slate-900/70 backdrop-blur-md -mx-4 -mt-4 p-6 border-b shadow-sm mb-6 text-center relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 via-blue-500 to-emerald-500 animate-gradient-x" />
+      <div className="bg-card dark:bg-slate-900/70 -mx-4 -mt-4 p-6 border-b shadow-sm mb-6 text-center relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-1 bg-emerald-500 animate-gradient-x" />
         <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-3">
           <Wallet className="w-6 h-6" />
         </div>
@@ -154,16 +154,16 @@ export default function ExpensesForm() {
           Laporkan bensin, tol, makan, atau talangan pribadi
         </p>
 
-        <div className="mt-6 inline-flex flex-col items-center px-8 py-4 bg-slate-900 rounded-[2rem] shadow-xl border border-white/10 group">
-           <span className="text-[10px] font-black uppercase text-emerald-400 tracking-[0.2em] mb-1">Kas Di Tangan</span>
+        <div className="mt-6 inline-flex flex-col items-center px-8 py-4 bg-slate-900 rounded-xl shadow-sm border border-border group">
+           <span className="text-[11px] font-bold uppercase text-emerald-400 tracking-[0.2em] mb-1">Kas Di Tangan</span>
            <span className={cn(
-             "text-2xl font-black tracking-tighter transition-all group-hover:scale-110",
+             "text-2xl font-bold tracking-tighter transition-all group-",
              walletBalance >= 0 ? "text-white" : "text-rose-400"
            )}>
              {formatRupiah(walletBalance)}
            </span>
            {walletBalance < 0 && (
-             <span className="text-[9px] font-bold text-rose-300 uppercase mt-1 animate-pulse">(!) Saldo Minus (Talangan Pribadi)</span>
+             <span className="text-[11px] font-bold text-rose-300 uppercase mt-1">(!) Saldo Minus (Talangan Pribadi)</span>
            )}
         </div>
       </div>
@@ -172,21 +172,21 @@ export default function ExpensesForm() {
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-5 px-0">
             <div className="space-y-3">
-              <Label className="text-base text-slate-700 font-black uppercase tracking-widest">Jenis Transaksi</Label>
+              <Label className="text-base text-slate-700 font-bold ">Jenis Transaksi</Label>
               <Tabs 
                 defaultValue="Biaya Operasional" 
                 className="w-full"
                 onValueChange={(val) => setFormData({...formData, transactionType: val})}
               >
                 <TabsList className="grid w-full grid-cols-2 h-12 rounded-xl">
-                  <TabsTrigger value="Biaya Operasional" className="rounded-lg font-bold text-xs uppercase tracking-tight">Potong Saldo Kas</TabsTrigger>
-                  <TabsTrigger value="Kasbon" className="rounded-lg font-bold text-xs uppercase tracking-tight">Reimbursement / Talangan</TabsTrigger>
+                  <TabsTrigger value="Biaya Operasional" className="rounded-lg font-bold text-xs ">Potong Saldo Kas</TabsTrigger>
+                  <TabsTrigger value="Kasbon" className="rounded-lg font-bold text-xs ">Reimbursement / Talangan</TabsTrigger>
                 </TabsList>
               </Tabs>
             </div>
 
             <div className="space-y-3">
-              <Label className="text-base text-slate-700 font-bold uppercase tracking-tighter">Kategori Biaya / Keperluan</Label>
+              <Label className="text-base text-slate-700 font-bold ">Kategori Biaya / Keperluan</Label>
               <Select 
                 value={formData.category} 
                 onValueChange={(val) => setFormData({...formData, category: val || 'Lainnya'})}

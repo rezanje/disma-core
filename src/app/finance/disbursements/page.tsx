@@ -260,15 +260,15 @@ export default function DisbursementsPage() {
   const renderStatus = (status: DisbursementRequest['status']) => {
     switch (status) {
       case 'Draft':
-        return <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 font-extrabold uppercase text-[9px] tracking-wider">Draft</Badge>
+        return <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 font-semibold uppercase text-[11px] tracking-wider">Draft</Badge>
       case 'Pending_CFO':
-        return <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 font-extrabold uppercase text-[9px] tracking-wider">Pending CFO</Badge>
+        return <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 font-semibold uppercase text-[11px] tracking-wider">Pending CFO</Badge>
       case 'Approved':
-        return <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 font-extrabold uppercase text-[9px] tracking-wider">Approved</Badge>
+        return <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold uppercase text-[11px] tracking-wider">Approved</Badge>
       case 'Transferred':
-        return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 font-extrabold uppercase text-[9px] tracking-wider">Transferred</Badge>
+        return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 font-semibold uppercase text-[11px] tracking-wider">Transferred</Badge>
       case 'Rejected':
-        return <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 font-extrabold uppercase text-[9px] tracking-wider">Rejected</Badge>
+        return <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 font-semibold uppercase text-[11px] tracking-wider">Rejected</Badge>
     }
   }
 
@@ -281,7 +281,7 @@ export default function DisbursementsPage() {
           <p className="text-muted-foreground text-sm">Pemindahan dana kas utama ke kas operasional untuk kebutuhan belanja mingguan.</p>
         </div>
         {isFinance && (
-          <Button data-tour="disb-new" onClick={() => setIsCreateOpen(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs uppercase tracking-wider px-5 py-2">
+          <Button data-tour="disb-new" onClick={() => setIsCreateOpen(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs  px-5 py-2">
             <Plus className="w-4 h-4 mr-2" /> Request Baru
           </Button>
         )}
@@ -289,28 +289,28 @@ export default function DisbursementsPage() {
 
       {/* SUMMARY METRICS CARDS */}
       <div data-tour="disb-metrics" className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="rounded-[1.5rem] border border-slate-100 shadow-sm bg-gradient-to-br from-amber-50/30 to-amber-50/10">
+        <Card className="rounded-xl border border-slate-100 shadow-sm bg-amber-50/30/10">
           <CardHeader className="pb-2">
-            <CardDescription className="text-[10px] font-black uppercase tracking-wider text-amber-600 flex items-center gap-1">
+            <CardDescription className="text-[11px] font-bold  text-amber-600 flex items-center gap-1">
               <Clock className="w-3.5 h-3.5" /> Menunggu CFO Approval
             </CardDescription>
-            <CardTitle className="text-2xl font-black text-slate-800">{formatRupiah(metrics.pending)}</CardTitle>
+            <CardTitle className="text-2xl font-bold text-slate-800">{formatRupiah(metrics.pending)}</CardTitle>
           </CardHeader>
         </Card>
-        <Card className="rounded-[1.5rem] border border-slate-100 shadow-sm bg-gradient-to-br from-emerald-50/30 to-emerald-50/10">
+        <Card className="rounded-xl border border-slate-100 shadow-sm bg-emerald-50/30/10">
           <CardHeader className="pb-2">
-            <CardDescription className="text-[10px] font-black uppercase tracking-wider text-emerald-600 flex items-center gap-1">
+            <CardDescription className="text-[11px] font-bold  text-emerald-600 flex items-center gap-1">
               <CheckCircle2 className="w-3.5 h-3.5" /> Approved (Siap Transfer)
             </CardDescription>
-            <CardTitle className="text-2xl font-black text-slate-800">{formatRupiah(metrics.approved)}</CardTitle>
+            <CardTitle className="text-2xl font-bold text-slate-800">{formatRupiah(metrics.approved)}</CardTitle>
           </CardHeader>
         </Card>
-        <Card className="rounded-[1.5rem] border border-slate-100 shadow-sm bg-gradient-to-br from-blue-50/30 to-blue-50/10">
+        <Card className="rounded-xl border border-slate-100 shadow-sm bg-blue-50/30/10">
           <CardHeader className="pb-2">
-            <CardDescription className="text-[10px] font-black uppercase tracking-wider text-blue-600 flex items-center gap-1">
+            <CardDescription className="text-[11px] font-bold  text-blue-600 flex items-center gap-1">
               <ArrowRightLeft className="w-3.5 h-3.5" /> Berhasil Ditransfer
             </CardDescription>
-            <CardTitle className="text-2xl font-black text-slate-800">{formatRupiah(metrics.transferred)}</CardTitle>
+            <CardTitle className="text-2xl font-bold text-slate-800">{formatRupiah(metrics.transferred)}</CardTitle>
           </CardHeader>
         </Card>
       </div>
@@ -344,23 +344,23 @@ export default function DisbursementsPage() {
       </div>
 
       {/* TABLE LIST VIEW */}
-      <div data-tour="disb-table" className="rounded-[1.5rem] border border-slate-100 overflow-hidden bg-white shadow-sm">
+      <div data-tour="disb-table" className="rounded-xl border border-slate-100 overflow-hidden bg-white shadow-sm">
         <Table>
           <TableHeader>
             <TableRow className="bg-slate-50/80">
-              <TableHead className="font-bold text-[10px] uppercase text-slate-500 py-3.5 px-4">Tanggal</TableHead>
-              <TableHead className="font-bold text-[10px] uppercase text-slate-500">Keterangan / Tujuan</TableHead>
-              <TableHead className="font-bold text-[10px] uppercase text-slate-500">Dari Rekening</TableHead>
-              <TableHead className="font-bold text-[10px] uppercase text-slate-500 text-center">Ke Rekening</TableHead>
-              <TableHead className="font-bold text-[10px] uppercase text-slate-500 text-right">Nominal</TableHead>
-              <TableHead className="font-bold text-[10px] uppercase text-slate-500 text-center">Status</TableHead>
-              <TableHead className="font-bold text-[10px] uppercase text-slate-500 text-center w-20">Detail</TableHead>
+              <TableHead className="font-bold text-[11px] uppercase text-slate-500 py-3.5 px-4">Tanggal</TableHead>
+              <TableHead className="font-bold text-[11px] uppercase text-slate-500">Keterangan / Tujuan</TableHead>
+              <TableHead className="font-bold text-[11px] uppercase text-slate-500">Dari Rekening</TableHead>
+              <TableHead className="font-bold text-[11px] uppercase text-slate-500 text-center">Ke Rekening</TableHead>
+              <TableHead className="font-bold text-[11px] uppercase text-slate-500 text-right">Nominal</TableHead>
+              <TableHead className="font-bold text-[11px] uppercase text-slate-500 text-center">Status</TableHead>
+              <TableHead className="font-bold text-[11px] uppercase text-slate-500 text-center w-20">Detail</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredDisbursements.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-12 text-slate-400 italic text-xs font-bold uppercase tracking-wider">
+                <TableCell colSpan={7} className="text-center py-12 text-slate-400 italic text-xs font-bold ">
                   Tidak ada data disbursement request
                 </TableCell>
               </TableRow>
@@ -375,26 +375,26 @@ export default function DisbursementsPage() {
                       {format(new Date(dr.requestedAt), "dd MMM yyyy")}
                     </TableCell>
                     <TableCell>
-                      <p className="font-extrabold text-slate-800 leading-snug">{dr.description}</p>
-                      <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wide mt-0.5">Oleh: {dr.requestedBy}</p>
+                      <p className="font-semibold text-slate-800 leading-snug">{dr.description}</p>
+                      <p className="text-[11px] text-slate-400 font-bold  mt-0.5">Oleh: {dr.requestedBy}</p>
                     </TableCell>
                     <TableCell className="font-bold text-slate-600">
                       {sourceAcc ? sourceAcc.name : 'Unknown Account'}
                     </TableCell>
                     <TableCell className="text-center">
-                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-100 rounded-lg text-[10px] font-black uppercase">
-                        <ArrowRight className="w-3 h-3 text-blue-500" />
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-100 rounded-lg text-[11px] font-bold uppercase">
+                        <ArrowRight className="w-3 h-3" />
                         {targetAcc ? targetAcc.name : 'Unknown Account'}
                       </div>
                     </TableCell>
-                    <TableCell className="text-right font-black text-slate-900 text-sm">
+                    <TableCell className="text-right font-bold text-slate-900 text-sm">
                       {formatRupiah(dr.amount)}
                     </TableCell>
                     <TableCell className="text-center">
                       {renderStatus(dr.status)}
                     </TableCell>
                     <TableCell className="text-center">
-                      <Button variant="ghost" size="sm" className="h-7 text-[10px] font-black uppercase hover:bg-slate-100 rounded-lg">
+                      <Button variant="ghost" size="sm" className="h-7 text-[11px] font-bold uppercase hover:bg-slate-100 rounded-lg">
                         Buka
                       </Button>
                     </TableCell>
@@ -408,9 +408,9 @@ export default function DisbursementsPage() {
 
       {/* CREATE DISBURSEMENT REQUEST MODAL */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="sm:max-w-[450px] p-6 rounded-[2rem]">
+        <DialogContent className="sm:max-w-[450px] p-6 rounded-xl">
           <DialogHeader>
-            <DialogTitle className="text-lg font-black tracking-tight flex items-center gap-2">
+            <DialogTitle className="text-lg font-bold tracking-tight flex items-center gap-2">
               <ArrowRightLeft className="w-5 h-5 text-emerald-600" /> Buat Request Disbursement
             </DialogTitle>
             <DialogDescription className="text-xs">
@@ -424,7 +424,7 @@ export default function DisbursementsPage() {
                 uang keluar yang tidak bisa ditanya untuk apa. */}
             {dokumenMenunggu.length > 0 && (
               <div className="space-y-1.5">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 pl-0.5">
+                <Label className="text-[11px] font-bold  text-slate-500 pl-0.5">
                   Untuk Dokumen Belanja (opsional)
                 </Label>
                 <select
@@ -443,7 +443,7 @@ export default function DisbursementsPage() {
                   ))}
                 </select>
                 {dokumenDipilih && amount !== rencanaTunai && (
-                  <p className="text-[10px] font-bold text-amber-600">
+                  <p className="text-[11px] font-bold text-amber-600">
                     Beda {formatRupiah(Math.abs(amount - rencanaTunai))} dari rencana — jelaskan di keterangan.
                   </p>
                 )}
@@ -451,7 +451,7 @@ export default function DisbursementsPage() {
             )}
 
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 pl-0.5">Rekening Asal (From Account)</Label>
+              <Label className="text-[11px] font-bold  text-slate-500 pl-0.5">Rekening Asal (From Account)</Label>
               <Select value={fromBankId} onValueChange={setFromBankId}>
                 <SelectTrigger className="h-10 border-slate-200 rounded-xl text-xs bg-white">
                   <SelectValue placeholder="Pilih rekening asal...">{fromBankId ? derivedBankAccounts.find(b => b.id === fromBankId)?.name : undefined}</SelectValue>
@@ -467,7 +467,7 @@ export default function DisbursementsPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 pl-0.5">Rekening Tujuan (To Account)</Label>
+              <Label className="text-[11px] font-bold  text-slate-500 pl-0.5">Rekening Tujuan (To Account)</Label>
               <Select value={toBankId} onValueChange={setToBankId}>
                 <SelectTrigger className="h-10 border-slate-200 rounded-xl text-xs bg-white">
                   <SelectValue placeholder="Pilih rekening tujuan...">{toBankId ? derivedBankAccounts.find(b => b.id === toBankId)?.name : undefined}</SelectValue>
@@ -483,7 +483,7 @@ export default function DisbursementsPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 pl-0.5">Nominal Transfer (IDR)</Label>
+              <Label className="text-[11px] font-bold  text-slate-500 pl-0.5">Nominal Transfer (IDR)</Label>
               <Input
                 type="text"
                 inputMode="numeric"
@@ -495,7 +495,7 @@ export default function DisbursementsPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 pl-0.5">Keperluan / Keterangan</Label>
+              <Label className="text-[11px] font-bold  text-slate-500 pl-0.5">Keperluan / Keterangan</Label>
               <Textarea 
                 placeholder="Tulis alasan disbursement, contoh: Operasional Belanja Sourcing Sembako Mingguan..." 
                 value={description}
@@ -518,9 +518,9 @@ export default function DisbursementsPage() {
 
       {/* DETAIL & ACTIONS MODAL/DRAWER */}
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="sm:max-w-[500px] p-6 rounded-[2rem]">
+        <DialogContent className="sm:max-w-[500px] p-6 rounded-xl">
           <DialogHeader>
-            <DialogTitle className="text-lg font-black tracking-tight">
+            <DialogTitle className="text-lg font-bold tracking-tight">
               Detail Request Disbursement
             </DialogTitle>
             <DialogDescription className="text-xs">
@@ -534,33 +534,33 @@ export default function DisbursementsPage() {
               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-3">
                 <div className="grid grid-cols-2 gap-4 text-xs">
                   <div>
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">Rekening Asal</span>
-                    <span className="font-extrabold text-slate-700">
+                    <span className="text-[11px] font-bold text-slate-400  block">Rekening Asal</span>
+                    <span className="font-semibold text-slate-700">
                       {bankAccounts.find(b => b.id === selectedDisbursement.fromBankAccountId)?.name}
                     </span>
                   </div>
                   <div>
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">Rekening Tujuan</span>
-                    <span className="font-extrabold text-slate-700">
+                    <span className="text-[11px] font-bold text-slate-400  block">Rekening Tujuan</span>
+                    <span className="font-semibold text-slate-700">
                       {bankAccounts.find(b => b.id === selectedDisbursement.toBankAccountId)?.name}
                     </span>
                   </div>
                   <div>
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">Nominal</span>
-                    <span className="font-black text-emerald-600 text-sm">
+                    <span className="text-[11px] font-bold text-slate-400  block">Nominal</span>
+                    <span className="font-bold text-emerald-600 text-sm">
                       {formatRupiah(selectedDisbursement.amount)}
                     </span>
                   </div>
                   <div>
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">Tanggal Pengajuan</span>
-                    <span className="font-extrabold text-slate-700">
+                    <span className="text-[11px] font-bold text-slate-400  block">Tanggal Pengajuan</span>
+                    <span className="font-semibold text-slate-700">
                       {format(new Date(selectedDisbursement.requestedAt), "dd MMMM yyyy HH:mm")}
                     </span>
                   </div>
                 </div>
                 
                 <div className="pt-2.5 border-t border-slate-200">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">Keperluan</span>
+                  <span className="text-[11px] font-bold text-slate-400  block">Keperluan</span>
                   <p className="text-xs text-slate-600 font-bold italic">"{selectedDisbursement.description}"</p>
                 </div>
               </div>
@@ -568,9 +568,9 @@ export default function DisbursementsPage() {
               {/* CFO REVIEW NOTE IF EXISTS */}
               {selectedDisbursement.cfoNote && (
                 <div className="p-3.5 bg-blue-50 border border-blue-100 rounded-xl text-xs">
-                  <span className="text-[9px] font-black text-blue-700 uppercase tracking-widest block">Catatan CFO / Persetujuan</span>
+                  <span className="text-[11px] font-bold text-blue-700  block">Catatan CFO / Persetujuan</span>
                   <p className="text-blue-700 italic font-bold mt-1">"{selectedDisbursement.cfoNote}"</p>
-                  <p className="text-[9px] text-blue-500 font-bold mt-0.5 text-right">— Oleh: {selectedDisbursement.approvedBy} ({format(new Date(selectedDisbursement.approvedAt || ""), "dd MMM yyyy")})</p>
+                  <p className="text-[11px] text-blue-500 font-bold mt-0.5 text-right">— Oleh: {selectedDisbursement.approvedBy} ({format(new Date(selectedDisbursement.approvedAt || ""), "dd MMM yyyy")})</p>
                 </div>
               )}
 
@@ -583,14 +583,14 @@ export default function DisbursementsPage() {
                     {bankRequiresCfoApproval(selectedDisbursement.fromBankAccountId) ? (
                       <Button
                         onClick={() => handleSubmitToCfo(selectedDisbursement.id)}
-                        className="w-full bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-[10px] uppercase tracking-wider h-11 rounded-xl shadow-sm"
+                        className="w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold text-[11px]  h-11 rounded-xl shadow-sm"
                       >
                         Ajukan Approval ke CFO
                       </Button>
                     ) : (
                       <Button
                         onClick={() => handleExecuteTransfer(selectedDisbursement)}
-                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[10px] uppercase tracking-wider h-11 rounded-xl shadow-sm"
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[11px]  h-11 rounded-xl shadow-sm"
                       >
                         Eksekusi Transfer (Tanpa Approval CFO)
                       </Button>
@@ -598,7 +598,7 @@ export default function DisbursementsPage() {
                     <Button
                       variant="outline"
                       onClick={() => handleDeleteDraft(selectedDisbursement.id)}
-                      className="w-full border-rose-200 text-rose-600 hover:bg-rose-50 font-extrabold text-[10px] uppercase tracking-wider h-11 rounded-xl"
+                      className="w-full border-rose-200 text-rose-600 hover:bg-rose-50 font-semibold text-[11px]  h-11 rounded-xl"
                     >
                       Hapus Draft Request
                     </Button>
@@ -609,7 +609,7 @@ export default function DisbursementsPage() {
                 {selectedDisbursement.status === 'Pending_CFO' && isCfo && (
                   <div className="space-y-3">
                     <div className="space-y-1.5">
-                      <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 pl-0.5">Catatan Persetujuan CFO</Label>
+                      <Label className="text-[11px] font-bold  text-slate-500 pl-0.5">Catatan Persetujuan CFO</Label>
                       <Textarea 
                         placeholder="Tulis keputusan kelayakan anggaran (wajib diisi)..." 
                         value={cfoNote}
@@ -620,14 +620,14 @@ export default function DisbursementsPage() {
                     <div className="grid grid-cols-2 gap-2">
                       <Button 
                         onClick={() => handleCfoApproval(selectedDisbursement.id, 'Approve')}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[10px] uppercase tracking-wider h-11 rounded-xl shadow-md"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[11px]  h-11 rounded-xl shadow-md"
                       >
                         Setujui (Approve)
                       </Button>
                       <Button 
                         onClick={() => handleCfoApproval(selectedDisbursement.id, 'Reject')}
                         variant="outline"
-                        className="border-rose-200 text-rose-600 hover:bg-rose-50 font-extrabold text-[10px] uppercase tracking-wider h-11 rounded-xl"
+                        className="border-rose-200 text-rose-600 hover:bg-rose-50 font-semibold text-[11px]  h-11 rounded-xl"
                       >
                         Tolak (Reject)
                       </Button>
@@ -640,14 +640,14 @@ export default function DisbursementsPage() {
                   <div className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-100 flex flex-col items-center text-center space-y-3">
                     <AlertCircle className="w-8 h-8 text-emerald-600" />
                     <div>
-                      <h4 className="text-xs font-black text-slate-800 uppercase tracking-wide">Persetujuan CFO Lengkap</h4>
-                      <p className="text-[10px] text-slate-500 mt-0.5">
+                      <h4 className="text-xs font-bold text-slate-800 ">Persetujuan CFO Lengkap</h4>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
                         Klik tombol di bawah ini jika transfer fisik antar rekening BCA/Mandiri sudah selesai dilakukan. Jurnal & mutasi akan otomatis tercatat.
                       </p>
                     </div>
                     <Button 
                       onClick={() => handleExecuteTransfer(selectedDisbursement)}
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-widest h-11 rounded-xl shadow-md"
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs  h-11 rounded-xl shadow-md"
                     >
                       Eksekusi Transfer (Kas Pindah)
                     </Button>
@@ -656,11 +656,11 @@ export default function DisbursementsPage() {
 
                 {/* 4. READ ONLY FOOTER IF COMPLETED */}
                 {selectedDisbursement.status === 'Transferred' && (
-                  <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl p-3.5 text-xs text-blue-700 font-extrabold">
-                    <CheckCircle2 className="w-5 h-5 shrink-0 text-blue-600" />
+                  <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl p-3.5 text-xs text-blue-700 font-semibold">
+                    <CheckCircle2 className="w-5 h-5 shrink-0" />
                     <div>
                       <p>Dana Telah Berhasil Ditransfer & Tercatat!</p>
-                      <p className="text-[9px] font-bold text-blue-500 uppercase tracking-wider mt-0.5">
+                      <p className="text-[11px] font-bold text-blue-500  mt-0.5">
                         Eksekusi: {selectedDisbursement.transferredBy} ({format(new Date(selectedDisbursement.transferredAt || ""), "dd MMM yyyy HH:mm")})
                       </p>
                     </div>

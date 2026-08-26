@@ -6,6 +6,7 @@ import { supabase } from './supabase';
 import { dueDateFor } from './vendor-payable';
 import { roundQtyToBook, nextSoStatus } from './backorder';
 import { splitDropshipTotals } from './dropship';
+import { costBasisFor } from './cogs-source';
 
 /**
  * Double-Entry Bookkeeping Helper functions
@@ -401,8 +402,9 @@ export const recordOnlinePurchase = async (
   if (adminFee > 0) debits.push({ accountCode: '6-1600', amount: adminFee });
   if (shippingFee > 0) debits.push({ accountCode: '6-1700', amount: shippingFee });
 
+  const description = `Pembelian Online: ${productName} - Ref: ${itemId.slice(0,8)}`;
   const success = await createAccountingEntry(
-    `Pembelian Online: ${productName} - Ref: ${itemId.slice(0,8)}`,
+    description,
     'Purchase',
     itemId,
     debits,
@@ -411,18 +413,32 @@ export const recordOnlinePurchase = async (
 
   if (success) {
     // 2. Cash History
+    //
+    // Jurnalnya sudah tercatat di atas. Kalau baris mutasi kasnya gagal dan
+    // jurnalnya dibiarkan, kas di Neraca berkurang sementara saldo rekening tidak —
+    // dan saldo rekening dihitung DARI mutasi, jadi selisihnya permanen dan tidak
+    // kelihatan di mana pun sampai ada yang mencocokkan dua angka itu. Persis
+    // begitu Rp260.000 pernah hilang dari kecocokan. Jalur settlement sourcing sudah
+    // membatalkan jurnalnya sejak lama; jalur ini yang belum.
     if (totalAmount > 0) {
-      await store.addCashTransaction({
-        id: uuidv4(),
-        date: new Date().toISOString(),
-        amount: totalAmount,
-        type: 'Out',
-        category: 'Belanja Online',
-        description: `Belanja Online: ${productName} (Incl. Admin & Ongkir)`,
-        bankAccountId: bankAccountId,
-        referenceId: itemId,
-        referenceType: 'Purchase'
-      });
+      try {
+        await store.addCashTransaction({
+          id: uuidv4(),
+          date: new Date().toISOString(),
+          amount: totalAmount,
+          type: 'Out',
+          category: 'Belanja Online',
+          description: `Belanja Online: ${productName} (Incl. Admin & Ongkir)`,
+          bankAccountId: bankAccountId,
+          referenceId: itemId,
+          referenceType: 'Purchase'
+        });
+      } catch (err) {
+        console.error('[Accounting] Mutasi kas belanja online gagal, jurnalnya dibatalkan:', err);
+        const posted = findPostedEntry('Purchase', itemId, description);
+        if (posted) await cleanupJournalEntry(posted.id);
+        return false;
+      }
     }
 
     // 3. Mark as Audited in Purchase Items
@@ -663,11 +679,9 @@ export const recordDeliveryAndInvoice = async (
   for (const item of alreadyReleased ? [] : items) {
     const product = store.products.find(p => p.id === item.productId);
     if (product) {
-      // Find unit cost for this item to log in stock_movements
-      let pItem = store.purchaseItems.find(pi => pi.salesOrderId === invoice?.salesOrderId && pi.productId === item.productId && pi.actualUnitPrice > 0);
-      if (!pItem) {
-        pItem = store.purchaseItems.filter(pi => pi.productId === item.productId && pi.actualUnitPrice > 0).pop();
-      }
+      // Harga satuan untuk kartu stok — dasar yang sama dengan pengakuan HPP,
+      // jadi keduanya tidak boleh memakai aturan pemilihan yang berbeda.
+      const pItem = costBasisFor(invoice?.salesOrderId, item.productId, store.purchaseItems, store.purchases);
       const unitCost = pItem ? pItem.actualUnitPrice : (product.basePrice || 0);
 
       await recordStockMovement({
@@ -1538,7 +1552,12 @@ export const recordPaymentReceived = async (invoiceId: string, amount: number, d
       amount: amount,
       type: 'In',
       category: 'Sales',
-      description: `Payment Invoice - Ref: ${invoiceId}`,
+      description: 'Pembayaran faktur',
+      // Rujukannya disimpan di kolomnya sendiri, bukan diselipkan ke deskripsi.
+      // Selama cuma jadi teks, baris mutasi kas tidak bisa dibuka ke dokumennya dan
+      // yang mencocokkan rekening koran menatap id acak yang tidak berarti apa pun.
+      referenceType: 'Invoice',
+      referenceId: invoiceId,
       bankAccountId: bankAccountId
     });
   }

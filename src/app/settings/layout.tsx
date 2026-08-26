@@ -70,12 +70,12 @@ export default function SettingsLayout({ children }: SettingsLayoutProps) {
         <Sidebar roleName={currentUser?.role?.replace('_', ' ') || 'Settings'} />
 
         <div className={cn(
-          "flex-1 flex flex-col transition-all duration-500 min-w-0 px-4 md:px-0 md:pr-4 pb-20 md:pb-6",
-          isMinimized ? "md:pl-28" : "md:pl-72"
+          "flex-1 flex flex-col transition-all duration-150 min-w-0 px-4 md:px-0 pb-20 md:pb-6",
+          isMinimized ? "md:pl-[60px]" : "md:pl-[212px]"
         )}>
           <div className="w-full space-y-6 pt-10 pb-20 px-4 flex-1">
             <div className="mb-8">
-              <h2 className="text-2xl font-black tracking-tight text-slate-800 dark:text-white">Settings</h2>
+              <h2 className="text-2xl font-bold tracking-tight text-slate-800 dark:text-white">Settings</h2>
               <p className="text-sm text-slate-500 font-medium">Manage your account and application preferences.</p>
             </div>
 
@@ -97,7 +97,7 @@ export default function SettingsLayout({ children }: SettingsLayoutProps) {
                         "flex items-center justify-between p-3 rounded-2xl transition-all duration-200 group",
                         isActive 
                           ? "bg-white dark:bg-slate-800 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700" 
-                          : "hover:bg-white/50 dark:hover:bg-slate-800/30"
+                          : "hover:bg-card dark:hover:bg-slate-800/30"
                       )}
                     >
                       <div className="flex items-center gap-3">
@@ -109,10 +109,10 @@ export default function SettingsLayout({ children }: SettingsLayoutProps) {
                         </div>
                         <div>
                           <p className={cn(
-                            "text-xs font-black",
+                            "text-xs font-bold",
                             isActive ? "text-slate-800 dark:text-slate-200" : "text-slate-500"
                           )}>{item.title}</p>
-                          <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter leading-none mt-0.5">{item.description}</p>
+                          <p className="text-[11px] text-slate-400 font-bold  leading-none mt-0.5">{item.description}</p>
                         </div>
                       </div>
                       <ChevronRight className={cn(
@@ -126,7 +126,7 @@ export default function SettingsLayout({ children }: SettingsLayoutProps) {
 
               {/* Content Area */}
               <main className="flex-1 min-w-0">
-                <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm p-8 glass-panel animate-in fade-in slide-in-from-bottom-4 duration-700">
+                <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-800 shadow-sm p-8 glass-panel duration-150">
                   {children}
                 </div>
               </main>

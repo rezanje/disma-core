@@ -149,7 +149,7 @@ export default function UserManagementPage() {
       <div className="space-y-6">
         <div className="bg-white dark:bg-slate-900 -mx-4 -mt-4 p-6 border-b shadow-sm mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-black tracking-tight flex items-center gap-2">
+            <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
               <UserCog className="text-emerald-600" /> User & Role Management
             </h2>
             <p className="text-slate-500 text-sm">Kelola akses, perizinan role, dan personil DISMA.</p>
@@ -279,7 +279,7 @@ export default function UserManagementPage() {
                               <div className="flex items-center gap-2">
                                 <div>
                                   <div className="font-bold text-slate-800 dark:text-slate-200">{user.name}</div>
-                                  <div className="text-[10px] text-slate-400 font-medium uppercase tracking-widest">{user.id}</div>
+                                  <div className="text-[11px] text-slate-400 font-medium ">{user.id}</div>
                                 </div>
                                 <Button 
                                   variant="ghost" 
@@ -293,7 +293,7 @@ export default function UserManagementPage() {
                             )}
                           </TableCell>
                           <TableCell>
-                            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-100 px-2 py-0.5 text-[10px] font-black uppercase">
+                            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-100 px-2 py-0.5 text-[11px] font-bold uppercase">
                               {ROLE_LABELS[user.role]}
                             </Badge>
                           </TableCell>
@@ -323,9 +323,9 @@ export default function UserManagementPage() {
                 </CardContent>
               </Card>
 
-              <Card className="bg-emerald-900 text-white border-none shadow-xl h-fit">
+              <Card className="bg-emerald-900 text-white border-none shadow-sm h-fit">
                 <CardHeader>
-                   <CardTitle className="text-emerald-200 flex items-center gap-2 text-sm uppercase tracking-widest">
+                   <CardTitle className="text-emerald-200 flex items-center gap-2 text-sm ">
                       <Shield className="w-4 h-4" /> Security Notice
                    </CardTitle>
                 </CardHeader>
@@ -333,7 +333,7 @@ export default function UserManagementPage() {
                    <p className="text-xs leading-relaxed opacity-80">
                       Penambahan user baru akan memberikan akses langsung sesuai rolenya. 
                    </p>
-                   <div className="flex items-start gap-2 p-3 bg-white/10 rounded-xl text-xs">
+                   <div className="flex items-start gap-2 p-3 bg-card rounded-xl text-xs">
                       <AlertCircle className="w-5 h-5 shrink-0 text-amber-400" />
                       <span>Username bersifat unik dan digunakan untuk login. Jangan berikan login sembarangan selain personil kantor.</span>
                    </div>
@@ -347,7 +347,7 @@ export default function UserManagementPage() {
               {/* Role Selection */}
               <Card className="border-none shadow-md overflow-hidden h-fit">
                 <CardHeader className="bg-slate-50/50 border-b">
-                  <CardTitle className="text-sm uppercase tracking-widest text-slate-500">Pilih Role</CardTitle>
+                  <CardTitle className="text-sm  text-slate-500">Pilih Role</CardTitle>
                 </CardHeader>
                 <CardContent className="p-2">
                   <div className="grid gap-1">
@@ -358,7 +358,7 @@ export default function UserManagementPage() {
                         className={cn(
                           "flex items-center justify-between px-4 py-3 rounded-xl text-sm font-bold transition-all",
                           selectedRoleForPerms === role 
-                            ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/20" 
+                            ? "bg-emerald-600 text-white shadow-sm" 
                             : "text-slate-600 hover:bg-slate-50"
                         )}
                       >
@@ -387,7 +387,7 @@ export default function UserManagementPage() {
                   <div className="grid gap-8">
                     {categories.map(category => (
                       <div key={category} className="space-y-4">
-                        <h4 className="text-xs font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-2">
+                        <h4 className="text-xs font-bold  text-slate-400 flex items-center gap-2">
                           <div className="h-px flex-1 bg-slate-100" />
                           {category}
                           <div className="h-px flex-1 bg-slate-100" />
@@ -414,7 +414,7 @@ export default function UserManagementPage() {
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <div className="text-xs font-bold truncate">{page.title}</div>
-                                  <div className="text-[10px] opacity-70 truncate font-mono">{page.href}</div>
+                                  <div className="text-[11px] opacity-70 truncate font-mono">{page.href}</div>
                                 </div>
                                 <Checkbox 
                                   checked={isChecked}

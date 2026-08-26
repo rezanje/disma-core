@@ -23,9 +23,11 @@ import path from 'node:path';
 const nav = fs.readFileSync('src/lib/navigation.tsx', 'utf8');
 const store = fs.readFileSync('src/lib/store.ts', 'utf8');
 
-type Entry = { key: string; href: string };
-const entries: Entry[] = [...nav.matchAll(/key:\s*'([a-z_]+)'[^}]*?href:\s*'([^']+)'/g)]
-  .map(m => ({ key: m[1], href: m[2] }));
+// `access` dipakai kalau menu menumpang izin menu lain — itulah kunci yang benar-benar
+// menentukan menu ini muncul untuk siapa, jadi itu yang diperiksa kepemilikannya.
+type Entry = { key: string; izin: string; href: string };
+const entries: Entry[] = [...nav.matchAll(/key:\s*'([a-z_]+)'(?:\s*,\s*access:\s*'([a-z_]+)')?[^}]*?href:\s*'([^']+)'/g)]
+  .map(m => ({ key: m[1], izin: m[2] || m[1], href: m[3] }));
 
 assert.ok(entries.length > 40, `hanya menemukan ${entries.length} menu — pola pembacaannya kemungkinan rusak`);
 
@@ -48,7 +50,7 @@ const owned = new Set(Object.values(roles).flat());
 
 // --- 1. Every menu belongs to at least one role ----------------------------
 // A menu nobody holds renders for nobody. It is not "hidden", it is dead.
-const unowned = entries.filter(e => !owned.has(e.key));
+const unowned = entries.filter(e => !owned.has(e.izin));
 assert.deepEqual(unowned.map(e => e.key), [],
   `menu tanpa pemilik (tidak akan pernah muncul untuk siapa pun): ${unowned.map(e => `${e.key} -> ${e.href}`).join(', ')}`);
 

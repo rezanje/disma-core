@@ -40,7 +40,7 @@ export function PdfCanvasPreview({ url }: { url: string }) {
           const canvas = document.createElement("canvas")
           canvas.width = viewport.width
           canvas.height = viewport.height
-          canvas.className = "mx-auto mb-4 shadow-lg rounded-sm bg-white max-w-full h-auto"
+          canvas.className = "mx-auto mb-4 shadow-sm rounded-sm bg-white max-w-full h-auto"
           if (cancelled) return
           containerRef.current?.appendChild(canvas)
           await page.render({ canvas, viewport }).promise

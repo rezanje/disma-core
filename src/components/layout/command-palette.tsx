@@ -144,7 +144,7 @@ export default function CommandPalette({ isOpen, onClose, onOpen }: CommandPalet
         title: `${so.poNumber} (${clientMap.get(so.clientId) || "Unknown Client"})`,
         href: `/admin/sales-orders?detailId=${so.id}`,
         category: "Sales Order (PO)",
-        icon: <ShoppingCart className="w-4 h-4 text-blue-500" />
+        icon: <ShoppingCart className="w-4 h-4" />
       }))
   }, [isPOAllowed, queryLower, salesOrders, clientMap])
 
@@ -160,7 +160,7 @@ export default function CommandPalette({ isOpen, onClose, onOpen }: CommandPalet
         title: `${p.name} [SKU: ${p.skuCode}]`,
         href: `/warehouse/catalog?detailId=${p.id}`,
         category: "Produk (SKU)",
-        icon: <Boxes className="w-4 h-4 text-orange-500" />
+        icon: <Boxes className="w-4 h-4" />
       }))
   }, [queryLower, products])
 
@@ -195,7 +195,7 @@ export default function CommandPalette({ isOpen, onClose, onOpen }: CommandPalet
         title: `${inv.id} - ${clientMap.get(inv.clientId) || "Unknown Client"} (Total: Rp ${inv.totalAmount.toLocaleString()})`,
         href: `/finance/invoices?detailId=${inv.id}`,
         category: "Invoice",
-        icon: <FileText className="w-4 h-4 text-purple-500" />
+        icon: <FileText className="w-4 h-4" />
       }))
   }, [isInvoicesAllowed, queryLower, invoices, clientMap])
 
@@ -265,15 +265,15 @@ export default function CommandPalette({ isOpen, onClose, onOpen }: CommandPalet
       {/* Modal Backdrop with deep Glassmorphism */}
       <div 
         onClick={onClose}
-        className="fixed inset-0 bg-slate-950/65 backdrop-blur-md transition-all duration-300 animate-in fade-in"
+        className="fixed inset-0 bg-slate-950/65 transition-all duration-300"
       />
 
       {/* Main Command Palette Card */}
-      <div className="relative w-full max-w-2xl bg-white/90 dark:bg-slate-900/90 border border-slate-200/50 dark:border-slate-800/50 rounded-[2rem] shadow-2xl flex flex-col overflow-hidden max-h-[70vh] backdrop-blur-xl animate-in zoom-in-95 duration-200">
+      <div className="relative w-full max-w-2xl bg-card dark:bg-slate-900/90 border border-slate-200/50 dark:border-slate-800/50 rounded-xl shadow-sm flex flex-col overflow-hidden max-h-[70vh] duration-200">
         
         {/* Search Input Bar */}
         <div className="relative flex items-center border-b border-slate-100 dark:border-slate-800/80 px-6 h-16 shrink-0">
-          <Search className="w-5 h-5 text-slate-400 dark:text-slate-500 mr-4 shrink-0 animate-pulse" />
+          <Search className="w-5 h-5 text-slate-400 dark:text-slate-500 mr-4 shrink-0" />
           <input
             ref={inputRef}
             type="text"
@@ -284,7 +284,7 @@ export default function CommandPalette({ isOpen, onClose, onOpen }: CommandPalet
             onKeyDown={handleKeyDown}
           />
           <div className="flex items-center gap-2">
-            <kbd className="hidden sm:inline-flex items-center h-5 select-none rounded bg-slate-100 dark:bg-slate-800 px-1.5 font-mono text-[9px] font-bold text-slate-400 border dark:border-slate-700">
+            <kbd className="hidden sm:inline-flex items-center h-5 select-none rounded bg-slate-100 dark:bg-slate-800 px-1.5 font-mono text-[11px] font-bold text-slate-400 border dark:border-slate-700">
               ESC
             </kbd>
             <button 
@@ -304,8 +304,8 @@ export default function CommandPalette({ isOpen, onClose, onOpen }: CommandPalet
           {allResults.length === 0 ? (
             <div className="py-12 text-center text-slate-400 dark:text-slate-500 flex flex-col items-center justify-center gap-3">
               <Search className="w-8 h-8 opacity-20" />
-              <p className="text-xs font-black uppercase tracking-widest leading-none">No matching results found</p>
-              <p className="text-[10px] font-bold text-slate-400/80 mt-0.5">Try searching with a different term</p>
+              <p className="text-xs font-bold  leading-none">No matching results found</p>
+              <p className="text-[11px] font-bold text-slate-400/80 mt-0.5">Try searching with a different term</p>
             </div>
           ) : (
             allResults.map((item, index) => {
@@ -315,7 +315,7 @@ export default function CommandPalette({ isOpen, onClose, onOpen }: CommandPalet
               return (
                 <React.Fragment key={`${item.category}-${item.title}-${index}`}>
                   {isFirstInGroup && (
-                    <div className="text-[9px] font-black uppercase tracking-widest text-slate-450 dark:text-slate-500 px-3 pt-3 pb-1 border-t border-slate-100/30 dark:border-slate-800/30 first:border-0">
+                    <div className="text-[11px] font-bold  text-slate-450 dark:text-slate-500 px-3 pt-3 pb-1 border-t border-slate-100/30 dark:border-slate-800/30 first:border-0">
                       {item.category}
                     </div>
                   )}
@@ -355,7 +355,7 @@ export default function CommandPalette({ isOpen, onClose, onOpen }: CommandPalet
         </div>
 
         {/* Footer Navigation Bar */}
-        <div className="px-6 py-3 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest shrink-0">
+        <div className="px-6 py-3 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px] font-bold text-slate-400 dark:text-slate-500  shrink-0">
           <div className="flex items-center gap-4">
             <span className="flex items-center gap-1">
               <ArrowUp className="w-3 h-3" />

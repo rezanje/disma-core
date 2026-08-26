@@ -350,60 +350,60 @@ export default function SourcingDashboard() {
   const alreadyClosedToday = useAppStore.getState().tutupHariKantong.some(m => m.sourcerId === currentUser?.id && m.date === todayStr)
 
   return (
-    <div className="space-y-6 animate-in fade-in-50 duration-500 pb-20">
+    <div className="space-y-6-50 duration-150 pb-20">
       {/* Bank Overview — 2 box layout */}
       <div className="grid grid-cols-2 gap-3">
         {/* Box 1: Advance received */}
-        <div className="bg-slate-900 rounded-[2rem] p-5 text-white relative overflow-hidden">
+        <div className="bg-slate-900 rounded-xl p-5 text-white relative overflow-hidden">
           <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-500/10 rounded-full blur-2xl -mr-6 -mt-6" />
           <div className="relative z-10 flex flex-col gap-3">
             <div className="flex items-center gap-2">
-              <div className="p-2 bg-white/10 rounded-xl">
+              <div className="p-2 bg-card rounded-xl">
                 <Wallet className="w-4 h-4 text-emerald-400" />
               </div>
-              <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Kantong</span>
+              <span className="text-[11px] font-bold  text-slate-400">Kantong</span>
             </div>
             <div>
-              <p className="text-[8px] font-black uppercase text-slate-500 tracking-widest leading-none mb-1">Ditarik Hari Ini</p>
-              <p className="text-2xl font-black tracking-tighter leading-none">{formatRupiah(ditarikHariIni)}</p>
+              <p className="text-[11px] font-bold uppercase text-slate-500 tracking-widest leading-none mb-1">Ditarik Hari Ini</p>
+              <p className="text-2xl font-bold tracking-tighter leading-none">{formatRupiah(ditarikHariIni)}</p>
             </div>
           </div>
         </div>
 
         {/* Box 2: Balance sheet mini */}
-        <div className="bg-slate-50 dark:bg-slate-800/60 rounded-[2rem] p-5 flex flex-col gap-3">
-          <p className="text-[8px] font-black uppercase text-slate-500 tracking-widest leading-none">Estimasi Sisa</p>
-          <p className={cn("text-2xl font-black tracking-tighter leading-none", pocketBalance < 0 ? "text-rose-500" : "text-emerald-600")}>
+        <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-5 flex flex-col gap-3">
+          <p className="text-[11px] font-bold uppercase text-slate-500 tracking-widest leading-none">Estimasi Sisa</p>
+          <p className={cn("text-2xl font-bold tracking-tighter leading-none", pocketBalance < 0 ? "text-rose-500" : "text-emerald-600")}>
             {formatRupiah(pocketBalance)}
           </p>
           <div>
             <div className="h-1.5 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden mb-1.5">
               <div
-                className="h-full bg-emerald-500 transition-all duration-700 rounded-full"
+                className="h-full bg-emerald-500 transition-all duration-150 rounded-full"
                 style={{ width: `${ditarikHariIni > 0 ? Math.min(100, (belanjaHariIni / ditarikHariIni) * 100) : 0}%` }}
               />
             </div>
-            <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest">
+            <p className="text-[11px] font-bold uppercase text-slate-400 tracking-widest">
               Pemakaian: {formatRupiah(belanjaHariIni)}
             </p>
           </div>
           {totalTempoActual > 0 && (
-            <p className="text-[8px] font-black uppercase text-amber-500 tracking-widest">+ Tempo: {formatRupiah(totalTempoActual)}</p>
+            <p className="text-[11px] font-bold uppercase text-amber-500 tracking-widest">+ Tempo: {formatRupiah(totalTempoActual)}</p>
           )}
         </div>
       </div>
 
       {/* Pocket panel — always visible, independent of active shopping tasks */}
       {myPocket ? (
-        <div className="bg-violet-50 border border-violet-200 rounded-[2rem] p-5 space-y-3">
+        <div className="bg-violet-50 border border-violet-200 rounded-xl p-5 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Banknote className="w-4 h-4 text-violet-600" />
-              <p className="text-[10px] font-black uppercase tracking-widest text-violet-700">Kantong Hari Ini · {myPocket.name}</p>
+              <Banknote className="w-4 h-4" />
+              <p className="text-[11px] font-bold  text-violet-700">Kantong Hari Ini · {myPocket.name}</p>
             </div>
-            <p className="text-xl font-black text-violet-800">{formatRupiah(pocketBalance)}</p>
+            <p className="text-xl font-bold text-violet-800">{formatRupiah(pocketBalance)}</p>
           </div>
-          <div className="grid grid-cols-2 gap-2 text-[10px] font-bold text-violet-600">
+          <div className="grid grid-cols-2 gap-2 text-[11px] font-bold text-violet-600">
             <span>Ditarik: {formatRupiah(ditarikHariIni)}</span>
             <span>Kepake: {formatRupiah(belanjaHariIni)}</span>
           </div>
@@ -428,7 +428,7 @@ export default function SourcingDashboard() {
           </div>
           <Button
             disabled={pocketBalance <= 0 || alreadyClosedToday}
-            className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 font-black rounded-xl uppercase text-[11px] tracking-widest disabled:opacity-40"
+            className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 font-bold rounded-xl uppercase text-[11px] tracking-widest disabled:opacity-40"
             onClick={async () => {
               if (!pool || !myPocket) return
               const ok = await recordPocketReturn(myPocket.id, pool.id, pocketBalance, currentUser?.name || 'Sourcing')
@@ -444,28 +444,28 @@ export default function SourcingDashboard() {
             }}>
             {alreadyClosedToday ? 'Hari Sudah Ditutup' : 'Tutup Hari (Setor Sisa)'}
           </Button>
-          <p className="text-[9px] text-violet-400 font-bold uppercase">Tarik sesuai kebutuhan (boleh berkali-kali). Tiap sore tutup hari — sisa balik ke Bank Jago.</p>
+          <p className="text-[11px] text-violet-400 font-bold uppercase">Tarik sesuai kebutuhan (boleh berkali-kali). Tiap sore tutup hari — sisa balik ke Bank Jago.</p>
         </div>
       ) : (
-        <div className="bg-amber-50 border border-amber-200 rounded-[2rem] p-5 text-[11px] font-bold text-amber-700">
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 text-[11px] font-bold text-amber-700">
           Kantong sourcing kamu belum di-set. Minta finance bikin rekening kantong (purpose "Kantong Sourcing" + owner kamu) di Cash & Bank.
         </div>
       )}
 
       <section className="space-y-4">
-        <h2 className="text-sm font-black uppercase tracking-widest text-slate-500 px-1">Checklist Belanja</h2>
+        <h2 className="text-sm font-bold  text-slate-500 px-1">Checklist Belanja</h2>
         <>
           {activePurchases.length === 0 && (
             <div className="flex flex-col items-center justify-center text-center py-16 px-6">
               <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
                 <CheckCircle2 className="w-8 h-8 text-slate-400" />
               </div>
-              <p className="text-sm font-black uppercase tracking-widest text-slate-400">Tidak ada tugas belanja aktif</p>
+              <p className="text-sm font-bold  text-slate-400">Tidak ada tugas belanja aktif</p>
             </div>
           )}
           {activePurchases.length > 0 && <>
           {/* Header Info */}
-          <div className="bg-white dark:bg-slate-900 -mx-4 p-4 border-b shadow-sm mb-6 rounded-b-[2rem]">
+          <div className="bg-white dark:bg-slate-900 -mx-4 p-4 border-b shadow-sm mb-6 rounded-b-xl">
             <h2 className="text-lg font-bold">Daftar Belanja Hari Ini</h2>
             <p className="text-sm text-slate-500">
               Target: {totalItems} jenis barang
@@ -479,7 +479,7 @@ export default function SourcingDashboard() {
               </div>
               <div className="h-2.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                 <div 
-                  className="h-full bg-emerald-500 transition-all duration-500 ease-out" 
+                  className="h-full bg-emerald-500 transition-all duration-150 ease-out" 
                   style={{ width: `${totalItems > 0 ? (completedItems / totalItems) * 100 : 0}%` }}
                 />
               </div>
@@ -495,7 +495,7 @@ export default function SourcingDashboard() {
             <div key={`vendor-group-${vendorId}`} className="space-y-3">
               <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 rounded-xl">
                 <Truck className="w-4 h-4 text-emerald-600 shrink-0" />
-                <h3 className="text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                <h3 className="text-xs font-bold  text-slate-600 dark:text-slate-400">
                   {vendorName} ({items.length} barang)
                 </h3>
               </div>
@@ -538,22 +538,22 @@ export default function SourcingDashboard() {
                             <h3 className={`font-semibold text-[15px] leading-tight ${item.isChecked ? 'line-through text-slate-500' : ''}`}>
                               {product.name}
                               {(item.paymentMethod === 'Tempo') && (
-                                <span className="ml-2 rounded-full bg-amber-500 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest text-white">Tempo</span>
+                                <span className="ml-2 rounded-full bg-amber-500 px-2 py-0.5 text-[11px] font-bold  text-white">Tempo</span>
                               )}
                             </h3>
                             <div className="space-y-0.5 mt-1">
                               <p className="text-xs text-slate-500 font-medium">
                                 Target Beli: <span className="text-emerald-600 font-bold">{item.qtyTarget} {product.uom}</span>
                                 {item.estimatedUnitPrice > 0 && (
-                                  <> • Target Harga: <span className="text-slate-800 font-black">{formatRupiah(item.estimatedUnitPrice)}</span></>
+                                  <> • Target Harga: <span className="text-slate-800 font-bold">{formatRupiah(item.estimatedUnitPrice)}</span></>
                                 )}
                               </p>
-                              <p className="text-[10px] text-slate-400 font-medium">
+                              <p className="text-[11px] text-slate-400 font-medium">
                                 Vendor PO: <span className="text-slate-600 font-bold">{itemVendorName}</span>
                               </p>
                             </div>
                             {item.purchaseMethod === 'Online' && (
-                               <Badge variant="outline" className="mt-1.5 bg-blue-50 text-blue-600 border-blue-200 text-[9px] font-black uppercase">🛒 Online Queue</Badge>
+                               <Badge variant="outline" className="mt-1.5 bg-blue-50 text-blue-600 border-blue-200 text-[11px] font-bold uppercase">🛒 Online Queue</Badge>
                             )}
                           </div>
                         </div>
@@ -576,7 +576,7 @@ export default function SourcingDashboard() {
 
                                 <div className="grid grid-cols-2 gap-4">
                                   <div className="space-y-2">
-                                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                    <Label className="text-xs font-bold text-slate-500 ">
                                       Harga Satuan (Pasar)
                                     </Label>
                                     <div className="flex items-center gap-2">
@@ -584,7 +584,7 @@ export default function SourcingDashboard() {
                                       <Input
                                         type="text"
                                         inputMode="numeric"
-                                        className="h-12 text-lg font-bold bg-white/50 border-2 transition-all focus:border-emerald-500"
+                                        className="h-12 text-lg font-bold bg-card border-2 transition-all focus:border-emerald-500"
                                         placeholder="0"
                                         value={formatNumber(editPrice)}
                                         onChange={(e) => setEditPrice(parseNumber(e.target.value))}
@@ -592,7 +592,7 @@ export default function SourcingDashboard() {
                                     </div>
                                   </div>
                                   <div className="space-y-2">
-                                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                    <Label className="text-xs font-bold text-slate-500 ">
                                       Qty Dibeli ({product.uom})
                                     </Label>
                                     <Input
@@ -600,7 +600,7 @@ export default function SourcingDashboard() {
                                       onWheel={(e) => e.currentTarget.blur()}
                                       min="0"
                                       step="any"
-                                      className="h-12 text-lg font-bold bg-white/50 border-2 transition-all focus:border-emerald-500"
+                                      className="h-12 text-lg font-bold bg-card border-2 transition-all focus:border-emerald-500"
                                       placeholder={`${item.qtyTarget}`}
                                       value={editQty || ''}
                                       onChange={(e) => setEditQty(parseFloat(e.target.value) || 0)}
@@ -610,13 +610,23 @@ export default function SourcingDashboard() {
 
                                 {(() => {
                                   const ceiling = ceilings.get(item.id) || 0
-                                  if (!ceiling) return null
+                                  // Tanpa batas yang diketahui, kotak ini tetap tampil —
+                                  // supaya "tidak ada peringatan" tidak dibaca sebagai "aman".
+                                  if (!ceiling) return (
+                                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:bg-slate-800/50">
+                                      <span className="text-xs font-bold text-slate-500">Batas harga beli</span>
+                                      <p className="mt-1 text-[11px] text-slate-500">
+                                        Belum ada patokan untung untuk barang ini — belum menempel ke pesanan klien,
+                                        jadi sistem tidak bisa bilang mahal atau tidak.
+                                      </p>
+                                    </div>
+                                  )
                                   const over = isOverCeiling(editPrice, ceiling)
                                   return (
                                     <div className={cn("rounded-xl border p-3", over ? "border-rose-300 bg-rose-50 dark:bg-rose-950/20" : "border-slate-200 bg-slate-50 dark:bg-slate-800/50")}>
                                       <div className="flex justify-between items-center">
-                                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Batas Harga Beli</span>
-                                        <span className={cn("text-sm font-black", over ? "text-rose-600" : "text-emerald-600")}>
+                                        <span className="text-xs font-bold text-slate-500 ">Batas Harga Beli</span>
+                                        <span className={cn("text-sm font-bold", over ? "text-rose-600" : "text-emerald-600")}>
                                           {formatRupiah(ceiling)} / {product.uom}
                                         </span>
                                       </div>
@@ -630,7 +640,7 @@ export default function SourcingDashboard() {
                                           </p>
                                           <Input
                                             type="text"
-                                            className="h-11 bg-white/70 border-2 border-rose-200 transition-all focus:border-rose-500"
+                                            className="h-11 bg-card border-2 border-rose-200 transition-all focus:border-rose-500"
                                             placeholder="Misal: cuma vendor ini yang punya, sisanya busuk"
                                             value={editOverReason}
                                             onChange={(e) => setEditOverReason(e.target.value)}
@@ -643,7 +653,7 @@ export default function SourcingDashboard() {
 
                                 <div className="space-y-2">
                                   <div className="flex justify-between items-center">
-                                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Vendor</Label>
+                                    <Label className="text-xs font-bold text-slate-500 ">Vendor</Label>
                                     <button
                                       type="button"
                                       onClick={() => setIsNewVendorOpen(true)}
@@ -653,7 +663,7 @@ export default function SourcingDashboard() {
                                     </button>
                                   </div>
                                   <Select value={editVendorId} onValueChange={val => setEditVendorId(val || '')}>
-                                    <SelectTrigger className="h-12 bg-white/50 border-2 transition-all focus:border-emerald-500 rounded-xl">
+                                    <SelectTrigger className="h-12 bg-card border-2 transition-all focus:border-emerald-500 rounded-xl">
                                       <SelectValue placeholder="— Pilih Vendor —" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -667,9 +677,9 @@ export default function SourcingDashboard() {
                                 </div>
 
                                 <div className="space-y-2">
-                                  <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Metode Bayar</Label>
+                                  <Label className="text-xs font-bold text-slate-500 ">Metode Bayar</Label>
                                   <Select value={editPaymentMethod} onValueChange={(val) => setEditPaymentMethod((val as 'Cash' | 'Tempo') ?? 'Cash')}>
-                                    <SelectTrigger className="h-12 bg-white/50 border-2 transition-all focus:border-emerald-500 rounded-xl"><SelectValue /></SelectTrigger>
+                                    <SelectTrigger className="h-12 bg-card border-2 transition-all focus:border-emerald-500 rounded-xl"><SelectValue /></SelectTrigger>
                                     <SelectContent>
                                       <SelectItem value="Cash">Cash (potong kas sourcing)</SelectItem>
                                       <SelectItem value="Tempo">Tempo (hutang ke vendor)</SelectItem>
@@ -678,12 +688,12 @@ export default function SourcingDashboard() {
                                 </div>
 
                                 <div className="space-y-2">
-                                  <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                  <Label className="text-xs font-bold text-slate-500 ">
                                     Keterangan / Alasan (Opsional)
                                   </Label>
                                   <Input
                                     type="text"
-                                    className="h-12 bg-white/50 border-2 transition-all focus:border-emerald-500"
+                                    className="h-12 bg-card border-2 transition-all focus:border-emerald-500"
                                     placeholder="Misal: Stok habis, atau barang sisa sedikit"
                                     value={editNote}
                                     onChange={(e) => setEditNote(e.target.value)}
@@ -732,7 +742,7 @@ export default function SourcingDashboard() {
 
                                   <div className="flex items-center gap-2">
                                     <div className="h-px flex-1 bg-slate-200" />
-                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Atau Alihkan</span>
+                                    <span className="text-[11px] font-bold text-slate-400 ">Atau Alihkan</span>
                                     <div className="h-px flex-1 bg-slate-200" />
                                   </div>
 
@@ -771,12 +781,12 @@ export default function SourcingDashboard() {
         const hasBudget = totalBudgetGiven > 0
 
         return (
-          <div className="mt-8 pb-8 animate-in slide-in-from-bottom-5">
+          <div className="mt-8 pb-8">
             {/* Mode Salin: yang mengetik bukan yang belanja, jadi dia harus menunjuk
                 kantong siapa yang dipotong. Tanpa pilihan ini laporannya ditolak. */}
             {!ownPocket && pocketChoices.length > 0 && (
               <div className="mb-4 p-4 rounded-2xl border border-amber-200 bg-amber-50/60 dark:bg-amber-950/20 dark:border-amber-900">
-                <label className="text-xs font-black text-amber-800 dark:text-amber-500 uppercase tracking-wider">
+                <label className="text-xs font-bold text-amber-800 dark:text-amber-500 ">
                   Belanja atas nama
                 </label>
                 <select
@@ -797,7 +807,7 @@ export default function SourcingDashboard() {
               </div>
             )}
             <Button
-              className="w-full h-14 text-lg font-bold shadow-lg shadow-emerald-500/25 bg-emerald-600 hover:bg-emerald-700"
+              className="w-full h-14 text-lg font-bold shadow-sm bg-emerald-600 hover:bg-emerald-700"
               onClick={handleSubmitLaporan}
             >
               <PackageCheck className="w-6 h-6 mr-2" />
@@ -811,11 +821,11 @@ export default function SourcingDashboard() {
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-sm font-black uppercase tracking-widest text-slate-500 px-1">Dompet & Setor Kas</h2>
-        <div className="space-y-4 animate-in slide-in-from-bottom-5 duration-500">
+        <h2 className="text-sm font-bold  text-slate-500 px-1">Dompet & Setor Kas</h2>
+        <div className="space-y-4 duration-150">
           <div className="flex justify-between items-center px-2">
-            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Riwayat Kas Sourcing</h3>
-            <Badge variant="outline" className="text-[8px] font-black uppercase border-slate-200">Real-time POV</Badge>
+            <h3 className="text-[11px] font-bold  text-slate-400">Riwayat Kas Sourcing</h3>
+            <Badge variant="outline" className="text-[11px] font-bold uppercase border-slate-200">Real-time POV</Badge>
           </div>
 
           {/* Cycle Clean State: semua sudah di-approve finance & saldo nol */}
@@ -824,8 +834,8 @@ export default function SourcingDashboard() {
               <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <CheckCircle2 className="w-8 h-8 text-emerald-500" />
               </div>
-              <p className="text-[11px] font-black uppercase tracking-[0.2em] text-emerald-600">Siklus Selesai</p>
-              <p className="text-[9px] font-bold text-slate-400 uppercase">Semua laporan sudah diverifikasi Finance.<br/>Riwayat dibersihkan untuk siklus berikutnya.</p>
+              <p className="text-[11px] font-bold  text-emerald-600">Siklus Selesai</p>
+              <p className="text-[11px] font-bold text-slate-400 uppercase">Semua laporan sudah diverifikasi Finance.<br/>Riwayat dibersihkan untuk siklus berikutnya.</p>
             </div>
           ) : (
           <div className="space-y-3">
@@ -838,17 +848,17 @@ export default function SourcingDashboard() {
                            <CheckCircle2 className="w-5 h-5" />
                         </div>
                         <div>
-                           <p className="text-[10px] font-black uppercase tracking-widest leading-none mb-1">Dana Advance dari Finance</p>
+                           <p className="text-[11px] font-bold  leading-none mb-1">Dana Advance dari Finance</p>
                            <div className="flex items-center gap-2">
-                             <p className="text-[9px] font-bold text-slate-400 uppercase">{new Date(p.budgetTransferDate!).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}</p>
+                             <p className="text-[11px] font-bold text-slate-400 uppercase">{new Date(p.budgetTransferDate!).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}</p>
                              <span className="w-1 h-1 bg-slate-200 rounded-full" />
-                             <p className="text-[9px] font-bold text-slate-400 uppercase">Modal Masuk</p>
+                             <p className="text-[11px] font-bold text-slate-400 uppercase">Modal Masuk</p>
                            </div>
                         </div>
                      </div>
                      <div className="text-right">
-                        <p className="font-black tracking-tighter text-emerald-600">+{formatRupiah((p.budgetAmount || 0) + (p.operationalSpareAmount || 0))}</p>
-                        <Badge variant="outline" className="text-[8px] font-black uppercase border-emerald-100 text-emerald-400 bg-emerald-50/50">Diterima</Badge>
+                        <p className="font-bold tracking-tighter text-emerald-600">+{formatRupiah((p.budgetAmount || 0) + (p.operationalSpareAmount || 0))}</p>
+                        <Badge variant="outline" className="text-[11px] font-bold uppercase border-emerald-100 text-emerald-400 bg-emerald-50/50">Diterima</Badge>
                      </div>
                   </CardContent>
                </Card>
@@ -867,13 +877,13 @@ export default function SourcingDashboard() {
                          <ShoppingBag className="w-5 h-5" />
                        </div>
                        <div>
-                         <p className="text-[10px] font-black uppercase tracking-widest leading-none mb-1">{product?.name || 'Produk'}</p>
-                         <p className="text-[9px] font-bold text-rose-400 uppercase italic">{qty} {product?.uom} × {formatRupiah(item.actualUnitPrice || 0)} · Belum Disubmit</p>
+                         <p className="text-[11px] font-bold  leading-none mb-1">{product?.name || 'Produk'}</p>
+                         <p className="text-[11px] font-bold text-rose-400 uppercase italic">{qty} {product?.uom} × {formatRupiah(item.actualUnitPrice || 0)} · Belum Disubmit</p>
                        </div>
                      </div>
                      <div className="text-right">
-                       <p className="font-black tracking-tighter text-rose-500">-{formatRupiah(total)}</p>
-                       <Badge variant="outline" className="text-[8px] font-black uppercase border-rose-200 text-rose-400">Real-time</Badge>
+                       <p className="font-bold tracking-tighter text-rose-500">-{formatRupiah(total)}</p>
+                       <Badge variant="outline" className="text-[11px] font-bold uppercase border-rose-200 text-rose-400">Real-time</Badge>
                      </div>
                    </CardContent>
                  </Card>
@@ -885,19 +895,19 @@ export default function SourcingDashboard() {
                <Card key={p.id} className="rounded-2xl border-none shadow-sm bg-slate-50/50 border-l-4 border-l-blue-400">
                   <CardContent className="p-4 flex items-center justify-between">
                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-sm">
+                        <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center shadow-sm">
                            <ShoppingBag className="w-5 h-5" />
                         </div>
                         <div>
-                           <p className="text-[10px] font-black uppercase tracking-widest leading-none mb-1">Laporan Belanja - Ref: {p.id.slice(0, 8)}</p>
-                           <p className="text-[9px] font-bold text-blue-500 uppercase italic">Menunggu Approval Finance</p>
+                           <p className="text-[11px] font-bold  leading-none mb-1">Laporan Belanja - Ref: {p.id.slice(0, 8)}</p>
+                           <p className="text-[11px] font-bold text-blue-500 uppercase italic">Menunggu Approval Finance</p>
                         </div>
                      </div>
                      <div className="text-right">
-                        <p className="font-black tracking-tighter text-slate-400">
+                        <p className="font-bold tracking-tighter text-slate-400">
                            -{formatRupiah(p.actualSpent || 0)}
                         </p>
-                        <Badge variant="outline" className="text-[8px] font-black uppercase border-blue-200 text-blue-500">Pending</Badge>
+                        <Badge variant="outline" className="text-[11px] font-bold uppercase border-blue-200 text-blue-500">Pending</Badge>
                      </div>
                   </CardContent>
                </Card>
@@ -912,13 +922,13 @@ export default function SourcingDashboard() {
                            <CheckCircle2 className="w-5 h-5" />
                         </div>
                         <div>
-                           <p className="text-[10px] font-black uppercase tracking-widest leading-none mb-1">Belanja Disetujui - Ref: {p.id.slice(0, 8)}</p>
-                           <p className="text-[9px] font-bold text-emerald-500 uppercase italic">Verified by Finance</p>
+                           <p className="text-[11px] font-bold  leading-none mb-1">Belanja Disetujui - Ref: {p.id.slice(0, 8)}</p>
+                           <p className="text-[11px] font-bold text-emerald-500 uppercase italic">Verified by Finance</p>
                         </div>
                      </div>
                      <div className="text-right">
-                        <p className="font-black tracking-tighter text-emerald-600">-{formatRupiah(p.actualSpent || 0)}</p>
-                        <Badge variant="outline" className="text-[8px] font-black uppercase border-emerald-200 text-emerald-500">Approved</Badge>
+                        <p className="font-bold tracking-tighter text-emerald-600">-{formatRupiah(p.actualSpent || 0)}</p>
+                        <Badge variant="outline" className="text-[11px] font-bold uppercase border-emerald-200 text-emerald-500">Approved</Badge>
                      </div>
                   </CardContent>
                </Card>
@@ -940,8 +950,8 @@ export default function SourcingDashboard() {
                              {e.status === 'Approved' ? <CheckCircle2 className="w-5 h-5" /> : <Banknote className="w-5 h-5" />}
                           </div>
                           <div>
-                             <p className="text-[10px] font-black uppercase tracking-widest leading-none mb-1">{e.description}</p>
-                             <p className={cn("text-[9px] font-bold uppercase italic",
+                             <p className="text-[11px] font-bold  leading-none mb-1">{e.description}</p>
+                             <p className={cn("text-[11px] font-bold uppercase italic",
                                e.status === 'Approved' ? "text-emerald-500" : "text-rose-400"
                              )}>
                                {e.status === 'Approved' ? 'Verified by Finance' : 'Real-time'}
@@ -949,12 +959,12 @@ export default function SourcingDashboard() {
                           </div>
                        </div>
                        <div className="text-right">
-                          <p className={cn("font-black tracking-tighter",
+                          <p className={cn("font-bold tracking-tighter",
                             e.status === 'Approved' ? "text-emerald-600" : "text-rose-500"
                           )}>
                              -{formatRupiah(e.amount)}
                           </p>
-                          <Badge variant="outline" className={cn("text-[8px] font-black uppercase",
+                          <Badge variant="outline" className={cn("text-[11px] font-bold uppercase",
                             e.status === 'Approved' ? "border-emerald-200 text-emerald-500" : "border-rose-200 text-rose-400"
                           )}>
                             {e.status === 'Approved' ? 'Approved' : 'Real-time'}
@@ -969,7 +979,7 @@ export default function SourcingDashboard() {
                   <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <Wallet className="w-8 h-8 text-slate-300" />
                   </div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Belum ada riwayat transaksi</p>
+                  <p className="text-[11px] font-bold  text-slate-400">Belum ada riwayat transaksi</p>
                </div>
              )}
           </div>
@@ -978,21 +988,21 @@ export default function SourcingDashboard() {
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-sm font-black uppercase tracking-widest text-slate-500 px-1">Pemakaian Operasional</h2>
-        <div className="space-y-5 animate-in slide-in-from-bottom-5 duration-300 pb-8">
+        <h2 className="text-sm font-bold  text-slate-500 px-1">Pemakaian Operasional</h2>
+        <div className="space-y-5 duration-300 pb-8">
           <form onSubmit={handleOpsSubmit} className="space-y-5">
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Jenis Transaksi</Label>
+              <Label className="text-[11px] font-bold  text-slate-500">Jenis Transaksi</Label>
               <Tabs defaultValue="Biaya Operasional" className="w-full" onValueChange={(val) => setOpsFormData({...opsFormData, transactionType: val})}>
                 <TabsList className="grid w-full grid-cols-2 h-12 rounded-xl">
-                  <TabsTrigger value="Biaya Operasional" className="rounded-lg font-bold text-xs uppercase tracking-tight">Potong Saldo Kas</TabsTrigger>
-                  <TabsTrigger value="Kasbon" className="rounded-lg font-bold text-xs uppercase tracking-tight">Reimbursement</TabsTrigger>
+                  <TabsTrigger value="Biaya Operasional" className="rounded-lg font-bold text-xs ">Potong Saldo Kas</TabsTrigger>
+                  <TabsTrigger value="Kasbon" className="rounded-lg font-bold text-xs ">Reimbursement</TabsTrigger>
                 </TabsList>
               </Tabs>
             </div>
 
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Kategori Biaya</Label>
+              <Label className="text-[11px] font-bold  text-slate-500">Kategori Biaya</Label>
               <Select value={opsFormData.category} onValueChange={(val) => setOpsFormData({...opsFormData, category: val || 'Lainnya'})}>
                 <SelectTrigger className="h-12 bg-white dark:bg-slate-900">
                   <SelectValue placeholder="Pilih kategori..." />
@@ -1009,7 +1019,7 @@ export default function SourcingDashboard() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Nominal ({formatRupiah(opsFormData.amount || 0)})</Label>
+              <Label className="text-[11px] font-bold  text-slate-500">Nominal ({formatRupiah(opsFormData.amount || 0)})</Label>
               <div className="relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 font-semibold text-slate-500 text-sm">Rp</span>
                 <Input
@@ -1024,7 +1034,7 @@ export default function SourcingDashboard() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Keterangan</Label>
+              <Label className="text-[11px] font-bold  text-slate-500">Keterangan</Label>
               <Input
                 className="h-12 bg-white dark:bg-slate-900"
                 placeholder="Misal: Parkir Pasar Induk"
@@ -1051,27 +1061,27 @@ export default function SourcingDashboard() {
       </section>
       {/* Rekon Catatan — internal read-only summary */}
       <section className="space-y-3 pb-8">
-        <h2 className="text-sm font-black uppercase tracking-widest text-slate-500 px-1">Rekon Catatan</h2>
-        <div className="rounded-[2rem] border border-slate-200 dark:border-slate-700 p-5 space-y-0.5">
+        <h2 className="text-sm font-bold  text-slate-500 px-1">Rekon Catatan</h2>
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-5 space-y-0.5">
           <div className="flex justify-between items-center py-3 border-b border-slate-100 dark:border-slate-800">
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Advance Diterima</span>
-            <span className="font-black text-sm text-slate-700 dark:text-slate-300">+{formatRupiah(totalAdvanceReceived)}</span>
+            <span className="text-[11px] font-bold  text-slate-500">Advance Diterima</span>
+            <span className="font-bold text-sm text-slate-700 dark:text-slate-300">+{formatRupiah(totalAdvanceReceived)}</span>
           </div>
           <div className="flex justify-between items-center py-3 border-b border-slate-100 dark:border-slate-800">
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Belanja</span>
-            <span className="font-black text-sm text-rose-500">-{formatRupiah(totalShopSpent)}</span>
+            <span className="text-[11px] font-bold  text-slate-500">Belanja</span>
+            <span className="font-bold text-sm text-rose-500">-{formatRupiah(totalShopSpent)}</span>
           </div>
           <div className="flex justify-between items-center py-3 border-b border-slate-100 dark:border-slate-800">
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Operasional</span>
-            <span className="font-black text-sm text-rose-500">-{formatRupiah(totalExpenses)}</span>
+            <span className="text-[11px] font-bold  text-slate-500">Operasional</span>
+            <span className="font-bold text-sm text-rose-500">-{formatRupiah(totalExpenses)}</span>
           </div>
           <div className="flex justify-between items-center py-3">
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Estimasi Sisa</span>
-            <span className={cn("font-black text-sm", totalHolding < 0 ? "text-rose-500" : "text-emerald-600")}>
+            <span className="text-[11px] font-bold  text-slate-500">Estimasi Sisa</span>
+            <span className={cn("font-bold text-sm", totalHolding < 0 ? "text-rose-500" : "text-emerald-600")}>
               {formatRupiah(totalHolding)}
             </span>
           </div>
-          <p className="text-[8px] font-bold uppercase text-slate-400 tracking-widest pt-2">Rekonsiliasi akhir dilakukan Finance Hub</p>
+          <p className="text-[11px] font-bold uppercase text-slate-400 tracking-widest pt-2">Rekonsiliasi akhir dilakukan Finance Hub</p>
         </div>
       </section>
 
@@ -1079,7 +1089,7 @@ export default function SourcingDashboard() {
       <Dialog open={isNewVendorOpen} onOpenChange={setIsNewVendorOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-lg font-black">Tambah Vendor Baru</DialogTitle>
+            <DialogTitle className="text-lg font-bold">Tambah Vendor Baru</DialogTitle>
             <DialogDescription>Quick create vendor baru untuk belanja pasar.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -1094,7 +1104,7 @@ export default function SourcingDashboard() {
             <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-xl">
               <div className="space-y-0.5">
                 <Label>Pembayaran Tempo</Label>
-                <p className="text-[10px] text-slate-400">Aktifkan jika pembayaran tidak cash di tempat</p>
+                <p className="text-[11px] text-slate-400">Aktifkan jika pembayaran tidak cash di tempat</p>
               </div>
               <Checkbox
                 checked={newVendorIsTempo}

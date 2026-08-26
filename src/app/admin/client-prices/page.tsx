@@ -103,7 +103,7 @@ export default function ClientPricesPage() {
     <div className="space-y-6 max-w-6xl mx-auto">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-800">Client Price Lists</h2>
+          <h2 className="text-[19px] leading-tight font-semibold text-slate-900">Harga jual &amp; tier</h2>
           <p className="text-muted-foreground text-sm mt-1">
             Atur harga jual kustom berdasarkan masing-masing client dan download penawarannya.
           </p>
@@ -124,7 +124,7 @@ export default function ClientPricesPage() {
             di dalam tab detail client, tombol ini akan terbaca seolah hanya
             mempengaruhi client tersebut. */}
         <div className="w-full md:w-auto rounded-2xl border border-amber-100 bg-amber-50/60 px-4 py-3">
-          <p className="text-[10px] font-black uppercase tracking-widest text-amber-700">Sinkron HPP Mingguan</p>
+          <p className="text-[11px] font-bold  text-amber-700">Sinkron HPP Mingguan</p>
           <p className="text-[11px] font-bold text-amber-800/70 leading-relaxed mt-0.5 mb-2">
             Ambil HPP terendah minggu ini jadi HPP master — berlaku untuk semua produk, bukan cuma client ini.
           </p>
@@ -140,7 +140,7 @@ export default function ClientPricesPage() {
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col md:flex-row gap-6 items-end">
         <div className="grid gap-2 flex-1 w-full max-w-md">
-          <label className="text-xs font-bold uppercase tracking-widest text-slate-500">Pilih Client</label>
+          <label className="text-xs font-bold  text-slate-500">Pilih Client</label>
           <Popover open={isClientSearchOpen} onOpenChange={setIsClientSearchOpen}>
             <PopoverTrigger render={
               <Button
@@ -152,7 +152,7 @@ export default function ClientPricesPage() {
                 <div className="flex items-center gap-2 truncate">
                   {activeClient ? (
                     <>
-                      <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] shrink-0">
+                      <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[11px] shrink-0">
                         {activeClient.companyName.charAt(0)}
                       </div>
                       <span className="truncate">{activeClient.companyName}</span>
@@ -196,7 +196,7 @@ export default function ClientPricesPage() {
                       </span>
                       <div className="flex flex-col text-left">
                         <span className="font-bold text-slate-900">{c.companyName}</span>
-                        <span className="text-[10px] text-slate-500 uppercase font-medium">{c.picName}</span>
+                        <span className="text-[11px] text-slate-500 uppercase font-medium">{c.picName}</span>
                       </div>
                     </button>
                   ))
@@ -239,7 +239,7 @@ export default function ClientPricesPage() {
       </div>
 
       {!activeClient ? (
-        <div className="py-20 text-center border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center justify-center bg-slate-50">
+        <div className="py-20 text-center border-2 border-dashed border-slate-200 rounded-lg flex flex-col items-center justify-center bg-slate-50">
           <Calculator className="w-16 h-16 text-slate-300 mb-4" />
           <h3 className="text-xl font-bold text-slate-700">Belum Ada Klien Terpilih</h3>
           <p className="text-slate-500 mt-2 max-w-md mx-auto">

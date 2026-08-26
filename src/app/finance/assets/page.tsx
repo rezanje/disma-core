@@ -120,26 +120,26 @@ export default function FixedAssetsPage() {
   const totalNetBookValue = assetAnalytics.reduce((sum, a) => sum + a.autoCurrentValue, 0)
 
   return (
-    <div className="space-y-6 animate-in fade-in-50 duration-500 pb-20">
+    <div className="space-y-6-50 duration-150 pb-20">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight">Manajemen Aset Tetap</h2>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Estimasi Nilai Aset Real-time (Berdasarkan Umur)</p>
+          <h2 className="text-2xl font-bold text-slate-800 ">Manajemen Aset Tetap</h2>
+          <p className="text-xs font-bold text-slate-400  mt-1">Estimasi Nilai Aset Real-time (Berdasarkan Umur)</p>
         </div>
         
         <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
           <DialogTrigger render={
-            <Button className="h-12 bg-slate-900 hover:bg-black text-white px-6 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl transition-all active:scale-95">
+            <Button className="h-12 bg-slate-900 hover:bg-black text-white px-6 rounded-2xl font-bold uppercase text-[11px] tracking-widest shadow-sm transition-all active:scale-95">
               <Plus className="w-4 h-4 mr-2" /> Registrasi Aset Baru
             </Button>
           } />
-          <DialogContent className="rounded-[2rem] p-8 max-w-md">
+          <DialogContent className="rounded-xl p-8 max-w-md">
             <DialogHeader>
-              <DialogTitle className="text-xl font-black uppercase text-slate-800 tracking-tight mb-4 text-center">Detil Inventaris Aset</DialogTitle>
+              <DialogTitle className="text-xl font-bold uppercase text-slate-800 tracking-tight mb-4 text-center">Detil Inventaris Aset</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Nama Aset</label>
+                <label className="text-[11px] font-bold uppercase text-slate-400 tracking-widest ml-1">Nama Aset</label>
                 <Input 
                   placeholder="Misal: Mobil Box Colt L300" 
                   className="rounded-xl h-12"
@@ -149,7 +149,7 @@ export default function FixedAssetsPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Kategori</label>
+                  <label className="text-[11px] font-bold uppercase text-slate-400 tracking-widest ml-1">Kategori</label>
                     <Select 
                       value={newAsset.category} 
                       onValueChange={(v: any) => {
@@ -172,7 +172,7 @@ export default function FixedAssetsPage() {
                     </Select>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Tgl Pembelian</label>
+                  <label className="text-[11px] font-bold uppercase text-slate-400 tracking-widest ml-1">Tgl Pembelian</label>
                   <Input 
                     type="date"
                     className="rounded-xl h-12"
@@ -182,7 +182,7 @@ export default function FixedAssetsPage() {
                 </div>
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Harga Perolehan (IDR)</label>
+                <label className="text-[11px] font-bold uppercase text-slate-400 tracking-widest ml-1">Harga Perolehan (IDR)</label>
                 <Input 
                   type="number"
                   placeholder="0"
@@ -193,7 +193,7 @@ export default function FixedAssetsPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Umur (Bulan)</label>
+                  <label className="text-[11px] font-bold uppercase text-slate-400 tracking-widest ml-1">Umur (Bulan)</label>
                   <Input 
                     type="number"
                     className="rounded-xl h-12"
@@ -202,7 +202,7 @@ export default function FixedAssetsPage() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Nilai Sisa</label>
+                  <label className="text-[11px] font-bold uppercase text-slate-400 tracking-widest ml-1">Nilai Sisa</label>
                   <Input 
                     type="number"
                     className="rounded-xl h-12"
@@ -211,7 +211,7 @@ export default function FixedAssetsPage() {
                   />
                 </div>
               </div>
-              <Button onClick={handleAddAsset} className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black uppercase text-[10px] tracking-widest mt-4">
+              <Button onClick={handleAddAsset} className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold uppercase text-[11px] tracking-widest mt-4">
                 Daftarkan Aset
               </Button>
             </div>
@@ -220,85 +220,85 @@ export default function FixedAssetsPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="p-6 rounded-[2rem] border-none shadow-xl shadow-slate-200/50 bg-white flex items-center gap-6">
-          <div className="w-16 h-16 bg-slate-100 rounded-3xl flex items-center justify-center">
+        <Card className="p-6 rounded-xl border-none shadow-sm bg-white flex items-center gap-6">
+          <div className="w-16 h-16 bg-slate-100 rounded-lg flex items-center justify-center">
             <TrendingDown className="w-8 h-8 text-slate-400" />
           </div>
           <div>
-            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Total Asset Cost</p>
-            <h3 className="text-2xl font-black text-slate-800">{formatRupiah(totalAssetValue)}</h3>
+            <p className="text-[11px] font-bold uppercase text-slate-400 tracking-widest">Total Asset Cost</p>
+            <h3 className="text-2xl font-bold text-slate-800">{formatRupiah(totalAssetValue)}</h3>
           </div>
         </Card>
         
-        <Card className="p-6 rounded-[2rem] border-none shadow-xl shadow-emerald-100/50 bg-emerald-50/30 flex items-center gap-6">
-          <div className="w-16 h-16 bg-emerald-100 rounded-3xl flex items-center justify-center">
+        <Card className="p-6 rounded-xl border-none shadow-sm bg-emerald-50/30 flex items-center gap-6">
+          <div className="w-16 h-16 bg-emerald-100 rounded-lg flex items-center justify-center">
             <ArrowUpRight className="w-8 h-8 text-emerald-600" />
           </div>
           <div>
-            <p className="text-[10px] font-black uppercase text-emerald-600/60 tracking-widest">Est. Current Value</p>
-            <h3 className="text-2xl font-black text-emerald-600">{formatRupiah(totalNetBookValue)}</h3>
+            <p className="text-[11px] font-bold uppercase text-emerald-600/60 tracking-widest">Est. Current Value</p>
+            <h3 className="text-2xl font-bold text-emerald-600">{formatRupiah(totalNetBookValue)}</h3>
           </div>
         </Card>
 
-        <Card className="p-6 rounded-[2rem] border-none shadow-xl shadow-rose-100/50 bg-white flex items-center gap-6">
-          <div className="w-16 h-16 bg-rose-50 rounded-3xl flex items-center justify-center">
+        <Card className="p-6 rounded-xl border-none shadow-sm bg-white flex items-center gap-6">
+          <div className="w-16 h-16 bg-rose-50 rounded-lg flex items-center justify-center">
             <Calculator className="w-8 h-8 text-rose-500" />
           </div>
           <div>
-            <p className="text-[10px] font-black uppercase text-rose-400 tracking-widest">Aset Berumur</p>
-            <h3 className="text-2xl font-black text-slate-800">{fixedAssets.length} Unit</h3>
+            <p className="text-[11px] font-bold uppercase text-rose-400 tracking-widest">Aset Berumur</p>
+            <h3 className="text-2xl font-bold text-slate-800">{fixedAssets.length} Unit</h3>
           </div>
         </Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {assetAnalytics.length === 0 ? (
-          <div className="col-span-2 py-20 bg-slate-100/50 rounded-[3rem] border-2 border-dashed border-slate-200 flex flex-col items-center justify-center">
+          <div className="col-span-2 py-20 bg-slate-100/50 rounded-2xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center">
             <Package className="w-16 h-16 text-slate-300 mb-4" />
-            <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.2em]">Belum ada inventaris aset tetap</p>
+            <p className="text-slate-400 font-bold uppercase text-[11px] tracking-[0.2em]">Belum ada inventaris aset tetap</p>
           </div>
         ) : (
           assetAnalytics.map(asset => {
              const progress = (asset.autoAccumulated / (asset.purchasePrice - asset.salvageValue)) * 100
 
              return (
-               <Card key={asset.id} className="p-8 rounded-[2.5rem] border-none shadow-xl hover:shadow-2xl transition-all duration-300 bg-white group relative overflow-hidden">
+               <Card key={asset.id} className="p-8 rounded-2xl border-none shadow-sm hover:shadow-sm transition-all duration-300 bg-white group relative overflow-hidden">
                  {asset.isDepreciatedToDate && (
-                    <div className="absolute top-0 right-0 bg-emerald-500 text-white px-6 py-1 pr-12 rounded-bl-full text-[8px] font-black uppercase tracking-widest rotate-45 translate-x-8 translate-y-2">Synced</div>
+                    <div className="absolute top-0 right-0 bg-emerald-500 text-white px-6 py-1 pr-12 rounded-bl-full text-[11px] font-bold  rotate-45 translate-x-8 translate-y-2">Synced</div>
                  )}
                  
                  <div className="flex items-start justify-between mb-8">
                    <div className="flex items-center gap-5">
-                     <div className="w-16 h-16 bg-slate-900 text-white rounded-3xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-all">
+                     <div className="w-16 h-16 bg-slate-900 text-white rounded-lg flex items-center justify-center shadow-sm group- transition-all">
                        {getIcon(asset.category)}
                      </div>
                      <div>
-                       <h3 className="font-black text-xl text-slate-800 tracking-tight leading-tight">{asset.name}</h3>
-                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                       <h3 className="font-bold text-xl text-slate-800 tracking-tight leading-tight">{asset.name}</h3>
+                       <p className="text-[11px] font-bold text-slate-400  mt-1">
                           Beli: {new Date(asset.purchaseDate).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })} • Umur: {asset.monthsElapsed}/{asset.economicLifeMonths} bln
                        </p>
                      </div>
                    </div>
                    <div className="flex flex-col items-end gap-2">
-                     <Badge variant="outline" className="text-[10px] font-black uppercase border-slate-100 text-slate-400">{asset.category}</Badge>
+                     <Badge variant="outline" className="text-[11px] font-bold uppercase border-slate-100 text-slate-400">{asset.category}</Badge>
                    </div>
                  </div>
 
                  <div className="space-y-6 mb-10">
                    <div className="flex justify-between items-end">
                      <div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Market Value (Today)</p>
-                        <p className="text-3xl font-black text-emerald-600 tracking-tighter">{formatRupiah(asset.autoCurrentValue)}</p>
+                        <p className="text-[11px] font-bold text-slate-400  mb-1">Market Value (Today)</p>
+                        <p className="text-3xl font-bold text-emerald-600 tracking-tighter">{formatRupiah(asset.autoCurrentValue)}</p>
                      </div>
                      <div className="text-right">
-                        <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-1">Total Penyusutan</p>
-                        <p className="text-lg font-black text-slate-300 line-through tracking-tighter">{formatRupiah(asset.autoAccumulated)}</p>
+                        <p className="text-[11px] font-bold text-rose-400  mb-1">Total Penyusutan</p>
+                        <p className="text-lg font-bold text-slate-300 line-through tracking-tighter">{formatRupiah(asset.autoAccumulated)}</p>
                      </div>
                    </div>
                    <div className="w-full h-4 bg-slate-100 rounded-full overflow-hidden p-1 shadow-inner">
                      <div 
                        className={cn(
-                          "h-full rounded-full transition-all duration-1000",
+                          "h-full rounded-full transition-all duration-150",
                           progress > 80 ? "bg-rose-500" : "bg-emerald-500"
                         )}
                        style={{ width: `${Math.max(0, 100 - progress)}%` }}
@@ -306,12 +306,12 @@ export default function FixedAssetsPage() {
                    </div>
                    <div className="grid grid-cols-2 gap-8 pt-4 border-t border-slate-50">
                      <div className="flex flex-col gap-1">
-                       <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Initial Investment</p>
-                       <p className="font-black text-slate-800">{formatRupiah(asset.purchasePrice)}</p>
+                       <p className="text-[11px] font-bold text-slate-300 ">Initial Investment</p>
+                       <p className="font-bold text-slate-800">{formatRupiah(asset.purchasePrice)}</p>
                      </div>
                      <div className="flex flex-col gap-1 text-right">
-                       <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Salvage Value</p>
-                       <p className="font-black text-slate-400">{formatRupiah(asset.salvageValue)}</p>
+                       <p className="text-[11px] font-bold text-slate-300 ">Salvage Value</p>
+                       <p className="font-bold text-slate-400">{formatRupiah(asset.salvageValue)}</p>
                      </div>
                    </div>
                  </div>
@@ -320,22 +320,22 @@ export default function FixedAssetsPage() {
                     {!asset.isDepreciatedToDate && (
                        <Button 
                          onClick={() => handleSyncDepreciation(asset.id)}
-                         className="flex-1 h-16 bg-slate-900 hover:bg-black text-white rounded-[1.5rem] font-black uppercase text-[10px] tracking-[0.2em] shadow-2xl transition-all flex items-center justify-center gap-3"
+                         className="flex-1 h-16 bg-slate-900 hover:bg-black text-white rounded-xl font-bold uppercase text-[11px] tracking-[0.2em] shadow-sm transition-all flex items-center justify-center gap-3"
                        >
                          <Calculator className="w-5 h-5 text-emerald-400" />
                          Singkron Nilai Hari Ini
                        </Button>
                     )}
                     {asset.isDepreciatedToDate && (
-                        <div className="flex-1 h-16 bg-emerald-50 text-emerald-600 rounded-[1.5rem] flex items-center justify-center gap-3 border border-emerald-100">
+                        <div className="flex-1 h-16 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center gap-3 border border-emerald-100">
                            <ShieldAlert className="w-5 h-5" />
-                           <span className="text-[10px] font-black uppercase tracking-widest">Data Sudah Sinkron</span>
+                           <span className="text-[11px] font-bold ">Data Sudah Sinkron</span>
                         </div>
                     )}
                     <Button 
                       onClick={() => handleDelete(asset.id, asset.name)}
                       variant="outline"
-                      className="w-16 h-16 rounded-[1.5rem] border-slate-100 text-slate-300 hover:text-rose-500 hover:bg-rose-50 p-0 transition-all flex items-center justify-center"
+                      className="w-16 h-16 rounded-xl border-slate-100 text-slate-300 hover:text-rose-500 hover:bg-rose-50 p-0 transition-all flex items-center justify-center"
                     >
                       <Trash2 className="w-6 h-6" />
                     </Button>

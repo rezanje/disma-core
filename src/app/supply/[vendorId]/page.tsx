@@ -127,7 +127,7 @@ export default function VendorSupplyPortal() {
       <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
         <Card className="max-w-sm w-full text-center p-10 space-y-4">
           <Store className="w-12 h-12 mx-auto text-slate-300" />
-          <p className="font-black text-slate-700">Vendor tidak ditemukan</p>
+          <p className="font-bold text-slate-700">Vendor tidak ditemukan</p>
           <p className="text-xs text-slate-400">Link tidak valid atau vendor tidak terdaftar.</p>
         </Card>
       </div>
@@ -138,8 +138,8 @@ export default function VendorSupplyPortal() {
     <div className="min-h-screen bg-slate-50 pb-16">
       <div className="bg-white border-b sticky top-0 z-40 px-4 py-3 shadow-sm">
         <div className="max-w-xl mx-auto">
-          <h1 className="text-base font-black text-slate-800">{vendor.companyName}</h1>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Portal Penawaran Harga</p>
+          <h1 className="text-base font-bold text-slate-800">{vendor.companyName}</h1>
+          <p className="text-[11px] font-bold text-slate-400 ">Portal Penawaran Harga</p>
         </div>
       </div>
 
@@ -153,7 +153,7 @@ export default function VendorSupplyPortal() {
 
         <Card>
           <CardContent className="pt-4 space-y-4">
-            <p className="text-xs font-black uppercase tracking-widest text-slate-500">Input Penawaran Harga</p>
+            <p className="text-xs font-bold  text-slate-500">Input Penawaran Harga</p>
 
             {!selectedProduct && !isRequestNew && (
               <div className="space-y-2">
@@ -180,7 +180,7 @@ export default function VendorSupplyPortal() {
                         }}
                       >
                         <span className="text-sm font-bold">{p.name}</span>
-                        <span className="text-[10px] text-slate-400">{p.uom}</span>
+                        <span className="text-[11px] text-slate-400">{p.uom}</span>
                       </button>
                     ))}
                     <button
@@ -205,10 +205,10 @@ export default function VendorSupplyPortal() {
             {selectedProduct && (
               <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
                 <div>
-                  <p className="text-xs font-black text-emerald-800">{selectedProduct.name}</p>
-                  <p className="text-[10px] text-emerald-600">{selectedProduct.uom}</p>
+                  <p className="text-xs font-bold text-emerald-800">{selectedProduct.name}</p>
+                  <p className="text-[11px] text-emerald-600">{selectedProduct.uom}</p>
                 </div>
-                <button className="text-[10px] text-slate-400 hover:text-rose-500 font-bold" onClick={resetForm}>Ganti</button>
+                <button className="text-[11px] text-slate-400 hover:text-rose-500 font-bold" onClick={resetForm}>Ganti</button>
               </div>
             )}
 
@@ -216,14 +216,14 @@ export default function VendorSupplyPortal() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs">Nama Produk Baru</Label>
-                  <button className="text-[10px] text-slate-400 hover:text-rose-500 font-bold" onClick={resetForm}>Batal</button>
+                  <button className="text-[11px] text-slate-400 hover:text-rose-500 font-bold" onClick={resetForm}>Batal</button>
                 </div>
                 <Input
                   placeholder="Nama produk yang ingin ditawarkan"
                   value={form.proposedName}
                   onChange={e => setForm(f => ({ ...f, proposedName: e.target.value }))}
                 />
-                <p className="text-[10px] text-amber-600 font-medium">Admin akan verifikasi dan mapping ke SKU produk.</p>
+                <p className="text-[11px] text-amber-600 font-medium">Admin akan verifikasi dan mapping ke SKU produk.</p>
               </div>
             )}
 
@@ -267,7 +267,7 @@ export default function VendorSupplyPortal() {
                     />
                   </div>
                 </div>
-                <p className="text-[10px] text-slate-400">Harga ini berlaku sebagai komitmen selama periode tersebut.</p>
+                <p className="text-[11px] text-slate-400">Harga ini berlaku sebagai komitmen selama periode tersebut.</p>
 
                 <Button className="w-full" onClick={handleSubmit} disabled={isSubmitting}>
                   {isSubmitting ? "Mengirim..." : "Kirim Penawaran"}
@@ -278,7 +278,7 @@ export default function VendorSupplyPortal() {
         </Card>
 
         <div className="space-y-3">
-          <p className="text-xs font-black uppercase tracking-widest text-slate-500 px-1">Penawaran yang Dikirim ({myPrices.length})</p>
+          <p className="text-xs font-bold  text-slate-500 px-1">Penawaran yang Dikirim ({myPrices.length})</p>
           {myPrices.length === 0 ? (
             <div className="text-center text-xs text-slate-400 py-8">Belum ada penawaran harga yang dikirim.</div>
           ) : (
@@ -290,16 +290,16 @@ export default function VendorSupplyPortal() {
               return (
                 <div key={vp.id} className="bg-white border rounded-xl px-4 py-3 flex justify-between items-start">
                   <div className="space-y-1">
-                    <p className="text-sm font-black">{productName}</p>
-                    <p className="text-xs font-black text-emerald-600">{formatRupiah(vp.price)} <span className="text-slate-400 font-medium">/ {vp.uom}</span></p>
-                    <div className="flex items-center gap-1 text-[10px] text-slate-400">
+                    <p className="text-sm font-bold">{productName}</p>
+                    <p className="text-xs font-bold text-emerald-600">{formatRupiah(vp.price)} <span className="text-slate-400 font-medium">/ {vp.uom}</span></p>
+                    <div className="flex items-center gap-1 text-[11px] text-slate-400">
                       <Clock className="w-2.5 h-2.5" />
                       {format(parseISO(vp.validFrom), 'd MMM', { locale: localeId })} — {format(parseISO(vp.validTo), 'd MMM yy', { locale: localeId })}
                       <span className="mx-1">•</span>
                       diupdate {format(parseISO(vp.lastUpdated), 'd MMM yy', { locale: localeId })}
                     </div>
                   </div>
-                  <Badge className={`text-[9px] shrink-0 ${
+                  <Badge className={`text-[11px] shrink-0 ${
                     displayStatus === 'active' ? 'bg-emerald-100 text-emerald-700 border-none' :
                     displayStatus === 'pending' ? 'bg-amber-100 text-amber-700 border-none' :
                     displayStatus === 'expired' ? 'bg-slate-100 text-slate-500 border-none' :

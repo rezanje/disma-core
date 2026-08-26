@@ -64,13 +64,13 @@ export default function FinanceDocumentsPage() {
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-700">
+    <div className="space-y-8 duration-150">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-black tracking-tight text-slate-800 flex items-center gap-3">
+          <h2 className="text-3xl font-bold tracking-tight text-slate-800 flex items-center gap-3">
              <Archive className="text-emerald-500 w-8 h-8" /> Finance File Cabinet
           </h2>
-          <p className="text-slate-500 font-bold uppercase text-[10px] tracking-[0.2em] mt-2 italic shadow-sm bg-white w-fit px-3 py-1 rounded-full border border-slate-100">
+          <p className="text-slate-500 font-bold uppercase text-[11px] tracking-[0.2em] mt-2 italic shadow-sm bg-white w-fit px-3 py-1 rounded-full border border-slate-100">
              Ruang Arsip Keuangan • Laci Digital
           </p>
         </div>
@@ -94,10 +94,10 @@ export default function FinanceDocumentsPage() {
                key={d.id}
                onClick={() => setActiveDrawer(d.id as FinanceDrawerCategory)}
                className={cn(
-                 "w-full text-left p-6 rounded-[2.5rem] transition-all duration-300 relative overflow-hidden group border",
+                 "w-full text-left p-6 rounded-2xl transition-all duration-300 relative overflow-hidden group border",
                  activeDrawer === d.id 
-                  ? "bg-slate-900 border-slate-800 shadow-2xl scale-[1.02] -translate-y-1" 
-                  : "bg-white border-white hover:border-slate-200 hover:shadow-lg"
+                  ? "bg-slate-900 border-slate-800 shadow-sm scale-[1.02] -translate-y-1" 
+                  : "bg-white border-white hover:border-slate-200 hover:shadow-sm"
                )}
              >
                 <div className="flex items-center gap-4 relative z-10">
@@ -109,11 +109,11 @@ export default function FinanceDocumentsPage() {
                    </div>
                    <div>
                       <h4 className={cn(
-                         "font-black text-sm uppercase tracking-tight leading-none",
+                         "font-bold text-sm  leading-none",
                          activeDrawer === d.id ? "text-white" : "text-slate-700"
                       )}>{d.label}</h4>
                       <p className={cn(
-                         "text-[10px] font-bold uppercase tracking-widest mt-1",
+                         "text-[11px] font-bold  mt-1",
                          activeDrawer === d.id ? "text-slate-400" : "text-slate-400"
                       )}>{d.sub}</p>
                    </div>
@@ -129,11 +129,11 @@ export default function FinanceDocumentsPage() {
 
         {/* Active Content: The "Open Drawer" View */}
         <div className="flex-1 min-w-0">
-           <Card className="rounded-[3.5rem] border-none shadow-2xl shadow-slate-200/50 bg-white/50 backdrop-blur-xl overflow-hidden min-h-[600px]">
+           <Card className="rounded-2xl border-none shadow-sm bg-card overflow-hidden min-h-[600px]">
               <div className="bg-slate-900 p-10 text-white relative h-32 flex items-center">
                  <div className="relative z-10">
-                    <h3 className="text-2xl font-black uppercase tracking-tight">{drawers.find(d => d.id === activeDrawer)?.label}</h3>
-                    <p className="text-xs font-bold text-slate-400 tracking-widest uppercase mt-1 italic">Arsip Digital & Bukti Otentik</p>
+                    <h3 className="text-2xl font-bold ">{drawers.find(d => d.id === activeDrawer)?.label}</h3>
+                    <p className="text-xs font-bold text-slate-400  mt-1 italic">Arsip Digital & Bukti Otentik</p>
                  </div>
                  <div className="absolute right-10 top-1/2 -translate-y-1/2 opacity-20">
                     {drawers.find(d => d.id === activeDrawer)?.icon}
@@ -146,29 +146,29 @@ export default function FinanceDocumentsPage() {
                    {activeDrawer === 'Expenses' && (
                      <>
                        {receipts.length === 0 ? (
-                         <div className="py-20 text-center border-4 border-dashed border-slate-50 rounded-[2.5rem] bg-slate-50/20">
+                         <div className="py-20 text-center border-4 border-dashed border-slate-50 rounded-2xl bg-slate-50/20">
                             <History className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-                            <p className="text-sm font-black text-slate-400 uppercase tracking-widest">Belum ada nota terarsip</p>
+                            <p className="text-sm font-bold text-slate-400 ">Belum ada nota terarsip</p>
                          </div>
                        ) : (
                          receipts.map(exp => (
-                           <div key={exp.id} className="p-5 rounded-3xl bg-white border border-slate-100 flex items-center justify-between hover:shadow-xl hover:scale-[1.01] transition-all group">
+                           <div key={exp.id} className="p-5 rounded-lg bg-white border border-slate-100 flex items-center justify-between hover:shadow-sm hover:scale-[1.01] transition-all group">
                               <div className="flex items-center gap-5">
                                  <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center group-hover:bg-emerald-50 transition-colors">
                                     <Receipt className="w-6 h-6 text-slate-400 group-hover:text-emerald-500" />
                                  </div>
                                  <div>
-                                    <p className="text-sm font-black text-slate-800 uppercase line-clamp-1">{exp.description}</p>
+                                    <p className="text-sm font-bold text-slate-800 uppercase line-clamp-1">{exp.description}</p>
                                     <div className="flex items-center gap-2 mt-0.5">
-                                       <span className="text-[10px] font-bold text-emerald-600 uppercase bg-emerald-50 px-2 py-0.5 rounded-md">{exp.category}</span>
-                                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                                       <span className="text-[11px] font-bold text-emerald-600 uppercase bg-emerald-50 px-2 py-0.5 rounded-md">{exp.category}</span>
+                                       <span className="text-[11px] font-bold text-slate-400 ">
                                           {new Date(exp.date).toLocaleDateString()} • {users.find(u => u.id === exp.reporterId)?.name}
                                        </span>
                                     </div>
                                  </div>
                               </div>
                               <div className="flex items-center gap-2">
-                                 <Button variant="ghost" size="sm" onClick={() => handlePreview(exp.receiptUrl!)} className="rounded-xl hover:bg-emerald-50 text-emerald-600 font-bold text-[10px] px-4">
+                                 <Button variant="ghost" size="sm" onClick={() => handlePreview(exp.receiptUrl!)} className="rounded-xl hover:bg-emerald-50 text-emerald-600 font-bold text-[11px] px-4">
                                     LIHAT <Eye className="w-3 h-3 ml-2" />
                                  </Button>
                                  <Button variant="ghost" size="sm" onClick={() => handleDownload(exp.id)} className="w-10 h-10 rounded-xl hover:bg-slate-100 text-slate-400">
@@ -184,32 +184,32 @@ export default function FinanceDocumentsPage() {
                    {activeDrawer === 'Payments' && (
                      <>
                        {paymentProofs.length === 0 ? (
-                         <div className="py-20 text-center border-4 border-dashed border-slate-50 rounded-[2.5rem] bg-slate-50/20">
+                         <div className="py-20 text-center border-4 border-dashed border-slate-50 rounded-2xl bg-slate-50/20">
                             <CreditCard className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-                            <p className="text-sm font-black text-slate-400 uppercase tracking-widest">Belum ada bukti transfer terunggah</p>
+                            <p className="text-sm font-bold text-slate-400 ">Belum ada bukti transfer terunggah</p>
                          </div>
                        ) : (
                          paymentProofs.map(tx => (
-                           <div key={tx.id} className="p-5 rounded-3xl bg-white border border-slate-100 flex items-center justify-between hover:shadow-xl hover:scale-[1.01] transition-all group">
+                           <div key={tx.id} className="p-5 rounded-lg bg-white border border-slate-100 flex items-center justify-between hover:shadow-sm hover:scale-[1.01] transition-all group">
                               <div className="flex items-center gap-5">
                                  <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center group-hover:bg-emerald-50 transition-colors">
                                     <ImageIcon className="w-6 h-6 text-slate-400 group-hover:text-emerald-500" />
                                  </div>
                                  <div>
-                                    <p className="text-sm font-black text-slate-800 uppercase line-clamp-1">{tx.description}</p>
+                                    <p className="text-sm font-bold text-slate-800 uppercase line-clamp-1">{tx.description}</p>
                                     <div className="flex items-center gap-2 mt-0.5">
                                        <span className={cn(
-                                          "text-[10px] font-bold uppercase px-2 py-0.5 rounded-md",
+                                          "text-[11px] font-bold uppercase px-2 py-0.5 rounded-md",
                                           tx.type === 'In' ? "text-emerald-600 bg-emerald-50" : "text-rose-600 bg-rose-50"
                                        )}>{tx.category}</span>
-                                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                                       <span className="text-[11px] font-bold text-slate-400 ">
                                           {new Date(tx.date).toLocaleDateString()} • {tx.counterpartName || 'Internal'}
                                        </span>
                                     </div>
                                  </div>
                               </div>
                               <div className="flex items-center gap-2">
-                                 <Button variant="ghost" size="sm" onClick={() => handlePreview(tx.receiptUrl!)} className="rounded-xl hover:bg-emerald-50 text-emerald-600 font-bold text-[10px] px-4">
+                                 <Button variant="ghost" size="sm" onClick={() => handlePreview(tx.receiptUrl!)} className="rounded-xl hover:bg-emerald-50 text-emerald-600 font-bold text-[11px] px-4">
                                     LIHAT <Eye className="w-3 h-3 ml-2" />
                                  </Button>
                                  <Button variant="ghost" size="sm" onClick={() => handleDownload(tx.id)} className="w-10 h-10 rounded-xl hover:bg-slate-100 text-slate-400">
@@ -228,23 +228,23 @@ export default function FinanceDocumentsPage() {
                            {recentInvoices.map(inv => {
                               const client = clients.find(c => c.id === inv.clientId)
                               return (
-                                 <div key={inv.id} className="p-6 rounded-[2.5rem] bg-slate-50 border border-slate-100 hover:bg-white hover:shadow-xl transition-all group relative overflow-hidden">
+                                 <div key={inv.id} className="p-6 rounded-2xl bg-slate-50 border border-slate-100 hover:bg-white hover:shadow-sm transition-all group relative overflow-hidden">
                                     <div className="flex justify-between items-start relative z-10">
                                        <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center mb-4">
                                           <FileText className="w-6 h-6 text-emerald-500" />
                                        </div>
                                        <div className={cn(
-                                          "text-[9px] font-black uppercase rounded-lg border-none px-2 py-1 flex items-center justify-center",
+                                          "text-[11px] font-bold uppercase rounded-lg border-none px-2 py-1 flex items-center justify-center",
                                           inv.status === 'Paid' ? "bg-emerald-500 text-white" : "bg-amber-500 text-white"
                                        )}>
                                           {inv.status}
                                        </div>
                                     </div>
-                                    <h4 className="text-lg font-black text-slate-800 tracking-tight uppercase leading-none">INV-{inv.id.slice(0,8)}</h4>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">{client?.companyName}</p>
+                                    <h4 className="text-lg font-bold text-slate-800  leading-none">INV-{inv.id.slice(0,8)}</h4>
+                                    <p className="text-[11px] font-bold text-slate-400  mt-2">{client?.companyName}</p>
                                     
                                     <div className="mt-6 flex gap-2">
-                                       <Button className="flex-1 rounded-xl bg-slate-900 hover:bg-black text-white text-[9px] font-black uppercase h-10">
+                                       <Button className="flex-1 rounded-xl bg-slate-900 hover:bg-black text-white text-[11px] font-bold uppercase h-10">
                                           Download PDF <ArrowUpRight className="w-3 h-3 ml-1" />
                                        </Button>
                                        <Button variant="outline" className="w-10 h-10 rounded-xl border-slate-200">
@@ -265,9 +265,9 @@ export default function FinanceDocumentsPage() {
 
       {/* PREVIEW DIALOG */}
       <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
-        <DialogContent className="max-w-4xl w-[95vw] border-none rounded-[2rem] p-0 overflow-hidden bg-slate-100 shadow-2xl">
-          <DialogHeader className="p-6 absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-slate-900/40 to-transparent">
-             <DialogTitle className="text-white font-black uppercase tracking-widest text-xs flex items-center gap-2 drop-shadow-md">
+        <DialogContent className="max-w-4xl w-[95vw] border-none rounded-xl p-0 overflow-hidden bg-slate-100 shadow-sm">
+          <DialogHeader className="p-6 absolute top-0 left-0 right-0 z-10 bg-slate-900/40 to-transparent">
+             <DialogTitle className="text-white font-bold  text-xs flex items-center gap-2 drop-shadow-md">
                 <ImageIcon className="w-4 h-4 text-emerald-400" /> Preview Dokumen
              </DialogTitle>
           </DialogHeader>
@@ -275,14 +275,14 @@ export default function FinanceDocumentsPage() {
              {previewImage && (
                 <img 
                    src={previewImage} 
-                   className="w-full h-auto shadow-2xl rounded-xl object-contain min-h-full" 
+                   className="w-full h-auto shadow-sm rounded-xl object-contain min-h-full" 
                    alt="Preview Digital" 
                 />
              )}
           </div>
           <div className="p-4 bg-white flex justify-center border-t border-slate-100">
              <Button 
-                className="rounded-2xl bg-slate-900 hover:bg-black text-white font-black px-12 h-12" 
+                className="rounded-2xl bg-slate-900 hover:bg-black text-white font-bold px-12 h-12" 
                 onClick={() => setPreviewImage(null)}
              >
                 Tutup Preview

@@ -332,26 +332,26 @@ export default function MaintenancePage() {
     <div className="space-y-10 max-w-5xl mx-auto pb-20">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+          <h1 className="text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
             Database Maintenance <Database className="w-8 h-8 text-rose-500" />
           </h1>
-          <p className="text-sm font-bold text-slate-400 mt-1 uppercase tracking-widest">Global Data Control & Reset Center</p>
+          <p className="text-sm font-bold text-slate-400 mt-1 ">Global Data Control & Reset Center</p>
         </div>
-        <div className="bg-rose-50 px-5 py-2.5 rounded-[1.5rem] border border-rose-100 flex items-center gap-3">
+        <div className="bg-rose-50 px-5 py-2.5 rounded-xl border border-rose-100 flex items-center gap-3">
           <ShieldAlert className="w-5 h-5 text-rose-500" />
-          <span className="text-xs font-black text-rose-700 uppercase tracking-tighter">Super Admin Authorization Required</span>
+          <span className="text-xs font-bold text-rose-700 ">Super Admin Authorization Required</span>
         </div>
       </div>
 
       {isSuperAdmin && (
-        <Card className="liquid-card border-none bg-white shadow-xl overflow-hidden">
+        <Card className="liquid-card bg-white shadow-sm overflow-hidden">
           <CardHeader className="p-8 border-b bg-slate-50/50">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-sky-100 rounded-2xl flex items-center justify-center">
-                <History className="w-6 h-6 text-sky-600" />
+                <History className="w-6 h-6" />
               </div>
               <div>
-                <CardTitle className="text-xl font-black text-slate-900">Checkpoint</CardTitle>
+                <CardTitle className="text-xl font-bold text-slate-900">Checkpoint</CardTitle>
                 <CardDescription className="text-xs font-bold text-slate-400">
                   Simpan kondisi seluruh data sekarang, lalu kembali ke sana kapan pun setelah simulasi.
                 </CardDescription>
@@ -360,9 +360,9 @@ export default function MaintenancePage() {
           </CardHeader>
           <CardContent className="p-8 space-y-6">
             <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1 p-6 rounded-3xl bg-slate-50 border border-slate-100">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Checkpoint tersimpan</p>
-                <p className="text-lg font-black text-slate-900 mt-1">
+              <div className="flex-1 p-6 rounded-lg bg-slate-50 border border-slate-100">
+                <p className="text-[11px] font-bold  text-slate-400">Checkpoint tersimpan</p>
+                <p className="text-lg font-bold text-slate-900 mt-1">
                   {checkpoint ? fmtWaktu(checkpoint.savedAt) : 'Belum ada'}
                 </p>
                 {checkpoint && <p className="text-xs font-bold text-slate-400">{fmtMB(checkpoint.bytes)}</p>}
@@ -370,16 +370,16 @@ export default function MaintenancePage() {
               <Button
                 onClick={handleSaveCheckpoint}
                 disabled={isSavingCp || isRestoringCp}
-                className="md:w-64 h-auto md:py-0 py-4 bg-sky-600 hover:bg-sky-700 text-white rounded-3xl font-black uppercase text-[11px] tracking-widest shadow-xl"
+                className="md:w-64 h-auto md:py-0 py-4 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-bold uppercase text-[11px] tracking-widest shadow-sm"
               >
                 {isSavingCp ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
                 {isSavingCp ? 'Menyimpan...' : 'Save Checkpoint'}
               </Button>
             </div>
 
-            <div className="p-6 rounded-3xl border border-rose-100 bg-rose-50/50 space-y-4">
+            <div className="p-6 rounded-lg border border-rose-100 bg-rose-50/50 space-y-4">
               <div>
-                <h4 className="font-black text-slate-900 uppercase text-sm flex items-center gap-2">
+                <h4 className="font-bold text-slate-900 uppercase text-sm flex items-center gap-2">
                   <RotateCcw className="w-4 h-4 text-rose-600" /> Kembali ke Checkpoint
                 </h4>
                 <p className="text-xs font-bold text-slate-500 mt-1">
@@ -392,12 +392,12 @@ export default function MaintenancePage() {
                   value={cpConfirm}
                   onChange={(e) => setCpConfirm(e.target.value.toUpperCase())}
                   placeholder="Ketik KEMBALI"
-                  className="sm:w-52 h-12 rounded-2xl font-black tracking-widest bg-white"
+                  className="sm:w-52 h-12 rounded-2xl font-bold tracking-widest bg-white"
                 />
                 <Button
                   onClick={() => handleRestoreCheckpoint('checkpoint_restore')}
                   disabled={cpConfirm !== 'KEMBALI' || !checkpoint || isRestoringCp || isSavingCp}
-                  className="h-12 px-6 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest disabled:opacity-40"
+                  className="h-12 px-6 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-bold uppercase text-[11px] tracking-widest disabled:opacity-40"
                 >
                   {isRestoringCp ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RotateCcw className="w-4 h-4 mr-2" />}
                   Kembali ke Checkpoint
@@ -407,7 +407,7 @@ export default function MaintenancePage() {
                     variant="outline"
                     onClick={() => handleRestoreCheckpoint('checkpoint_undo')}
                     disabled={isRestoringCp || isSavingCp}
-                    className="h-12 px-4 rounded-2xl font-black uppercase text-[10px] tracking-widest border-slate-200 bg-white"
+                    className="h-12 px-4 rounded-2xl font-bold uppercase text-[11px] tracking-widest border-slate-200 bg-white"
                     title={`Kondisi sebelum restore terakhir (${fmtWaktu(preRestore.savedAt)})`}
                   >
                     <Undo2 className="w-4 h-4 mr-2" /> Batalkan restore terakhir
@@ -421,7 +421,7 @@ export default function MaintenancePage() {
               {preWipe && (
                 <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
                   <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-amber-600">
+                    <p className="text-[11px] font-bold  text-amber-600">
                       Cadangan sebelum penghapusan terakhir
                     </p>
                     <p className="text-xs font-bold text-slate-600 mt-0.5">
@@ -432,7 +432,7 @@ export default function MaintenancePage() {
                     variant="outline"
                     onClick={() => handleRestoreCheckpoint('prewipe_restore')}
                     disabled={isRestoringCp || isSavingCp}
-                    className="h-12 px-4 rounded-2xl font-black uppercase text-[10px] tracking-widest border-amber-300 bg-white text-amber-700 hover:bg-amber-100 shrink-0"
+                    className="h-12 px-4 rounded-2xl font-bold uppercase text-[11px] tracking-widest border-amber-300 bg-white text-amber-700 hover:bg-amber-100 shrink-0"
                     title="Kembalikan data transaksi ke kondisi sebelum tombol bersihkan ditekan"
                   >
                     <Undo2 className="w-4 h-4 mr-2" /> Batalkan penghapusan
@@ -445,42 +445,42 @@ export default function MaintenancePage() {
       )}
 
       <div className="grid md:grid-cols-2 gap-6">
-         <Card className="liquid-card border-none bg-emerald-900 text-white overflow-hidden group">
+         <Card className="liquid-card bg-emerald-900 text-white overflow-hidden group">
             <div className="p-8 relative">
                <div className="flex items-center gap-4 mb-4">
-                  <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center">
+                  <div className="w-12 h-12 bg-card rounded-2xl flex items-center justify-center">
                      <RotateCcw className="w-6 h-6 text-emerald-400" />
                   </div>
                   <div>
-                     <h3 className="text-lg font-black uppercase tracking-tight">Reset Semua Stok</h3>
-                     <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest leading-none mt-1">Inventory Management</p>
+                     <h3 className="text-lg font-bold ">Reset Semua Stok</h3>
+                     <p className="text-[11px] font-bold text-emerald-400  leading-none mt-1">Inventory Management</p>
                   </div>
                </div>
                <p className="text-xs text-white/60 mb-8 leading-relaxed">Nol-kan semua stok barang di Katalog Produk tanpa menghapus data produk itu sendiri.</p>
                <Button 
                  onClick={handleResetStock}
-                 className="w-full h-12 bg-white text-emerald-900 hover:bg-emerald-50 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl"
+                 className="w-full h-12 bg-white text-emerald-900 hover:bg-emerald-50 rounded-2xl font-bold uppercase text-[11px] tracking-widest shadow-sm"
                >
                  Reset Fisik Stok ke 0
                </Button>
             </div>
          </Card>
 
-         <Card className="liquid-card border-none bg-slate-900 text-white overflow-hidden group">
+         <Card className="liquid-card bg-slate-900 text-white overflow-hidden group">
             <div className="p-8 relative">
                <div className="flex items-center gap-4 mb-4">
-                  <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center">
+                  <div className="w-12 h-12 bg-card rounded-2xl flex items-center justify-center">
                      <Trash2 className="w-6 h-6 text-rose-400" />
                   </div>
                   <div>
-                     <h3 className="text-lg font-black uppercase tracking-tight">Wipe Transactions</h3>
-                     <p className="text-[10px] font-bold text-rose-400 uppercase tracking-widest leading-none mt-1">Quick Data Reset</p>
+                     <h3 className="text-lg font-bold ">Wipe Transactions</h3>
+                     <p className="text-[11px] font-bold text-rose-400  leading-none mt-1">Quick Data Reset</p>
                   </div>
                </div>
                <p className="text-xs text-white/60 mb-8 leading-relaxed">Hapus semua PO, Order, Invoice, dan Jurnal. Katalog Produk & Client tetep AMAN.</p>
                <Button 
                  onClick={handleQuickWipeTransactions}
-                 className="w-full h-12 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl"
+                 className="w-full h-12 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-bold uppercase text-[11px] tracking-widest shadow-sm"
                >
                  Bersihkan Data Transaksi
                </Button>
@@ -489,14 +489,14 @@ export default function MaintenancePage() {
       </div>
 
       {/* Data Lock & Safety Backup Section */}
-      <Card className="liquid-card border-none bg-white shadow-xl overflow-hidden">
+      <Card className="liquid-card bg-white shadow-sm overflow-hidden">
         <CardHeader className="p-8 border-b bg-slate-50/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-emerald-100 rounded-2xl flex items-center justify-center">
               <ShieldCheck className="w-6 h-6 text-emerald-600" />
             </div>
             <div>
-               <CardTitle className="text-xl font-black text-slate-900">Data Safety Lock & Backup</CardTitle>
+               <CardTitle className="text-xl font-bold text-slate-900">Data Safety Lock & Backup</CardTitle>
                <CardDescription className="text-xs font-bold text-slate-400">Lock data saat ini atau restore data dari cadangan yang aman.</CardDescription>
             </div>
           </div>
@@ -511,7 +511,7 @@ export default function MaintenancePage() {
             <Button
               variant="outline"
               disabled={isUploading}
-              className="border-slate-200 hover:bg-slate-50 rounded-2xl h-12 px-4 font-black uppercase text-[10px] tracking-widest"
+              className="border-slate-200 hover:bg-slate-50 rounded-2xl h-12 px-4 font-bold uppercase text-[11px] tracking-widest"
               onClick={() => document.getElementById('import-backup-file')?.click()}
             >
               {isUploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
@@ -520,7 +520,7 @@ export default function MaintenancePage() {
             <Button
               variant="outline"
               disabled={isExporting}
-              className="border-slate-200 hover:bg-slate-50 rounded-2xl h-12 px-4 font-black uppercase text-[10px] tracking-widest"
+              className="border-slate-200 hover:bg-slate-50 rounded-2xl h-12 px-4 font-bold uppercase text-[11px] tracking-widest"
               onClick={handleExportBackup}
             >
               <Download className="w-4 h-4 mr-2" />
@@ -530,9 +530,9 @@ export default function MaintenancePage() {
         </CardHeader>
         <CardContent className="p-8">
           <div className="grid md:grid-cols-2 gap-6">
-            <div className="flex flex-col p-6 rounded-3xl bg-slate-50 border border-slate-100 justify-between">
+            <div className="flex flex-col p-6 rounded-lg bg-slate-50 border border-slate-100 justify-between">
               <div>
-                <h4 className="font-black text-slate-900 mb-2 uppercase text-sm flex items-center gap-2">
+                <h4 className="font-bold text-slate-900 mb-2 uppercase text-sm flex items-center gap-2">
                   <Lock className="w-4 h-4 text-emerald-600" /> Lock Current Data
                 </h4>
                 <p className="text-xs font-medium text-slate-500 mb-6">
@@ -542,16 +542,16 @@ export default function MaintenancePage() {
               <Button
                 disabled={isBackingUp}
                 onClick={handleLockData}
-                className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-emerald-600/10"
+                className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-bold uppercase text-[11px] tracking-widest shadow-sm"
               >
                 {isBackingUp ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Lock className="w-4 h-4 mr-2" />}
                 Kunci Data Sekarang (Lock)
               </Button>
             </div>
 
-            <div className="flex flex-col p-6 rounded-3xl bg-rose-50/50 border border-rose-100 justify-between">
+            <div className="flex flex-col p-6 rounded-lg bg-rose-50/50 border border-rose-100 justify-between">
               <div>
-                <h4 className="font-black text-slate-900 mb-2 uppercase text-sm flex items-center gap-2">
+                <h4 className="font-bold text-slate-900 mb-2 uppercase text-sm flex items-center gap-2">
                   <Unlock className="w-4 h-4 text-rose-600" /> Restore Locked Data
                 </h4>
                 <p className="text-xs font-medium text-slate-500 mb-6">
@@ -561,7 +561,7 @@ export default function MaintenancePage() {
               <Button
                 disabled={isRestoring}
                 onClick={handleRestoreData}
-                className="w-full h-12 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-rose-600/10"
+                className="w-full h-12 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-bold uppercase text-[11px] tracking-widest shadow-sm"
               >
                 {isRestoring ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RotateCcw className="w-4 h-4 mr-2" />}
                 Pulihkan Data (Restore)
@@ -571,14 +571,14 @@ export default function MaintenancePage() {
         </CardContent>
       </Card>
 
-      <Card className="liquid-card border-none bg-white shadow-xl overflow-hidden">
+      <Card className="liquid-card bg-white shadow-sm overflow-hidden">
         <CardHeader className="p-8 border-b bg-slate-50/50">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-rose-100 rounded-2xl flex items-center justify-center">
               <RotateCcw className="w-6 h-6 text-rose-600" />
             </div>
             <div>
-               <CardTitle className="text-xl font-black text-slate-900">Selective Data Reset</CardTitle>
+               <CardTitle className="text-xl font-bold text-slate-900">Selective Data Reset</CardTitle>
                <CardDescription className="text-xs font-bold text-slate-400">Pilih kategori data yang ingin dihapus permanen dari sistem.</CardDescription>
             </div>
           </div>
@@ -602,7 +602,7 @@ export default function MaintenancePage() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <h4 className={cn("font-black tracking-tight", 
+                    <h4 className={cn("font-bold tracking-tight", 
                       cat.severity === 'critical' ? "text-rose-600" : "text-slate-900"
                     )}>
                       {cat.title}
@@ -610,21 +610,21 @@ export default function MaintenancePage() {
                     <p className="text-xs font-medium text-slate-500 max-w-md">{cat.description}</p>
                     <div className="flex gap-2 mt-3">
                       {cat.keys.slice(0, 4).map(k => (
-                        <span key={k} className="text-[9px] font-black uppercase tracking-tighter bg-slate-100 text-slate-400 px-2 py-1 rounded-md">
+                        <span key={k} className="text-[11px] font-bold  bg-slate-100 text-slate-400 px-2 py-1 rounded-md">
                           {k}
                         </span>
                       ))}
-                      {cat.keys.length > 4 && <span className="text-[9px] font-black italic text-slate-300">+{cat.keys.length - 4} more</span>}
+                      {cat.keys.length > 4 && <span className="text-[11px] font-bold italic text-slate-300">+{cat.keys.length - 4} more</span>}
                     </div>
                   </div>
                 </div>
                 
                 <div className="flex flex-col items-end gap-2">
                    {cat.severity === 'critical' && (
-                     <span className="text-[9px] font-black uppercase bg-rose-500 text-white px-3 py-1 rounded-full animate-pulse shadow-lg shadow-rose-500/20">Critical Data</span>
+                     <span className="text-[11px] font-bold uppercase bg-rose-500 text-white px-3 py-1 rounded-full shadow-sm">Critical Data</span>
                    )}
                    {cat.severity === 'high' && (
-                     <span className="text-[9px] font-black uppercase bg-orange-100 text-orange-600 px-3 py-1 rounded-full">High Impact</span>
+                     <span className="text-[11px] font-bold uppercase bg-orange-100 text-orange-600 px-3 py-1 rounded-full">High Impact</span>
                    )}
                 </div>
               </div>
@@ -633,12 +633,12 @@ export default function MaintenancePage() {
 
           <div className="p-10 bg-slate-900 flex flex-col md:flex-row items-center justify-between gap-8">
              <div className="flex items-center gap-6">
-                <div className="w-16 h-16 bg-rose-500/20 rounded-[2rem] flex items-center justify-center border border-rose-500/30">
+                <div className="w-16 h-16 bg-rose-500/20 rounded-xl flex items-center justify-center border border-rose-500/30">
                   <AlertTriangle className="w-8 h-8 text-rose-500" />
                 </div>
                 <div>
-                   <h3 className="text-2xl font-black text-white">Reset Selected Data</h3>
-                   <p className="text-slate-400 text-sm font-bold uppercase tracking-widest mt-1">
+                   <h3 className="text-2xl font-bold text-white">Reset Selected Data</h3>
+                   <p className="text-slate-400 text-sm font-bold  mt-1">
                      {selectedCategories.length} Categories Selected for Wipeout
                    </p>
                 </div>
@@ -647,7 +647,7 @@ export default function MaintenancePage() {
              <Button 
                onClick={handleStartReset}
                disabled={selectedCategories.length === 0}
-               className="bg-rose-600 hover:bg-rose-700 text-white font-black px-12 h-16 rounded-[2rem] shadow-2xl shadow-rose-500/20 transition-all flex items-center gap-3 active:scale-95 text-lg disabled:opacity-50"
+               className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-12 h-16 rounded-xl shadow-sm transition-all flex items-center gap-3 active:scale-95 text-lg disabled:opacity-50"
              >
                <Trash2 className="w-6 h-6" /> Wipeout Data Now
              </Button>
@@ -657,19 +657,19 @@ export default function MaintenancePage() {
 
       {/* Confirmation Dialog 1 */}
       <Dialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
-        <DialogContent className="liquid-card border-none bg-white p-10 max-w-xl">
+        <DialogContent className="liquid-card bg-white p-10 max-w-xl">
           <DialogHeader className="items-center text-center space-y-4">
-            <div className="w-20 h-20 bg-rose-100 rounded-[2.5rem] flex items-center justify-center mb-4">
+            <div className="w-20 h-20 bg-rose-100 rounded-2xl flex items-center justify-center mb-4">
               <AlertTriangle className="w-10 h-10 text-rose-600" />
             </div>
-            <DialogTitle className="text-2xl font-black text-slate-900">Are you absolutely sure?</DialogTitle>
+            <DialogTitle className="text-2xl font-bold text-slate-900">Are you absolutely sure?</DialogTitle>
             <DialogDescription render={<div className="text-base font-bold text-slate-500" />}>
                This action will permanently delete all data in the selected categories. This cannot be undone.
                <div className="mt-6 bg-slate-50 p-4 rounded-2xl text-left font-normal">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Selected Categories:</p>
+                  <p className="text-[11px] font-bold text-slate-400  mb-2">Selected Categories:</p>
                   <ul className="grid grid-cols-2 gap-2">
                     {selectedCategories.map(cat => (
-                      <li key={cat} className="text-xs font-black text-rose-600 flex items-center gap-2">
+                      <li key={cat} className="text-xs font-bold text-rose-600 flex items-center gap-2">
                         <CheckCircle2 className="w-3 h-3" /> {cat}
                       </li>
                     ))}
@@ -678,10 +678,10 @@ export default function MaintenancePage() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex-row gap-4 mt-8">
-            <Button variant="ghost" onClick={() => setIsConfirmOpen(false)} className="flex-1 h-14 rounded-2xl font-black text-slate-400 hover:bg-slate-50">
+            <Button variant="ghost" onClick={() => setIsConfirmOpen(false)} className="flex-1 h-14 rounded-2xl font-bold text-slate-400 hover:bg-slate-50">
               Cancel
             </Button>
-            <Button onClick={proceedToDoubleConfirm} className="flex-1 h-14 rounded-2xl font-black bg-rose-600 hover:bg-rose-700 text-white">
+            <Button onClick={proceedToDoubleConfirm} className="flex-1 h-14 rounded-2xl font-bold bg-rose-600 hover:bg-rose-700 text-white">
               Yes, I&apos;m Sure
             </Button>
           </DialogFooter>
@@ -690,14 +690,14 @@ export default function MaintenancePage() {
 
       {/* Double Confirmation Dialog 2 */}
       <Dialog open={isDoubleConfirmOpen} onOpenChange={setIsDoubleConfirmOpen}>
-        <DialogContent className="liquid-card border-none bg-slate-900 text-white p-10 max-w-xl">
+        <DialogContent className="liquid-card bg-slate-900 text-white p-10 max-w-xl">
           <DialogHeader className="items-center text-center space-y-4">
-             <div className="w-20 h-20 bg-white/10 rounded-[2.5rem] flex items-center justify-center border border-white/20 mb-4 animate-pulse">
+             <div className="w-20 h-20 bg-card rounded-2xl flex items-center justify-center border border-border mb-4">
                 <ShieldAlert className="w-10 h-10 text-rose-500" />
              </div>
-             <DialogTitle className="text-2xl font-black">Final Security Check</DialogTitle>
+             <DialogTitle className="text-2xl font-bold">Final Security Check</DialogTitle>
              <DialogDescription className="text-slate-400 font-bold">
-                To confirm this high-stakes deletion, please type <span className="text-rose-500 font-black">RESET</span> below.
+                To confirm this high-stakes deletion, please type <span className="text-rose-500 font-bold">RESET</span> below.
              </DialogDescription>
           </DialogHeader>
           
@@ -706,18 +706,18 @@ export default function MaintenancePage() {
               value={resetInput}
               onChange={(e) => setResetInput(e.target.value.toUpperCase())}
               placeholder="Type RESET here..."
-              className="h-16 bg-white/10 border-white/20 rounded-2xl text-center text-xl font-black text-white focus-visible:ring-rose-500 placeholder:text-white/20"
+              className="h-16 bg-slate-800 border-slate-700 rounded-2xl text-center text-xl font-bold text-white focus-visible:ring-rose-500 placeholder:text-white/20"
             />
             
             <Button 
               onClick={performReset}
               disabled={resetInput !== "RESET"}
-              className="w-full h-16 rounded-[2rem] font-black bg-rose-600 hover:bg-rose-700 text-white shadow-2xl shadow-rose-900/50 disabled:opacity-20"
+              className="w-full h-16 rounded-xl font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-sm disabled:opacity-20"
             >
               PERMANENTLY WIPE DATABASE
             </Button>
             
-            <p className="text-[10px] text-center text-slate-500 font-bold uppercase tracking-widest">
+            <p className="text-[11px] text-center text-slate-500 font-bold ">
               Action will be logged and cannot be reversed.
             </p>
           </div>

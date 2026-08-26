@@ -121,8 +121,8 @@ export default function TukarFakturDetailPage({ params }: { params: Promise<{ id
       <Card className="p-6 rounded-2xl border-slate-100">
         <div className="flex flex-col md:flex-row justify-between gap-4">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{client?.companyName || tf.clientId}</p>
-            <h1 className="text-2xl font-black mt-1">{tf.tfNumber}</h1>
+            <p className="text-[11px] font-bold  text-slate-400">{client?.companyName || tf.clientId}</p>
+            <h1 className="text-2xl font-bold mt-1">{tf.tfNumber}</h1>
             <p className="text-sm text-slate-500 mt-1">
               Periode {formatDate(tf.periodStart)} – {formatDate(tf.periodEnd)}
               {tf.status === "Draft"
@@ -168,7 +168,7 @@ export default function TukarFakturDetailPage({ params }: { params: Promise<{ id
       {/* Detail Invoices */}
       <Card className="rounded-2xl overflow-hidden border-slate-100">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-slate-500 text-[11px] uppercase tracking-wider">
+          <thead className="bg-slate-50 text-slate-500 text-[11px] ">
             <tr>
               <th className="text-left px-4 py-3">Invoice ID</th>
               <th className="text-left px-4 py-3">Issue Date</th>

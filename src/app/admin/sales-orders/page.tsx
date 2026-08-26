@@ -1,9 +1,11 @@
 "use client"
 
+import Link from "next/link"
 import { useState, useEffect, useRef, useMemo, useCallback, memo } from "react"
 import { useAppStore } from "@/lib/store"
-import { cn, formatRupiah, formatNumber, parseNumber } from "@/lib/utils"
-import { Plus, Trash2, ShoppingCart, Search, ChevronsUpDown, Check, Eye, FileText, Download, Loader2, X, Pencil, ArrowUp, ArrowDown } from "lucide-react"
+import { cn, formatRupiah, formatRupiahShort, formatNumber, parseNumber } from "@/lib/utils"
+import { StatBand } from "@/components/ui/stat-band"
+import { Plus, Trash2, ShoppingCart, Search, ChevronsUpDown, Check, Eye, FileText, Download, Loader2, X, Pencil, ArrowUp, ArrowDown, ChevronUp, ChevronDown } from "lucide-react"
 import { v4 as uuidv4 } from "uuid"
 
 const toDateInputValue = (date?: string) => {
@@ -59,6 +61,7 @@ import { generateDocumentNumber, updateProductPriceHistory, finalizeSalesOrderDe
 import ReceiptUpload from "@/components/ui/receipt-upload"
 import { PdfCanvasPreview } from "@/components/pdf-canvas-preview"
 import { generateSuratJalan, generateBA, generateSalesOrderPDF } from "@/lib/pdf"
+import { perjalanan, ringkasan, persen, layarSekarang } from "@/lib/po-progress"
 import { roundQtyToBook, nextSoStatus } from "@/lib/backorder"
 import { pendingEdits } from "@/lib/order-edits"
 import { orderEditable, editLockReason, linkedPurchaseLines } from "@/lib/order-edit-window"
@@ -165,7 +168,7 @@ const PricelistRow = memo(function PricelistRow({
       <td className="py-2.5">
         <div className="flex flex-col gap-0.5">
           <span className={cn("font-semibold", checked && "text-emerald-800 dark:text-emerald-300")}>{product.name}</span>
-          <span className="text-[10px] text-slate-400 font-medium">
+          <span className="text-[11px] text-slate-400 font-medium">
             {product.skuCode} • {product.uom} • Stok: {product.currentStock}
             {freq ? ` • ${freq}x pernah dibeli` : ""}
           </span>
@@ -174,7 +177,7 @@ const PricelistRow = memo(function PricelistRow({
       <td className="text-right pr-3 font-bold text-slate-700 dark:text-slate-200 whitespace-nowrap">
         {formatRupiah(price)}
         {tier !== 'Standard' && (
-          <span className="ml-1 text-[9px] font-black text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200 uppercase">{tier}</span>
+          <span className="ml-1 text-[11px] font-bold text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200 uppercase">{tier}</span>
         )}
       </td>
       <td className="py-2 px-2 text-center">
@@ -215,6 +218,13 @@ export default function SalesOrdersPage() {
   const addDelivery = useAppStore(state => state.addDelivery)
   const addInvoice = useAppStore(state => state.addInvoice)
   const currentUser = useAppStore(state => state.currentUser)
+  const rolePermissions = useAppStore(state => state.rolePermissions)
+
+  // Tahap yang boleh dibuka orang ini. Tahap milik divisi lain tetap terbaca, cuma
+  // tidak bisa diklik — tombol yang memantulkan balik ke dashboard lebih membingungkan
+  // daripada tidak ada tombol sama sekali.
+  const bolehBuka = (izin: string) =>
+    (rolePermissions?.[currentUser?.role || ''] || []).includes(izin as never)
   const deleteSalesOrder = useAppStore(state => state.deleteSalesOrder)
   const deleteMultipleSalesOrders = useAppStore(state => state.deleteMultipleSalesOrders)
   const updateProduct = useAppStore(state => state.updateProduct)
@@ -242,6 +252,8 @@ export default function SalesOrdersPage() {
 
   // Detail view state
   const [detailSOId, setDetailSOId] = useState<string | null>(null)
+  // Panel ringkas di kanan tabel — tabel tetap terlihat saat memeriksa satu PO.
+  const [panelSoId, setPanelSoId] = useState<string | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
 
   // BAST Confirmation states
@@ -375,6 +387,9 @@ export default function SalesOrdersPage() {
   // ponytail: checklist draft { productId -> qty } for pricelist bulk-add
   const [pricelistDraft, setPricelistDraft] = useState<Record<string, number>>({})
   const [showManualAdd, setShowManualAdd] = useState(false)
+  // Daftar harga klien bisa 2000 baris dan digambar semuanya sekaligus. Yang sudah tahu
+  // mau pesan apa harus menggulung melewati semuanya untuk sampai ke tombol simpan.
+  const [pricelistTerbuka, setPricelistTerbuka] = useState(true)
   const [pricelistSearch, setPricelistSearch] = useState("")
   const [pricelistSort, setPricelistSort] = useState<'suggest' | 'name' | 'price'>('suggest')
   const [pricelistSortDir, setPricelistSortDir] = useState<'asc' | 'desc'>('desc')
@@ -1010,6 +1025,49 @@ export default function SalesOrdersPage() {
   }
 
   const activeSos = useMemo(() => filteredSalesOrders.filter(so => so.status !== 'Pending Approval'), [filteredSalesOrders])
+
+  // Ringkasan di atas tabel: semuanya dihitung dari PO yang sedang tampil,
+  // jadi ikut berubah saat filter tanggal dipakai. Tidak ada angka karangan.
+  /** Data panel kanan — dibaca dari state yang sama dengan tabel. */
+  const panelSo = useMemo(() => {
+    const so = salesOrders.find(x => x.id === panelSoId)
+    if (!so) return null
+    const items = salesOrderItems.filter(i => i.salesOrderId === so.id)
+    const total = items.reduce((sum, i) => sum + Number(i.subtotal || 0), 0)
+    return { so, items, total, status: getFinancialStatus(so) }
+  }, [panelSoId, salesOrders, salesOrderItems, invoices])
+
+  const soSummary = useMemo(() => {
+    const valueOf = (soId: string) =>
+      salesOrderItems.filter(i => i.salesOrderId === soId).reduce((sum, i) => sum + (i.subtotal || 0), 0)
+
+    let total = 0, count = 0
+    let outstanding = 0, outstandingCount = 0
+    let unbilled = 0, unbilledCount = 0
+    const perDate = new Map<string, number>()
+
+    activeSos.forEach(so => {
+      if (so.status === 'Batal') return
+      const value = valueOf(so.id)
+      total += value
+      count += 1
+
+      const label = getFinancialStatus(so).label
+      if (label === 'Outstanding') { outstanding += value; outstandingCount += 1 }
+      if (label === 'Invoice Pending') { unbilled += value; unbilledCount += 1 }
+
+      const day = toDateInputValue(so.targetDeliveryDate)
+      if (day) perDate.set(day, (perDate.get(day) || 0) + value)
+    })
+
+    const days = Array.from(perDate.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(0, 8)
+      .map(([day, value]) => ({ day, value }))
+    const peak = days.reduce((max, d) => Math.max(max, d.value), 0)
+
+    return { total, count, outstanding, outstandingCount, unbilled, unbilledCount, days, peak }
+  }, [activeSos, salesOrderItems, invoices])
   const allSelected = activeSos.length > 0 && activeSos.every(so => selectedSoIds.includes(so.id))
 
   const toggleSelectAll = () => {
@@ -1171,8 +1229,8 @@ export default function SalesOrdersPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Sales Orders (PO Masuk)</h2>
-          <p className="text-muted-foreground">Manage incoming client orders and track their fulfillment status.</p>
+          <h2 className="text-[19px] leading-tight font-semibold text-slate-900">Pesanan klien</h2>
+          <p className="mt-[3px] text-[12.5px] text-slate-400">Pesanan masuk dari klien dan jalannya sampai terkirim.</p>
         </div>
         
         <div className="flex items-center gap-2">
@@ -1189,21 +1247,21 @@ export default function SalesOrdersPage() {
                 <Plus className="mr-2 h-4 w-4" /> New Sales Order
               </Button>
             } />
-          <DialogContent className="sm:max-w-[95vw] w-[95vw] max-h-[95vh] overflow-y-auto rounded-[2rem]">
+          <DialogContent className="sm:max-w-[95vw] w-[95vw] max-h-[95vh] overflow-y-auto rounded-xl">
             <DialogHeader>
               <DialogTitle>{editingSO ? `Edit Sales Order: ${editingSO.poNumber}` : "Create New Sales Order"}</DialogTitle>
             </DialogHeader>
             <div className="grid gap-6 py-4">
               
               <div className="space-y-2">
-                <Label className="text-emerald-600 font-black uppercase text-[10px] tracking-widest">PO Number (Dapat Diubah)</Label>
+                <Label className="text-emerald-600 font-bold uppercase text-[11px] tracking-widest">PO Number (Dapat Diubah)</Label>
                 <Input 
                   value={poNumberDraft}
                   onChange={(e) => setPoNumberDraft(e.target.value)}
-                  className="font-black text-lg border-emerald-100 bg-emerald-50/30 focus:bg-white transition-all"
+                  className="font-bold text-lg border-emerald-100 bg-emerald-50/30 focus:bg-white transition-all"
                   placeholder="PO-XXXXXX"
                 />
-                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">Sesuaikan dengan nomor PO dari Client jika perlu.</p>
+                <p className="text-[11px] text-slate-400 font-bold ">Sesuaikan dengan nomor PO dari Client jika perlu.</p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -1213,7 +1271,7 @@ export default function SalesOrdersPage() {
                     <button 
                       type="button" 
                       onClick={() => setIsClientQuickAddOpen(true)}
-                      className="text-[10px] text-emerald-600 font-bold hover:underline"
+                      className="text-[11px] text-emerald-600 font-bold hover:underline"
                     >
                       + Add New Client
                     </button>
@@ -1269,7 +1327,7 @@ export default function SalesOrdersPage() {
                               <div className="flex flex-col text-left">
                                 <span className="font-bold text-slate-900 dark:text-slate-100">{c.companyName}</span>
                                 {c.address && (
-                                  <span className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">{c.address}</span>
+                                  <span className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{c.address}</span>
                                 )}
                               </div>
                             </button>
@@ -1305,17 +1363,25 @@ export default function SalesOrdersPage() {
                     const q = pricelistSearch.trim().toLowerCase()
                     const visibleRows = visiblePricelistRows
                     return (
-                      <div className="space-y-3 animate-in fade-in duration-200">
+                      <div className="space-y-3 duration-200">
                         {/* Header */}
                         <div className="flex items-center justify-between">
-                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                          <p className="text-[11px] font-bold  text-slate-400">
                             Price List Client ({q ? `${visibleRows.length} / ` : ""}{pricelistRows.length} produk)
                           </p>
                           <div className="flex items-center gap-2">
                             <button
                               type="button"
+                              onClick={() => setPricelistTerbuka(v => !v)}
+                              className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-bold  text-slate-500 hover:text-emerald-600"
+                            >
+                              {pricelistTerbuka ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                              {pricelistTerbuka ? 'Sembunyikan' : 'Tampilkan Daftar'}
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => setIsProductQuickAddOpen(true)}
-                              className="text-[10px] text-slate-400 font-bold hover:text-emerald-600 hover:underline"
+                              className="text-[11px] text-slate-400 font-bold hover:text-emerald-600 hover:underline"
                             >
                               + SKU Baru
                             </button>
@@ -1332,6 +1398,7 @@ export default function SalesOrdersPage() {
                           </div>
                         </div>
 
+                        {pricelistTerbuka && (<>
                         {/* Search + sort */}
                         <div className="flex items-center gap-2">
                           <div className="relative flex-1">
@@ -1371,7 +1438,7 @@ export default function SalesOrdersPage() {
                         </div>
 
                         {/* Checklist table */}
-                        <div className="rounded-lg border bg-white dark:bg-slate-950 overflow-hidden">
+                        <div className="rounded-lg border bg-white dark:bg-slate-950 overflow-hidden max-h-[50vh] overflow-y-auto">
                           <table className="w-full text-sm">
                             <thead>
                               <tr className="bg-slate-50 dark:bg-slate-900/60 border-b">
@@ -1400,6 +1467,8 @@ export default function SalesOrdersPage() {
                           </table>
                         </div>
 
+                        </>)}
+
                         {/* Manual add toggle */}
                         <button
                           type="button"
@@ -1412,7 +1481,7 @@ export default function SalesOrdersPage() {
 
                         {/* Manual add panel */}
                         {showManualAdd && (
-                          <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-dashed animate-in fade-in duration-200">
+                          <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-dashed duration-200">
                             <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
                               <div className="md:col-span-6 space-y-1">
                                 <Label className="text-xs font-semibold px-1">Pilih Produk</Label>
@@ -1433,7 +1502,7 @@ export default function SalesOrdersPage() {
                                         <button key={p.id} className={cn("relative flex w-full cursor-default select-none flex-col items-start rounded-sm py-2 pl-8 pr-2 text-sm outline-none hover:bg-slate-100 dark:hover:bg-slate-800", newLineProductId === p.id && "bg-slate-100 dark:bg-slate-800")} onClick={() => { handleProductSelect(p.id); setIsProductSearchOpen(false); setProductSearch("") }}>
                                           <span className="absolute left-2 top-2.5 flex h-3.5 w-3.5 items-center justify-center">{newLineProductId === p.id && <Check className="h-4 w-4" />}</span>
                                           <span className="font-semibold">{p.name}</span>
-                                          <span className="text-[10px] text-muted-foreground">{p.skuCode} • {formatRupiah(p.sellingPrice)} • Stok: {p.currentStock}</span>
+                                          <span className="text-[11px] text-muted-foreground">{p.skuCode} • {formatRupiah(p.sellingPrice)} • Stok: {p.currentStock}</span>
                                         </button>
                                       ))}
                                     </div>
@@ -1441,7 +1510,7 @@ export default function SalesOrdersPage() {
                                 </Popover>
                               </div>
                               <div className="md:col-span-2 space-y-1">
-                                <Label className="text-xs font-semibold">Qty{newLineProductId ? <span className="ml-1 text-[10px] font-normal text-slate-400">({products.find(p => p.id === newLineProductId)?.uom || '-'})</span> : null}</Label>
+                                <Label className="text-xs font-semibold">Qty{newLineProductId ? <span className="ml-1 text-[11px] font-normal text-slate-400">({products.find(p => p.id === newLineProductId)?.uom || '-'})</span> : null}</Label>
                                 <EditNumber decimal inputMode="decimal" placeholder="0" className="bg-white dark:bg-slate-950 h-10" value={newLineQty} onCommit={setNewLineQty} />
                               </div>
                               <div className="md:col-span-3 space-y-1">
@@ -1486,12 +1555,12 @@ export default function SalesOrdersPage() {
 
                   // Fallback: no pricelist configured — show original single-select panel
                   return (
-                    <div className="space-y-4 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-dashed animate-in fade-in duration-300">
+                    <div className="space-y-4 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-dashed duration-300">
                       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
                         <div className="md:col-span-6 space-y-1">
                           <div className="flex justify-between items-center px-1">
                             <Label className="text-xs font-semibold">Pilih Produk</Label>
-                            <button type="button" onClick={() => setIsProductQuickAddOpen(true)} className="text-[10px] text-emerald-600 font-bold hover:underline">+ SKU Baru</button>
+                            <button type="button" onClick={() => setIsProductQuickAddOpen(true)} className="text-[11px] text-emerald-600 font-bold hover:underline">+ SKU Baru</button>
                           </div>
                           <Popover open={isProductSearchOpen} onOpenChange={setIsProductSearchOpen}>
                             <PopoverTrigger render={
@@ -1513,7 +1582,7 @@ export default function SalesOrdersPage() {
                                     <span className="absolute left-2 top-2.5 flex h-3.5 w-3.5 items-center justify-center">{newLineProductId === p.id && <Check className="h-4 w-4" />}</span>
                                     <span className="font-semibold">{p.name}</span>
                                     <div className="flex gap-2 items-center mt-1">
-                                      <span className="text-[10px] text-muted-foreground">{p.skuCode} • {formatRupiah(p.sellingPrice)} • Stok: {p.currentStock}</span>
+                                      <span className="text-[11px] text-muted-foreground">{p.skuCode} • {formatRupiah(p.sellingPrice)} • Stok: {p.currentStock}</span>
                                     </div>
                                   </button>
                                 ))}
@@ -1522,7 +1591,7 @@ export default function SalesOrdersPage() {
                           </Popover>
                         </div>
                         <div className="md:col-span-2 space-y-1">
-                          <Label className="text-xs font-semibold">Qty{newLineProductId ? <span className="ml-1 text-[10px] font-normal text-slate-400">({products.find(p => p.id === newLineProductId)?.uom || '-'})</span> : null}</Label>
+                          <Label className="text-xs font-semibold">Qty{newLineProductId ? <span className="ml-1 text-[11px] font-normal text-slate-400">({products.find(p => p.id === newLineProductId)?.uom || '-'})</span> : null}</Label>
                           <EditNumber decimal inputMode="decimal" placeholder="0" className="bg-white dark:bg-slate-950 h-10" value={newLineQty} onCommit={setNewLineQty} />
                         </div>
                         <div className="md:col-span-4 space-y-1">
@@ -1561,7 +1630,7 @@ export default function SalesOrdersPage() {
                               <div className={cn("flex flex-col gap-1.5 p-2 rounded-lg border text-xs font-semibold mt-4 transition-all duration-300", isLoss ? "bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400 border-rose-100 dark:border-rose-900/30" : marginAmount === 0 ? "bg-slate-50 dark:bg-slate-900/50 text-slate-700 dark:text-slate-400 border-slate-200" : "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30")}>
                                 <div className="flex justify-between items-center gap-2">
                                   <span className="whitespace-nowrap">Estimasi HPP (Beli):</span>
-                                  <Input type="text" inputMode="numeric" className="h-7 w-40 text-right font-bold text-slate-900 dark:text-slate-100 bg-white/80 dark:bg-slate-950/80 border-slate-300" value={formatNumber(newLineHpp)} onChange={(e) => { const val = parseNumber(e.target.value); setNewLineHpp(val); if (newLineTier && newLineTier !== 'Custom' && newLineTier !== 'Standard') { const product = products.find(p => p.id === newLineProductId); if (product) setNewLinePrice(getPriceForTier(product, newLineTier, val || undefined)) } }} placeholder="Isi HPP..." />
+                                  <Input type="text" inputMode="numeric" className="h-7 w-40 text-right font-bold text-slate-900 dark:text-slate-100 bg-card dark:bg-slate-950/80 border-slate-300" value={formatNumber(newLineHpp)} onChange={(e) => { const val = parseNumber(e.target.value); setNewLineHpp(val); if (newLineTier && newLineTier !== 'Custom' && newLineTier !== 'Standard') { const product = products.find(p => p.id === newLineProductId); if (product) setNewLinePrice(getPriceForTier(product, newLineTier, val || undefined)) } }} placeholder="Isi HPP..." />
                                 </div>
                                 <div className="flex justify-between items-center border-t border-dashed border-current/10 pt-1 mt-0.5">
                                   <span>Estimasi Margin:</span>
@@ -1577,14 +1646,14 @@ export default function SalesOrdersPage() {
                           </Button>
                         </div>
                       </div>
-                      <p className="text-[10px] text-slate-500 italic px-1">Pilih barang, sesuaikan Margin/Tier jika diperlukan, lalu klik tombol hijau (+) untuk menambah ke daftar order.</p>
+                      <p className="text-[11px] text-slate-500 italic px-1">Pilih barang, sesuaikan Margin/Tier jika diperlukan, lalu klik tombol hijau (+) untuk menambah ke daftar order.</p>
                     </div>
                   )
                 })()}
 
                 {lineItems.length > 0 && (
                   <div className="space-y-2 mt-4">
-                    <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Daftar Barang Pesanan:</h4>
+                    <h4 className="text-[11px] font-bold  text-slate-400">Daftar Barang Pesanan:</h4>
                     <div className="rounded-md border bg-white dark:bg-slate-950 overflow-hidden">
                       <Table>
                         <TableHeader>
@@ -1604,7 +1673,7 @@ export default function SalesOrdersPage() {
                                 <div className="flex flex-col gap-0.5">
                                   <span>{item.productName}</span>
                                   {item.isCustomPrice && (
-                                    <span className="text-[8px] font-bold text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded w-fit border border-emerald-200 uppercase">
+                                    <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded w-fit border border-emerald-200 uppercase">
                                       {item.priceSource === 'Custom' ? 'HARGA KUSTOM' : `PRICE LIST: ${item.priceSource}`}
                                     </span>
                                   )}
@@ -1665,10 +1734,60 @@ export default function SalesOrdersPage() {
         </div>
       </div>
 
+      <StatBand
+        leader={{
+          label: 'Nilai pesanan tampil',
+          value: formatRupiahShort(soSummary.total),
+          note: `${soSummary.count} pesanan aktif`,
+        }}
+        items={[
+          {
+            label: 'Outstanding',
+            value: formatRupiahShort(soSummary.outstanding),
+            note: `${soSummary.outstandingCount} pesanan sudah terbit faktur`,
+          },
+          {
+            label: 'Belum terbit faktur',
+            value: formatRupiahShort(soSummary.unbilled),
+            note: `${soSummary.unbilledCount} menunggu tukar faktur`,
+          },
+          {
+            label: 'Perlu persetujuan',
+            value: String(pendingSos.length),
+            tone: pendingSos.length > 0 ? 'risk' : 'ink',
+            note: pendingSos.length > 0 ? 'tertahan sampai disetujui' : 'tidak ada yang tertahan',
+          },
+          {
+            label: 'Hari kirim terdekat',
+            value: soSummary.days.length > 0 ? format(new Date(soSummary.days[0].day), 'dd MMM') : '—',
+            note: soSummary.days.length > 0 ? `${formatRupiahShort(soSummary.days[0].value)} dijadwalkan` : 'belum ada jadwal',
+          },
+        ]}
+      />
+
+      {/* Pipeline — tiap sel bisa dibaca sebagai tahap, bukan lencana berdenyut */}
+      <div className="flex flex-wrap items-stretch overflow-hidden rounded-lg border border-border bg-card">
+        {(() => {
+          const tahap = [
+            { label: 'Draf', value: activeSos.filter(so => so.status === 'Draft').length },
+            { label: 'Belanja', value: activeSos.filter(so => so.status === 'Belanja' || so.status === 'Sourcing').length },
+            { label: 'Packing', value: activeSos.filter(so => so.status === 'Packing').length },
+            { label: 'Dikirim', value: activeSos.filter(so => so.status === 'Dikirim').length },
+            { label: 'Terkirim', value: activeSos.filter(so => so.status === 'Terkirim' || so.status === 'Selesai').length },
+          ]
+          return tahap.map((t, i) => (
+            <div key={t.label} className={cn("min-w-[104px] flex-1 px-5 py-3", i < tahap.length - 1 && "border-r border-hairline")}>
+              <div className="text-xs text-slate-400">{t.label}</div>
+              <div className="tabular mt-1 text-[19px] leading-tight font-semibold text-slate-900">{t.value}</div>
+            </div>
+          ))
+        })()}
+      </div>
+
       {/* Date filter bar */}
-      <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-100 bg-white/80 px-4 py-3 shadow-sm">
+      <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-100 bg-card px-4 py-3 shadow-sm">
         <div className="flex flex-col gap-1 min-w-[160px]">
-          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tanggal PO</label>
+          <label className="text-[11px] font-bold  text-slate-400">Tanggal PO</label>
           <div className="relative flex items-center">
             <Input
               type="date"
@@ -1687,7 +1806,7 @@ export default function SalesOrdersPage() {
           </div>
         </div>
         <div className="flex flex-col gap-1 min-w-[160px]">
-          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tanggal Kirim</label>
+          <label className="text-[11px] font-bold  text-slate-400">Tanggal Kirim</label>
           <div className="relative flex items-center">
             <Input
               type="date"
@@ -1707,25 +1826,25 @@ export default function SalesOrdersPage() {
         </div>
         {(filterOrderDate || filterDeliveryDate) && (
           <button
-            className="mb-0.5 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600"
+            className="mb-0.5 text-[11px] font-bold  text-slate-400 hover:text-slate-600"
             onClick={() => { setFilterOrderDate(''); setFilterDeliveryDate('') }}
           >
             Reset Filter
           </button>
         )}
-        <div className="ml-auto flex items-center gap-2 text-[10px] font-bold text-slate-500">
+        <div className="ml-auto flex items-center gap-2 text-[11px] font-bold text-slate-500">
           <span>{activeSos.length + pendingSos.length} PO</span>
           {(filterOrderDate || filterDeliveryDate) && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-700">Filtered</span>}
         </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="bg-white/50 dark:bg-slate-900/50 p-1 rounded-xl glass-card">
+        <TabsList className="bg-card dark:bg-slate-900/50 p-1 rounded-xl glass-card">
           <TabsTrigger value="active" className="rounded-lg px-6">Order Aktif</TabsTrigger>
           <TabsTrigger value="pending" className="rounded-lg px-6 flex items-center gap-2">
             Request Client
             {pendingSos.length > 0 && (
-              <Badge className="bg-rose-500 text-white h-5 min-w-[20px] px-1 animate-pulse">
+              <Badge className="bg-rose-500 text-white h-5 min-w-[20px] px-1">
                 {pendingSos.length}
               </Badge>
             )}
@@ -1734,18 +1853,18 @@ export default function SalesOrdersPage() {
 
         <TabsContent value="active">
           {selectedSoIds.length > 0 && (
-            <div className="flex items-center justify-between p-4 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 rounded-2xl mb-4 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="flex items-center justify-between p-4 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 rounded-2xl mb-4 duration-200">
               <div className="flex items-center gap-3">
-                <span className="text-xs font-black text-emerald-800 dark:text-emerald-300 uppercase tracking-widest bg-emerald-100 dark:bg-emerald-900/50 px-3 py-1.5 rounded-full">
+                <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300  bg-emerald-100 dark:bg-emerald-900/50 px-3 py-1.5 rounded-full">
                   {selectedSoIds.length} PO Terpilih
                 </span>
-                <span className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-tight">Bulk Action:</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-bold ">Bulk Action:</span>
               </div>
               <div className="flex items-center gap-2">
                 <Button
                   size="sm"
                   variant="destructive"
-                  className="bg-rose-600 hover:bg-rose-700 text-white font-black text-[10px] uppercase tracking-wider px-4 py-2 flex items-center gap-1"
+                  className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-[11px]  px-4 py-2 flex items-center gap-1"
                   onClick={handleBulkDeleteSOs}
                 >
                   <Trash2 className="w-3.5 h-3.5" /> Bulk Hapus
@@ -1753,7 +1872,7 @@ export default function SalesOrdersPage() {
                 <Button 
                   size="sm" 
                   variant="ghost"
-                  className="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 text-[10px] font-black uppercase tracking-wider"
+                  className="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 text-[11px] font-bold "
                   onClick={() => setSelectedSoIds([])}
                 >
                   Batal
@@ -1762,7 +1881,8 @@ export default function SalesOrdersPage() {
             </div>
           )}
 
-          <div className="rounded-md border bg-white dark:bg-slate-950">
+          <div className={cn("grid items-start gap-[18px]", panelSo && "lg:grid-cols-[1fr_344px]")}>
+            <div className="overflow-hidden rounded-lg border border-border bg-card">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -1798,7 +1918,12 @@ export default function SalesOrdersPage() {
                     const isRowSelected = selectedSoIds.includes(so.id)
                     
                     return (
-                      <TableRow key={so.id} className={cn(isRowSelected && "bg-emerald-50/10 hover:bg-emerald-50/20")}>
+                      <TableRow
+                        key={so.id}
+                        onClick={() => setPanelSoId(so.id)}
+                        data-state={panelSoId === so.id ? "selected" : undefined}
+                        className={cn("cursor-pointer", isRowSelected && "bg-row-selected")}
+                      >
                         <TableCell className="w-12 text-center">
                           <input 
                             type="checkbox" 
@@ -1807,7 +1932,20 @@ export default function SalesOrdersPage() {
                             onChange={() => toggleSelectSo(so.id)}
                           />
                         </TableCell>
-                        <TableCell className="font-medium">{so.poNumber}</TableCell>
+                        <TableCell className="font-medium">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setDetailSOId(so.id)
+                              setIsDetailOpen(true)
+                            }}
+                            className="text-left font-medium text-emerald-700 underline-offset-2 hover:underline"
+                            title="Lihat detail & posisi PO ini"
+                          >
+                            {so.poNumber}
+                          </button>
+                        </TableCell>
                         <TableCell>{client?.companyName || 'Unknown Client'}</TableCell>
                         <TableCell>{format(new Date(so.orderDate), 'dd MMM yyyy')}</TableCell>
                         <TableCell>{format(new Date(so.targetDeliveryDate), 'dd MMM yyyy')}</TableCell>
@@ -1817,11 +1955,11 @@ export default function SalesOrdersPage() {
                             const finStatus = getFinancialStatus(so)
                             return (
                               <div className="flex flex-col items-start gap-1">
-                                <Badge variant="outline" className={cn("font-black text-[9px] uppercase tracking-wider", finStatus.color)}>
+                                <Badge variant="outline" className={cn("font-bold text-[11px] ", finStatus.color)}>
                                   {finStatus.fullLabel || finStatus.label}
                                 </Badge>
                                 {so.status !== 'Draft' && so.status !== 'Terkirim' && so.status !== 'Selesai' && (
-                                  <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">
+                                  <span className="text-[11px] font-bold text-slate-400 ">
                                     Status: {so.status}
                                   </span>
                                 )}
@@ -1948,7 +2086,7 @@ export default function SalesOrdersPage() {
                           {/* Status Actions */}
                           {(so.status === 'Draft' && !so.shoppingListCompiledAt) && (
                             <Button size="sm" onClick={() => advanceStatus(so.id, so.status)}>
-                              Approve (Go to Sourcing)
+                              Approve
                             </Button>
                           )}
                           {so.status === 'QC' && (
@@ -1990,6 +2128,61 @@ export default function SalesOrdersPage() {
                 )}
               </TableBody>
             </Table>
+            </div>
+
+            {panelSo && (
+              <aside className="rounded-lg border border-border bg-card lg:sticky lg:top-6">
+                <div className="border-b border-hairline px-5 py-4">
+                  <h3 className="text-sm leading-snug font-semibold text-slate-900">
+                    {clients.find(c => c.id === panelSo.so.clientId)?.companyName || 'Klien tidak dikenal'}
+                  </h3>
+                  <p className="mt-1 text-[11.5px] text-slate-400">
+                    <span className="font-mono">{panelSo.so.poNumber}</span> · masuk {format(new Date(panelSo.so.orderDate), 'dd MMM yyyy')}
+                  </p>
+                  <p className="mt-2">
+                    <span className={cn("inline-flex rounded-[5px] px-2 py-1 text-[11.5px] font-medium", panelSo.status.color)}>
+                      {panelSo.status.fullLabel || panelSo.status.label}
+                    </span>
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2">
+                  <div className="border-r border-b border-hairline px-5 py-4">
+                    <div className="text-xs text-slate-400">Nilai pesanan</div>
+                    <div className="tabular mt-1 text-[17px] leading-tight font-semibold text-slate-900">{formatRupiahShort(panelSo.total)}</div>
+                  </div>
+                  <div className="border-b border-hairline px-5 py-4">
+                    <div className="text-xs text-slate-400">Tanggal kirim</div>
+                    <div className="mt-1 text-[15px] leading-tight font-semibold text-slate-900">{format(new Date(panelSo.so.targetDeliveryDate), 'dd MMM')}</div>
+                  </div>
+                </div>
+
+                <div className="border-b border-hairline px-5 py-4">
+                  <p className="text-[12.5px] font-medium text-slate-900">Isi pesanan</p>
+                  <div className="mt-2 space-y-1.5">
+                    {panelSo.items.slice(0, 8).map(it => (
+                      <div key={it.id} className="flex justify-between gap-3 text-[12.5px]">
+                        <span className="min-w-0 truncate text-slate-700">
+                          {products.find(p => p.id === it.productId)?.name || it.productId}
+                          <span className="text-slate-400"> · {it.qtyFinal ?? it.qty}</span>
+                        </span>
+                        <span className="tabular flex-none text-slate-900">{formatRupiahShort(Number(it.subtotal || 0))}</span>
+                      </div>
+                    ))}
+                    {panelSo.items.length > 8 && (
+                      <p className="text-[11.5px] text-slate-400">+{panelSo.items.length - 8} barang lagi</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2 px-5 py-4">
+                  <Button size="sm" onClick={() => { setDetailSOId(panelSo.so.id); setIsDetailOpen(true) }}>
+                    Buka detail lengkap
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setPanelSoId(null)}>Tutup</Button>
+                </div>
+              </aside>
+            )}
           </div>
         </TabsContent>
 
@@ -2020,13 +2213,26 @@ export default function SalesOrdersPage() {
                     
                     return (
                       <TableRow key={so.id} className="bg-emerald-50/10 hover:bg-emerald-50/20">
-                        <TableCell className="font-bold text-emerald-700">{so.poNumber}</TableCell>
+                        <TableCell className="font-bold text-emerald-700">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setDetailSOId(so.id)
+                              setIsDetailOpen(true)
+                            }}
+                            className="text-left font-bold text-emerald-700 underline-offset-2 hover:underline"
+                            title="Lihat detail & posisi PO ini"
+                          >
+                            {so.poNumber}
+                          </button>
+                        </TableCell>
                         <TableCell>
                           <div className="font-semibold">{client?.companyName}</div>
-                          <div className="text-[10px] text-slate-500 font-bold uppercase">PIC: {client?.picName}</div>
+                          <div className="text-[11px] text-slate-500 font-bold uppercase">PIC: {client?.picName}</div>
                         </TableCell>
                         <TableCell>{format(new Date(so.targetDeliveryDate), 'dd MMM yyyy')}</TableCell>
-                        <TableCell className="font-black text-emerald-600">{formatRupiah(total)}</TableCell>
+                        <TableCell className="font-bold text-emerald-600">{formatRupiah(total)}</TableCell>
                         <TableCell className="text-right flex justify-end gap-2">
                           <Button 
                             size="sm" 
@@ -2093,12 +2299,12 @@ export default function SalesOrdersPage() {
             </Table>
           </div>
           
-          <div className="mt-8 p-8 bg-emerald-50/50 rounded-3xl border border-dashed border-emerald-200 flex flex-col items-center text-center space-y-4">
+          <div className="mt-8 p-8 bg-emerald-50/50 rounded-lg border border-dashed border-emerald-200 flex flex-col items-center text-center space-y-4">
             <div className="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center text-emerald-600">
               <Plus className="w-6 h-6" />
             </div>
             <div className="space-y-1">
-              <h4 className="font-black text-slate-800">Minta Client Order Mandiri?</h4>
+              <h4 className="font-bold text-slate-800">Minta Client Order Mandiri?</h4>
               <p className="text-xs text-slate-500 max-w-xs">Pilih client untuk generate link order khusus yang bisa dikirim ke WhatsApp.</p>
             </div>
             
@@ -2131,7 +2337,7 @@ export default function SalesOrdersPage() {
                     </div>
                       <div className="max-h-[300px] overflow-y-auto p-1">
                         {filteredClients.length === 0 ? (
-                          <div className="py-6 text-center text-sm text-slate-500 font-bold uppercase tracking-widest italic">Klien tidak ditemukan.</div>
+                          <div className="py-6 text-center text-sm text-slate-500 font-bold  italic">Klien tidak ditemukan.</div>
                         ) : (
                           filteredClients.map((c) => (
                             <button
@@ -2152,7 +2358,7 @@ export default function SalesOrdersPage() {
                               <div className="flex flex-col text-left">
                                 <span className="font-bold text-slate-900">{c.companyName}</span>
                                 {c.address && (
-                                  <span className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">{c.address}</span>
+                                  <span className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{c.address}</span>
                                 )}
                               </div>
                             </button>
@@ -2167,7 +2373,7 @@ export default function SalesOrdersPage() {
                 <Input 
                   readOnly 
                   value={shareClientId ? `${typeof window !== 'undefined' ? window.location.origin : ''}/order/${shareClientId}` : "Pilih client..."}
-                  className="border-none shadow-none h-10 w-[200px] text-[10px] font-mono bg-transparent"
+                  className="border-none shadow-none h-10 w-[200px] text-[11px] font-mono bg-transparent"
                 />
                 <Button 
                   variant="ghost" 
@@ -2186,7 +2392,7 @@ export default function SalesOrdersPage() {
               <Button 
                 variant="link" 
                 size="sm" 
-                className="text-[10px] text-slate-400 font-bold uppercase"
+                className="text-[11px] text-slate-400 font-bold uppercase"
                 onClick={() => setIsClientQuickAddOpen(true)}
               >
                 + Client Baru
@@ -2239,7 +2445,7 @@ export default function SalesOrdersPage() {
                     ) : "Independent (Tidak Ada)"}
                   </SelectValue>
                 </SelectTrigger>
-                <SelectContent className="rounded-2xl border-none shadow-2xl">
+                <SelectContent className="rounded-2xl border-none shadow-sm">
                   <SelectItem value="none">Independent (Tidak Ada)</SelectItem>
                   {clients
                     .filter(c => c.isBrand)
@@ -2331,31 +2537,95 @@ export default function SalesOrdersPage() {
       {/* Menutup lewat tombol X, klik di luar, atau Esc semuanya lewat sini — jadi
           perubahan yang belum disimpan tidak bisa hilang lewat jalur mana pun. */}
       <Dialog open={isDetailOpen} onOpenChange={(open) => { if (open) setIsDetailOpen(true); else closeDetailModal() }}>
-        <DialogContent className="sm:max-w-[95vw] w-[95vw] h-[90vh] flex flex-col p-0 overflow-hidden rounded-[2rem]">
+        <DialogContent className="sm:max-w-[95vw] w-[95vw] h-[90vh] flex flex-col p-0 overflow-hidden rounded-xl">
           <DialogHeader className="p-6 pb-0">
             <div className="flex justify-between items-start pr-8">
               <div>
-                <DialogTitle className="text-xl font-black">{selectedSO?.poNumber}</DialogTitle>
-                <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Detail Dokumen Sales Order</p>
+                <DialogTitle className="text-xl font-bold">{selectedSO?.poNumber}</DialogTitle>
+                <p className="text-xs text-slate-500 font-bold  mt-1">Detail Dokumen Sales Order</p>
               </div>
-              <Badge variant="outline" className={cn("rounded-lg font-black", STATUS_COLORS[selectedSO?.status || 'Draft'])}>
+              <Badge variant="outline" className={cn("rounded-lg font-bold", STATUS_COLORS[selectedSO?.status || 'Draft'])}>
                 {selectedSO?.status}
               </Badge>
             </div>
           </DialogHeader>
 
+          {/* Pelacak tahap: satu kata status tidak menjawab "jadi kapan sampainya".
+              Yang bertanya biasanya orang yang tidak mengerjakan — bos, atau admin yang
+              sedang ditelepon klien — dan yang mereka butuh adalah posisi plus siapa yang
+              sedang memegang bolanya. */}
+          {selectedSO && (
+            <div className="px-6 pt-4">
+              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-[11px] font-bold text-slate-600">{ringkasan(selectedSO.status)}</p>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                    {persen(selectedSO.status)}% jalan
+                  </span>
+                </div>
+                {layarSekarang(selectedSO.status) && (
+                  <p className="mt-1 text-[11px] font-bold text-emerald-700">
+                    Ceknya di layar: {layarSekarang(selectedSO.status)}
+                  </p>
+                )}
+
+                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+                  <div
+                    className="h-full rounded-full bg-emerald-500 transition-all"
+                    style={{ width: `${persen(selectedSO.status)}%` }}
+                  />
+                </div>
+
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {perjalanan(selectedSO.status).map(t => {
+                    const isi = (
+                      <>
+                        {t.keadaan === 'lewat' ? '✓ ' : ''}{t.label}
+                        <span className="ml-1 opacity-60">· {t.pemegang}</span>
+                      </>
+                    )
+                    const gaya = cn(
+                      "rounded-lg border px-2 py-1 text-[10px] font-bold",
+                      t.keadaan === 'lewat' && "border-emerald-200 bg-emerald-50 text-emerald-700",
+                      t.keadaan === 'sekarang' && "border-emerald-500 bg-emerald-600 text-white",
+                      t.keadaan === 'belum' && "border-slate-200 bg-white text-slate-400",
+                    )
+                    return bolehBuka(t.izin) ? (
+                      <Link
+                        key={t.key}
+                        href={t.href}
+                        title={`Buka ${t.layar} — dikerjakan ${t.pemegang}`}
+                        className={cn(gaya, "transition-shadow hover:shadow-md hover:brightness-95")}
+                      >
+                        {isi}
+                      </Link>
+                    ) : (
+                      <div
+                        key={t.key}
+                        title={`${t.layar} — dikerjakan ${t.pemegang}. Tidak bisa dibuka dari akun ini.`}
+                        className={cn(gaya, "cursor-not-allowed opacity-70")}
+                      >
+                        {isi}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
           {selectedSO?.status === 'Pending Approval' && (
             <div className="px-6 py-2 bg-emerald-50 border-y border-emerald-100">
                <div className="flex items-center gap-4">
                   <div className="flex-1 space-y-1">
-                    <Label className="text-[9px] font-black uppercase text-emerald-600 tracking-widest pl-1">Nomor PO (Edit jika perlu)</Label>
+                    <Label className="text-[11px] font-bold uppercase text-emerald-600 tracking-widest pl-1">Nomor PO (Edit jika perlu)</Label>
                     <Input 
                       value={poNumberDraft}
                       onChange={(e) => setPoNumberDraft(e.target.value)}
-                      className="h-10 font-black text-emerald-700 bg-white border-emerald-200"
+                      className="h-10 font-bold text-emerald-700 bg-white border-emerald-200"
                     />
                   </div>
-                  <div className="text-[9px] text-slate-400 font-bold uppercase tracking-tight max-w-[150px]">
+                  <div className="text-[11px] text-slate-400 font-bold  max-w-[150px]">
                     Ubah nomor ini untuk menyesuaikan dengan PO fisik Client.
                   </div>
                </div>
@@ -2366,13 +2636,13 @@ export default function SalesOrdersPage() {
             {/* SECTION: CLIENT INFO */}
             <div className="grid grid-cols-2 gap-6 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100">
                <div className="space-y-1">
-                  <p className="text-[10px] font-black uppercase text-slate-400">Customer / Client</p>
-                  <p className="font-black text-slate-800">{selectedClient?.companyName}</p>
+                  <p className="text-[11px] font-bold uppercase text-slate-400">Customer / Client</p>
+                  <p className="font-bold text-slate-800">{selectedClient?.companyName}</p>
                   <p className="text-xs text-slate-500 italic leading-tight">{selectedClient?.address}</p>
                </div>
                <div className="space-y-1">
-                  <p className="text-[10px] font-black uppercase text-slate-400">Target Pengiriman</p>
-                  <p className="font-black text-slate-800">{selectedSO ? format(new Date(selectedSO.targetDeliveryDate), 'dd MMMM yyyy') : '-'}</p>
+                  <p className="text-[11px] font-bold uppercase text-slate-400">Target Pengiriman</p>
+                  <p className="font-bold text-slate-800">{selectedSO ? format(new Date(selectedSO.targetDeliveryDate), 'dd MMMM yyyy') : '-'}</p>
                   <p className="text-xs text-emerald-600 font-bold">PIC: {selectedClient?.picName}</p>
                </div>
             </div>
@@ -2381,16 +2651,16 @@ export default function SalesOrdersPage() {
               <div className="p-5 rounded-2xl border border-amber-200 bg-amber-50/40 space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h4 className="text-xs font-black uppercase tracking-widest text-slate-800">
+                    <h4 className="text-xs font-bold  text-slate-800">
                       Konfirmasi Penerimaan BAST
                     </h4>
-                    <p className="text-[10px] text-slate-500 font-bold mt-0.5">
+                    <p className="text-[11px] text-slate-500 font-bold mt-0.5">
                       Review barang yang diterima klien. Tentukan status penerimaan per item.
                     </p>
                   </div>
                   <Button
                     onClick={handleConfirmBAST}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-widest px-5 h-9 rounded-xl shadow-md"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs  px-5 h-9 rounded-xl shadow-md"
                   >
                     Selesaikan Pesanan & BAST
                   </Button>
@@ -2398,7 +2668,7 @@ export default function SalesOrdersPage() {
 
                 <div className="rounded-xl border border-slate-100 overflow-hidden bg-white">
                   <table className="w-full text-xs">
-                    <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase font-bold border-b">
+                    <thead className="bg-slate-50 text-slate-500 text-[11px] uppercase font-bold border-b">
                       <tr>
                         <th className="text-left px-4 py-2.5">Produk</th>
                         <th className="text-center px-4 py-2.5 w-28">Qty Diterima</th>
@@ -2416,7 +2686,7 @@ export default function SalesOrdersPage() {
                           <tr key={item.id} className="border-t hover:bg-slate-50/50">
                             <td className="px-4 py-3 font-bold text-slate-800">
                               {product?.name}
-                              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">{product?.skuCode}</p>
+                              <p className="text-[11px] text-slate-400 font-bold  mt-0.5">{product?.skuCode}</p>
                             </td>
                             <td className="px-4 py-3 text-center font-bold text-slate-700">{accepted} {product?.uom}</td>
                             <td className={cn("px-4 py-3 text-center font-bold", owedAfter > 0 ? "text-amber-600" : "text-slate-300")}>
@@ -2444,7 +2714,7 @@ export default function SalesOrdersPage() {
                  </p>
                )}
                <div className="flex justify-between items-center">
-                  <h4 className="text-xs font-black uppercase tracking-widest text-slate-500 flex items-center gap-2">
+                  <h4 className="text-xs font-bold  text-slate-500 flex items-center gap-2">
                      <ShoppingCart className="w-4 h-4" /> Rincian Barang Pesanan
                   </h4>
                   {orderEditable(selectedSO, purchases) && (
@@ -2453,9 +2723,9 @@ export default function SalesOrdersPage() {
                       size="sm"
                       disabled={dirtyItemIds.length === 0}
                       className={cn(
-                        "h-8 text-[10px] font-black uppercase",
+                        "h-8 text-[11px] font-bold uppercase",
                         dirtyItemIds.length > 0
-                          ? "bg-emerald-600 hover:bg-emerald-700 text-white animate-pulse shadow-lg shadow-emerald-500/30"
+                          ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
                           : "border-slate-200 text-slate-400"
                       )}
                       onClick={saveOrderEdits}
@@ -2470,10 +2740,10 @@ export default function SalesOrdersPage() {
                   <Table>
                      <TableHeader>
                         <TableRow className="bg-slate-50 dark:bg-slate-900/50">
-                           <TableHead className="text-[10px] font-black">Item SKU</TableHead>
-                           <TableHead className="text-center text-[10px] font-black w-20">Qty</TableHead>
-                           <TableHead className="text-right text-[10px] font-black">Harga Jual</TableHead>
-                           <TableHead className="text-right text-[10px] font-black">Subtotal</TableHead>
+                           <TableHead className="text-[11px] font-bold">Item SKU</TableHead>
+                           <TableHead className="text-center text-[11px] font-bold w-20">Qty</TableHead>
+                           <TableHead className="text-right text-[11px] font-bold">Harga Jual</TableHead>
+                           <TableHead className="text-right text-[11px] font-bold">Subtotal</TableHead>
                         </TableRow>
                      </TableHeader>
                      <TableBody>
@@ -2489,7 +2759,7 @@ export default function SalesOrdersPage() {
                               <TableRow key={item.id} className="hover:bg-slate-50/50">
                                  <TableCell>
                                     <p className="font-bold text-sm tracking-tight">{product?.name}</p>
-                                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">{product?.skuCode}</p>
+                                    <p className="text-[11px] text-slate-400 font-bold ">{product?.skuCode}</p>
                                  </TableCell>
                                  <TableCell className="text-center">
                                      {isEditable ? (
@@ -2506,14 +2776,14 @@ export default function SalesOrdersPage() {
                                          {item.qtyFinal != null && item.qtyFinal < item.qty ? (
                                            <div className="space-y-0.5">
                                              <span className="font-bold text-sm text-amber-600">{item.qtyFinal} {product?.uom}</span>
-                                             <p className="text-[9px] text-slate-400 line-through">{item.qty} {product?.uom}</p>
-                                             <p className="text-[8px] text-amber-500 font-bold">{item.qtyAdjustmentReason || 'QC Adjusted'}</p>
+                                             <p className="text-[11px] text-slate-400 line-through">{item.qty} {product?.uom}</p>
+                                             <p className="text-[11px] text-amber-500 font-bold">{item.qtyAdjustmentReason || 'QC Adjusted'}</p>
                                            </div>
                                          ) : (
                                            <span className="font-bold text-sm">{item.qty} {product?.uom}</span>
                                          )}
                                          {owed > 0 && (
-                                           <span className="ml-2 text-[10px] font-black uppercase text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
+                                           <span className="ml-2 text-[11px] font-bold uppercase text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
                                              Kurang {owed}{product?.uom ? ` ${product.uom}` : ''}
                                            </span>
                                          )}
@@ -2523,11 +2793,11 @@ export default function SalesOrdersPage() {
                                  <TableCell className="text-right">
                                     {isEditable ? (
                                       <div className="relative inline-block w-28">
-                                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-bold">Rp</span>
+                                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[11px] text-slate-400 font-bold">Rp</span>
                                         <EditNumber
                                           format
                                           inputMode="numeric"
-                                          className="h-8 pl-7 pr-1 text-right text-xs font-black text-emerald-600 border-emerald-100 bg-emerald-50/10"
+                                          className="h-8 pl-7 pr-1 text-right text-xs font-bold text-emerald-600 border-emerald-100 bg-emerald-50/10"
                                           value={currentEdit.price}
                                           onCommit={(n) => handleUpdateItem(item.id, 'price', n)}
                                         />
@@ -2536,7 +2806,7 @@ export default function SalesOrdersPage() {
                                       <span className="text-xs font-medium text-slate-600">{formatRupiah(item.unitPrice)}</span>
                                     )}
                                  </TableCell>
-                                 <TableCell className="text-right font-black text-sm text-slate-900">
+                                 <TableCell className="text-right font-bold text-sm text-slate-900">
                                     <div className="flex items-center justify-end gap-2">
                                        <span>{formatRupiah(currentEdit.qty * currentEdit.price)}</span>
                                        {isEditable && (
@@ -2559,7 +2829,7 @@ export default function SalesOrdersPage() {
 
                {(selectedSO?.status === 'Draft' || selectedSO?.status === 'Pending Approval') && (
                  <div className="mt-1 p-3 rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/30 space-y-2">
-                   <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600 flex items-center gap-1.5">
+                   <p className="text-[11px] font-bold  text-emerald-600 flex items-center gap-1.5">
                      <Plus className="w-3.5 h-3.5" /> Tambah Item
                    </p>
                    <div className="flex gap-2 items-stretch">
@@ -2595,7 +2865,7 @@ export default function SalesOrdersPage() {
                                .filter(p => !q || p.name.toLowerCase().includes(q) || (p.skuCode || '').toLowerCase().includes(q))
                                .slice(0, 50)
                              if (list.length === 0) {
-                               return <div className="py-6 text-center text-xs text-slate-400 italic font-bold uppercase tracking-widest">Produk tidak ditemukan</div>
+                               return <div className="py-6 text-center text-xs text-slate-400 italic font-bold ">Produk tidak ditemukan</div>
                              }
                              return list.map(p => (
                                <button
@@ -2608,7 +2878,7 @@ export default function SalesOrdersPage() {
                                >
                                  <div className="flex flex-col text-left">
                                    <span className="font-bold text-slate-900 text-xs">{p.name}</span>
-                                   <span className="text-[9px] text-slate-400 font-bold uppercase">{p.skuCode} • {p.uom}</span>
+                                   <span className="text-[11px] text-slate-400 font-bold uppercase">{p.skuCode} • {p.uom}</span>
                                  </div>
                                </button>
                              ))
@@ -2627,13 +2897,13 @@ export default function SalesOrdersPage() {
                      <Button
                        onClick={handleAddItemToOrder}
                        disabled={!addItemProductId}
-                       className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl px-4"
+                       className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl px-4"
                      >
                        Tambah
                      </Button>
                    </div>
                    {addItemProductId && selectedSO && (
-                     <p className="text-[10px] text-slate-500 font-bold pl-1">
+                     <p className="text-[11px] text-slate-500 font-bold pl-1">
                        Harga otomatis: {formatRupiah(resolveClientPrice(addItemProductId, selectedSO.clientId).price)} <span className="text-slate-400">(dari price list client)</span>
                      </p>
                    )}
@@ -2650,20 +2920,20 @@ export default function SalesOrdersPage() {
             {(selectedSO?.archivedSuratJalanUrl || selectedSO?.archivedBaUrl ||
               ['Dikirim', 'Awaiting Audit', 'Terkirim', 'Kurang Kirim', 'Selesai'].includes(selectedSO?.status || '')) && (
               <div className="space-y-3 pt-4 border-t border-slate-100">
-                <h4 className="text-xs font-black uppercase tracking-widest text-emerald-600 flex items-center gap-2">
+                <h4 className="text-xs font-bold  text-emerald-600 flex items-center gap-2">
                    <FileText className="w-4 h-4" /> Arsip Dokumen Digital (Tukar Faktur)
                 </h4>
                 <div className="grid grid-cols-2 gap-4">
                   {selectedSO?.archivedSuratJalanUrl && (
-                    <div className="p-4 rounded-[2rem] bg-emerald-50/50 border border-emerald-100 flex items-center justify-between group overflow-hidden relative">
-                      <div className="absolute -left-2 -bottom-2 w-12 h-12 bg-emerald-100 rounded-full blur-2xl opacity-50 group-hover:scale-150 transition-all duration-500" />
+                    <div className="p-4 rounded-xl bg-emerald-50/50 border border-emerald-100 flex items-center justify-between group overflow-hidden relative">
+                      <div className="absolute -left-2 -bottom-2 w-12 h-12 bg-emerald-100 rounded-full blur-2xl opacity-50 group- transition-all duration-150" />
                       <div className="flex items-center gap-3 relative">
                         <div className="w-10 h-10 rounded-2xl bg-white shadow-sm flex items-center justify-center text-emerald-600 border border-emerald-50">
                           <FileText className="w-5 h-5" />
                         </div>
                         <div className="cursor-pointer" onClick={() => setPdfPreview({ url: selectedSO.archivedSuratJalanUrl!, title: `Surat Jalan - ${selectedSO.poNumber}` })}>
-                          <p className="text-[10px] font-black uppercase tracking-tight text-slate-800 hover:text-emerald-600 transition-colors">Surat Jalan</p>
-                          <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest leading-none">PDF • SIGNED (View)</p>
+                          <p className="text-[11px] font-bold  text-slate-800 hover:text-emerald-600 transition-colors">Surat Jalan</p>
+                          <p className="text-[11px] font-bold text-slate-400  leading-none">PDF • SIGNED (View)</p>
                         </div>
                       </div>
                       <div className="flex gap-2 relative">
@@ -2692,15 +2962,15 @@ export default function SalesOrdersPage() {
                     </div>
                   )}
                   {selectedSO?.archivedBaUrl && (
-                    <div className="p-4 rounded-[2rem] bg-indigo-50/50 border border-indigo-100 flex items-center justify-between group overflow-hidden relative">
-                       <div className="absolute -left-2 -bottom-2 w-12 h-12 bg-indigo-100 rounded-full blur-2xl opacity-50 group-hover:scale-150 transition-all duration-500" />
+                    <div className="p-4 rounded-xl bg-indigo-50/50 border border-indigo-100 flex items-center justify-between group overflow-hidden relative">
+                       <div className="absolute -left-2 -bottom-2 w-12 h-12 bg-indigo-100 rounded-full blur-2xl opacity-50 group- transition-all duration-150" />
                       <div className="flex items-center gap-3 relative">
                         <div className="w-10 h-10 rounded-2xl bg-white shadow-sm flex items-center justify-center text-indigo-600 border border-indigo-50">
                           <FileText className="w-5 h-5" />
                         </div>
                         <div className="cursor-pointer" onClick={() => setPdfPreview({ url: selectedSO.archivedBaUrl!, title: `Berita Acara - ${selectedSO.poNumber}` })}>
-                          <p className="text-[10px] font-black uppercase tracking-tight text-slate-800 hover:text-indigo-600 transition-colors">Berita Acara</p>
-                          <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest leading-none">PDF • SIGNED (View)</p>
+                          <p className="text-[11px] font-bold  text-slate-800 hover:text-indigo-600 transition-colors">Berita Acara</p>
+                          <p className="text-[11px] font-bold text-slate-400  leading-none">PDF • SIGNED (View)</p>
                         </div>
                       </div>
                       <div className="flex gap-2 relative">
@@ -2729,7 +2999,7 @@ export default function SalesOrdersPage() {
                     </div>
                   )}
                   {selectedSO && !selectedSO.archivedSuratJalanUrl && (
-                    <div className="p-4 rounded-[2rem] bg-slate-50 border border-dashed border-slate-200">
+                    <div className="p-4 rounded-xl bg-slate-50 border border-dashed border-slate-200">
                       <ReceiptUpload
                         label="Surat Jalan bertanda tangan"
                         currentFile={undefined}
@@ -2738,7 +3008,7 @@ export default function SalesOrdersPage() {
                     </div>
                   )}
                   {selectedSO && !selectedSO.archivedBaUrl && (
-                    <div className="p-4 rounded-[2rem] bg-slate-50 border border-dashed border-slate-200">
+                    <div className="p-4 rounded-xl bg-slate-50 border border-dashed border-slate-200">
                       <ReceiptUpload
                         label="Berita Acara bertanda tangan"
                         currentFile={undefined}
@@ -2747,22 +3017,22 @@ export default function SalesOrdersPage() {
                     </div>
                   )}
                 </div>
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest text-center italic mt-2">
+                <p className="text-[11px] font-bold text-slate-400  text-center italic mt-2">
                   * Foto kertas bertanda tangan ikut terbawa ke Tukar Faktur sebagai bukti penagihan.
                 </p>
               </div>
             )}
 
             {/* SECTION: SUMMARY & ACTION */}
-            <div className="p-6 bg-slate-900 rounded-3xl text-white shadow-xl shadow-slate-200">
+            <div className="p-6 bg-slate-900 rounded-lg text-white shadow-sm">
                <div className="flex justify-between items-center">
                   <div className="space-y-1">
-                     <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Estimasi Total Nilai</p>
-                     <h3 className="text-2xl font-black text-emerald-400">
+                     <p className="text-[11px] font-bold uppercase text-slate-400 tracking-widest">Estimasi Total Nilai</p>
+                     <h3 className="text-2xl font-bold text-emerald-400">
                         {formatRupiah(Object.values(editingItems).reduce((sum, item) => sum + (item.qty * item.price), 0))}
                      </h3>
                      {dirtyItemIds.length > 0 && (
-                       <p className="text-[10px] font-black uppercase tracking-widest text-amber-400">
+                       <p className="text-[11px] font-bold  text-amber-400">
                          {dirtyItemIds.length} baris belum disimpan
                        </p>
                      )}
@@ -2774,9 +3044,9 @@ export default function SalesOrdersPage() {
                     <Button
                       disabled={dirtyItemIds.length === 0}
                       className={cn(
-                        "transition-all text-white font-black h-12 px-8 rounded-xl",
+                        "transition-all text-white font-bold h-12 px-8 rounded-xl",
                         dirtyItemIds.length > 0
-                          ? "bg-emerald-500 hover:bg-emerald-600 hover:scale-105 shadow-lg shadow-emerald-900/40"
+                          ? "bg-emerald-500 hover:bg-emerald-600 shadow-sm"
                           : "bg-slate-700 text-slate-400"
                       )}
                       onClick={saveOrderEdits}
@@ -2786,7 +3056,7 @@ export default function SalesOrdersPage() {
                   )}
                   {selectedSO?.status === 'Pending Approval' && (
                     <Button 
-                      className="bg-emerald-500 hover:bg-emerald-600 hover:scale-105 transition-all text-white font-black h-12 px-8 rounded-xl shadow-lg shadow-emerald-900/40"
+                      className="bg-emerald-500 hover:bg-emerald-600 transition-all text-white font-bold h-12 px-8 rounded-xl shadow-sm"
                       onClick={() => {
                         // Batch save and approve
                         Object.entries(editingItems).forEach(([itemId, data]) => {
@@ -2812,13 +3082,13 @@ export default function SalesOrdersPage() {
 
             {confirmingDiscard && dirtyItemIds.length > 0 && (
               <div className="p-4 rounded-2xl border-2 border-rose-200 bg-rose-50 dark:bg-rose-950/20 flex items-center justify-between gap-4">
-                <p className="text-xs font-black text-rose-700 dark:text-rose-400">
+                <p className="text-xs font-bold text-rose-700 dark:text-rose-400">
                   {dirtyItemIds.length} baris diubah dan belum disimpan. Tutup sekarang, perubahannya hilang.
                 </p>
                 <div className="flex gap-2 shrink-0">
                   <Button
                     size="sm"
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] uppercase"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] uppercase"
                     onClick={() => { saveOrderEdits(); setConfirmingDiscard(false) }}
                   >
                     Simpan Dulu
@@ -2826,7 +3096,7 @@ export default function SalesOrdersPage() {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="border-rose-300 text-rose-700 font-black text-[10px] uppercase"
+                    className="border-rose-300 text-rose-700 font-bold text-[11px] uppercase"
                     onClick={closeDetailModal}
                   >
                     Buang &amp; Tutup
@@ -2836,7 +3106,7 @@ export default function SalesOrdersPage() {
             )}
 
             <div className="flex justify-center pt-2">
-               <Button variant="link" onClick={closeDetailModal} className="text-slate-400 text-[10px] font-black uppercase">
+               <Button variant="link" onClick={closeDetailModal} className="text-slate-400 text-[11px] font-bold uppercase">
                   Tutup Tanpa Approve
                </Button>
             </div>
@@ -2846,20 +3116,20 @@ export default function SalesOrdersPage() {
 
       {/* PDF PREVIEW MODAL */}
       <Dialog open={!!pdfPreview} onOpenChange={(open) => !open && setPdfPreview(null)}>
-        <DialogContent className="max-w-[96vw] sm:max-w-[96vw] w-[96vw] h-[96vh] p-0 rounded-[2rem] overflow-hidden border-none bg-slate-900 shadow-2xl flex flex-col">
+        <DialogContent className="max-w-[96vw] sm:max-w-[96vw] w-[96vw] h-[96vh] p-0 rounded-xl overflow-hidden border-none bg-slate-900 shadow-sm flex flex-col">
           <DialogHeader className="p-6 bg-slate-900 text-white flex flex-row items-center justify-between shrink-0">
              <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400">
                    <FileText className="w-5 h-5" />
                 </div>
                 <div>
-                   <DialogTitle className="text-lg font-black tracking-tight">{pdfPreview?.title}</DialogTitle>
-                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Document Preview Mode</p>
+                   <DialogTitle className="text-lg font-bold tracking-tight">{pdfPreview?.title}</DialogTitle>
+                   <p className="text-[11px] font-bold text-slate-400 ">Document Preview Mode</p>
                 </div>
              </div>
              <Button 
                 variant="ghost" 
-                className="text-slate-400 hover:text-white hover:bg-white/10 rounded-xl"
+                className="text-slate-400 hover:text-white hover:bg-slate-700 rounded-xl"
                 onClick={() => {
                   if (pdfPreview) {
                     const link = document.createElement('a');
@@ -2879,9 +3149,9 @@ export default function SalesOrdersPage() {
           <div className="flex-1 bg-slate-800 relative overflow-auto p-4">
              {pdfPreview && <PdfCanvasPreview url={pdfPreview.url} />}
           </div>
-          <div className="p-4 bg-slate-900 border-t border-white/5 flex justify-center sticky bottom-0">
+          <div className="p-4 bg-slate-900 border-t border-border flex justify-center sticky bottom-0">
              <Button 
-                className="rounded-2xl bg-white text-slate-900 font-black px-12 h-12 uppercase text-[10px] tracking-widest"
+                className="rounded-2xl bg-white text-slate-900 font-bold px-12 h-12 uppercase text-[11px] tracking-widest"
                 onClick={() => setPdfPreview(null)}
              >
                 Tutup Preview

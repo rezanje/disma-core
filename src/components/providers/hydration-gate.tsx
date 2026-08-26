@@ -33,10 +33,10 @@ export default function HydrationGate({ children }: { children: React.ReactNode 
         <div className="relative flex flex-col items-center gap-12">
           {/* Main Logo Animation */}
           <div className="flex flex-col items-center relative group">
-             <div className="absolute inset-0 bg-emerald-400/20 blur-3xl rounded-full scale-150 animate-pulse" />
+             <div className="absolute inset-0 bg-emerald-400/20 blur-3xl rounded-full scale-150" />
              <div className="relative">
-                <span className="text-6xl font-black tracking-tighter text-slate-900 drop-shadow-2xl">disma</span>
-                <span className="absolute -bottom-4 right-0 text-[10px] font-black text-emerald-600 tracking-[0.4em] uppercase bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100 shadow-sm">Core ERP</span>
+                <span className="text-6xl font-bold tracking-tighter text-slate-900 drop-shadow-sm">disma</span>
+                <span className="absolute -bottom-4 right-0 text-[11px] font-bold text-emerald-600  bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100 shadow-sm">Core ERP</span>
              </div>
           </div>
 
@@ -48,8 +48,8 @@ export default function HydrationGate({ children }: { children: React.ReactNode 
                 <div className="w-1.5 h-6 bg-slate-900 rounded-full animate-[loading-bar_1.2s_ease-in-out_0.4s_infinite]" />
              </div>
              <div className="space-y-1 text-center">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] animate-pulse">Synchronizing Data</p>
-                <p className="text-[9px] font-bold text-slate-300 italic">Please wait while we secure your session...</p>
+                <p className="text-[11px] font-bold text-slate-400 ">Synchronizing Data</p>
+                <p className="text-[11px] font-bold text-slate-300 italic">Please wait while we secure your session...</p>
              </div>
           </div>
         </div>

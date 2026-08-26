@@ -122,11 +122,11 @@ export default function AuditTransitionPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-black tracking-tight uppercase">Audit <span className="text-blue-600">Transition Room</span></h2>
+          <h2 className="text-2xl font-bold ">Audit <span className="text-blue-600">Transition Room</span></h2>
           <p className="text-muted-foreground font-bold italic text-xs mt-1">Ruang validasi transaksi divisi sebelum masuk ke Buku Besar & Laporan Keuangan.</p>
         </div>
         <div className="flex items-center gap-2">
-           <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 py-1 px-3 h-fit font-black uppercase text-[10px]">
+           <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 py-1 px-3 h-fit font-bold uppercase text-[11px]">
              {pendingExpenses.length} Perlu Validasi
            </Badge>
         </div>
@@ -144,20 +144,20 @@ export default function AuditTransitionPage() {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <div className="text-[10px] font-black uppercase text-slate-400">
+            <div className="text-[11px] font-bold uppercase text-slate-400">
                Integrity & Verification Gate
             </div>
           </div>
 
-          <div className="rounded-[2rem] border bg-white dark:bg-slate-950 overflow-hidden shadow-sm">
+          <div className="rounded-xl border bg-white dark:bg-slate-950 overflow-hidden shadow-sm">
             <Table>
               <TableHeader className="bg-slate-50 dark:bg-slate-900 border-b">
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="font-black uppercase text-[10px] text-slate-500">Waktu & Reporter</TableHead>
-                  <TableHead className="font-black uppercase text-[10px] text-slate-500">Kategori & Info</TableHead>
-                  <TableHead className="text-right font-black uppercase text-[10px] text-slate-500">Nominal</TableHead>
-                  <TableHead className="font-black uppercase text-[10px] text-slate-500">Bukti Nota</TableHead>
-                  <TableHead className="text-right font-black uppercase text-[10px] text-slate-500">Aksi Validasi</TableHead>
+                  <TableHead className="font-bold uppercase text-[11px] text-slate-500">Waktu & Reporter</TableHead>
+                  <TableHead className="font-bold uppercase text-[11px] text-slate-500">Kategori & Info</TableHead>
+                  <TableHead className="text-right font-bold uppercase text-[11px] text-slate-500">Nominal</TableHead>
+                  <TableHead className="font-bold uppercase text-[11px] text-slate-500">Bukti Nota</TableHead>
+                  <TableHead className="text-right font-bold uppercase text-[11px] text-slate-500">Aksi Validasi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -166,8 +166,8 @@ export default function AuditTransitionPage() {
                     <TableCell colSpan={5} className="h-48 text-center text-muted-foreground italic">
                       <div className="flex flex-col items-center gap-2">
                         <span className="text-4xl">🏜️</span>
-                        <p className="font-black text-slate-300 uppercase tracking-widest text-xs mt-2">Buku Besar Bersih</p>
-                        <p className="text-[10px] font-bold">Semua transaksi di ruang transisi sudah divalidasi.</p>
+                        <p className="font-bold text-slate-300  text-xs mt-2">Buku Besar Bersih</p>
+                        <p className="text-[11px] font-bold">Semua transaksi di ruang transisi sudah divalidasi.</p>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -180,32 +180,32 @@ export default function AuditTransitionPage() {
                            <div className="flex flex-col">
                               <span className="font-bold text-slate-800 flex items-center gap-1.5 capitalize">
                                  {reporter?.name || 'Unknown'} 
-                                 <span className="text-[9px] text-slate-400 font-black uppercase bg-slate-100 px-1.5 py-0.5 rounded">
+                                 <span className="text-[11px] text-slate-400 font-bold uppercase bg-slate-100 px-1.5 py-0.5 rounded">
                                    {reporter?.role}
                                  </span>
                               </span>
-                              <span className="text-[10px] font-bold text-slate-400 mt-0.5">
+                              <span className="text-[11px] font-bold text-slate-400 mt-0.5">
                                  {format(new Date(exp.date), 'dd MMM yyyy, HH:mm')}
                               </span>
                            </div>
                         </TableCell>
                         <TableCell>
                            <div className="flex flex-col">
-                              <Badge className="w-fit text-[9px] h-5 bg-blue-50 text-blue-600 font-black uppercase border-none hover:bg-blue-100 mb-1">
+                              <Badge className="w-fit text-[11px] h-5 bg-blue-50 text-blue-600 font-bold uppercase border-none hover:bg-blue-100 mb-1">
                                  {exp.category}
                               </Badge>
                               <span className="text-sm font-bold text-slate-600 line-clamp-1">{exp.description}</span>
                            </div>
                         </TableCell>
                         <TableCell className="text-right">
-                          <span className="text-base font-black text-rose-600">
+                          <span className="text-base font-bold text-rose-600">
                              {formatRupiah(exp.amount)}
                           </span>
                         </TableCell>
                         <TableCell>
                            <Dialog>
                               <DialogTrigger render={
-                                 <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-700 font-black gap-1 bg-blue-50/50 hover:bg-blue-100 rounded-xl px-4 transition-all">
+                                 <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-700 font-bold gap-1 bg-blue-50/50 hover:bg-blue-100 rounded-xl px-4 transition-all">
                                     <Receipt className="w-4 h-4" /> Cek Nota
                                  </Button>
                               } />
@@ -239,14 +239,14 @@ export default function AuditTransitionPage() {
                               <Button 
                                 size="sm" 
                                 variant="outline" 
-                                className="border-rose-200 text-rose-600 hover:bg-rose-50 font-black rounded-xl px-4"
+                                className="border-rose-200 text-rose-600 hover:bg-rose-50 font-bold rounded-xl px-4"
                                 onClick={() => setActiveRejectionId(exp.id)}
                               >
                                 <X className="w-4 h-4 mr-1" /> Reject
                               </Button>
                               <Button 
                                 size="sm" 
-                                className="bg-emerald-600 hover:bg-emerald-700 font-black rounded-xl px-4 shadow-lg shadow-emerald-200"
+                                className="bg-emerald-600 hover:bg-emerald-700 font-bold rounded-xl px-4 shadow-sm"
                                 onClick={() => handleApprove(exp.id)}
                               >
                                 <Check className="w-4 h-4 mr-1" /> Approve
@@ -264,47 +264,47 @@ export default function AuditTransitionPage() {
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-         <Card className="bg-slate-900 border-none shadow-xl rounded-[2.5rem]">
+         <Card className="bg-slate-900 border-none shadow-sm rounded-2xl">
             <CardHeader className="pb-2">
-               <CardTitle className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                 <span className="text-emerald-500 h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /> Inflow Validated
+               <CardTitle className="text-[11px] font-bold text-slate-500  flex items-center gap-2">
+                 <span className="text-emerald-500 h-1.5 w-1.5 rounded-full bg-emerald-500" /> Inflow Validated
                </CardTitle>
             </CardHeader>
             <CardContent>
-               <div className="text-2xl font-black text-white">{formatRupiah(approvedInflow)}</div>
-               <p className="text-[9px] text-slate-500 mt-1 font-bold uppercase tracking-tight italic">Total kas masuk divalidasi</p>
+               <div className="text-2xl font-bold text-white">{formatRupiah(approvedInflow)}</div>
+               <p className="text-[11px] text-slate-500 mt-1 font-bold  italic">Total kas masuk divalidasi</p>
             </CardContent>
          </Card>
-         <Card className="bg-slate-900 border-none shadow-xl rounded-[2.5rem]">
+         <Card className="bg-slate-900 border-none shadow-sm rounded-2xl">
             <CardHeader className="pb-2">
-               <CardTitle className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+               <CardTitle className="text-[11px] font-bold text-slate-500  flex items-center gap-2">
                  <span className="text-rose-500 h-1.5 w-1.5 rounded-full bg-rose-500" /> Outflow Validated
                </CardTitle>
             </CardHeader>
             <CardContent>
-               <div className="text-2xl font-black text-white">{formatRupiah(approvedOutflow)}</div>
-               <p className="text-[9px] text-slate-500 mt-1 font-bold uppercase tracking-tight italic">Total kas keluar divalidasi</p>
+               <div className="text-2xl font-bold text-white">{formatRupiah(approvedOutflow)}</div>
+               <p className="text-[11px] text-slate-500 mt-1 font-bold  italic">Total kas keluar divalidasi</p>
             </CardContent>
          </Card>
-         <Card className="bg-slate-900 border-none shadow-xl rounded-[2.5rem]">
+         <Card className="bg-slate-900 border-none shadow-sm rounded-2xl">
             <CardHeader className="pb-2">
-               <CardTitle className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+               <CardTitle className="text-[11px] font-bold text-slate-500  flex items-center gap-2">
                  <span className="text-amber-500 h-1.5 w-1.5 rounded-full bg-amber-500 animate-bounce" /> Waiting in Transition
                </CardTitle>
             </CardHeader>
             <CardContent>
-               <div className="text-2xl font-black text-white">
+               <div className="text-2xl font-bold text-white">
                   {formatRupiah(pendingExpenses.reduce((sum, e) => sum + e.amount, 0))}
                </div>
-               <p className="text-[9px] text-slate-500 mt-1 font-bold uppercase tracking-tight italic">Dana tertahan di transisi</p>
+               <p className="text-[11px] text-slate-500 mt-1 font-bold  italic">Dana tertahan di transisi</p>
             </CardContent>
          </Card>
       </div>
 
        <Dialog open={!!activeRejectionId} onOpenChange={(open) => !open && setActiveRejectionId(null)}>
-          <DialogContent className="sm:max-w-md rounded-[2rem]">
+          <DialogContent className="sm:max-w-md rounded-xl">
              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2 text-rose-600 font-black uppercase tracking-tight">
+                <DialogTitle className="flex items-center gap-2 text-rose-600 font-bold ">
                    <X className="w-5 h-5" /> Penolakan Transaksi
                 </DialogTitle>
              </DialogHeader>
@@ -313,7 +313,7 @@ export default function AuditTransitionPage() {
                    Mohon berikan alasan penolakan agar pengaju dapat memperbaiki datanya.
                 </p>
                 <div className="space-y-2">
-                   <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Alasan Penolakan</label>
+                   <label className="text-[11px] font-bold uppercase text-slate-400 tracking-widest">Alasan Penolakan</label>
                    <Input 
                       placeholder="Contoh: Bon tidak jelas / Nominal salah..."
                       className="h-12 font-bold rounded-xl"
@@ -324,7 +324,7 @@ export default function AuditTransitionPage() {
              </div>
              <div className="flex justify-end gap-3 border-t pt-4 mt-2">
                 <Button variant="ghost" className="font-bold" onClick={() => setActiveRejectionId(null)}>Batal</Button>
-                <Button className="bg-rose-600 hover:bg-rose-700 font-black px-6 rounded-xl" onClick={handleConfirmReject}>
+                <Button className="bg-rose-600 hover:bg-rose-700 font-bold px-6 rounded-xl" onClick={handleConfirmReject}>
                    Kirim Penolakan
                 </Button>
              </div>

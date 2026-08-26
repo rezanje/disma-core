@@ -146,7 +146,7 @@ export default function ReconciliationPage() {
       </div>
 
       <Tabs defaultValue="margin" className="space-y-6">
-        <TabsList className="bg-white/50 dark:bg-slate-900/50 p-1 rounded-xl glass-card">
+        <TabsList className="bg-card dark:bg-slate-900/50 p-1 rounded-xl glass-card">
           <TabsTrigger value="margin" className="rounded-lg px-6">Analisa Margin PO</TabsTrigger>
           <TabsTrigger value="bank" className="rounded-lg px-6">Rekonsiliasi Bank</TabsTrigger>
           <TabsTrigger value="sourcing" className="rounded-lg px-6">Rekon Belanja Sourcing</TabsTrigger>
@@ -211,10 +211,10 @@ export default function ReconciliationPage() {
                              {formatRupiah(totalCogs)}
                            </TableCell>
                            <TableCell className="text-right">
-                             <div className={`font-black ${profit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                             <div className={`font-bold ${profit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                                {formatRupiah(profit)}
                              </div>
-                             <div className={`text-[10px] font-bold ${profit >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                             <div className={`text-[11px] font-bold ${profit >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                                ({marginPct.toFixed(1)}%)
                              </div>
                            </TableCell>
@@ -260,7 +260,7 @@ export default function ReconciliationPage() {
                   <h4 className="text-xs font-bold text-amber-800 dark:text-amber-500 flex items-center gap-1 mb-1">
                     <AlertCircle className="w-3 h-3" /> Tips Rekonsiliasi
                   </h4>
-                  <ul className="text-[10px] text-amber-700 dark:text-amber-600 space-y-1 list-disc pl-3">
+                  <ul className="text-[11px] text-amber-700 dark:text-amber-600 space-y-1 list-disc pl-3">
                     <li>Pastikan nilai Amount sesuai dengan Ledger (IDR).</li>
                     <li>Sistem otomatis mencari transaksi +/- 7 hari.</li>
                     <li>CR = Credit (Penerimaan), DB = Debit (Pengeluaran).</li>
@@ -275,7 +275,7 @@ export default function ReconciliationPage() {
                   <CardTitle className="text-lg">Daftar Mutasi Bank</CardTitle>
                   <CardDescription>{bankEntries.length} transaksi terdeteksi.</CardDescription>
                 </div>
-                <div className="flex gap-2 text-[10px] font-bold">
+                <div className="flex gap-2 text-[11px] font-bold">
                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500" /> Reconciled</div>
                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-slate-300" /> Pending</div>
                 </div>
@@ -308,7 +308,7 @@ export default function ReconciliationPage() {
                             <TableCell>
                                <div className="text-xs font-medium max-w-[200px] truncate">{entry.description}</div>
                                {entry.reconciled && (
-                                 <div className="text-[10px] text-emerald-600 flex items-center gap-1">
+                                 <div className="text-[11px] text-emerald-600 flex items-center gap-1">
                                     <CheckCircle2 className="w-3 h-3" /> matched with ledger
                                  </div>
                                )}
@@ -323,13 +323,13 @@ export default function ReconciliationPage() {
                                 <Button 
                                   variant="outline" 
                                   size="sm" 
-                                  className="h-7 text-[10px] border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                                  className="h-7 text-[11px] border-emerald-200 text-emerald-700 hover:bg-emerald-50"
                                   onClick={() => handleMatch(entry.id, suggestion.id)}
                                 >
                                   <LinkIcon className="w-3 h-3 mr-1" /> Match?
                                 </Button>
                               ) : (
-                                <Button variant="ghost" size="sm" className="h-7 text-[10px] text-slate-400" disabled>
+                                <Button variant="ghost" size="sm" className="h-7 text-[11px] text-slate-400" disabled>
                                   <Search className="w-3 h-3 mr-1" /> No Match
                                 </Button>
                               )}
@@ -378,19 +378,19 @@ export default function ReconciliationPage() {
                         <TableRow key={p.id}>
                           <TableCell>
                             <div className="font-bold text-sm text-slate-700 dark:text-slate-300">{p.id.slice(0, 8)}</div>
-                            <div className="text-[10px] text-slate-400">{reporter?.name || 'Sourcing'}</div>
+                            <div className="text-[11px] text-slate-400">{reporter?.name || 'Sourcing'}</div>
                           </TableCell>
                           <TableCell className="text-right font-bold text-rose-600">{formatRupiah(p.actualSpent || 0)}</TableCell>
                           <TableCell className="text-right font-medium text-slate-500">{formatRupiah((p.budgetAmount || 0) + (p.operationalSpareAmount || 0))}</TableCell>
                           <TableCell>
-                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] font-black uppercase">
+                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-[11px] font-bold uppercase">
                               Laporan Masuk
                             </Badge>
                           </TableCell>
                           <TableCell className="text-center">
                             <Button
                               size="sm"
-                              className="h-8 text-[10px] bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black uppercase"
+                              className="h-8 text-[11px] bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold uppercase"
                               onClick={async () => {
                                 await updatePurchase(p.id, { reconciliationStatus: 'Terverifikasi' })
                                 toast.success(`Laporan belanja ${p.id.slice(0, 8)} diverifikasi.`)
@@ -441,24 +441,24 @@ export default function ReconciliationPage() {
                         <TableRow key={e.id}>
                           <TableCell>
                             <div className="font-bold text-sm text-slate-700 dark:text-slate-300">{e.description}</div>
-                            <div className="text-[10px] text-slate-400">{reporter?.name || 'Sourcing'}</div>
+                            <div className="text-[11px] text-slate-400">{reporter?.name || 'Sourcing'}</div>
                           </TableCell>
                           <TableCell className="text-xs text-slate-500">{e.category}</TableCell>
                           <TableCell className="text-right font-bold text-rose-600">{formatRupiah(e.amount)}</TableCell>
                           <TableCell>
                             {e.receiptUrl ? (
-                              <a href={e.receiptUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-500 underline font-bold">
+                              <a href={e.receiptUrl} target="_blank" rel="noopener noreferrer" className="text-[11px] text-blue-500 underline font-bold">
                                 Lihat bukti
                               </a>
                             ) : (
-                              <span className="text-[10px] text-slate-400 italic">Tidak ada</span>
+                              <span className="text-[11px] text-slate-400 italic">Tidak ada</span>
                             )}
                           </TableCell>
                           <TableCell className="text-center">
                             <div className="flex gap-2 justify-center">
                               <Button
                                 size="sm"
-                                className="h-8 text-[10px] bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black uppercase"
+                                className="h-8 text-[11px] bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold uppercase"
                                 onClick={async () => {
                                   await updateExpense(e.id, { status: 'Approved' })
                                   toast.success(`Pengeluaran "${e.description}" diverifikasi.`)
@@ -469,7 +469,7 @@ export default function ReconciliationPage() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="h-8 text-[10px] border-rose-200 text-rose-600 hover:bg-rose-50 font-black uppercase"
+                                className="h-8 text-[11px] border-rose-200 text-rose-600 hover:bg-rose-50 font-bold uppercase"
                                 onClick={async () => {
                                   await updateExpense(e.id, { status: 'Rejected' })
                                   toast.error(`Pengeluaran "${e.description}" ditolak.`)

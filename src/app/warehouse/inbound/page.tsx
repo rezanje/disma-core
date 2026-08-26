@@ -2,6 +2,8 @@
 
 import { useAppStore } from "@/lib/store"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { WorksheetPrintButton } from "@/components/worksheet-print-button"
+import { qty as qtyTeks } from "@/lib/worksheet-rows"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { ArrowDownToLine, Package, ShieldCheck, CheckCircle2, Clock } from "lucide-react"
@@ -97,7 +99,7 @@ export default function InboundDashboard() {
             </TableCell>
             <TableCell className="text-xs">
               <span className="font-bold text-slate-700">{item.buyerName}</span>
-              {item.onlineRef && <p className="text-[10px] text-slate-400 mt-0.5">Ref: {item.onlineRef}</p>}
+              {item.onlineRef && <p className="text-[11px] text-slate-400 mt-0.5">Ref: {item.onlineRef}</p>}
             </TableCell>
             <TableCell className="text-right font-bold text-slate-900">
               {item.qtyPurchased} {item.product?.uom}
@@ -137,11 +139,26 @@ export default function InboundDashboard() {
           <h2 className="text-2xl font-bold tracking-tight">Inbound / Penerimaan</h2>
           <p className="text-muted-foreground">Konfirmasi penerimaan fisik barang sebelum lanjut ke QC.</p>
         </div>
-        <Link href="/warehouse/qc">
-          <Button className="bg-emerald-600 hover:bg-emerald-700">
-            <ShieldCheck className="mr-2 h-4 w-4" /> Mulai Proses QC
-          </Button>
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <WorksheetPrintButton
+            kind="inbound"
+            title="LEMBAR TERIMA BARANG"
+            label="Print Lembar Terima"
+            rows={pendingAccept.map(item => ({
+              cells: [
+                item.product?.skuCode || '',
+                item.product?.name || item.productId,
+                item.purchaseMethod || 'Pasar',
+                qtyTeks(item.qtyPurchased || item.qtyTarget, item.product?.uom),
+              ],
+            }))}
+          />
+          <Link href="/warehouse/qc">
+            <Button className="bg-emerald-600 hover:bg-emerald-700">
+              <ShieldCheck className="mr-2 h-4 w-4" /> Mulai Proses QC
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Summary cards */}
@@ -149,7 +166,7 @@ export default function InboundDashboard() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Belum Diterima</CardTitle>
-            <Clock className="h-4 w-4 text-orange-500" />
+            <Clock className="h-4 w-4" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-orange-600">{pendingAccept.length}</div>
@@ -183,7 +200,7 @@ export default function InboundDashboard() {
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-orange-500" />
+              <Clock className="h-5 w-5" />
               Menunggu Konfirmasi Penerimaan Fisik
             </CardTitle>
             <CardDescription>

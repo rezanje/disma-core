@@ -61,17 +61,17 @@ export default function UniversalPDFPreview({ isOpen, onClose, invoiceId, isCons
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-5xl w-[95vw] h-[90vh] flex flex-col p-0 overflow-hidden border-none bg-slate-900 shadow-2xl rounded-[2.5rem]">
+      <DialogContent className="max-w-5xl w-[95vw] h-[90vh] flex flex-col p-0 overflow-hidden border-none bg-slate-900 shadow-sm rounded-2xl">
         <DialogHeader className="p-6 bg-white shrink-0 border-b flex flex-row items-center justify-between space-y-0">
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600">
               <Download className="w-5 h-5" />
             </div>
             <div>
-              <DialogTitle className="text-lg font-black uppercase text-slate-800 tracking-tight">
+              <DialogTitle className="text-lg font-bold uppercase text-slate-800 tracking-tight">
                 Preview Dokumen Penagihan
               </DialogTitle>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+              <p className="text-[11px] font-bold text-slate-400  mt-0.5">
                 {isConsolidated ? 'Consolidated Bundle (Tukar Faktur)' : 'Standard Invoice'}
               </p>
             </div>
@@ -85,9 +85,9 @@ export default function UniversalPDFPreview({ isOpen, onClose, invoiceId, isCons
 
         <div className="flex-1 overflow-hidden relative bg-slate-800 flex items-center justify-center p-4">
            {isGenerating && (
-             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-slate-900/50 backdrop-blur-sm">
+             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-slate-900/50">
                 <Loader2 className="w-12 h-12 text-emerald-500 animate-spin mb-4" />
-                <p className="text-white font-black uppercase text-xs tracking-widest">Generating PDF Bundle...</p>
+                <p className="text-white font-bold uppercase text-xs tracking-widest">Generating PDF Bundle...</p>
              </div>
            )}
            {pdfDataUrl && (
@@ -101,14 +101,14 @@ export default function UniversalPDFPreview({ isOpen, onClose, invoiceId, isCons
 
         <div className="p-8 bg-white border-t flex flex-col sm:flex-row gap-4 justify-between items-center shrink-0">
           <div className="space-y-1 text-center sm:text-left">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tujuan Penagihan</p>
-            <p className="text-sm font-black text-slate-800 uppercase">{client?.companyName}</p>
+            <p className="text-[11px] font-bold text-slate-400 ">Tujuan Penagihan</p>
+            <p className="text-sm font-bold text-slate-800 uppercase">{client?.companyName}</p>
           </div>
           
           <div className="flex gap-3">
              <Button 
                 onClick={handleDownload}
-                className="bg-slate-900 hover:bg-black text-white px-8 h-14 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl flex items-center gap-3 transition-all active:scale-95"
+                className="bg-slate-900 hover:bg-black text-white px-8 h-14 rounded-2xl font-bold uppercase text-[11px] tracking-widest shadow-sm flex items-center gap-3 transition-all active:scale-95"
              >
                 <Download className="w-4 h-4" /> Download PDF
              </Button>
@@ -116,13 +116,13 @@ export default function UniversalPDFPreview({ isOpen, onClose, invoiceId, isCons
              <div className="flex gap-2">
                 <Button 
                    onClick={handleWA}
-                   className="bg-emerald-500 hover:bg-emerald-600 text-white w-14 h-14 rounded-2xl shadow-xl flex items-center justify-center transition-all active:scale-95"
+                   className="bg-emerald-500 hover:bg-emerald-600 text-white w-14 h-14 rounded-2xl shadow-sm flex items-center justify-center transition-all active:scale-95"
                 >
                    <Share2 className="w-5 h-5" />
                 </Button>
                 <Button 
                    onClick={handleEmail}
-                   className="bg-blue-500 hover:bg-blue-600 text-white w-14 h-14 rounded-2xl shadow-xl flex items-center justify-center transition-all active:scale-95"
+                   className="bg-blue-500 hover:bg-blue-600 text-white w-14 h-14 rounded-2xl shadow-sm flex items-center justify-center transition-all active:scale-95"
                 >
                    <Mail className="w-5 h-5" />
                 </Button>

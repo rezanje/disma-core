@@ -159,7 +159,7 @@ export default function DropshipPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white uppercase">
+        <h2 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white uppercase">
           Kiriman <span className="text-orange-600">Vendor</span>
         </h2>
         <p className="text-slate-500 font-bold">
@@ -170,36 +170,36 @@ export default function DropshipPage() {
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="liquid-card border-orange-100">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-[10px] font-black uppercase text-slate-400">Menunggu Konfirmasi</CardTitle>
-            <Truck className="h-5 w-5 text-orange-500" />
+            <CardTitle className="text-[11px] font-bold uppercase text-slate-400">Menunggu Konfirmasi</CardTitle>
+            <Truck className="h-5 w-5" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black text-slate-800 dark:text-white">{groups.length}</div>
-            <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Kiriman belum dikonfirmasi klien</p>
+            <div className="text-3xl font-bold text-slate-800 dark:text-white">{groups.length}</div>
+            <p className="text-[11px] font-bold text-slate-400 mt-1 uppercase">Kiriman belum dikonfirmasi klien</p>
           </CardContent>
         </Card>
         <Card className="liquid-card border-emerald-100">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-[10px] font-black uppercase text-slate-400">Selesai (30 Hari)</CardTitle>
+            <CardTitle className="text-[11px] font-bold uppercase text-slate-400">Selesai (30 Hari)</CardTitle>
             <PackageCheck className="h-5 w-5 text-emerald-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black text-slate-800 dark:text-white">{confirmed.length}</div>
-            <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Barang sudah dikonfirmasi diterima</p>
+            <div className="text-3xl font-bold text-slate-800 dark:text-white">{confirmed.length}</div>
+            <p className="text-[11px] font-bold text-slate-400 mt-1 uppercase">Barang sudah dikonfirmasi diterima</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Outstanding */}
       <div className="space-y-3">
-        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+        <p className="text-[11px] font-bold  text-slate-400">
           Menunggu Konfirmasi Klien ({groups.length})
         </p>
 
         {groups.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 p-10 text-center">
             <Truck className="w-8 h-8 mx-auto opacity-20 mb-2" />
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+            <p className="text-[11px] font-bold  text-slate-400">
               Belum ada kiriman vendor yang jalan
             </p>
           </div>
@@ -211,10 +211,10 @@ export default function DropshipPage() {
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div className="min-w-0">
-                    <CardTitle className="text-base font-black uppercase tracking-tight text-slate-950 dark:text-white">
+                    <CardTitle className="text-base font-bold  text-slate-950 dark:text-white">
                       {vendorNameOf(group.vendorId)}
                     </CardTitle>
-                    <CardDescription className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    <CardDescription className="text-[11px] font-bold  text-slate-400">
                       {so?.poNumber || 'PO'} • {clientNameOf(group.salesOrderId)}
                       {so?.targetDeliveryDate
                         ? ` • Target ${new Date(so.targetDeliveryDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}`
@@ -222,10 +222,10 @@ export default function DropshipPage() {
                     </CardDescription>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <Badge className="bg-orange-100 text-orange-700 text-[9px] font-black uppercase tracking-widest">
+                    <Badge className="bg-orange-100 text-orange-700 text-[11px] font-bold ">
                       {group.items[0]?.paymentMethod || 'Transfer'}
                     </Badge>
-                    <span className="text-sm font-black text-emerald-600">{formatRupiah(total)}</span>
+                    <span className="text-sm font-bold text-emerald-600">{formatRupiah(total)}</span>
                   </div>
                 </div>
               </CardHeader>
@@ -244,13 +244,13 @@ export default function DropshipPage() {
                   <Button
                     variant="outline"
                     onClick={() => handleSuratJalan(group.key)}
-                    className="text-[10px] font-extrabold uppercase tracking-wider h-10 rounded-xl"
+                    className="text-[11px] font-semibold  h-10 rounded-xl"
                   >
                     <FileText className="w-3.5 h-3.5 mr-1.5" /> Surat Jalan
                   </Button>
                   <Button
                     onClick={() => openConfirm(group.key)}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-extrabold uppercase tracking-wider h-10 rounded-xl"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold  h-10 rounded-xl"
                   >
                     <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" /> Konfirmasi Diterima
                   </Button>
@@ -264,7 +264,7 @@ export default function DropshipPage() {
       {/* Confirmed history */}
       {confirmed.length > 0 && (
         <div className="space-y-3">
-          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+          <p className="text-[11px] font-bold  text-slate-400">
             Sudah Dikonfirmasi — 30 Hari Terakhir
           </p>
           <div className="rounded-2xl border border-slate-100 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden">
@@ -274,8 +274,8 @@ export default function DropshipPage() {
               return (
                 <div key={pi.id} className="flex items-center justify-between gap-3 px-4 py-2.5 bg-white dark:bg-slate-900">
                   <div className="min-w-0">
-                    <p className="text-xs font-black text-slate-800 dark:text-white truncate">{nameOf(pi.productId)}</p>
-                    <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                    <p className="text-xs font-bold text-slate-800 dark:text-white truncate">{nameOf(pi.productId)}</p>
+                    <p className="text-[11px] font-bold  text-slate-400">
                       {vendorNameOf(pi.vendorId)} → {clientNameOf(pi.salesOrderId)}
                       {pi.inboundVerifiedAt
                         ? ` • ${new Date(pi.inboundVerifiedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}`
@@ -288,13 +288,13 @@ export default function DropshipPage() {
                         href={delivery.baUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-[9px] font-black uppercase tracking-widest text-blue-600 hover:underline"
+                        className="text-[11px] font-bold  text-blue-600 hover:underline"
                       >
                         Bukti
                       </a>
                     )}
                     <span className={cn(
-                      "text-[10px] font-black",
+                      "text-[11px] font-bold",
                       short > 0 ? "text-amber-600" : "text-emerald-600"
                     )}>
                       {pi.inboundQtyReceived ?? 0} / {pi.qtyTarget} {uomOf(pi.productId)}
@@ -311,7 +311,7 @@ export default function DropshipPage() {
       <Dialog open={!!pdfPreview} onOpenChange={(open) => { if (!open) setPdfPreview(null) }}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle className="text-sm font-black uppercase tracking-wider">
+            <DialogTitle className="text-sm font-bold ">
               {pdfPreview?.title}
             </DialogTitle>
           </DialogHeader>
@@ -321,7 +321,7 @@ export default function DropshipPage() {
           <a
             href={pdfPreview?.url}
             download={`${pdfPreview?.title || 'surat-jalan'}.pdf`}
-            className="w-full h-12 rounded-xl bg-slate-900 text-white font-extrabold text-[10px] uppercase tracking-wider flex items-center justify-center"
+            className="w-full h-12 rounded-xl bg-slate-900 text-white font-semibold text-[11px]  flex items-center justify-center"
           >
             Unduh PDF
           </a>
@@ -332,7 +332,7 @@ export default function DropshipPage() {
       <Dialog open={!!activeGroup} onOpenChange={(open) => { if (!open) setActiveKey(null) }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle className="text-sm font-black uppercase tracking-wider">
+            <DialogTitle className="text-sm font-bold ">
               Konfirmasi Kiriman — {vendorNameOf(activeGroup?.vendorId)}
             </DialogTitle>
           </DialogHeader>
@@ -340,16 +340,16 @@ export default function DropshipPage() {
           {activeGroup && (
             <div className="space-y-4">
               <div className="rounded-2xl bg-slate-50 dark:bg-slate-800/50 p-3 space-y-2">
-                <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">
+                <p className="text-[11px] font-bold  text-slate-400">
                   Jumlah yang benar-benar diterima klien
                 </p>
                 {activeGroup.items.map(pi => (
                   <div key={pi.id} className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-xs font-extrabold text-slate-800 dark:text-slate-200 truncate">
+                      <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
                         {nameOf(pi.productId)}
                       </p>
-                      <p className="text-[9px] font-bold text-slate-400 uppercase">
+                      <p className="text-[11px] font-bold text-slate-400 uppercase">
                         Dipesan {pi.qtyTarget} {uomOf(pi.productId)}
                       </p>
                     </div>
@@ -360,14 +360,14 @@ export default function DropshipPage() {
                       step="any"
                       value={received[pi.id] ?? pi.qtyTarget}
                       onChange={(e) => setReceived(prev => ({ ...prev, [pi.id]: Number(e.target.value) }))}
-                      className="w-24 h-10 text-right font-black rounded-xl"
+                      className="w-24 h-10 text-right font-bold rounded-xl"
                     />
                   </div>
                 ))}
                 {activeGroup.items.some(pi => (received[pi.id] ?? pi.qtyTarget) < pi.qtyTarget) && (
                   <div className="flex items-center gap-1.5 pt-1 text-amber-600">
                     <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                    <span className="text-[9px] font-black uppercase tracking-wider">
+                    <span className="text-[11px] font-bold ">
                       Kekurangannya masuk daftar belanja susulan
                     </span>
                   </div>
@@ -382,7 +382,7 @@ export default function DropshipPage() {
 
               {groupPaymentMethod === 'Transfer' && (
                 <div>
-                  <Label className="text-[9px] font-black uppercase tracking-wider text-slate-400">
+                  <Label className="text-[11px] font-bold  text-slate-400">
                     Bayar vendor dari rekening
                   </Label>
                   <Select value={transferBankId} onValueChange={(v) => setTransferBankId(v || '')}>
@@ -399,7 +399,7 @@ export default function DropshipPage() {
               )}
 
               <div>
-                <Label className="text-[9px] font-black uppercase tracking-wider text-slate-400">
+                <Label className="text-[11px] font-bold  text-slate-400">
                   Catatan (opsional)
                 </Label>
                 <Textarea
@@ -413,7 +413,7 @@ export default function DropshipPage() {
               <Button
                 onClick={handleConfirm}
                 disabled={isSubmitting}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[10px] uppercase tracking-wider h-12 rounded-xl"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[11px]  h-12 rounded-xl"
               >
                 {isSubmitting ? 'Memproses...' : 'Konfirmasi & Terbitkan Tagihan'}
               </Button>

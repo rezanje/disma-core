@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { useAppStore } from "@/lib/store"
 import { recordOnlinePurchase } from "@/lib/accounting"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -20,7 +20,15 @@ export default function OnlinePurchasePage() {
   const updatePurchaseItem = useAppStore(state => state.updatePurchaseItem)
   const bankAccounts = useAppStore(state => state.bankAccounts) || []
 
+  const vendors = useAppStore(state => state.vendors)
+  const salesOrders = useAppStore(state => state.salesOrders)
+
   const [searchTerm, setSearchTerm] = useState("")
+  const [filter, setFilter] = useState<'semua' | 'Online' | 'Vendor' | 'Dropship'>('semua')
+  const [menandai, setMenandai] = useState<string | null>(null)
+  // Harga yang disepakati dengan vendor, per baris. Dulu ditanyakan di layar QC —
+  // padahal gudang cuma menerima barang, bukan yang menawar harganya.
+  const [hargaVendor, setHargaVendor] = useState<Record<string, number>>({})
   
   // Local state for calculators
   const [calculatorState, setCalculatorState] = useState<Record<string, {
@@ -56,6 +64,87 @@ export default function OnlinePurchasePage() {
       ...item,
       product: products.find(p => p.id === item.productId)
     }))
+
+  // Jalur vendor & dropship: barangnya tidak dibeli di pasar, dipesan dari meja
+  // purchasing sama seperti belanja online. Sebelum ini tidak ada tempat mengatakan
+  // "sudah saya pesan ke vendornya" — begitu rencana dilepas, gudang langsung menunggu
+  // barang yang belum tentu pernah dipesan ke siapa pun.
+  //
+  // Penandanya menumpang `isOnlineOrdered`, kolom yang sudah ada dan artinya memang
+  // "sudah dipesan dari meja". Menambah kolom baru menuntut perubahan struktur database
+  // yang tidak bisa dijalankan dari sini, dan fitur yang menunggu itu tidak menolong
+  // siapa pun hari ini. Semua pembaca kolom ini sudah menyaring `purchaseMethod`
+  // duluan, jadi tidak ada yang salah membacanya.
+  const barisJalur = (metode: 'Vendor' | 'Dropship', sudah: boolean) => purchaseItems
+    .filter(pi =>
+      pi.purchaseMethod === metode &&
+      !!pi.isOnlineOrdered === sudah &&
+      !pi.isQCed &&
+      sentPurchaseIds.has(pi.purchaseId))
+    .map(pi => ({ ...pi, product: products.find(p => p.id === pi.productId) }))
+    .filter(pi => !searchTerm ||
+      pi.product?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      pi.notes?.toLowerCase().includes(searchTerm.toLowerCase()))
+
+  const JALUR = [
+    { key: 'Online' as const, label: 'Belanja Online' },
+    { key: 'Vendor' as const, label: 'Vendor Kirim' },
+    { key: 'Dropship' as const, label: 'Dropship' },
+  ]
+
+  const belumDipesan = (metode: 'Online' | 'Vendor' | 'Dropship') =>
+    metode === 'Online' ? pendingOnlineItems : barisJalur(metode, false)
+
+  /**
+   * Semua yang belum dipesan, dikelompokkan jalur lalu vendor.
+   *
+   * Satu halaman dengan kelompok, bukan tiga tab: yang mengerjakannya satu orang di satu
+   * meja, dan tab menyembunyikan pekerjaan yang belum selesai di balik klik — tab yang
+   * tidak dibuka hari itu isinya tidak pernah dilihat. Filter di atas hanya menyaring
+   * tampilan, bukan memindahkan pekerjaan ke tempat lain.
+   */
+  const kelompok = JALUR
+    .filter(j => filter === 'semua' || filter === j.key)
+    .map(j => {
+      const perVendor = new Map<string, ReturnType<typeof barisJalur>>()
+      for (const pi of belumDipesan(j.key)) {
+        const key = pi.plannedVendorId || pi.vendorId || ''
+        if (!perVendor.has(key)) perVendor.set(key, [])
+        perVendor.get(key)!.push(pi as any)
+      }
+      return { ...j, vendor: [...perVendor.entries()].sort((a, b) => a[0].localeCompare(b[0])) }
+    })
+    .filter(j => j.vendor.length > 0)
+
+  const totalBelumDipesan = JALUR.reduce((n, j) => n + belumDipesan(j.key).length, 0)
+
+  const namaVendor = (id: string) => vendors.find(v => v.id === id)?.companyName || 'Vendor belum dipilih'
+
+  const tandaiDipesan = async (metode: 'Vendor' | 'Dropship', vendorId: string) => {
+    const items = barisJalur(metode, false).filter(pi => (pi.plannedVendorId || pi.vendorId || '') === vendorId)
+    if (items.length === 0 || menandai) return
+    setMenandai(`${metode}:${vendorId}`)
+    const t = toast.loading(`Menandai ${items.length} barang sudah dipesan…`)
+    try {
+      for (const pi of items) {
+        // Sengaja TIDAK menyentuh isChecked: barangnya baru dipesan, belum diterima.
+        // Tapi harga kesepakatannya disimpan sekarang — di sinilah harga itu benar-benar
+        // diketahui. QC nanti tinggal memakainya untuk nilai persediaan, HPP dan nominal
+        // tagihan tempo, tanpa perlu menanyakannya lagi ke gudang.
+        const harga = hargaVendor[pi.id]
+        await updatePurchaseItem(pi.id, {
+          isOnlineOrdered: true,
+          onlineOrderDate: new Date().toISOString(),
+          ...(harga > 0 ? { actualUnitPrice: harga } : {}),
+        })
+      }
+      toast.success(`${items.length} barang ditandai sudah dipesan ke ${namaVendor(vendorId)}.`, { id: t })
+    } catch (e) {
+      toast.error("Gagal menandai: " + (e instanceof Error ? e.message : String(e)), { id: t })
+    } finally {
+      setMenandai(null)
+    }
+  }
 
   // Sync items to calculator state
   useEffect(() => {
@@ -167,187 +256,216 @@ export default function OnlinePurchasePage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center bg-white dark:bg-slate-900 -mx-4 -mt-4 p-6 border-b shadow-sm">
         <div>
-          <h2 className="text-2xl font-black tracking-tight flex items-center gap-3">
-             <span className="text-3xl emoji-3d">🛒</span> Belanja Online <span className="text-blue-600">& Cost Calc</span>
+          <h2 className="text-2xl font-bold tracking-tight flex items-center gap-3"> Belanja <span className="text-blue-600">Purchasing</span>
           </h2>
-          <p className="text-sm text-slate-500 font-bold mt-1">Estimasi & kalkulasi biaya pengadaan barang online (Marketplace).</p>
+          <p className="text-sm text-slate-500 font-bold mt-1">Semua belanja yang dipesan dari meja — bukan yang dibeli sendiri di pasar.</p>
         </div>
-        <div className="flex items-center gap-2">
-           <Badge className="bg-blue-100 text-blue-600 border-blue-200 px-3 py-1 font-black uppercase text-xs">
-              {pendingOnlineItems.length} Waiting
-           </Badge>
-        </div>
+      </div>
+
+      {/* Filter, bukan tab: yang disaring cuma tampilannya. */}
+      <div className="flex flex-wrap items-center gap-2">
+        {([
+          ['semua', 'Semua', totalBelumDipesan],
+          ['Online', 'Belanja Online', belumDipesan('Online').length],
+          ['Vendor', 'Vendor Kirim', belumDipesan('Vendor').length],
+          ['Dropship', 'Dropship', belumDipesan('Dropship').length],
+        ] as const).map(([key, label, jml]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setFilter(key)}
+            className={cn(
+              "h-9 rounded-2xl px-3.5 text-[11px] font-bold  transition-colors",
+              filter === key ? "bg-slate-900 text-white" : "bg-white text-slate-500 hover:text-slate-800",
+            )}
+          >
+            {label}
+            <span className={cn(
+              "ml-2 rounded-full px-2 py-0.5 text-[11px]",
+              filter === key ? "bg-card" : "bg-slate-100 text-slate-500",
+            )}>{jml}</span>
+          </button>
+        ))}
       </div>
 
       <div className="relative max-w-md">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-        <Input 
-          placeholder="Cari produk atau catatan..." 
+        <Input
+          placeholder="Cari produk atau catatan..."
           className="pl-10 h-12 bg-white rounded-2xl border-none shadow-sm focus:ring-4 focus:ring-blue-500/10"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
       </div>
 
-      <div className="grid gap-6">
-        {pendingOnlineItems.length === 0 ? (
-          <Card className="border-dashed py-20 flex flex-col items-center justify-center text-slate-400 bg-slate-50/50 rounded-[3rem]">
-            <ShoppingBag className="w-16 h-16 mb-4 opacity-10" />
-            <p className="font-bold text-lg">Semua task online clear!</p>
-            <p className="text-sm">Tidak ada antrean belanja di Finance.</p>
-          </Card>
-        ) : (
-          pendingOnlineItems.map(item => {
-            const calc = calculatorState[item.id] || { unitPrice: 0, adminFee: 0, shippingFee: 0, totalPrice: 0, ref: "" }
-            return (
-              <Card key={item.id} className="overflow-hidden border-none shadow-xl shadow-blue-900/5 dark:shadow-none bg-white dark:bg-slate-900 rounded-[3rem]">
-                <div className="flex flex-col lg:flex-row">
-                  {/* Left: Product Info */}
-                  <div className="p-8 lg:w-80 bg-slate-50 dark:bg-slate-800/50 flex flex-col justify-between">
-                    <div>
-                      <div className="w-16 h-16 bg-white dark:bg-slate-800 rounded-[2rem] flex items-center justify-center shadow-sm border border-slate-100 mb-6 mx-auto lg:mx-0">
-                         <Package className="w-8 h-8 text-blue-500" />
-                      </div>
-                      <h3 className="font-black text-xl leading-tight mb-2 text-center lg:text-left">{item.product?.name}</h3>
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center lg:text-left">{item.product?.skuCode}</p>
-                      
-                      <div className="mt-8 space-y-4">
-                        <div className="bg-white dark:bg-slate-800 p-4 rounded-3xl border border-slate-100 shadow-sm">
-                           <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Target Quantity</p>
-                           <p className="text-xl font-black text-blue-600">{item.qtyTarget} <span className="text-xs">{item.product?.uom}</span></p>
-                        </div>
+      {kelompok.length === 0 ? (
+        <Card className="border-dashed py-20 flex flex-col items-center justify-center text-slate-400 bg-slate-50/50 rounded-2xl">
+          <ShoppingBag className="w-16 h-16 mb-4 opacity-10" />
+          <p className="font-bold text-lg">Tidak ada yang perlu dipesan.</p>
+          <p className="text-sm">Barang muncul di sini setelah rencananya dilepas Finance.</p>
+        </Card>
+      ) : (
+        <Card className="overflow-hidden rounded-lg">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1180px] text-sm">
+              <thead>
+                <tr className="border-b bg-slate-50 dark:bg-slate-900/50 text-left">
+                  <th className="px-4 py-3 text-[11px] font-bold  text-slate-500">Barang</th>
+                  <th className="px-3 py-3 text-[11px] font-bold  text-slate-500">Dari PO</th>
+                  <th className="px-3 py-3 text-right text-[11px] font-bold  text-slate-500">Qty</th>
+                  <th className="px-3 py-3 text-right text-[11px] font-bold  text-slate-500">Patokan</th>
+                  <th className="px-3 py-3 text-[11px] font-bold  text-slate-500">Bayar · Ambil</th>
+                  <th className="px-3 py-3 text-[11px] font-bold  text-slate-500 bg-amber-50">Harga Beli</th>
+                  <th className="px-3 py-3 text-[11px] font-bold  text-slate-500 bg-amber-50">Admin</th>
+                  <th className="px-3 py-3 text-[11px] font-bold  text-slate-500 bg-amber-50">Ongkir</th>
+                  <th className="px-3 py-3 text-[11px] font-bold  text-slate-500 bg-amber-50">Total Bayar</th>
+                  <th className="px-3 py-3 text-[11px] font-bold  text-slate-500 bg-amber-50">Ref Order</th>
+                  <th className="px-3 py-3 text-[11px] font-bold  text-slate-500"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {kelompok.map(j => (
+                  <React.Fragment key={j.key}>
+                    <tr className="border-b bg-slate-900/90">
+                      <td colSpan={11} className="px-4 py-2 text-[11px] font-bold  text-white">
+                        {j.label} · {j.vendor.reduce((n, [, items]) => n + items.length, 0)} barang
+                      </td>
+                    </tr>
 
-                        {/* Price Recommendations */}
-                        <div className="space-y-2">
-                           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-2 flex items-center gap-1">
-                              <ShieldCheck className="w-3 h-3 text-emerald-500" /> Rekomendasi Harga
-                           </p>
-                           <div className="p-4 bg-emerald-50/50 dark:bg-emerald-900/10 rounded-3xl border border-emerald-100/50 space-y-2">
-                              <div className="flex justify-between items-center">
-                                 <span className="text-[10px] font-bold text-slate-500">Estimasi Terencana:</span>
-                                 <span className="text-xs font-black text-emerald-600">
-                                   {formatRupiah(item.estimatedUnitPrice || item.product?.basePrice || 0)}
-                                 </span>
-                              </div>
-                              <Button 
-                                 variant="ghost" 
-                                 size="sm" 
-                                 className="w-full h-8 text-[10px] font-black uppercase tracking-widest bg-emerald-500 text-white hover:bg-emerald-600 rounded-xl mt-1 shadow-sm"
-                                 onClick={() => updateCalc(item.id, { unitPrice: item.estimatedUnitPrice || item.product?.basePrice || 0 })}
-                              >
-                                 Pakai Harga Ini
-                              </Button>
-                           </div>
-                        </div>
+                    {j.vendor.map(([vendorId, items]) => (
+                      <React.Fragment key={`${j.key}-${vendorId || 'tanpa'}`}>
+                        <tr className="border-b bg-slate-50 dark:bg-slate-900/40">
+                          <td colSpan={11} className="px-4 py-2">
+                            <div className="flex flex-wrap items-center gap-3">
+                              <span className="text-[11px] font-bold text-slate-600">{namaVendor(vendorId)}</span>
+                              <span className="text-[11px] font-bold text-slate-400">{items.length} barang</span>
+                              {j.key !== 'Online' && (
+                                <Button
+                                  size="sm"
+                                  disabled={!vendorId || menandai === `${j.key}:${vendorId}`}
+                                  title={!vendorId ? 'Vendornya belum ditentukan Finance di Rencana Pembelian.' : undefined}
+                                  className="h-8 rounded-xl bg-emerald-600 text-[11px] font-bold  text-white hover:bg-emerald-700"
+                                  onClick={() => tandaiDipesan(j.key as 'Vendor' | 'Dropship', vendorId)}
+                                >
+                                  {menandai === `${j.key}:${vendorId}` ? 'Menandai…' : 'Tandai Dipesan'}
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
 
-                        {item.notes && (
-                          <div className="p-4 bg-amber-50 dark:bg-amber-900/10 rounded-3xl border border-amber-100 italic text-xs text-slate-600 dark:text-slate-400">
-                             "{item.notes}"
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                        {items.map((item: any) => {
+                          const calc = calculatorState[item.id] || { unitPrice: 0, adminFee: 0, shippingFee: 0, totalPrice: 0, ref: "" }
+                          const so = salesOrders.find(o => o.id === item.salesOrderId)
+                          const online = j.key === 'Online'
+                          return (
+                            <tr key={item.id} className="border-b last:border-0 align-middle">
+                              <td className="px-4 py-3">
+                                <p className="font-bold text-slate-800 leading-tight">{item.product?.name}</p>
+                                <p className="text-[11px] font-bold  text-slate-400">{item.product?.skuCode}</p>
+                              </td>
+                              <td className="px-3 py-3 text-xs font-bold text-slate-500">{so?.poNumber || '—'}</td>
+                              <td className="px-3 py-3 text-right font-bold text-slate-700 whitespace-nowrap">
+                                {item.qtyTarget} {item.product?.uom}
+                              </td>
+                              <td className="px-3 py-3 text-right text-xs font-bold text-slate-500 whitespace-nowrap">
+                                {formatRupiah(item.estimatedUnitPrice || 0)}
+                              </td>
+                              <td className="px-3 py-3 text-[11px] font-bold  text-slate-400 whitespace-nowrap">
+                                {item.paymentMethod || 'Cash'} · {j.key === 'Dropship' ? 'Ke klien' : 'Ke gudang'}
+                              </td>
 
-                  {/* Right: Calculator Form */}
-                  <div className="flex-1 p-8 space-y-8">
-                     <div className="flex items-center gap-3 mb-2">
-                        <Calculator className="w-5 h-5 text-blue-500" />
-                        <h4 className="font-black text-slate-800 uppercase tracking-tight">Kalkulator Biaya Online</h4>
-                     </div>
+                              {online ? (
+                                <>
+                                  <td className="px-3 py-2 bg-amber-50/40">
+                                    <Input inputMode="numeric" className="h-9 w-28 text-right font-bold" placeholder="0"
+                                      value={calc.unitPrice ? formatNumber(calc.unitPrice) : ''}
+                                      onChange={e => updateCalc(item.id, { unitPrice: parseNumber(e.target.value) })} />
+                                  </td>
+                                  <td className="px-3 py-2 bg-amber-50/40">
+                                    <Input inputMode="numeric" className="h-9 w-24 text-right font-bold" placeholder="0"
+                                      value={calc.adminFee ? formatNumber(calc.adminFee) : ''}
+                                      onChange={e => updateCalc(item.id, { adminFee: parseNumber(e.target.value) })} />
+                                  </td>
+                                  <td className="px-3 py-2 bg-amber-50/40">
+                                    <Input inputMode="numeric" className="h-9 w-24 text-right font-bold" placeholder="0"
+                                      value={calc.shippingFee ? formatNumber(calc.shippingFee) : ''}
+                                      onChange={e => updateCalc(item.id, { shippingFee: parseNumber(e.target.value) })} />
+                                  </td>
+                                  <td className="px-3 py-2 bg-amber-50/40">
+                                    <Input inputMode="numeric" className="h-9 w-32 text-right font-bold" placeholder="0"
+                                      value={calc.totalPrice ? formatNumber(calc.totalPrice) : ''}
+                                      onChange={e => updateCalc(item.id, { totalPrice: parseNumber(e.target.value) })} />
+                                  </td>
+                                  <td className="px-3 py-2 bg-amber-50/40">
+                                    <Input className="h-9 w-36 text-xs" placeholder="ID Shopee/Tokped"
+                                      value={calc.ref}
+                                      onChange={e => updateCalc(item.id, { ref: e.target.value })} />
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    <Button
+                                      size="sm"
+                                      disabled={calc.totalPrice <= 0}
+                                      className="h-9 rounded-xl bg-slate-900 text-[11px] font-bold  text-white hover:bg-black disabled:bg-slate-100 disabled:text-slate-400"
+                                      onClick={() => handleCompleteOrder(item.id)}
+                                    >
+                                      <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> Order
+                                    </Button>
+                                  </td>
+                                </>
+                              ) : (
+                                <>
+                                  <td className="px-3 py-2 bg-amber-50/40">
+                                    <Input
+                                      inputMode="numeric"
+                                      className="h-9 w-28 text-right font-bold"
+                                      placeholder={String(item.estimatedUnitPrice || 0)}
+                                      value={hargaVendor[item.id] ? formatNumber(hargaVendor[item.id]) : ''}
+                                      onChange={e => setHargaVendor(prev => ({ ...prev, [item.id]: parseNumber(e.target.value) }))}
+                                    />
+                                  </td>
+                                  <td colSpan={5} className="px-3 py-3 text-[11px] font-bold text-slate-400">
+                                    Kosongkan kalau sesuai patokan. Angka ini dipakai untuk nilai stok dan tagihan vendor.
+                                  </td>
+                                </>
+                              )}
+                            </tr>
+                          )
+                        })}
+                      </React.Fragment>
+                    ))}
+                  </React.Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="border-t bg-slate-50 px-4 py-2 text-[11px] font-bold text-slate-400 dark:bg-slate-900/50">
+            Kolom kuning yang diketik. Sisanya sudah diputuskan di Rencana Pembelian.
+          </p>
+        </Card>
+      )}
 
-                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        <div className="space-y-2">
-                          <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-2">Harga Unit (Barang)</Label>
-                          <div className="relative">
-                             <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-slate-300">Rp</span>
-                             <Input 
-                                type="text"
-                                className="h-14 pl-12 text-lg font-black bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-blue-500/20"
-                                value={formatNumber(calc.unitPrice)}
-                                onChange={(e) => updateCalc(item.id, { unitPrice: parseNumber(e.target.value) })}
-                             />
-                          </div>
-                          <p className="text-[9px] font-bold text-slate-400 pl-2">Subtotal: {formatRupiah(calc.unitPrice * item.qtyTarget)}</p>
-                        </div>
+      {(['Vendor', 'Dropship'] as const).some(m => barisJalur(m, true).length > 0) && (
+        <Card className="rounded-lg">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <ShieldCheck className="h-5 w-5 text-emerald-500" />
+              Sudah dipesan, menunggu barang datang
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {(['Vendor', 'Dropship'] as const).flatMap(m => barisJalur(m, true)).map(pi => (
+              <div key={pi.id} className="flex items-center justify-between rounded-2xl border px-4 py-2">
+                <span className="text-sm font-bold text-slate-700">{pi.product?.name || pi.productId}</span>
+                <span className="text-xs font-bold text-slate-400">
+                  {pi.qtyTarget} {pi.product?.uom} · {namaVendor(pi.plannedVendorId || pi.vendorId || '')}
+                </span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
-                        <div className="space-y-2">
-                          <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-2">Biaya Admin Platform</Label>
-                          <div className="relative">
-                             <Plus className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300" />
-                             <Input 
-                                type="text"
-                                className="h-14 pl-12 text-lg font-black bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-blue-500/20"
-                                value={formatNumber(calc.adminFee)}
-                                onChange={(e) => updateCalc(item.id, { adminFee: parseNumber(e.target.value) })}
-                             />
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-2">Ongkos Kirim</Label>
-                          <div className="relative">
-                             <Truck className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300" />
-                             <Input 
-                                type="text"
-                                className="h-14 pl-12 text-lg font-black bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-blue-500/20"
-                                value={formatNumber(calc.shippingFee)}
-                                onChange={(e) => updateCalc(item.id, { shippingFee: parseNumber(e.target.value) })}
-                             />
-                          </div>
-                        </div>
-                     </div>
-
-                     <div className="h-px bg-slate-100" />
-
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-end">
-                        <div className="space-y-2">
-                           <Label className="text-[10px] font-black text-blue-600 uppercase tracking-widest pl-2">Total Bayar (Check out)</Label>
-                           <div className="relative">
-                              <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-blue-400">Rp</span>
-                              <Input 
-                                 type="text"
-                                 className="h-16 pl-14 text-2xl font-black bg-blue-50 text-blue-600 border-none rounded-3xl focus:ring-4 focus:ring-blue-500/20 shadow-inner"
-                                 value={formatNumber(calc.totalPrice)}
-                                 onChange={(e) => updateCalc(item.id, { totalPrice: parseNumber(e.target.value) })}
-                              />
-                           </div>
-                           <p className="text-[9px] font-bold text-amber-600 pl-2 italic">*Mengubah total akan menyesuaikan harga unit otomatis</p>
-                        </div>
-
-                        <div className="space-y-2">
-                           <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-2">Ref Order / Link</Label>
-                           <div className="relative">
-                              <Globe className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300" />
-                              <Input 
-                                 className="h-16 pl-12 font-bold bg-slate-50 border-none rounded-3xl focus:ring-4 focus:ring-blue-500/20"
-                                 placeholder="ID Pesanan Shopee / Tokped..."
-                                 value={calc.ref}
-                                 onChange={(e) => updateCalc(item.id, { ref: e.target.value })}
-                              />
-                           </div>
-                        </div>
-                     </div>
-
-                     <Button 
-                        className={cn(
-                           "w-full h-16 rounded-[2rem] font-black uppercase text-sm tracking-widest shadow-xl transition-all",
-                           calc.totalPrice > 0 
-                              ? "bg-slate-900 hover:bg-black text-white shadow-slate-200" 
-                              : "bg-slate-100 text-slate-400 cursor-not-allowed"
-                        )}
-                        disabled={calc.totalPrice <= 0}
-                        onClick={() => handleCompleteOrder(item.id)}
-                      >
-                         <CheckCircle2 className="w-5 h-5 mr-3" /> Konfirmasi Order Selesai
-                      </Button>
-                  </div>
-                </div>
-              </Card>
-            )
-          })
-        )}
-      </div>
     </div>
   )
 }

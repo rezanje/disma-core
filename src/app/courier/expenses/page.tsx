@@ -191,7 +191,7 @@ export default function CourierExpensesPage() {
           </div>
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
             <DialogTrigger render={
-              <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 shadow-lg">
+              <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 shadow-sm">
                 <Plus className="w-4 h-4 mr-1" /> Catat Baru
               </Button>
             } />
@@ -201,11 +201,11 @@ export default function CourierExpensesPage() {
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                   <Label className="uppercase text-[10px] font-black text-slate-400">Pilih Jenis Transaksi</Label>
+                   <Label className="uppercase text-[11px] font-bold text-slate-400">Pilih Jenis Transaksi</Label>
                    <Tabs defaultValue="Operational" className="w-full" onValueChange={(val) => setExpenseType(val as 'Operational' | 'Kasbon')}>
                       <TabsList className="grid w-full grid-cols-2 h-10 rounded-xl">
-                         <TabsTrigger value="Operational" className="rounded-lg text-[10px] font-black uppercase">Operasional</TabsTrigger>
-                         <TabsTrigger value="Kasbon" className="rounded-lg text-[10px] font-black uppercase">Kasbon</TabsTrigger>
+                         <TabsTrigger value="Operational" className="rounded-lg text-[11px] font-bold uppercase">Operasional</TabsTrigger>
+                         <TabsTrigger value="Kasbon" className="rounded-lg text-[11px] font-bold uppercase">Kasbon</TabsTrigger>
                       </TabsList>
                    </Tabs>
                 </div>
@@ -276,29 +276,29 @@ export default function CourierExpensesPage() {
         </div>
       </div>
 
-      <Card className="bg-gradient-to-br from-emerald-600 to-green-700 text-white border-none shadow-emerald-500/20 shadow-xl overflow-hidden">
+      <Card className="bg-emerald-600 text-white border-none shadow-sm overflow-hidden">
         <CardContent className="p-6 relative">
           <div className="absolute right-[-20px] top-[-20px] opacity-10">
             <Receipt className="w-32 h-32 rotate-12" />
           </div>
           <div className="relative z-10">
             <p className="text-emerald-100 text-sm font-medium">Total Biaya Hari Ini</p>
-            <h3 className="text-3xl font-black mt-1 tracking-tight">{formatRupiah(totalToday)}</h3>
+            <h3 className="text-3xl font-bold mt-1 tracking-tight">{formatRupiah(totalToday)}</h3>
             <div className="mt-4 grid gap-3">
-              <div className="flex items-center gap-2 text-xs bg-white/10 w-fit px-2 py-1 rounded-full border border-white/20">
+              <div className="flex items-center gap-2 text-xs bg-card w-fit px-2 py-1 rounded-full border border-border">
                 <AlertCircle className="w-3 h-3" />
                 <span>Biaya direkon Finance dari kas operasional kurir</span>
               </div>
 
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-100/70">Kas di Tangan</p>
-                  <p className="text-2xl font-black tracking-tight">{formatRupiah(cashInHand)}</p>
+                  <p className="text-[11px] font-bold  text-emerald-100/70">Kas di Tangan</p>
+                  <p className="text-2xl font-bold tracking-tight">{formatRupiah(cashInHand)}</p>
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
                   <Select value={returnTargetBank} onValueChange={(value) => value && setReturnTargetBank(value)}>
-                    <SelectTrigger className="h-10 min-w-[220px] rounded-2xl bg-white/10 border-white/20 text-white font-black text-[10px] uppercase">
+                    <SelectTrigger className="h-10 min-w-[220px] rounded-2xl bg-slate-800 border-slate-700 text-white font-bold text-[11px] uppercase">
                       <SelectValue>{returnTargetBank ? bankAccounts.find(b => b.id === returnTargetBank)?.name : undefined}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
@@ -312,7 +312,7 @@ export default function CourierExpensesPage() {
 
                   <Button
                     variant="outline"
-                    className="h-10 rounded-2xl bg-white/10 border-white/20 text-white hover:bg-white hover:text-emerald-700 font-black uppercase text-[10px]"
+                    className="h-10 rounded-2xl bg-slate-800 border-slate-700 text-white hover:bg-white hover:text-emerald-700 font-bold uppercase text-[11px]"
                     onClick={handleReportReturn}
                     disabled={cashInHand <= 0}
                   >
@@ -327,7 +327,7 @@ export default function CourierExpensesPage() {
       </Card>
 
       <div className="space-y-3">
-        <h4 className="text-sm font-bold text-slate-500 px-1 uppercase tracking-wider">Laporan Hari Ini</h4>
+        <h4 className="text-sm font-bold text-slate-500 px-1 ">Laporan Hari Ini</h4>
         {todayExpenses.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-10 bg-white dark:bg-slate-900 rounded-xl border border-dashed text-slate-400">
             <Receipt className="w-10 h-10 mb-2 opacity-20" />
@@ -346,10 +346,10 @@ export default function CourierExpensesPage() {
                     <span className="font-bold text-sm text-emerald-600">{formatRupiah(expense.amount)}</span>
                   </div>
                   <div className="flex justify-between items-center mt-1">
-                    <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full text-slate-500 font-bold uppercase">
+                    <span className="text-[11px] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full text-slate-500 font-bold uppercase">
                       {expense.category}
                     </span>
-                    <span className="text-[10px] text-slate-400">
+                    <span className="text-[11px] text-slate-400">
                       {new Date(expense.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                     </span>
                   </div>

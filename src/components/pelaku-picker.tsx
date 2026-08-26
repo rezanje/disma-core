@@ -25,7 +25,7 @@ export function PelakuPicker({
 
   return (
     <div className="mb-3">
-      <label className="text-xs font-black text-slate-500 uppercase tracking-wider">{label}</label>
+      <label className="text-xs font-bold text-slate-500 ">{label}</label>
       <select
         className="mt-1 w-full h-11 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 text-sm font-bold"
         value={value}

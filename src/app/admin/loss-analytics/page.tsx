@@ -424,16 +424,16 @@ export default function LossAnalyticsPage() {
       {/* HEADER SECTION */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
-          <h1 className="text-3xl font-black tracking-tight text-slate-900 uppercase">
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900 uppercase">
             Analisa <span className="text-rose-600">Kerugian & Stok</span>
           </h1>
-          <p className="text-slate-400 font-bold mt-1 uppercase text-[10px] tracking-widest">
+          <p className="text-slate-400 font-bold mt-1 uppercase text-[11px] tracking-widest">
             Dashboard Kerugian Material (Rusak, Hilang, Kemahalan) & Ledger Mutasi Harian
           </p>
         </div>
 
         {/* Global Date Filters */}
-        <div className="flex flex-wrap items-center gap-3 bg-white dark:bg-slate-900 p-2 rounded-3xl border border-slate-100 shadow-xl shadow-slate-100/40 dark:shadow-none">
+        <div className="flex flex-wrap items-center gap-3 bg-white dark:bg-slate-900 p-2 rounded-lg border border-slate-100 shadow-sm dark:shadow-none">
           <div className="flex p-0.5 bg-slate-100 dark:bg-slate-800 rounded-full border border-slate-200/30">
             {[
               { key: '7days', label: '7 Hari' },
@@ -446,7 +446,7 @@ export default function LossAnalyticsPage() {
                 key={btn.key}
                 onClick={() => setTimeFilter(btn.key as TimeFilterType)}
                 className={cn(
-                  "px-4 py-1.5 text-[10px] font-black rounded-full transition-all tracking-tight uppercase",
+                  "px-4 py-1.5 text-[11px] font-bold rounded-full transition-all ",
                   timeFilter === btn.key 
                     ? "bg-white text-slate-900 shadow-sm" 
                     : "text-slate-500 hover:text-slate-800"
@@ -458,14 +458,14 @@ export default function LossAnalyticsPage() {
           </div>
 
           {timeFilter === 'custom' && (
-            <div className="flex items-center gap-2 px-2 animate-in slide-in-from-right-4 duration-300">
+            <div className="flex items-center gap-2 px-2 duration-300">
               <Input
                 type="date"
                 className="h-8 text-xs font-bold w-32 border-none bg-slate-50"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
               />
-              <span className="text-[10px] font-bold text-slate-400">s/d</span>
+              <span className="text-[11px] font-bold text-slate-400">s/d</span>
               <Input
                 type="date"
                 className="h-8 text-xs font-bold w-32 border-none bg-slate-50"
@@ -482,13 +482,13 @@ export default function LossAnalyticsPage() {
         {[
           { label: "Net Kerugian Finansial", val: summaryMetrics.financialLoss, sub: "Total Beban Kerugian", icon: <TrendingDown className="w-5 h-5 text-white" />, color: "bg-rose-600", isHero: true },
           { label: "Barang Reject / Rusak", val: summaryMetrics.damagedLoss, sub: "QC & Retur Client", icon: <ShieldAlert className="w-5 h-5 text-rose-500" />, color: "bg-rose-50 border-rose-100" },
-          { label: "Selisih Opname (Hilang)", val: summaryMetrics.opnameDeficit, sub: "Write-off Gudang", icon: <AlertTriangle className="w-5 h-5 text-orange-500" />, color: "bg-orange-50 border-orange-100" },
+          { label: "Selisih Opname (Hilang)", val: summaryMetrics.opnameDeficit, sub: "Write-off Gudang", icon: <AlertTriangle className="w-5 h-5" />, color: "bg-orange-50 border-orange-100" },
           { label: "Sourcing Kemahalan", val: summaryMetrics.overprice, sub: "Selisih Harga vs Budget", icon: <Coins className="w-5 h-5 text-amber-500" />, color: "bg-amber-50 border-amber-100" },
-          { label: "Kompensasi Retur Supplier", val: summaryMetrics.supplierReturn, sub: "Diganti Vendor (Bukan Rugi)", icon: <Store className="w-5 h-5 text-blue-500" />, color: "bg-blue-50 border-blue-100" },
+          { label: "Kompensasi Retur Supplier", val: summaryMetrics.supplierReturn, sub: "Diganti Vendor (Bukan Rugi)", icon: <Store className="w-5 h-5" />, color: "bg-blue-50 border-blue-100" },
         ].map((card, idx) => (
           <Card key={idx} className={cn(
-            "liquid-card border-none shadow-lg shadow-slate-100/50 dark:shadow-none overflow-hidden relative group",
-            card.isHero ? "bg-slate-900 text-white scale-[1.02] shadow-xl shadow-rose-950/10" : "bg-white dark:bg-slate-900 border border-slate-100"
+            "liquid-card shadow-sm dark:shadow-none overflow-hidden relative group",
+            card.isHero ? "bg-slate-900 text-white scale-[1.02] shadow-sm" : "bg-white dark:bg-slate-900 border border-slate-100"
           )}>
             <CardContent className="p-6">
               <div className="flex justify-between items-start mb-4">
@@ -498,9 +498,9 @@ export default function LossAnalyticsPage() {
                   {card.icon}
                 </div>
               </div>
-              <p className={cn("text-[9px] font-black uppercase tracking-widest mb-1", card.isHero ? "text-rose-400" : "text-slate-400")}>{card.label}</p>
-              <h3 className="text-xl font-black tracking-tight">{formatRupiah(card.val)}</h3>
-              <p className={cn("text-[9px] font-bold mt-3 uppercase", card.isHero ? "text-slate-400" : "text-slate-500")}>{card.sub}</p>
+              <p className={cn("text-[11px] font-bold  mb-1", card.isHero ? "text-rose-400" : "text-slate-400")}>{card.label}</p>
+              <h3 className="text-xl font-bold tracking-tight">{formatRupiah(card.val)}</h3>
+              <p className={cn("text-[11px] font-bold mt-3 uppercase", card.isHero ? "text-slate-400" : "text-slate-500")}>{card.sub}</p>
             </CardContent>
           </Card>
         ))}
@@ -509,30 +509,30 @@ export default function LossAnalyticsPage() {
       {/* ANALYTICS CHARTS LAYER */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Trend Chart (Left 2 cols) */}
-        <Card className="lg:col-span-2 liquid-card border-none bg-white dark:bg-slate-900 shadow-xl shadow-slate-100/30">
+        <Card className="lg:col-span-2 liquid-card bg-white dark:bg-slate-900 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between px-8 pt-8 pb-4">
             <div>
-              <CardTitle className="text-lg font-black uppercase text-slate-800 dark:text-white flex items-center gap-2">
+              <CardTitle className="text-lg font-bold uppercase text-slate-800 dark:text-white flex items-center gap-2">
                 Trend Kerugian Harian <TrendingDown className="w-5 h-5 text-rose-500" />
               </CardTitle>
-              <CardDescription className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Distribusi Kerugian Finansial per Kategori</CardDescription>
+              <CardDescription className="text-[11px] font-bold  text-slate-400">Distribusi Kerugian Finansial per Kategori</CardDescription>
             </div>
             
             <div className="flex gap-4">
-               <div className="flex items-center gap-1.5 text-[9px] font-black uppercase text-slate-500">
+               <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase text-slate-500">
                   <div className="w-2.5 h-2.5 rounded-full bg-rose-500" /> Reject / Rusak
                </div>
-               <div className="flex items-center gap-1.5 text-[9px] font-black uppercase text-slate-500">
+               <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase text-slate-500">
                   <div className="w-2.5 h-2.5 rounded-full bg-orange-500" /> Hilang (Opname)
                </div>
-               <div className="flex items-center gap-1.5 text-[9px] font-black uppercase text-slate-500">
+               <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase text-slate-500">
                   <div className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Kemahalan
                </div>
             </div>
           </CardHeader>
           <CardContent className="h-[300px] px-8 pb-8 pt-4">
             {dailyLossChartData.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-slate-300 text-xs font-black uppercase tracking-widest">Tidak ada data untuk grafik</div>
+              <div className="h-full flex items-center justify-center text-slate-300 text-xs font-bold ">Tidak ada data untuk grafik</div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={dailyLossChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -559,27 +559,27 @@ export default function LossAnalyticsPage() {
         </Card>
 
         {/* Top Products Loss (Right 1 col) */}
-        <Card className="liquid-card border-none bg-white dark:bg-slate-900 shadow-xl shadow-slate-100/30 flex flex-col">
+        <Card className="liquid-card bg-white dark:bg-slate-900 shadow-sm flex flex-col">
           <CardHeader className="p-8 pb-4">
-            <CardTitle className="text-lg font-black uppercase text-slate-800 dark:text-white">
+            <CardTitle className="text-lg font-bold uppercase text-slate-800 dark:text-white">
               Bahan Paling Rugi
             </CardTitle>
-            <CardDescription className="text-[10px] font-bold uppercase tracking-wider text-slate-400">10 Bahan Baku Penyumbang Rugi Terbanyak</CardDescription>
+            <CardDescription className="text-[11px] font-bold  text-slate-400">10 Bahan Baku Penyumbang Rugi Terbanyak</CardDescription>
           </CardHeader>
           <CardContent className="p-8 pt-2 flex-1 overflow-y-auto max-h-[300px] scrollbar-thin">
             <div className="space-y-4">
               {topProductsLoss.map((item, idx) => (
                 <div key={idx} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100/80 transition-colors">
                   <div className="flex items-center gap-3">
-                    <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-[9px] font-black">{idx + 1}</span>
+                    <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-[11px] font-bold">{idx + 1}</span>
                     <div className="flex flex-col">
-                      <span className="text-xs font-black text-slate-800 dark:text-slate-200 max-w-[120px] truncate">{item.name}</span>
-                      <span className="text-[8px] text-slate-400 font-mono">{item.sku}</span>
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 max-w-[120px] truncate">{item.name}</span>
+                      <span className="text-[11px] text-slate-400 font-mono">{item.sku}</span>
                     </div>
                   </div>
                   <div className="text-right">
-                    <span className="text-xs font-black text-rose-600">{formatRupiah(item.lossAmount)}</span>
-                    <p className="text-[8px] text-slate-400 font-bold uppercase">{item.eventsCount} kejadian</p>
+                    <span className="text-xs font-bold text-rose-600">{formatRupiah(item.lossAmount)}</span>
+                    <p className="text-[11px] text-slate-400 font-bold uppercase">{item.eventsCount} kejadian</p>
                   </div>
                 </div>
               ))}
@@ -594,31 +594,31 @@ export default function LossAnalyticsPage() {
       {/* CORE ANALYSIS TABS */}
       <Tabs defaultValue="losses" className="w-full">
         <TabsList className="bg-slate-100 p-1 rounded-2xl mb-6">
-          <TabsTrigger value="losses" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest flex items-center gap-2">
+          <TabsTrigger value="losses" className="rounded-xl px-8 font-bold uppercase text-[11px] tracking-widest flex items-center gap-2">
             <ShieldAlert className="w-4 h-4 text-rose-500" /> Detail Kejadian Rugi
           </TabsTrigger>
-          <TabsTrigger value="ledger" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest flex items-center gap-2">
+          <TabsTrigger value="ledger" className="rounded-xl px-8 font-bold uppercase text-[11px] tracking-widest flex items-center gap-2">
             <ArrowRightLeft className="w-4 h-4 text-emerald-500" /> Ledger In/Out Harian
           </TabsTrigger>
-          <TabsTrigger value="overpricing" className="rounded-xl px-8 font-black uppercase text-[10px] tracking-widest flex items-center gap-2">
+          <TabsTrigger value="overpricing" className="rounded-xl px-8 font-bold uppercase text-[11px] tracking-widest flex items-center gap-2">
             <Coins className="w-4 h-4 text-amber-500" /> Analisa Vendor Overprice
           </TabsTrigger>
         </TabsList>
 
         {/* TAB 1: DETAILED LOSS EVENTS LOG */}
         <TabsContent value="losses">
-          <Card className="bg-white dark:bg-slate-900 border-none shadow-xl rounded-[2.5rem] overflow-hidden">
+          <Card className="bg-white dark:bg-slate-900 border-none shadow-sm rounded-2xl overflow-hidden">
             <CardHeader className="p-8 pb-4 border-b border-slate-50">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                  <CardTitle className="text-lg font-black uppercase text-slate-900 dark:text-white">Buku Jurnal Rincian Kerugian</CardTitle>
-                  <CardDescription className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Rincian kejadian barang rusak, hilang, dan kemahalan</CardDescription>
+                  <CardTitle className="text-lg font-bold uppercase text-slate-900 dark:text-white">Buku Jurnal Rincian Kerugian</CardTitle>
+                  <CardDescription className="text-[11px] font-bold  text-slate-400">Rincian kejadian barang rusak, hilang, dan kemahalan</CardDescription>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
                   {/* Category Filter */}
                   <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 p-1 rounded-2xl border border-slate-100 dark:border-slate-800">
-                    <span className="text-[9px] font-black text-slate-400 uppercase pl-3 pr-2 border-r flex items-center gap-1">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase pl-3 pr-2 border-r flex items-center gap-1">
                       <Filter className="w-3 h-3" /> Jenis
                     </span>
                     <Select value={lossCategoryFilter} onValueChange={setLossCategoryFilter}>
@@ -653,15 +653,15 @@ export default function LossAnalyticsPage() {
                 <Table>
                   <TableHeader className="bg-slate-50/50">
                     <TableRow className="border-none">
-                      <TableHead className="px-8 py-5 text-[9px] font-black uppercase text-slate-400 tracking-widest">Tanggal</TableHead>
-                      <TableHead className="px-8 py-5 text-[9px] font-black uppercase text-slate-400 tracking-widest">Bahan Baku / SKU</TableHead>
-                      <TableHead className="px-8 py-5 text-[9px] font-black uppercase text-slate-400 tracking-widest">Kategori Jurnal</TableHead>
-                      <TableHead className="px-8 py-5 text-[9px] font-black uppercase text-slate-400 tracking-widest text-right">Qty</TableHead>
-                      <TableHead className="px-8 py-5 text-[9px] font-black uppercase text-slate-400 tracking-widest text-right">Unit Price</TableHead>
-                      <TableHead className="px-8 py-5 text-[9px] font-black uppercase text-slate-400 tracking-widest text-right">Rugi (Rp)</TableHead>
-                      <TableHead className="px-8 py-5 text-[9px] font-black uppercase text-slate-400 tracking-widest">Alasan / Note</TableHead>
-                      <TableHead className="px-8 py-5 text-[9px] font-black uppercase text-slate-400 tracking-widest text-center">PIC</TableHead>
-                      <TableHead className="px-8 py-5 text-[9px] font-black uppercase text-slate-400 tracking-widest text-center">Ref</TableHead>
+                      <TableHead className="px-8 py-5 text-[11px] font-bold uppercase text-slate-400 tracking-widest">Tanggal</TableHead>
+                      <TableHead className="px-8 py-5 text-[11px] font-bold uppercase text-slate-400 tracking-widest">Bahan Baku / SKU</TableHead>
+                      <TableHead className="px-8 py-5 text-[11px] font-bold uppercase text-slate-400 tracking-widest">Kategori Jurnal</TableHead>
+                      <TableHead className="px-8 py-5 text-[11px] font-bold uppercase text-slate-400 tracking-widest text-right">Qty</TableHead>
+                      <TableHead className="px-8 py-5 text-[11px] font-bold uppercase text-slate-400 tracking-widest text-right">Unit Price</TableHead>
+                      <TableHead className="px-8 py-5 text-[11px] font-bold uppercase text-slate-400 tracking-widest text-right">Rugi (Rp)</TableHead>
+                      <TableHead className="px-8 py-5 text-[11px] font-bold uppercase text-slate-400 tracking-widest">Alasan / Note</TableHead>
+                      <TableHead className="px-8 py-5 text-[11px] font-bold uppercase text-slate-400 tracking-widest text-center">PIC</TableHead>
+                      <TableHead className="px-8 py-5 text-[11px] font-bold uppercase text-slate-400 tracking-widest text-center">Ref</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -670,23 +670,23 @@ export default function LossAnalyticsPage() {
                         <TableCell colSpan={9} className="h-64 text-center">
                           <div className="flex flex-col items-center gap-3 opacity-20">
                             <ShieldAlert className="w-12 h-12" />
-                            <p className="text-sm font-black uppercase tracking-widest">Tidak ada data rincian kerugian</p>
+                            <p className="text-sm font-bold ">Tidak ada data rincian kerugian</p>
                           </div>
                         </TableCell>
                       </TableRow>
                     ) : (
                       filteredLossEvents.map((item) => (
                         <TableRow key={item.id} className="border-b border-slate-50 hover:bg-slate-50/50">
-                          <TableCell className="px-8 py-4 font-mono text-[10px] text-slate-400 whitespace-nowrap">
+                          <TableCell className="px-8 py-4 font-mono text-[11px] text-slate-400 whitespace-nowrap">
                             {format(parseISO(item.date), 'dd/MM/yy HH:mm')}
                           </TableCell>
                           <TableCell className="px-8 py-4">
-                            <p className="font-extrabold text-xs text-slate-900">{item.productName}</p>
-                            <p className="font-mono text-[9px] text-slate-400 mt-0.5">{item.skuCode}</p>
+                            <p className="font-semibold text-xs text-slate-900">{item.productName}</p>
+                            <p className="font-mono text-[11px] text-slate-400 mt-0.5">{item.skuCode}</p>
                           </TableCell>
                           <TableCell className="px-8 py-4">
                             <Badge className={cn(
-                              "text-[8px] font-black uppercase tracking-wider border-none rounded-full px-2.5 py-0.5",
+                              "text-[11px] font-bold  border-none rounded-full px-2.5 py-0.5",
                               item.category === 'QC Damage' ? "bg-rose-50 text-rose-700" :
                               item.category === 'Return Reject' ? "bg-rose-100 text-rose-800" :
                               item.category === 'Opname Deficit' ? "bg-orange-50 text-orange-700" :
@@ -701,7 +701,7 @@ export default function LossAnalyticsPage() {
                           <TableCell className="px-8 py-4 text-right font-bold text-xs text-slate-500 whitespace-nowrap">
                             {formatRupiah(item.unitPrice)}
                           </TableCell>
-                          <TableCell className="px-8 py-4 text-right font-black text-xs text-slate-900 whitespace-nowrap">
+                          <TableCell className="px-8 py-4 text-right font-bold text-xs text-slate-900 whitespace-nowrap">
                             <span className={item.isFinancialLoss ? "text-rose-600" : "text-blue-600"}>
                               {item.isFinancialLoss ? "-" : ""}{formatRupiah(item.lossAmount)}
                             </span>
@@ -710,13 +710,13 @@ export default function LossAnalyticsPage() {
                             {item.reason.replace(/^(Disposal|Retur Supplier|Peralihan B2C): /, '')}
                           </TableCell>
                           <TableCell className="px-8 py-4 text-center whitespace-nowrap">
-                            <span className="text-[9px] font-black bg-slate-100 text-slate-600 px-2 py-0.5 rounded">
+                            <span className="text-[11px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded">
                               {item.reportedBy}
                             </span>
                           </TableCell>
                           <TableCell className="px-8 py-4 text-center">
                             {item.referenceId ? (
-                              <span className="font-mono text-[9px] text-slate-400">
+                              <span className="font-mono text-[11px] text-slate-400">
                                 #{item.referenceId.slice(0, 6).toUpperCase()}
                               </span>
                             ) : "-"}
@@ -733,12 +733,12 @@ export default function LossAnalyticsPage() {
 
         {/* TAB 2: DAILY STOCK IN/OUT LEDGER PER PRODUCT */}
         <TabsContent value="ledger">
-          <Card className="bg-white dark:bg-slate-900 border-none shadow-xl rounded-[2.5rem] overflow-hidden">
+          <Card className="bg-white dark:bg-slate-900 border-none shadow-sm rounded-2xl overflow-hidden">
             <CardHeader className="p-8 pb-4 border-b border-slate-50">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                  <CardTitle className="text-lg font-black uppercase text-slate-900 dark:text-white">Buku Ledger Mutasi Harian</CardTitle>
-                  <CardDescription className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Summary total jumlah barang Masuk vs Keluar per hari per produk</CardDescription>
+                  <CardTitle className="text-lg font-bold uppercase text-slate-900 dark:text-white">Buku Ledger Mutasi Harian</CardTitle>
+                  <CardDescription className="text-[11px] font-bold  text-slate-400">Summary total jumlah barang Masuk vs Keluar per hari per produk</CardDescription>
                 </div>
                 
                 <div className="relative w-64">
@@ -757,12 +757,12 @@ export default function LossAnalyticsPage() {
                 <Table>
                   <TableHeader className="bg-slate-50/50">
                     <TableRow className="border-none">
-                      <TableHead className="px-8 py-5 text-[9px] font-black uppercase text-slate-400 tracking-widest">Tanggal</TableHead>
-                      <TableHead className="px-8 py-5 text-[9px] font-black uppercase text-slate-400 tracking-widest">Nama Barang / SKU</TableHead>
-                      <TableHead className="px-8 py-5 text-[9px] font-black uppercase text-slate-400 tracking-widest text-right">Inbound (+)</TableHead>
-                      <TableHead className="px-8 py-5 text-[9px] font-black uppercase text-slate-400 tracking-widest text-right">Outbound (-)</TableHead>
-                      <TableHead className="px-8 py-5 text-[9px] font-black uppercase text-slate-400 tracking-widest text-right">Net Movement</TableHead>
-                      <TableHead className="px-8 py-5 text-[9px] font-black uppercase text-slate-400 tracking-widest text-center">Status</TableHead>
+                      <TableHead className="px-8 py-5 text-[11px] font-bold uppercase text-slate-400 tracking-widest">Tanggal</TableHead>
+                      <TableHead className="px-8 py-5 text-[11px] font-bold uppercase text-slate-400 tracking-widest">Nama Barang / SKU</TableHead>
+                      <TableHead className="px-8 py-5 text-[11px] font-bold uppercase text-slate-400 tracking-widest text-right">Inbound (+)</TableHead>
+                      <TableHead className="px-8 py-5 text-[11px] font-bold uppercase text-slate-400 tracking-widest text-right">Outbound (-)</TableHead>
+                      <TableHead className="px-8 py-5 text-[11px] font-bold uppercase text-slate-400 tracking-widest text-right">Net Movement</TableHead>
+                      <TableHead className="px-8 py-5 text-[11px] font-bold uppercase text-slate-400 tracking-widest text-center">Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -771,27 +771,27 @@ export default function LossAnalyticsPage() {
                         <TableCell colSpan={6} className="h-64 text-center">
                           <div className="flex flex-col items-center gap-3 opacity-20">
                             <ArrowRightLeft className="w-12 h-12" />
-                            <p className="text-sm font-black uppercase tracking-widest">Tidak ada riwayat mutasi stok harian</p>
+                            <p className="text-sm font-bold ">Tidak ada riwayat mutasi stok harian</p>
                           </div>
                         </TableCell>
                       </TableRow>
                     ) : (
                       dailyProductMovements.map((item) => (
                         <TableRow key={item.key} className="border-b border-slate-50 hover:bg-slate-50/50">
-                          <TableCell className="px-8 py-4 font-mono text-[10px] text-slate-500 whitespace-nowrap">
+                          <TableCell className="px-8 py-4 font-mono text-[11px] text-slate-500 whitespace-nowrap">
                             {format(parseISO(item.date), 'dd MMMM yyyy', { locale: localeId })}
                           </TableCell>
                           <TableCell className="px-8 py-4">
-                            <p className="font-extrabold text-xs text-slate-800">{item.productName}</p>
-                            <p className="font-mono text-[9px] text-slate-400 mt-0.5">{item.skuCode}</p>
+                            <p className="font-semibold text-xs text-slate-800">{item.productName}</p>
+                            <p className="font-mono text-[11px] text-slate-400 mt-0.5">{item.skuCode}</p>
                           </TableCell>
-                          <TableCell className="px-8 py-4 text-right font-black text-xs text-emerald-600 whitespace-nowrap">
+                          <TableCell className="px-8 py-4 text-right font-bold text-xs text-emerald-600 whitespace-nowrap">
                             {item.qtyIn > 0 ? `+${item.qtyIn}` : "0"} {item.uom}
                           </TableCell>
-                          <TableCell className="px-8 py-4 text-right font-black text-xs text-rose-600 whitespace-nowrap">
+                          <TableCell className="px-8 py-4 text-right font-bold text-xs text-rose-600 whitespace-nowrap">
                             {item.qtyOut > 0 ? `-${item.qtyOut}` : "0"} {item.uom}
                           </TableCell>
-                          <TableCell className="px-8 py-4 text-right font-black text-xs text-slate-800 whitespace-nowrap">
+                          <TableCell className="px-8 py-4 text-right font-bold text-xs text-slate-800 whitespace-nowrap">
                             <span className={cn(
                               item.netMovement > 0 ? "text-emerald-600" : item.netMovement < 0 ? "text-rose-600" : "text-slate-500"
                             )}>
@@ -801,11 +801,11 @@ export default function LossAnalyticsPage() {
                           <TableCell className="px-8 py-4">
                             <div className="flex justify-center">
                               {item.netMovement > 0 ? (
-                                <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[8px] font-black uppercase rounded-full">Surplus</Badge>
+                                <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[11px] font-bold uppercase rounded-full">Surplus</Badge>
                               ) : item.netMovement < 0 ? (
-                                <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 text-[8px] font-black uppercase rounded-full">Defisit</Badge>
+                                <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 text-[11px] font-bold uppercase rounded-full">Defisit</Badge>
                               ) : (
-                                <Badge variant="outline" className="bg-slate-50 text-slate-400 border-slate-200 text-[8px] font-black uppercase rounded-full">Seimbang</Badge>
+                                <Badge variant="outline" className="bg-slate-50 text-slate-400 border-slate-200 text-[11px] font-bold uppercase rounded-full">Seimbang</Badge>
                               )}
                             </div>
                           </TableCell>
@@ -823,23 +823,23 @@ export default function LossAnalyticsPage() {
         <TabsContent value="overpricing">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {/* Vendor Overprice Breakdown */}
-            <Card className="bg-white dark:bg-slate-900 border-none shadow-xl rounded-[2.5rem]">
+            <Card className="bg-white dark:bg-slate-900 border-none shadow-sm rounded-2xl">
               <CardHeader className="p-8">
-                <CardTitle className="text-lg font-black uppercase text-slate-800 dark:text-white">Vendor Paling Overprice</CardTitle>
-                <CardDescription className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total kerugian karena harga beli melebihi budget per vendor</CardDescription>
+                <CardTitle className="text-lg font-bold uppercase text-slate-800 dark:text-white">Vendor Paling Overprice</CardTitle>
+                <CardDescription className="text-[11px] font-bold  text-slate-400">Total kerugian karena harga beli melebihi budget per vendor</CardDescription>
               </CardHeader>
               <CardContent className="p-8 pt-0">
                 <div className="space-y-4">
                   {overpricedReport.map((vendor, idx) => (
                     <div key={idx} className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 hover:bg-slate-100 transition-colors">
                       <div className="flex items-center gap-3">
-                        <span className="w-6 h-6 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center text-xs font-black">{idx + 1}</span>
+                        <span className="w-6 h-6 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center text-xs font-bold">{idx + 1}</span>
                         <div>
-                          <p className="font-extrabold text-sm text-slate-800">{vendor.vendorName}</p>
-                          <p className="text-[8px] text-slate-400 font-bold uppercase">{vendor.itemsCount} produk overprice</p>
+                          <p className="font-semibold text-sm text-slate-800">{vendor.vendorName}</p>
+                          <p className="text-[11px] text-slate-400 font-bold uppercase">{vendor.itemsCount} produk overprice</p>
                         </div>
                       </div>
-                      <span className="text-sm font-black text-rose-600">{formatRupiah(vendor.lossAmount)}</span>
+                      <span className="text-sm font-bold text-rose-600">{formatRupiah(vendor.lossAmount)}</span>
                     </div>
                   ))}
                   {overpricedReport.length === 0 && (
@@ -850,23 +850,23 @@ export default function LossAnalyticsPage() {
             </Card>
 
             {/* Overpricing explanation and best practices */}
-            <Card className="bg-gradient-to-br from-slate-900 to-slate-950 text-white border-none shadow-xl rounded-[2.5rem] relative overflow-hidden group">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-rose-500/10 rounded-full blur-3xl pointer-events-none group-hover:bg-rose-500/20 transition-all duration-700" />
+            <Card className="bg-slate-900 text-white border-none shadow-sm rounded-2xl relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-rose-500/10 rounded-full blur-3xl pointer-events-none group-hover:bg-rose-500/20 transition-all duration-150" />
               <CardHeader className="p-8">
-                <CardTitle className="text-lg font-black uppercase text-amber-400">Rekomendasi Kontrol Sourcing</CardTitle>
-                <CardDescription className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Strategi meminimalisir kerugian kemahalan</CardDescription>
+                <CardTitle className="text-lg font-bold uppercase text-amber-400">Rekomendasi Kontrol Sourcing</CardTitle>
+                <CardDescription className="text-[11px] font-bold  text-slate-400">Strategi meminimalisir kerugian kemahalan</CardDescription>
               </CardHeader>
               <CardContent className="p-8 pt-0 space-y-6 text-sm text-slate-300 leading-relaxed font-semibold">
                 <div className="flex items-start gap-4">
-                  <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-lg shrink-0">🎯</div>
+                  <div className="w-8 h-8 rounded-lg bg-card flex items-center justify-center text-lg shrink-0">🎯</div>
                   <p>Adopsi **Batas Toleransi Deviasi Harga** di shopping list. Beri flag otomatis jika penawaran sourcing &gt; 10% dari harga acuan sebelum CFO/Finance melakukan approval transfer budget.</p>
                 </div>
                 <div className="flex items-start gap-4">
-                  <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-lg shrink-0">🤝</div>
+                  <div className="w-8 h-8 rounded-lg bg-card flex items-center justify-center text-lg shrink-0">🤝</div>
                   <p>Prioritaskan pembelian dengan kontrak harga periodik (Vendor Price List) dibanding spot-market/pembelian dadakan di pasar untuk produk komoditas volatile.</p>
                 </div>
                 <div className="flex items-start gap-4">
-                  <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-lg shrink-0">🛡️</div>
+                  <div className="w-8 h-8 rounded-lg bg-card flex items-center justify-center text-lg shrink-0">🛡️</div>
                   <p>Lakukan **Audit Harian oleh Finance** terhadap settlement sourcing untuk mencocokkan nota pasar fisik dengan budget awal.</p>
                 </div>
               </CardContent>

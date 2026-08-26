@@ -109,17 +109,17 @@ export default function ReimbursementManagementPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center px-2">
         <div>
-          <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">Pengajuan Reimburse</h2>
+          <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Pengajuan Reimburse</h2>
           <p className="text-sm text-slate-500 font-medium">Validasi nota pengajuan & cairkan dana reimburse karyawan.</p>
         </div>
         <div className="flex items-center gap-3">
-           <Badge variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-200 py-1.5 px-3 h-fit font-black rounded-lg text-[10px] uppercase shadow-sm">
+           <Badge variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-200 py-1.5 px-3 h-fit font-bold rounded-lg text-[11px] uppercase shadow-sm">
              {reimbursements.filter(r => r.status === 'Pending').length} Request Baru
            </Badge>
         </div>
       </div>
 
-      <Card className="border-none shadow-xl shadow-slate-200 dark:shadow-none bg-white/70 dark:bg-slate-950/70 backdrop-blur-xl rounded-3xl overflow-hidden">
+      <Card className="border-none shadow-sm dark:shadow-none bg-card dark:bg-slate-950/70 rounded-lg overflow-hidden">
         <CardContent className="p-8">
            <div className="flex items-center gap-4 mb-8">
               <div className="relative flex-1 max-w-md">
@@ -133,8 +133,8 @@ export default function ReimbursementManagementPage() {
               </div>
               <div className="flex ml-auto gap-4 items-center">
                  <div className="flex flex-col items-end">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Outstanding</span>
-                    <span className="text-lg font-black text-rose-600">
+                    <span className="text-[11px] font-bold text-slate-400 ">Total Outstanding</span>
+                    <span className="text-lg font-bold text-rose-600">
                        {formatRupiah(reimbursements.filter(r => r.status === 'Approved').reduce((s,r) => s + r.amount, 0))}
                     </span>
                  </div>
@@ -168,13 +168,13 @@ export default function ReimbursementManagementPage() {
                             <TableRow key={r.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50 py-5">
                                <TableCell className="py-5">
                                   <div className="flex flex-col">
-                                     <span className="font-black text-sm flex items-center gap-2">
-                                        <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-[10px]">
+                                     <span className="font-bold text-sm flex items-center gap-2">
+                                        <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-[11px]">
                                            {user?.name.charAt(0)}
                                         </div>
                                         {user?.name}
                                      </span>
-                                     <span className="text-[10px] text-slate-400 mt-1 flex items-center gap-1 font-bold">
+                                     <span className="text-[11px] text-slate-400 mt-1 flex items-center gap-1 font-bold">
                                         <Calendar className="w-3 h-3" />
                                         {format(new Date(r.date), 'dd MMM yyyy')}
                                      </span>
@@ -186,7 +186,7 @@ export default function ReimbursementManagementPage() {
                                      <span className="text-xs text-slate-500 line-clamp-1 h-fit leading-tight mt-0.5">{r.description}</span>
                                   </div>
                                </TableCell>
-                               <TableCell className="text-right font-black text-rose-600 font-mono text-base tracking-tighter">
+                               <TableCell className="text-right font-bold text-rose-600 font-mono text-base tracking-tighter">
                                   {formatRupiah(r.amount)}
                                </TableCell>
                                <TableCell>
@@ -201,9 +201,9 @@ export default function ReimbursementManagementPage() {
                                            <DialogTitle>Bukti Nota Reimburse: {r.title}</DialogTitle>
                                         </DialogHeader>
                                         <div className="bg-slate-50 aspect-square rounded-2xl flex flex-col items-center justify-center border-4 border-dashed border-slate-200 relative overflow-hidden group">
-                                           <div className="bg-white p-6 rounded-3xl shadow-xl border relative z-10 flex flex-col items-center group-hover:scale-110 transition-transform duration-500">
+                                           <div className="bg-white p-6 rounded-lg shadow-sm border relative z-10 flex flex-col items-center group- transition-transform duration-150">
                                               <FileText className="w-16 h-16 text-emerald-600 mb-2" />
-                                              <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Document Proof</p>
+                                              <p className="text-xs font-bold text-slate-400 ">Document Proof</p>
                                            </div>
                                            <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-emerald-500 to-transparent"></div>
                                         </div>
@@ -215,7 +215,7 @@ export default function ReimbursementManagementPage() {
                                      r.status === 'Paid' ? 'default' :
                                      r.status === 'Approved' ? 'secondary' :
                                      r.status === 'Rejected' ? 'destructive' : 'outline'
-                                  } className={`text-[9px] font-black uppercase tracking-tight py-1 px-2.5 rounded-full ${
+                                  } className={`text-[11px] font-bold  py-1 px-2.5 rounded-full ${
                                      r.status === 'Paid' ? 'bg-emerald-600 hover:bg-emerald-600' : 
                                      r.status === 'Approved' ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-100 border-indigo-200' : ''
                                   }`}>
@@ -236,7 +236,7 @@ export default function ReimbursementManagementPage() {
                                            </Button>
                                            <Button 
                                              size="icon" 
-                                             className="h-8 w-8 rounded-lg bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-100 dark:shadow-none"
+                                             className="h-8 w-8 rounded-lg bg-emerald-600 hover:bg-emerald-700 shadow-sm dark:shadow-none"
                                              onClick={() => handleApprove(r.id)}
                                            >
                                               <Check className="w-4 h-4" />
@@ -246,7 +246,7 @@ export default function ReimbursementManagementPage() {
                                      {r.status === 'Approved' && (
                                         <Button 
                                           size="sm" 
-                                          className="h-9 px-4 rounded-xl bg-orange-500 hover:bg-orange-600 font-bold shadow-lg shadow-orange-100 dark:shadow-none gap-2 animate-pulse hover:animate-none"
+                                          className="h-9 px-4 rounded-xl bg-orange-500 hover:bg-orange-600 font-bold shadow-sm shadow-orange-100 dark:shadow-none gap-2 hover:animate-none"
                                           onClick={() => {
                                              setActiveReimb(r)
                                              setIsPayOpen(true)
@@ -256,7 +256,7 @@ export default function ReimbursementManagementPage() {
                                         </Button>
                                      )}
                                      {r.status === 'Paid' && (
-                                        <span className="text-[10px] font-bold text-slate-400 whitespace-nowrap italic">
+                                        <span className="text-[11px] font-bold text-slate-400 whitespace-nowrap italic">
                                            Transfer {format(new Date(r.paymentDate || ''), 'dd/MM')}
                                         </span>
                                      )}
@@ -273,14 +273,14 @@ export default function ReimbursementManagementPage() {
       </Card>
 
       <Dialog open={isPayOpen} onOpenChange={setIsPayOpen}>
-         <DialogContent className="sm:max-w-md rounded-3xl">
+         <DialogContent className="sm:max-w-md rounded-lg">
             <DialogHeader>
-               <DialogTitle className="text-2xl font-black tracking-tight">Cairkan Pembayaran Reimburse</DialogTitle>
+               <DialogTitle className="text-2xl font-bold tracking-tight">Cairkan Pembayaran Reimburse</DialogTitle>
             </DialogHeader>
             <div className="py-6 space-y-6">
-               <div className="bg-slate-50 dark:bg-slate-900 p-6 rounded-3xl border-2 border-dashed border-slate-200 text-center">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Nominal Transfer</p>
-                  <p className="text-4xl font-black text-rose-600 tracking-tighter">{formatRupiah(activeReimb?.amount || 0)}</p>
+               <div className="bg-slate-50 dark:bg-slate-900 p-6 rounded-lg border-2 border-dashed border-slate-200 text-center">
+                  <p className="text-xs font-bold text-slate-400  mb-1">Nominal Transfer</p>
+                  <p className="text-4xl font-bold text-rose-600 tracking-tighter">{formatRupiah(activeReimb?.amount || 0)}</p>
                   <div className="mt-4 flex items-center justify-center gap-2 text-sm font-bold text-slate-600">
                      <User className="w-4 h-4" /> {users.find(u => u.id === activeReimb?.userId)?.name}
                   </div>
@@ -299,7 +299,7 @@ export default function ReimbursementManagementPage() {
                            <SelectItem key={b.id} value={b.id} className="rounded-xl font-medium">
                               <div className="flex justify-between w-64">
                                  <span>{b.name}</span>
-                                 <span className="font-black text-emerald-600">{formatRupiah(b.balance)}</span>
+                                 <span className="font-bold text-emerald-600">{formatRupiah(b.balance)}</span>
                               </div>
                            </SelectItem>
                         ))}
@@ -309,7 +309,7 @@ export default function ReimbursementManagementPage() {
             </div>
             <DialogFooter>
                <Button 
-                  className="w-full h-16 rounded-2xl bg-emerald-600 hover:bg-emerald-700 font-black text-xl shadow-xl shadow-emerald-200 dark:shadow-none"
+                  className="w-full h-16 rounded-2xl bg-emerald-600 hover:bg-emerald-700 font-bold text-xl shadow-sm dark:shadow-none"
                   onClick={handlePay}
                   disabled={!payBankId}
                >

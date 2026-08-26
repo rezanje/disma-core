@@ -27,7 +27,7 @@ const AVAILABLE_KEYS: { id: AccessKey, label: string, module: string }[] = [
   { id: 'admin_hari_ini', label: 'Hari Ini (barang datang → kirim → tagih)', module: 'Operasional Harian' },
   { id: 'admin_dashboard', label: 'Admin Dashboard', module: 'Operasional' },
   { id: 'admin_sales_orders', label: 'Sales Orders', module: 'Operasional' },
-  { id: 'admin_shopping_list', label: 'Strategic Shopping List', module: 'Operasional' },
+  { id: 'admin_shopping_list', label: 'Konsolidasi PO & Konsolidasi Belanja', module: 'Operasional' },
   { id: 'admin_dropship', label: 'Kiriman Vendor ke Klien', module: 'Operasional' },
   { id: 'admin_delivery_routes', label: 'Rencana Rute Pengiriman', module: 'Operasional' },
   { id: 'sourcing_dashboard', label: 'Sourcing Menu', module: 'Operasional' },
@@ -100,14 +100,14 @@ export default function RoleSettingsPage() {
       <div className="space-y-6 pb-20">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
            <div>
-             <h2 className="text-3xl font-black tracking-tight flex items-center gap-3 text-slate-800">
+             <h2 className="text-3xl font-bold tracking-tight flex items-center gap-3 text-slate-800">
                <ShieldAlert className="text-rose-600 w-8 h-8" /> Role & Permission Settings
              </h2>
              <p className="text-slate-500 font-medium text-sm">
                 Kelola hak akses database, dashboard, dan menu secara modular.
              </p>
            </div>
-           <Button onClick={handleSave} className="bg-slate-900 border-none rounded-xl h-11 px-6 shadow-xl text-white font-bold hover:bg-slate-800">
+           <Button onClick={handleSave} className="bg-slate-900 border-none rounded-xl h-11 px-6 shadow-sm text-white font-bold hover:bg-slate-800">
               <Save className="w-4 h-4 mr-2" /> Terapkan & Simpan Permanen
            </Button>
         </div>
@@ -123,18 +123,18 @@ export default function RoleSettingsPage() {
            {ROLES_LIST.map(roleItem => {
               const assignedKeys = localPerms[roleItem.id] || []
               return (
-                 <Card key={roleItem.id} className="border-none shadow-sm rounded-3xl overflow-hidden group hover:shadow-lg transition-all focus-within:ring-2 ring-emerald-500">
+                 <Card key={roleItem.id} className="border-none shadow-sm rounded-lg overflow-hidden group hover:shadow-sm transition-all focus-within:ring-2 ring-emerald-500">
                     <div className="flex flex-col lg:flex-row bg-white">
                         <div className="lg:w-1/4 bg-slate-50 border-b lg:border-b-0 lg:border-r border-slate-100 p-6 flex flex-col justify-center">
                             <div className="flex items-center gap-2 mb-2">
-                               <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+                               <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center shrink-0">
                                   <UserCog className="w-4 h-4" />
                                </div>
-                               <h3 className="font-black text-slate-800">{roleItem.label}</h3>
+                               <h3 className="font-bold text-slate-800">{roleItem.label}</h3>
                             </div>
-                            <p className="text-[10px] text-slate-500 font-medium italic">{roleItem.desc}</p>
+                            <p className="text-[11px] text-slate-500 font-medium italic">{roleItem.desc}</p>
                             
-                            <div className="mt-4 inline-flex px-3 py-1 items-center bg-white border rounded-full text-[10px] font-black uppercase text-slate-400">
+                            <div className="mt-4 inline-flex px-3 py-1 items-center bg-white border rounded-full text-[11px] font-bold uppercase text-slate-400">
                                <ShieldCheck className="w-3 h-3 mr-1 text-emerald-500" /> {assignedKeys.length} Akses Dibuka
                             </div>
                         </div>
@@ -143,7 +143,7 @@ export default function RoleSettingsPage() {
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                {Array.from(new Set(AVAILABLE_KEYS.map(k => k.module))).map(moduleName => (
                                    <div key={moduleName} className="space-y-3">
-                                      <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 border-b pb-1">
+                                      <h4 className="text-[11px] font-bold  text-slate-400 border-b pb-1">
                                           {moduleName}
                                       </h4>
                                       <div className="space-y-2">

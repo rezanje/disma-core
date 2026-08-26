@@ -15,7 +15,7 @@ import { TfWindowWarning } from "@/components/tukar-faktur/TfWindowWarning"
 const STATUS_TONE: Record<TukarFakturStatus, string> = {
   Draft: "bg-slate-100 text-slate-700",
   Issued: "bg-amber-100 text-amber-700",
-  Received: "bg-blue-100 text-blue-700",
+  Received: "bg-muted text-slate-600",
   Paid: "bg-emerald-100 text-emerald-700",
 }
 
@@ -68,11 +68,11 @@ export default function TukarFakturListPage() {
     <div className="p-6 md:p-10 space-y-8">
       <header className="flex flex-col md:flex-row justify-between gap-4 md:items-end">
         <div>
-          <h1 className="text-3xl font-black uppercase tracking-tight">Tukar Faktur (Admin PO)</h1>
+          <h1 className="text-3xl font-bold ">Tukar Faktur (Admin PO)</h1>
           <p className="text-sm text-slate-500 mt-1">Batch invoice mingguan per klien — auto-period cross-bulan.</p>
         </div>
         <Button onClick={() => setOpenGenerate(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl px-6 h-12">
-          <Plus className="w-4 h-4 mr-2" /> Generate TF
+          <Plus className="w-4 h-4 mr-2" /> Buat Tukar Faktur
         </Button>
       </header>
 
@@ -80,16 +80,16 @@ export default function TukarFakturListPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="p-5 rounded-2xl border-slate-100">
-          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Draft</p>
-          <p className="text-3xl font-black text-slate-900 mt-2">{kpi.draft}</p>
+          <p className="text-[11px] font-bold  text-slate-400">Draft</p>
+          <p className="text-3xl font-bold text-slate-900 mt-2">{kpi.draft}</p>
         </Card>
         <Card className="p-5 rounded-2xl border-slate-100">
-          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Issued / Received</p>
-          <p className="text-3xl font-black text-slate-900 mt-2">{kpi.issuedUnpaid}</p>
+          <p className="text-[11px] font-bold  text-slate-400">Issued / Received</p>
+          <p className="text-3xl font-bold text-slate-900 mt-2">{kpi.issuedUnpaid}</p>
         </Card>
         <Card className="p-5 rounded-2xl border-slate-100">
-          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Outstanding</p>
-          <p className="text-2xl font-black text-emerald-700 mt-2">{formatRupiah(kpi.outstanding)}</p>
+          <p className="text-[11px] font-bold  text-slate-400">Outstanding</p>
+          <p className="text-2xl font-bold text-emerald-700 mt-2">{formatRupiah(kpi.outstanding)}</p>
         </Card>
       </div>
 
@@ -112,7 +112,7 @@ export default function TukarFakturListPage() {
 
       <Card className="rounded-2xl overflow-hidden border-slate-100">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-slate-500 text-[11px] uppercase tracking-wider">
+          <thead className="bg-slate-50 text-slate-500 text-[11px] ">
             <tr>
               <th className="text-left px-4 py-3">TF Number</th>
               <th className="text-left px-4 py-3">Klien</th>
@@ -128,7 +128,7 @@ export default function TukarFakturListPage() {
             {rows.length === 0 ? (
               <tr><td colSpan={8} className="text-center py-16 text-slate-400">
                 <FileSpreadsheet className="w-10 h-10 mx-auto mb-2 opacity-40" />
-                Belum ada TF. Klik <span className="font-bold">Generate TF</span> untuk mulai.
+                Belum ada tukar faktur. Klik <span className="font-bold">Buat Tukar Faktur</span> untuk mulai.
               </td></tr>
             ) : rows.map(t => {
               const client = clients.find(c => c.id === t.clientId)

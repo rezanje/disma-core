@@ -11,7 +11,6 @@ import { v4 as uuidv4 } from 'uuid';
 import { buildMarketPriceRows } from './market-price';
 import { linesNeedingReason } from './price-ceiling';
 import { resolveActor } from './actor';
-import { proofBlocker } from './transcription-proof';
 import type { useAppStore as StoreType } from './store';
 
 type Store = ReturnType<typeof StoreType.getState>;
@@ -89,9 +88,10 @@ export function reportProblems(
     masalah.push('Belum jelas kantong siapa yang dipotong. Pilih dulu belanja ini atas nama siapa.');
   }
 
-  const fotoKurang = proofBlocker(input.onBehalfOfUserId || undefined, currentUserId || undefined, input.proofImage || null);
-  if (fotoKurang) masalah.push(fotoKurang);
-
+  // Foto kertasnya tidak diwajibkan. Sempat dipaksa waktu penyalinan masih dianggap
+  // rawan, tapi di praktiknya kertas itu tetap disimpan fisik dan pemaksaan di sini
+  // cuma menahan laporan yang angkanya sudah benar. Kolomnya tetap ada kalau mau
+  // dilampirkan.
   return masalah;
 }
 

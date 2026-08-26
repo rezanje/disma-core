@@ -174,11 +174,11 @@ export default function DocumentPreview({ isOpen, onClose, type, poNumber, soId,
       <DialogContent className="!max-w-6xl w-[98vw] !h-[95vh] flex flex-col p-0 overflow-hidden border-none bg-slate-100">
         <DialogHeader className="p-4 bg-white border-b flex flex-row items-center justify-between space-y-0 shadow-sm z-20">
           <div className="flex items-center gap-4">
-            <DialogTitle className="text-xl font-black uppercase text-slate-800 tracking-tight">
+            <DialogTitle className="text-xl font-bold uppercase text-slate-800 tracking-tight">
               E-Serah Terima: {type === 'BA' ? 'Berita Acara' : 'Surat Jalan'}
             </DialogTitle>
             <div className="h-6 w-px bg-slate-200" />
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{poNumber}</span>
+            <span className="text-xs font-bold text-slate-400 ">{poNumber}</span>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose} className="rounded-full">
             <X className="w-5 h-5 text-slate-400" />
@@ -188,12 +188,12 @@ export default function DocumentPreview({ isOpen, onClose, type, poNumber, soId,
         <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
           {/* PDF Preview Area */}
           <div className="flex-1 bg-slate-300 relative overflow-hidden flex items-center justify-center p-4">
-            <div className="w-full max-w-[800px] h-full bg-white shadow-2xl rounded-sm overflow-hidden relative">
+            <div className="w-full max-w-[800px] h-full bg-white shadow-sm rounded-sm overflow-hidden relative">
               {isGenerating && (
-                <div className="absolute inset-0 flex items-center justify-center bg-white/60 backdrop-blur-sm z-10 transition-all">
+                <div className="absolute inset-0 flex items-center justify-center bg-card z-10 transition-all">
                   <div className="flex flex-col items-center gap-3">
                     <Loader2 className="w-10 h-10 text-emerald-600 animate-spin" />
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Rendering Digital Signature...</p>
+                    <p className="text-[11px] font-bold text-slate-400 ">Rendering Digital Signature...</p>
                   </div>
                 </div>
               )}
@@ -208,15 +208,15 @@ export default function DocumentPreview({ isOpen, onClose, type, poNumber, soId,
           </div>
 
           {/* Signature Panel */}
-          <div className="w-full lg:w-[400px] bg-white border-l flex flex-col shadow-2xl z-10 overflow-hidden">
+          <div className="w-full lg:w-[400px] bg-white border-l flex flex-col shadow-sm z-10 overflow-hidden">
             <div className="flex-1 overflow-y-auto">
               <div className="p-6 border-b bg-slate-50/50">
-                <h4 className="text-xs font-black uppercase text-slate-400 tracking-[0.2em] mb-4">Pilih Penandatangan</h4>
+                <h4 className="text-xs font-bold uppercase text-slate-400 tracking-[0.2em] mb-4">Pilih Penandatangan</h4>
                 <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1.5 rounded-2xl">
                   <button 
                     onClick={() => setActiveSigner('courier')}
                     className={cn(
-                      "flex flex-col items-center gap-2 py-3 rounded-xl transition-all font-black uppercase text-[9px] tracking-widest",
+                      "flex flex-col items-center gap-2 py-3 rounded-xl transition-all font-bold uppercase text-[11px] tracking-widest",
                       activeSigner === 'courier' ? "bg-white text-emerald-600 shadow-sm ring-1 ring-slate-200" : "text-slate-400 hover:text-slate-600"
                     )}
                   >
@@ -227,7 +227,7 @@ export default function DocumentPreview({ isOpen, onClose, type, poNumber, soId,
                   <button 
                     onClick={() => setActiveSigner('client')}
                     className={cn(
-                      "flex flex-col items-center gap-2 py-3 rounded-xl transition-all font-black uppercase text-[9px] tracking-widest",
+                      "flex flex-col items-center gap-2 py-3 rounded-xl transition-all font-bold uppercase text-[11px] tracking-widest",
                       activeSigner === 'client' ? "bg-white text-emerald-600 shadow-sm ring-1 ring-slate-200" : "text-slate-400 hover:text-slate-600"
                     )}
                   >
@@ -241,7 +241,7 @@ export default function DocumentPreview({ isOpen, onClose, type, poNumber, soId,
               {/* Checklist Adjustment Area (Only for BA) */}
               {type === 'BA' && (
                 <div className="p-6 border-b bg-amber-50/30">
-                  <h4 className="text-xs font-black uppercase text-amber-600 tracking-[0.2em] mb-3 flex items-center gap-2">
+                  <h4 className="text-xs font-bold uppercase text-amber-600 tracking-[0.2em] mb-3 flex items-center gap-2">
                      <Check className="w-4 h-4" /> Checklist Barang (Revisi Qty)
                   </h4>
                   <div className="space-y-2 max-h-[150px] overflow-y-auto pr-2">
@@ -251,23 +251,23 @@ export default function DocumentPreview({ isOpen, onClose, type, poNumber, soId,
                       return (
                         <div key={item.id} className="flex items-center justify-between gap-2 p-2 bg-white rounded-xl border border-slate-100">
                           <div className="flex-1 min-w-0">
-                            <p className="text-[10px] font-black truncate">{product?.name}</p>
-                            <p className="text-[8px] text-slate-400 font-bold uppercase">PO: {item.qty} {product?.uom}</p>
+                            <p className="text-[11px] font-bold truncate">{product?.name}</p>
+                            <p className="text-[11px] text-slate-400 font-bold uppercase">PO: {item.qty} {product?.uom}</p>
                           </div>
                           <div className="flex items-center gap-2">
                             <input 
                               type="number"
-                              className="w-16 h-8 bg-slate-50 border border-slate-200 rounded-lg text-center text-xs font-black focus:ring-2 focus:ring-amber-500 outline-none"
+                              className="w-16 h-8 bg-slate-50 border border-slate-200 rounded-lg text-center text-xs font-bold focus:ring-2 focus:ring-amber-500 outline-none"
                               value={currentVal}
                               onChange={(e) => handleAdjustQty(item.id, e.target.value)}
                             />
-                            <span className="text-[9px] font-black text-slate-400 uppercase">{product?.uom}</span>
+                            <span className="text-[11px] font-bold text-slate-400 uppercase">{product?.uom}</span>
                           </div>
                         </div>
                       )
                     })}
                   </div>
-                  <p className="mt-2 text-[8px] font-black text-amber-500 uppercase tracking-widest italic leading-tight">
+                  <p className="mt-2 text-[11px] font-bold text-amber-500  italic leading-tight">
                     * Isi kolom di atas jika ada barang yang direject/dikembalikan klien saat serah terima.
                   </p>
                 </div>
@@ -275,15 +275,15 @@ export default function DocumentPreview({ isOpen, onClose, type, poNumber, soId,
 
               <div className="p-8 flex flex-col items-center justify-center gap-6">
                 <div className="w-full text-center space-y-2">
-                  <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">
+                  <h3 className="text-xl font-bold text-slate-800 ">
                     {activeSigner === 'courier' ? 'Tanda Tangan Pengirim' : 'Tanda Tangan Penerima'}
                   </h3>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                  <p className="text-[11px] text-slate-400 font-bold ">
                     {activeSigner === 'courier' ? '(Tim Kurir DISMA)' : '(Nama terang sesuai identitas)'}
                   </p>
                 </div>
 
-                <div className="relative w-full aspect-[4/3] max-w-[320px] bg-slate-50 border-2 border-dashed border-slate-200 rounded-[2rem] overflow-hidden group touch-none cursor-crosshair">
+                <div className="relative w-full aspect-[4/3] max-w-[320px] bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl overflow-hidden group touch-none cursor-crosshair">
                   <canvas
                     ref={courierCanvasRef}
                     width={320}
@@ -313,7 +313,7 @@ export default function DocumentPreview({ isOpen, onClose, type, poNumber, soId,
                   
                   {((activeSigner === 'courier' && !hasSignedCourier) || (activeSigner === 'client' && !hasSignedClient)) && (
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
-                       <p className="text-xs font-black uppercase tracking-[0.3em] text-slate-400 rotate-[-15deg]">Sign Here</p>
+                       <p className="text-xs font-bold  text-slate-400 rotate-[-15deg]">Sign Here</p>
                     </div>
                   )}
                 </div>
@@ -321,7 +321,7 @@ export default function DocumentPreview({ isOpen, onClose, type, poNumber, soId,
                 <Button 
                   variant="ghost" 
                   onClick={clearCanvas}
-                  className="text-[10px] font-black uppercase text-slate-400 hover:text-rose-500 tracking-widest"
+                  className="text-[11px] font-bold uppercase text-slate-400 hover:text-rose-500 tracking-widest"
                 >
                   <Eraser className="w-4 h-4 mr-2" /> Reset Tanda Tangan
                 </Button>
@@ -333,9 +333,9 @@ export default function DocumentPreview({ isOpen, onClose, type, poNumber, soId,
                 <div className="flex gap-2">
                   <Button 
                     className={cn(
-                      "flex-1 h-14 rounded-2xl font-black uppercase tracking-[0.2em] shadow-xl transition-all flex items-center justify-center gap-2",
+                      "flex-1 h-14 rounded-2xl font-bold  shadow-sm transition-all flex items-center justify-center gap-2",
                       hasSignedCourier && hasSignedClient 
-                        ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-500/30" 
+                        ? "bg-emerald-600 hover:bg-emerald-700 text-white" 
                         : "bg-slate-200 text-slate-400 cursor-not-allowed"
                     )}
                     disabled={!hasSignedCourier || !hasSignedClient}
@@ -362,7 +362,7 @@ export default function DocumentPreview({ isOpen, onClose, type, poNumber, soId,
                     </Button>
                   )}
                 </div>
-                <p className="text-center text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                <p className="text-center text-[11px] font-bold text-slate-400 ">
                   Akan otomatis mengunduh salinan arsip dokumen
                 </p>
               </div>

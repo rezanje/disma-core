@@ -169,21 +169,21 @@ export default function CourierDashboard() {
   }
 
   return (
-    <div className="space-y-4 animate-in fade-in-50 duration-500 pb-20">
+    <div className="space-y-4-50 duration-150 pb-20">
       <div className="bg-white dark:bg-slate-900 -mx-4 -mt-4 p-4 border-b shadow-sm mb-6 flex justify-between items-center px-6">
         <div>
-          <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Rute Hari Ini</h2>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">{pendingDeliveries.length} Titik Pengiriman</p>
+          <h2 className="text-xl font-bold text-slate-800 ">Rute Hari Ini</h2>
+          <p className="text-xs font-bold text-slate-400  mt-1">{pendingDeliveries.length} Titik Pengiriman</p>
         </div>
       </div>
 
       {pendingDeliveries.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="w-20 h-20 bg-emerald-50 rounded-3xl flex items-center justify-center mb-6 shadow-sm">
+          <div className="w-20 h-20 bg-emerald-50 rounded-lg flex items-center justify-center mb-6 shadow-sm">
             <Truck className="w-10 h-10 text-emerald-500" />
           </div>
-          <h3 className="font-black text-xl text-slate-800 uppercase tracking-tight">Tidak ada pengiriman</h3>
-          <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-1">Semua order sudah aman terantar.</p>
+          <h3 className="font-bold text-xl text-slate-800 ">Tidak ada pengiriman</h3>
+          <p className="text-slate-400 font-bold uppercase text-[11px] tracking-widest mt-1">Semua order sudah aman terantar.</p>
         </div>
       ) : (
         <div className="space-y-6 px-2">
@@ -201,8 +201,8 @@ export default function CourierDashboard() {
               <Card 
                 key={delivery.id} 
                 className={cn(
-                  "overflow-hidden transition-all duration-500 rounded-[2.5rem] border-none",
-                  isExpanded ? "shadow-2xl shadow-emerald-200/50 scale-[1.02]" : "shadow-xl shadow-slate-100/50"
+                  "overflow-hidden transition-all duration-150 rounded-2xl border-none",
+                  isExpanded ? "shadow-sm scale-[1.02]" : "shadow-sm"
                 )}
                 onClick={() => setActiveDeliveryId(isExpanded ? null : delivery.id)}
               >
@@ -211,18 +211,18 @@ export default function CourierDashboard() {
                   isOngoing ? "bg-emerald-50/30" : "bg-white"
                 )}>
                   <div className={cn(
-                    "w-14 h-14 rounded-3xl flex items-center justify-center shrink-0 shadow-sm",
+                    "w-14 h-14 rounded-lg flex items-center justify-center shrink-0 shadow-sm",
                     isOngoing ? "bg-emerald-100 text-emerald-600" : "bg-slate-50 text-slate-400"
                   )}>
                     {isOngoing ? <Navigation className="w-6 h-6 fill-current" /> : <MapPin className="w-6 h-6" />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-black text-lg text-slate-800 tracking-tight leading-tight mb-1">{client.companyName}</h3>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest truncate">{client.address}</p>
+                    <h3 className="font-bold text-lg text-slate-800 tracking-tight leading-tight mb-1">{client.companyName}</h3>
+                    <p className="text-xs font-bold text-slate-400  truncate">{client.address}</p>
                     <div className="flex items-center gap-2 mt-2">
                       <span className={cn(
-                        "text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-tighter",
-                        isWaitingFinal ? "bg-amber-100 text-amber-600 animate-pulse" : "bg-emerald-100 text-emerald-600"
+                        "text-[11px] font-bold px-3 py-1 rounded-full ",
+                        isWaitingFinal ? "bg-amber-100 text-amber-600" : "bg-emerald-100 text-emerald-600"
                       )}>
                         {isWaitingFinal ? "Menunggu Konfirmasi Kurir" : `PO: ${so.poNumber}`}
                       </span>
@@ -233,13 +233,13 @@ export default function CourierDashboard() {
                 {isExpanded && (
                   <div className="p-6 bg-slate-50/50 space-y-6">
                     <div className="grid grid-cols-2 gap-4">
-                      <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100">
-                        <span className="text-slate-400 font-black uppercase text-[9px] tracking-widest block mb-1">PIC Kontak</span>
-                        <span className="font-black text-slate-800 text-sm">{client.picName}</span>
+                      <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-100">
+                        <span className="text-slate-400 font-bold uppercase text-[11px] tracking-widest block mb-1">PIC Kontak</span>
+                        <span className="font-bold text-slate-800 text-sm">{client.picName}</span>
                       </div>
-                      <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100">
-                        <span className="text-slate-400 font-black uppercase text-[9px] tracking-widest block mb-1">No. Telepon</span>
-                        <a href={`tel:${client.phone}`} onClick={e => e.stopPropagation()} className="font-black text-emerald-600 text-sm flex items-center gap-1">
+                      <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-100">
+                        <span className="text-slate-400 font-bold uppercase text-[11px] tracking-widest block mb-1">No. Telepon</span>
+                        <a href={`tel:${client.phone}`} onClick={e => e.stopPropagation()} className="font-bold text-emerald-600 text-sm flex items-center gap-1">
                           {client.phone} <ExternalLink className="w-3 h-3" />
                         </a>
                       </div>
@@ -253,12 +253,12 @@ export default function CourierDashboard() {
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={e => e.stopPropagation()}
-                          className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex items-center justify-center gap-2 font-black text-sky-600 text-xs uppercase tracking-widest"
+                          className="bg-white p-4 rounded-lg shadow-sm border border-slate-100 flex items-center justify-center gap-2 font-bold text-sky-600 text-xs "
                         >
                           <Navigation className="w-4 h-4" /> Buka di Maps
                         </a>
                       ) : (
-                        <div className="bg-white p-4 rounded-3xl shadow-sm border border-dashed border-slate-200 flex items-center justify-center text-[9px] font-black uppercase tracking-widest text-slate-400 text-center">
+                        <div className="bg-white p-4 rounded-lg shadow-sm border border-dashed border-slate-200 flex items-center justify-center text-[11px] font-bold  text-slate-400 text-center">
                           Lokasi belum tersimpan
                         </div>
                       )}
@@ -266,7 +266,7 @@ export default function CourierDashboard() {
                         variant="outline"
                         onClick={(e) => { e.stopPropagation(); handleSaveLocation(client.id) }}
                         disabled={savingLocationFor === client.id}
-                        className="h-auto p-4 rounded-3xl border border-slate-100 bg-white font-black text-[10px] uppercase tracking-widest text-emerald-600"
+                        className="h-auto p-4 rounded-lg border border-slate-100 bg-white font-bold text-[11px]  text-emerald-600"
                       >
                         <MapPin className="w-4 h-4 mr-2" />
                         {savingLocationFor === client.id ? 'Menyimpan...' : 'Simpan Titik Ini'}
@@ -275,21 +275,21 @@ export default function CourierDashboard() {
 
                     {client.locationNote && (
                       <div className="bg-amber-50 border border-amber-100 p-3 rounded-2xl">
-                        <span className="text-amber-600 font-black uppercase text-[9px] tracking-widest block mb-0.5">Patokan</span>
+                        <span className="text-amber-600 font-bold uppercase text-[11px] tracking-widest block mb-0.5">Patokan</span>
                         <span className="font-bold text-slate-700 text-xs">{client.locationNote}</span>
                       </div>
                     )}
 
                     {!isOngoing ? (
                       <Button 
-                        className="w-full h-16 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase tracking-[0.2em] rounded-3xl shadow-2xl shadow-emerald-500/30 transition-all active:scale-95"
+                        className="w-full h-16 bg-emerald-600 hover:bg-emerald-700 text-white font-bold  rounded-lg shadow-sm transition-all active:scale-95"
                         onClick={(e) => handleStartDelivery(delivery.id, e)}
                       >
                         <Truck className="w-6 h-6 mr-3" /> Mulai Perjalanan
                       </Button>
                     ) : (
                       <div className="space-y-4 pt-4 border-t border-slate-200">
-                        <h4 className="font-black text-xs uppercase tracking-[0.2em] text-emerald-600 flex items-center gap-2">
+                        <h4 className="font-bold text-xs  text-emerald-600 flex items-center gap-2">
                           <PackageCheck className="w-4 h-4" /> Progress Pengantaran
                         </h4>
                         
@@ -297,33 +297,33 @@ export default function CourierDashboard() {
                            <Button 
                              disabled={isWaitingFinal}
                              variant="outline" 
-                             className="h-20 border-2 border-dashed border-slate-200 bg-white rounded-[2rem] flex flex-col items-center justify-center group hover:border-emerald-400 hover:bg-emerald-50 transition-all"
+                             className="h-20 border-2 border-dashed border-slate-200 bg-white rounded-xl flex flex-col items-center justify-center group hover:border-emerald-400 hover:bg-emerald-50 transition-all"
                              onClick={(e) => {
                                e.stopPropagation()
                                handleOpenPreview('BA', so.poNumber, so.id, e)
                              }}
                            >
-                             <Camera className={cn("w-6 h-6 text-slate-400", !isWaitingFinal && "group-hover:text-emerald-500 group-hover:scale-110")} />
-                             <span className="font-black uppercase text-[8px] tracking-widest text-slate-400 mt-1">E-Sign BA</span>
+                             <Camera className={cn("w-6 h-6 text-slate-400", !isWaitingFinal && "group-hover:text-emerald-500 group-")} />
+                             <span className="font-bold uppercase text-[11px] tracking-widest text-slate-400 mt-1">E-Sign BA</span>
                            </Button>
                            <Button 
                              variant="outline" 
-                             className="h-20 border-2 border-dashed border-slate-200 bg-white rounded-[2rem] flex flex-col items-center justify-center"
+                             className="h-20 border-2 border-dashed border-slate-200 bg-white rounded-xl flex flex-col items-center justify-center"
                              onClick={(e) => {
                                e.stopPropagation()
                                handleOpenPreview('SuratJalan', so.poNumber, so.id, e)
                              }}
                            >
                              <ExternalLink className="w-6 h-6 text-slate-400" />
-                             <span className="font-black uppercase text-[8px] tracking-widest text-slate-400 mt-1">Surat Jalan</span>
+                             <span className="font-bold uppercase text-[11px] tracking-widest text-slate-400 mt-1">Surat Jalan</span>
                            </Button>
                         </div>
 
                         <div className="space-y-2">
-                           <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-4">Catatan Pengiriman (Opsional)</span>
+                           <span className="text-[11px] font-bold uppercase text-slate-400 tracking-widest ml-4">Catatan Pengiriman (Opsional)</span>
                            <textarea 
                              placeholder="Misal: Barang dititip di security, dsb..."
-                             className="w-full rounded-[2rem] border-none bg-white p-6 text-sm font-bold shadow-inner focus:ring-4 focus:ring-emerald-500/10 min-h-[100px] transition-all"
+                             className="w-full rounded-xl border-none bg-white p-6 text-sm font-bold shadow-inner focus:ring-4 focus:ring-emerald-500/10 min-h-[100px] transition-all"
                              value={deliveryNotes[delivery.id] || ""}
                              onChange={(e) => setDeliveryNotes({ ...deliveryNotes, [delivery.id]: e.target.value })}
                              onClick={(e) => e.stopPropagation()}
@@ -332,8 +332,8 @@ export default function CourierDashboard() {
 
                         <Button 
                           className={cn(
-                            "w-full h-20 text-white font-black uppercase tracking-[0.2em] rounded-[2.5rem] shadow-2xl transition-all active:scale-95 text-lg",
-                            isWaitingFinal ? "bg-amber-500 hover:bg-amber-600 animate-pulse" : "bg-slate-900 hover:bg-black"
+                            "w-full h-20 text-white font-bold  rounded-2xl shadow-sm transition-all active:scale-95 text-lg",
+                            isWaitingFinal ? "bg-amber-500 hover:bg-amber-600" : "bg-slate-900 hover:bg-black"
                           )}
                           disabled={isSubmittingFinal}
                           onClick={async (e) => {

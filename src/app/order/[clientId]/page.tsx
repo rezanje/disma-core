@@ -209,24 +209,24 @@ export default function ClientOrderPage() {
           animate={{ scale: 1, opacity: 1 }}
           className="max-w-md w-full"
         >
-          <Card className="border-none shadow-2xl glass-card text-center p-8 space-y-6">
+          <Card className="border-none shadow-sm glass-card text-center p-8 space-y-6">
             <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-inner">
               <CheckCircle2 className="w-10 h-10" />
             </div>
             <div className="space-y-2">
-              <h2 className="text-3xl font-black text-slate-800 tracking-tight">Terima Kasih!</h2>
+              <h2 className="text-3xl font-bold text-slate-800 tracking-tight">Pesanan terkirim</h2>
               <p className="text-slate-500 font-medium">Pesanan Anda telah diterima dan sedang diproses oleh tim Admin kami.</p>
             </div>
-            <div className="p-4 bg-white/50 rounded-2xl border border-emerald-100 space-y-1">
-              <p className="text-[10px] font-black uppercase text-slate-400">Estimasi Total</p>
-              <p className="text-2xl font-black text-emerald-600">{formatRupiah(totalAmount)}</p>
+            <div className="p-4 bg-card rounded-2xl border border-emerald-100 space-y-1">
+              <p className="text-[11px] font-bold uppercase text-slate-400">Estimasi Total</p>
+              <p className="text-2xl font-bold text-emerald-600">{formatRupiah(totalAmount)}</p>
               {pendingPriceCount > 0 && (
                 <p className="text-xs font-semibold text-amber-600 mt-2">
                   + {pendingPriceCount} item menunggu konfirmasi harga
                 </p>
               )}
             </div>
-            <Button className="w-full h-12 bg-slate-900 text-white rounded-xl font-black" onClick={() => {
+            <Button className="w-full h-12 bg-slate-900 text-white rounded-xl font-bold" onClick={() => {
               setOrderItems([])
               setIsSuccess(false)
             }}>
@@ -244,10 +244,10 @@ export default function ClientOrderPage() {
       <div className="bg-white dark:bg-slate-900 border-b sticky top-0 z-50 p-4 shadow-sm">
         <div className="max-w-3xl mx-auto flex justify-between items-center">
           <div className="flex flex-col">
-            <h1 className="text-lg font-black text-slate-900 dark:text-white capitalize leading-tight">
+            <h1 className="text-lg font-bold text-slate-900 dark:text-white capitalize leading-tight">
               {client?.companyName.toLowerCase()}
             </h1>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Order Form Digital</p>
+            <p className="text-[11px] font-bold text-slate-400  mt-0.5">Order Form Digital</p>
           </div>
           <div className="relative">
             <div className="h-10 w-10 bg-emerald-50 dark:bg-emerald-900/50 rounded-xl flex items-center justify-center text-emerald-600">
@@ -265,7 +265,7 @@ export default function ClientOrderPage() {
       <main className="max-w-3xl mx-auto p-4 space-y-8 mt-4">
         {/* Date Selection */}
         <section className="space-y-3">
-          <label className="text-xs font-black uppercase tracking-widest text-slate-500 flex items-center gap-2 px-1">
+          <label className="text-xs font-bold  text-slate-500 flex items-center gap-2 px-1">
             <Calendar className="w-3.5 h-3.5" /> Pilih Tanggal Pengiriman
           </label>
           <div className="grid grid-cols-2 gap-3">
@@ -281,12 +281,12 @@ export default function ClientOrderPage() {
                   onClick={() => setDeliveryDate(dStr)}
                   className={`p-4 rounded-2xl border transition-all text-left space-y-1 ${
                     isActive 
-                      ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-200 ring-2 ring-emerald-600 ring-offset-2' 
+                      ? 'bg-slate-900 border-slate-900 text-white' 
                       : 'bg-white border-slate-200 text-slate-600'
                   }`}
                 >
                   <p className={`text-xs font-bold ${isActive ? 'text-emerald-100' : 'text-slate-400'}`}>{opt.label}</p>
-                  <p className="font-black text-sm">{format(opt.date, 'dd MMM yyyy')}</p>
+                  <p className="font-bold text-sm">{format(opt.date, 'dd MMM yyyy')}</p>
                 </button>
               )
             })}
@@ -296,7 +296,7 @@ export default function ClientOrderPage() {
         {/* Catalog Penawaran */}
         <section className="space-y-4">
           <div className="px-1 flex flex-col gap-1">
-            <label className="text-xs font-black uppercase tracking-widest text-emerald-600 flex items-center gap-2">
+            <label className="text-xs font-bold  text-emerald-600 flex items-center gap-2">
               <Sparkles className="w-3.5 h-3.5" /> Katalog Penawaran Anda
             </label>
             <p className="text-xs text-slate-500 font-medium">Produk dengan harga spesial khusus untuk {client?.companyName}</p>
@@ -312,7 +312,7 @@ export default function ClientOrderPage() {
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-2">
             {configuredProducts.length === 0 ? (
               <div className="col-span-full p-8 border-2 border-dashed rounded-2xl text-center space-y-2 text-slate-400">
                 <Store className="w-8 h-8 mx-auto opacity-20" />
@@ -323,12 +323,12 @@ export default function ClientOrderPage() {
                 <div key={product.id} className="bg-white border rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow flex justify-between items-start gap-3">
                   <div className="space-y-2 flex-1 min-w-0">
                     <div className="space-y-0.5">
-                      <p className="font-black text-slate-800 leading-tight truncate">{product.name}</p>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase">{product.skuCode} • {product.uom}</p>
+                      <p className="font-bold text-slate-800 leading-tight truncate">{product.name}</p>
+                      <p className="text-[11px] text-slate-400 font-bold uppercase">{product.skuCode} • {product.uom}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <p className="font-black text-emerald-600">{formatRupiah(effectivePrice)}</p>
-                      <Badge variant="secondary" className="bg-emerald-50 text-emerald-600 border-none text-[9px] px-1.5 py-0">
+                      <p className="font-bold text-emerald-600">{formatRupiah(effectivePrice)}</p>
+                      <Badge variant="secondary" className="bg-emerald-50 text-emerald-600 border-none text-[11px] px-1.5 py-0">
                         {record?.tier === 'Custom' ? 'Custom Price' : 'Harga Spesial'}
                       </Badge>
                     </div>
@@ -345,7 +345,7 @@ export default function ClientOrderPage() {
         {/* Product Search (Request Harga) */}
         <section className="space-y-4 pt-4 border-t">
           <div className="px-1 flex flex-col gap-1">
-            <label className="text-xs font-black uppercase tracking-widest text-slate-500 flex items-center gap-2">
+            <label className="text-xs font-bold  text-slate-500 flex items-center gap-2">
               <Search className="w-3.5 h-3.5" /> Cari Produk Lainnya
             </label>
             <p className="text-xs text-slate-500 font-medium">Tidak menemukan produk yang dicari? Request barang lain di sini.</p>
@@ -363,7 +363,7 @@ export default function ClientOrderPage() {
 
           {/* Search Results */}
           {availableProducts.length > 0 && (
-            <div className="bg-white border rounded-2xl shadow-xl overflow-hidden divide-y">
+            <div className="bg-white border rounded-2xl shadow-sm overflow-hidden divide-y">
               {availableProducts.map(p => (
                 <div 
                   key={p.id} 
@@ -373,9 +373,9 @@ export default function ClientOrderPage() {
                   <div className="space-y-1">
                     <p className="font-bold text-slate-800">{p.name}</p>
                     <div className="flex items-center gap-2">
-                      <p className="text-[10px] text-slate-400 font-bold uppercase">{p.skuCode} • {p.uom}</p>
-                      <Badge variant="secondary" className="bg-amber-50 text-amber-600 border-none text-[9px] px-1.5 py-0 flex items-center gap-1">
-                        <HelpCircle className="w-2.5 h-2.5" /> Request Harga
+                      <p className="text-[11px] text-slate-400 font-bold uppercase">{p.skuCode} • {p.uom}</p>
+                      <Badge variant="secondary" className="bg-amber-50 text-amber-600 border-none text-[11px] px-1.5 py-0 flex items-center gap-1">
+                        <HelpCircle className="w-2.5 h-2.5" /> Harga dikonfirmasi
                       </Badge>
                     </div>
                   </div>
@@ -390,15 +390,15 @@ export default function ClientOrderPage() {
 
         {/* Selected Items */}
         <section className="space-y-4 pt-4 border-t">
-          <label className="text-xs font-black uppercase tracking-widest text-slate-500 flex items-center gap-2 px-1">
+          <label className="text-xs font-bold  text-slate-500 flex items-center gap-2 px-1">
             <ShoppingCart className="w-3.5 h-3.5" /> Daftar Belanja ({orderItems.length})
           </label>
           
           {orderItems.length === 0 ? (
-            <div className="p-12 border-2 border-dashed rounded-3xl text-center space-y-2 text-slate-400 bg-white/50">
+            <div className="p-12 border-2 border-dashed rounded-lg text-center space-y-2 text-slate-400 bg-card">
               <ShoppingCart className="w-10 h-10 mx-auto opacity-20" />
               <p className="text-sm font-medium">Keranjang masih kosong nih.</p>
-              <p className="text-[10px]">Pilih produk dari penawaran di atas untuk mulai.</p>
+              <p className="text-[11px]">Pilih produk dari penawaran di atas untuk mulai.</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -406,14 +406,14 @@ export default function ClientOrderPage() {
                 <div key={item.product.id} className="bg-white p-4 rounded-2xl border shadow-sm flex flex-col gap-3">
                   <div className="flex justify-between items-start gap-4">
                     <div className="flex-1 min-w-0">
-                      <p className="font-black text-slate-800 truncate leading-tight">{item.product.name}</p>
+                      <p className="font-bold text-slate-800 truncate leading-tight">{item.product.name}</p>
                       {item.isPriceRequest ? (
                         <div className="flex items-center gap-1.5 mt-1.5">
                           <HelpCircle className="w-3.5 h-3.5 text-amber-500" />
                           <p className="text-xs font-bold text-amber-600">Menunggu Konfirmasi Harga</p>
                         </div>
                       ) : (
-                        <p className="text-xs text-slate-500 mt-1">{formatRupiah(item.effectivePrice)} <span className="text-[10px] uppercase font-bold text-slate-400">/ {item.product.uom}</span></p>
+                        <p className="text-xs text-slate-500 mt-1">{formatRupiah(item.effectivePrice)} <span className="text-[11px] uppercase font-bold text-slate-400">/ {item.product.uom}</span></p>
                       )}
                     </div>
                     <button 
@@ -425,7 +425,7 @@ export default function ClientOrderPage() {
                   </div>
                   
                   <div className="flex justify-between items-center border-t pt-3">
-                    <div className="font-black text-sm">
+                    <div className="font-bold text-sm">
                       {item.isPriceRequest ? (
                         <span className="text-amber-600">-</span>
                       ) : (
@@ -451,7 +451,7 @@ export default function ClientOrderPage() {
                         onBlur={() => {
                           if (item.qty < 0.01) setQty(item.product.id, 0.01)
                         }}
-                        className="w-10 text-center font-black text-sm bg-transparent border-none focus:ring-0 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="w-10 text-center font-bold text-sm bg-transparent border-none focus:ring-0 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                       <button 
                         onClick={() => updateQty(item.product.id, 1)}
@@ -470,19 +470,19 @@ export default function ClientOrderPage() {
 
       {/* Floating Checkout Button */}
       {orderItems.length > 0 && !isSuccess && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-md border-t z-50">
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-card border-t z-50">
           <div className="max-w-3xl mx-auto flex items-center justify-between gap-4">
             <div className="flex flex-col">
-              <p className="text-[10px] font-black uppercase text-slate-400">Estimasi Total</p>
-              <p className="text-xl font-black text-emerald-600">{formatRupiah(totalAmount)}</p>
+              <p className="text-[11px] font-bold uppercase text-slate-400">Estimasi Total</p>
+              <p className="text-xl font-bold text-emerald-600">{formatRupiah(totalAmount)}</p>
               {pendingPriceCount > 0 && (
-                <p className="text-[9px] font-bold text-amber-600 uppercase tracking-tight mt-0.5">
+                <p className="text-[11px] font-bold text-amber-600  mt-0.5">
                   + {pendingPriceCount} item request
                 </p>
               )}
             </div>
             <Button 
-              className="px-8 h-12 bg-slate-900 text-white rounded-xl font-black flex items-center gap-2 shadow-lg active:scale-95 transition-transform"
+              className="px-8 h-12 bg-slate-900 text-white rounded-xl font-bold flex items-center gap-2 shadow-sm active:scale-95 transition-transform"
               onClick={handleSubmit}
               disabled={isSubmitting}
             >

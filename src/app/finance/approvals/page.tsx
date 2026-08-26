@@ -25,6 +25,7 @@ import { v4 as uuidv4 } from "uuid"
 import { recordReimbursementPayment, recordOperationalExpense, recordReconciliationSettlement, recordDeliveryAndInvoice, recordAdvanceReturn, updateProductPriceHistory, recordAdvanceExpense, getAdvanceWalletByRole, getAdvanceWalletByUserId, recordOnlinePurchase } from "@/lib/accounting"
 import { isLegacyAdvance } from "@/lib/settlement-model"
 import AuthGuard from "@/components/auth/auth-guard"
+import { auditPengiriman } from "@/lib/delivery-audit"
 import { 
   Dialog, 
   DialogContent, 
@@ -603,71 +604,15 @@ export default function FinanceHubPage() {
     const lockKey = `verifyDelivery_${deliveryId}`
     if (!acquireLock(lockKey)) return
     try {
-    const delivery = deliveries.find(d => d.id === deliveryId)
-    const soId = delivery?.salesOrderId
-    if (!delivery || !soId) return
-
-    const soItems = salesOrderItems.filter(i => i.salesOrderId === soId)
-    const roundQtyById = new Map(soItems.map(i => [i.id, roundQtyToBook(i)]))
-    const totalRevenue = soItems.reduce((sum, item) => sum + ((roundQtyById.get(item.id) ?? 0) * item.unitPrice), 0)
-
-    // Reuse the delivery's own invoice only if it is not already booked; otherwise
-    // this is a new round → create a fresh invoice so recordDeliveryAndInvoice books it.
-    const bookedInvoiceIds = new Set(
-      useAppStore.getState().journalEntries
-        .filter(e => e.referenceType === 'Invoice')
-        .map(e => e.referenceId)
-    )
-    let invoiceId = delivery?.invoiceId
-    if (!invoiceId || bookedInvoiceIds.has(invoiceId)) {
-      const so = salesOrders.find(s => s.id === soId)
-      invoiceId = uuidv4()
-      // Tanggal terbit = tanggal barang diterima klien, jadi jatuh temponya juga
-      // dihitung dari sana. Kalau dipatok "hari ini", audit yang telat tiga hari
-      // memberi klien tiga hari ekstra tanpa ada yang menyadarinya.
-      const issuedAt = delivery.deliveryDate ? new Date(delivery.deliveryDate) : new Date()
-      const termDays = clients.find(c => c.id === so?.clientId)?.paymentTermDays ?? 14
-      await useAppStore.getState().addInvoice({
-        id: invoiceId,
-        salesOrderId: soId,
-        clientId: so?.clientId || '',
-        issueDate: issuedAt.toISOString(),
-        dueDate: new Date(issuedAt.getTime() + termDays * 24 * 60 * 60 * 1000).toISOString(),
-        totalAmount: totalRevenue,
-        amountPaid: 0,
-        status: 'Unpaid' as const
-      })
-      await updateDelivery(deliveryId, { invoiceId })
-    }
-
-    let totalCogs = 0
-    const stockDeductionItems: { productId: string, qty: number }[] = []
-    soItems.forEach(item => {
-      const roundQty = roundQtyById.get(item.id) ?? 0
-      if (roundQty <= 0) return
-      let pItem = purchaseItems.find(pi => pi.salesOrderId === soId && pi.productId === item.productId && pi.actualUnitPrice > 0)
-      if (!pItem) {
-        pItem = purchaseItems.filter(pi => pi.productId === item.productId && pi.actualUnitPrice > 0).pop()
+      // Isinya pindah ke src/lib/delivery-audit.ts supaya layar Admin PO membukukan
+      // lewat alur yang sama persis, bukan salinannya.
+      toast.loading("Finalisasi pengiriman & invoice...", { id: "delivery" })
+      const res = await auditPengiriman(useAppStore.getState, deliveryId)
+      if (!res.ok) {
+        toast.error(res.error, { id: "delivery" })
+        return
       }
-      const unitCogs = pItem ? pItem.actualUnitPrice : (products.find(p => p.id === item.productId)?.basePrice || 0)
-      totalCogs += (unitCogs * roundQty)
-      stockDeductionItems.push({ productId: item.productId, qty: roundQty })
-    })
-
-    const isFastTrack = delivery?.notes?.toLowerCase().includes('fast-track') || false
-    toast.loading("Finalisasi pengiriman & invoice...", { id: "delivery" })
-    // Omzet & HPP dibukukan pada tanggal barang diterima klien, bukan tanggal
-    // auditnya dikerjakan — kalau tidak, laba harian pindah hari setiap kali
-    // auditnya telat.
-    const postingDate = delivery.deliveryDate || undefined
-    const success = await recordDeliveryAndInvoice(deliveryId, invoiceId, totalRevenue, totalCogs, stockDeductionItems, isFastTrack, postingDate)
-    if (success) {
-      await updateDelivery(deliveryId, { status: 'Terkirim' })
-      await updateSalesOrder(soId, { status: 'Terkirim' })
       toast.success("Audit pengiriman selesai! Omzet & HPP tercatat, stok inventory telah dikurangi.", { id: "delivery" })
-    } else {
-      toast.error("Gagal mencatat transaksi ke jurnal.", { id: "delivery" })
-    }
     } finally { releaseLock(lockKey) }
   }
 
@@ -723,14 +668,14 @@ export default function FinanceHubPage() {
   return (
     <AuthGuard allowedRoles={['finance', 'super_admin', 'ceo']}>
       <div className="p-4 md:p-8 max-w-[1600px] mx-auto space-y-8 pb-32">
-        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-white dark:bg-slate-900 -mx-4 md:mx-0 p-6 md:p-10 md:rounded-[3rem] shadow-xl border-b md:border border-slate-100">
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-white dark:bg-slate-900 -mx-4 md:mx-0 p-6 md:p-10 md:rounded-2xl shadow-sm border-b md:border border-slate-100">
            <div className="flex items-center gap-6">
-              <div className="w-16 h-16 bg-slate-950 text-white rounded-[2rem] flex items-center justify-center shadow-2xl">
+              <div className="w-16 h-16 bg-slate-950 text-white rounded-xl flex items-center justify-center shadow-sm">
                  <ShieldCheck className="w-8 h-8" />
               </div>
               <div>
                  <div className="flex items-center gap-3">
-                    <h1 className="text-3xl font-black text-slate-900 tracking-tighter uppercase leading-none">Finance Control Hub</h1>
+                    <h1 className="text-3xl font-bold text-slate-900  leading-none">Finance Control Hub</h1>
                     <Button 
                       variant="ghost" 
                       size="icon" 
@@ -740,7 +685,7 @@ export default function FinanceHubPage() {
                       <RefreshCw className="w-4 h-4" />
                     </Button>
                  </div>
-                 <p className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.3em] mt-3 bg-emerald-50 w-fit px-3 py-1 rounded-full">Secure Operational Audit</p>
+                 <p className="text-[11px] font-bold text-emerald-500  mt-3 bg-emerald-50 w-fit px-3 py-1 rounded-full">Secure Operational Audit</p>
               </div>
            </div>
            
@@ -751,16 +696,16 @@ export default function FinanceHubPage() {
                    onClick={() => setSelectedBank(bank.id)}
                    className={cn(
                      "p-2.5 rounded-2xl text-left border-2 transition-all",
-                     selectedBank === bank.id ? "bg-slate-950 border-slate-950 text-white shadow-2xl scale-105" : "bg-slate-50 border-transparent text-slate-400 hover:bg-white hover:border-slate-100"
+                     selectedBank === bank.id ? "bg-slate-950 border-slate-950 text-white shadow-sm scale-105" : "bg-slate-50 border-transparent text-slate-400 hover:bg-white hover:border-slate-100"
                    )}
                  >
-                    <p className="text-[8px] font-black uppercase tracking-widest opacity-60 flex items-center gap-1">
+                    <p className="text-[11px] font-bold  opacity-60 flex items-center gap-1">
                        {selectedBank === bank.id ? <Landmark className="w-2.5 h-2.5" /> : <Clock className="w-2.5 h-2.5" />} {bank.name}
                     </p>
                     {isSyncing ? (
-                      <div className="h-4 w-16 bg-slate-200/60 rounded animate-pulse mt-0.5" />
+                      <div className="h-4 w-16 bg-slate-200/60 rounded mt-0.5" />
                     ) : (
-                      <p className="text-sm font-black mt-0.5 leading-none">{formatRupiah(bank.balance)}</p>
+                      <p className="text-sm font-bold mt-0.5 leading-none">{formatRupiah(bank.balance)}</p>
                     )}
                  </button>
               ))}
@@ -768,18 +713,18 @@ export default function FinanceHubPage() {
         </header>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="bg-slate-100/80 p-2 h-16 rounded-[2rem] -mx-2 md:mx-0 mb-10 overflow-x-auto overflow-y-hidden justify-start md:justify-center border border-white scrollbar-hide">
-            <TabsTrigger value="settlement" className="rounded-[1.5rem] font-black uppercase text-[9px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-xl transition-all gap-2">
-              <CheckCircle2 className="w-4 h-4 text-orange-500" /> Sourcing Settlement ({sourcingSettlements.length + pendingReturns.length})
+          <TabsList className="bg-slate-100/80 p-2 h-16 rounded-xl -mx-2 md:mx-0 mb-10 overflow-x-auto overflow-y-hidden justify-start md:justify-center border border-white scrollbar-hide">
+            <TabsTrigger value="settlement" className="rounded-xl font-bold uppercase text-[11px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all gap-2">
+              <CheckCircle2 className="w-4 h-4" /> Sourcing Settlement ({sourcingSettlements.length + pendingReturns.length})
             </TabsTrigger>
-            <TabsTrigger value="audit_online" className="rounded-[1.5rem] font-black uppercase text-[9px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-xl transition-all gap-2">
-              <Globe className="w-4 h-4 text-blue-500" /> Audit Online ({awaitingOnlineAudit.length})
+            <TabsTrigger value="audit_online" className="rounded-xl font-bold uppercase text-[11px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all gap-2">
+              <Globe className="w-4 h-4" /> Audit Online ({awaitingOnlineAudit.length})
             </TabsTrigger>
-            <TabsTrigger value="audit_ops_lain" className="rounded-[1.5rem] font-black uppercase text-[9px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-xl transition-all gap-2">
+            <TabsTrigger value="audit_ops_lain" className="rounded-xl font-bold uppercase text-[11px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all gap-2">
               <FileText className="w-4 h-4 text-slate-500" /> Audit Ops ({pendingExpensesLain.length + pendingReimbs.length})
             </TabsTrigger>
-            <TabsTrigger value="delivery" className="rounded-[1.5rem] font-black uppercase text-[9px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-xl transition-all gap-2">
-              <Truck className="w-4 h-4 text-blue-500" /> Delivery ({awaitingDeliveryAudit.length})
+            <TabsTrigger value="delivery" className="rounded-xl font-bold uppercase text-[11px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all gap-2">
+              <Truck className="w-4 h-4" /> Delivery ({awaitingDeliveryAudit.length})
             </TabsTrigger>
           </TabsList>
 
@@ -793,40 +738,40 @@ export default function FinanceHubPage() {
                       <div className="space-y-4">
                          <div className="flex items-center gap-2 pl-4">
                             <FileText className="w-4 h-4 text-slate-500" />
-                            <h3 className="text-xs font-black uppercase text-slate-500 tracking-widest">Pengajuan Biaya Operasional</h3>
+                            <h3 className="text-xs font-bold uppercase text-slate-500 tracking-widest">Pengajuan Biaya Operasional</h3>
                          </div>
                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {pendingExpensesLain.map(exp => {
                               const reporter = users.find(u => u.id === exp.reporterId)
                               return (
-                                  <Card key={exp.id} className="border-none shadow-xl rounded-[2.5rem] bg-white group hover:shadow-slate-500/5 transition-all">
+                                  <Card key={exp.id} className="border-none shadow-sm rounded-2xl bg-white group hover:shadow-slate-500/5 transition-all">
                                      <CardHeader className="p-6 pb-2">
                                         <div className="flex justify-between items-start">
-                                           <Badge className="bg-slate-100 text-slate-600 border-none font-black text-[9px] uppercase px-3 py-1">Operational Audit</Badge>
-                                           <p className="text-[9px] font-bold text-slate-400 uppercase">{new Date(exp.date).toLocaleDateString()}</p>
+                                           <Badge className="bg-slate-100 text-slate-600 border-none font-bold text-[11px] uppercase px-3 py-1">Operational Audit</Badge>
+                                           <p className="text-[11px] font-bold text-slate-400 uppercase">{new Date(exp.date).toLocaleDateString()}</p>
                                         </div>
-                                        <CardTitle className="text-lg font-black uppercase text-slate-900 mt-4 leading-tight">{exp.category}</CardTitle>
-                                        <CardDescription className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1 flex items-center gap-2">
+                                        <CardTitle className="text-lg font-bold uppercase text-slate-900 mt-4 leading-tight">{exp.category}</CardTitle>
+                                        <CardDescription className="text-xs font-bold text-slate-400  mt-1 flex items-center gap-2">
                                            <User className="w-3 h-3" /> {reporter?.name || 'Admin / System'}
                                         </CardDescription>
                                      </CardHeader>
                                      <CardContent className="p-6 pt-2 space-y-6">
-                                        <div className="bg-slate-50/50 p-4 rounded-3xl border border-slate-100">
-                                           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Keterangan Biaya</p>
+                                        <div className="bg-slate-50/50 p-4 rounded-lg border border-slate-100">
+                                           <p className="text-[11px] font-bold text-slate-400 ">Keterangan Biaya</p>
                                            <p className="text-xs font-bold text-slate-700 mt-1 italic whitespace-pre-wrap leading-relaxed opacity-70">&quot;{exp.description}&quot;</p>
                                            <div className="mt-4 pt-4 border-t border-slate-100 flex justify-between items-baseline">
-                                              <span className="text-[9px] font-black text-slate-400 uppercase">Nilai Transaksi</span>
-                                              <span className="text-2xl font-black text-slate-900 tracking-tighter">{formatRupiah(exp.amount)}</span>
+                                              <span className="text-[11px] font-bold text-slate-400 uppercase">Nilai Transaksi</span>
+                                              <span className="text-2xl font-bold text-slate-900 tracking-tighter">{formatRupiah(exp.amount)}</span>
                                            </div>
                                         </div>
                                         <div className="flex gap-2 h-12">
                                            <Button 
                                              variant="outline" 
-                                             className="flex-1 rounded-2xl border-rose-100 text-rose-500 font-black uppercase text-[10px] tracking-widest"
+                                             className="flex-1 rounded-2xl border-rose-100 text-rose-500 font-bold uppercase text-[11px] tracking-widest"
                                              onClick={() => handleAuditExpense(exp.id, 'Rejected')}
                                            >Tolak</Button>
                                            <Button 
-                                             className="flex-[2] rounded-2xl bg-slate-950 text-white font-black uppercase text-[10px] tracking-widest"
+                                             className="flex-[2] rounded-2xl bg-slate-950 text-white font-bold uppercase text-[11px] tracking-widest"
                                              onClick={() => handleAuditExpense(exp.id, 'Approved')}
                                            >Approve Audit</Button>
                                         </div>
@@ -842,51 +787,51 @@ export default function FinanceHubPage() {
                    {pendingReimbs.length > 0 && (
                       <div className="space-y-4">
                          <div className="flex items-center gap-2 pl-4">
-                            <CreditCard className="w-4 h-4 text-indigo-500" />
-                            <h3 className="text-xs font-black uppercase text-slate-500 tracking-widest">Antrean Reimburse Karyawan</h3>
+                            <CreditCard className="w-4 h-4" />
+                            <h3 className="text-xs font-bold uppercase text-slate-500 tracking-widest">Antrean Reimburse Karyawan</h3>
                          </div>
                          <div className="grid gap-6">
                             {pendingReimbs.map(reimb => {
                               const user = users.find(u => u.id === reimb.userId)
                               return (
-                                <Card key={reimb.id} className="border-none shadow-xl rounded-[2.5rem] overflow-hidden bg-white">
+                                <Card key={reimb.id} className="border-none shadow-sm rounded-2xl overflow-hidden bg-white">
                                   <CardContent className="p-8 flex flex-col md:flex-row items-center justify-between gap-6">
                                     <div className="flex items-center gap-6">
-                                      <div className="w-16 h-16 rounded-[2rem] bg-indigo-50 flex items-center justify-center shadow-inner">
-                                         <CreditCard className="w-8 h-8 text-indigo-600" />
+                                      <div className="w-16 h-16 rounded-xl bg-indigo-50 flex items-center justify-center shadow-inner">
+                                         <CreditCard className="w-8 h-8" />
                                       </div>
                                       <div>
                                         <div className="flex items-center gap-2 mb-1">
-                                          <h3 className="text-xl font-black text-slate-800 uppercase leading-none tracking-tight">{reimb.title}</h3>
+                                          <h3 className="text-xl font-bold text-slate-800 uppercase leading-none tracking-tight">{reimb.title}</h3>
                                           <Badge variant="outline" className={cn(
-                                             "text-[9px] font-black uppercase border-indigo-200 px-3",
+                                             "text-[11px] font-bold uppercase border-indigo-200 px-3",
                                              reimb.status === 'Approved' ? 'bg-indigo-600 text-white' : 'text-indigo-500'
                                           )}>{reimb.status}</Badge>
                                         </div>
-                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                        <p className="text-xs font-bold text-slate-400  flex items-center gap-2">
                                            <User className="w-3 h-3" /> {user?.name} — {new Date(reimb.date).toLocaleDateString()}
                                         </p>
                                       </div>
                                     </div>
                                     <div className="flex items-center gap-6 w-full md:w-auto">
                                        <div className="text-right">
-                                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Nilai Talangan</p>
-                                          <p className="text-3xl font-black text-rose-600 tracking-tighter">{formatRupiah(reimb.amount)}</p>
+                                          <p className="text-[11px] font-bold text-slate-400  mb-1">Nilai Talangan</p>
+                                          <p className="text-3xl font-bold text-rose-600 tracking-tighter">{formatRupiah(reimb.amount)}</p>
                                        </div>
                                        <Button 
                                           variant="outline" 
                                           size="icon" 
-                                          className="h-14 w-14 rounded-[1.5rem] border-slate-100 bg-slate-50 hover:bg-white transition-all shadow-sm"
+                                          className="h-14 w-14 rounded-xl border-slate-100 bg-slate-50 hover:bg-white transition-all shadow-sm"
                                           onClick={() => setPreviewImage(reimb.receiptUrl!)}
                                        ><ImageIcon className="w-5 h-5 text-slate-400" /></Button>
                                        <div className="flex gap-2">
                                           {reimb.status === 'Pending' ? (
                                              <>
                                                 <Button size="icon" variant="outline" className="h-14 w-14 rounded-2xl border-rose-100 text-rose-400" onClick={() => updateReimbursement(reimb.id, { status: 'Rejected' })}><XCircle className="w-6 h-6" /></Button>
-                                                <Button className="h-14 px-8 rounded-2xl bg-indigo-600 text-white font-black uppercase text-[10px]" onClick={() => updateReimbursement(reimb.id, { status: 'Approved' })}>Setujui</Button>
+                                                <Button className="h-14 px-8 rounded-2xl bg-indigo-600 text-white font-bold uppercase text-[11px]" onClick={() => updateReimbursement(reimb.id, { status: 'Approved' })}>Setujui</Button>
                                              </>
                                           ) : (
-                                             <Button className="h-14 px-8 rounded-2xl bg-orange-500 text-white font-black uppercase text-[10px]" onClick={() => handlePayReimbursement(reimb.id)}><Banknote className="w-4 h-4 mr-2" /> Cairkan Duit</Button>
+                                             <Button className="h-14 px-8 rounded-2xl bg-orange-500 text-white font-bold uppercase text-[11px]" onClick={() => handlePayReimbursement(reimb.id)}><Banknote className="w-4 h-4 mr-2" /> Cairkan Duit</Button>
                                           )}
                                        </div>
                                     </div>
@@ -911,35 +856,35 @@ export default function FinanceHubPage() {
                     <div className="space-y-4">
                        <div className="flex items-center gap-2 pl-4">
                           <Banknote className="w-4 h-4 text-emerald-500" />
-                          <h3 className="text-xs font-black uppercase text-slate-500 tracking-widest">Konfirmasi Setoran Kembalian Operasional</h3>
+                          <h3 className="text-xs font-bold uppercase text-slate-500 tracking-widest">Konfirmasi Setoran Kembalian Operasional</h3>
                        </div>
                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                           {pendingReturns.map(exp => {
                              const reporter = users.find(u => u.id === exp.reporterId)
                              const sourceWallet = getAdvanceWalletByUserId(exp.reporterId)
                              return (
-                                <Card key={exp.id} className="border-none shadow-xl rounded-[2.5rem] bg-white group hover:scale-[1.02] transition-all">
+                                <Card key={exp.id} className="border-none shadow-sm rounded-2xl bg-white group hover:scale-[1.02] transition-all">
                                    <CardHeader className="p-6 pb-2">
                                       <div className="flex justify-between items-start mb-4">
-                                         <Badge className="bg-emerald-50 text-emerald-700 border-none font-black text-[9px] tracking-widest">PINDAH KAS</Badge>
-                                         <span className="text-[10px] font-black text-slate-400">{new Date(exp.date).toLocaleDateString()}</span>
+                                         <Badge className="bg-emerald-50 text-emerald-700 border-none font-bold text-[11px] tracking-widest">PINDAH KAS</Badge>
+                                         <span className="text-[11px] font-bold text-slate-400">{new Date(exp.date).toLocaleDateString()}</span>
                                       </div>
-                                      <CardTitle className="text-sm font-black uppercase leading-tight text-slate-800">{exp.description}</CardTitle>
-                                      <CardDescription className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">BY {reporter?.name || 'OPERASIONAL'}</CardDescription>
+                                      <CardTitle className="text-sm font-bold uppercase leading-tight text-slate-800">{exp.description}</CardTitle>
+                                      <CardDescription className="text-[11px] font-bold text-slate-400  mt-1">BY {reporter?.name || 'OPERASIONAL'}</CardDescription>
                                    </CardHeader>
                                    <CardContent className="p-6 pt-4 space-y-4">
                                       <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
-                                         <span className="text-[9px] font-black text-emerald-600 uppercase block mb-1">Dana Disetor</span>
-                                         <span className="text-2xl font-black text-emerald-700 leading-none">{formatRupiah(exp.amount)}</span>
+                                         <span className="text-[11px] font-bold text-emerald-600 uppercase block mb-1">Dana Disetor</span>
+                                         <span className="text-2xl font-bold text-emerald-700 leading-none">{formatRupiah(exp.amount)}</span>
                                       </div>
                                       <div className="space-y-1">
                                         <div className="flex items-center justify-between">
-                                          <p className="text-[10px] text-slate-500 font-bold">Bank tujuan setoran:</p>
+                                          <p className="text-[11px] text-slate-500 font-bold">Bank tujuan setoran:</p>
                                           {exp.targetBankAccountId && !returnBankOverrides[exp.id] && (
-                                            <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">Pilihan Sourcing</span>
+                                            <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">Pilihan Sourcing</span>
                                           )}
                                           {returnBankOverrides[exp.id] && (
-                                            <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">Dikoreksi Finance</span>
+                                            <span className="text-[11px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">Dikoreksi Finance</span>
                                           )}
                                         </div>
                                         <Select
@@ -959,11 +904,11 @@ export default function FinanceHubPage() {
                                       <div className="flex gap-2 pt-2">
                                          <Button
                                            variant="outline"
-                                           className="flex-1 h-12 rounded-2xl border-rose-100 text-rose-500 font-black uppercase text-[9px] hover:bg-rose-50"
+                                           className="flex-1 h-12 rounded-2xl border-rose-100 text-rose-500 font-bold uppercase text-[11px] hover:bg-rose-50"
                                            onClick={() => updateExpense(exp.id, { status: 'Rejected' })}
                                          >Tolak</Button>
                                          <Button
-                                           className="flex-[2] h-12 rounded-2xl bg-emerald-600 text-white font-black uppercase text-[9px] shadow-lg shadow-emerald-200"
+                                           className="flex-[2] h-12 rounded-2xl bg-emerald-600 text-white font-bold uppercase text-[11px] shadow-sm"
                                            onClick={() => handleAuditExpense(exp.id, 'Approved')}
                                          >Terima Setoran</Button>
                                       </div>
@@ -977,20 +922,20 @@ export default function FinanceHubPage() {
                   {/* Category: Sourcing Reconciliation */}
                   {awaitingVerification.length > 0 && (
                     <div className="space-y-6">
-                       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-orange-50 p-8 rounded-[3rem] border border-orange-100">
+                       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-orange-50 p-8 rounded-2xl border border-orange-100">
                           <div className="flex items-center gap-6">
-                             <div className="w-16 h-16 bg-white rounded-[2rem] shadow-xl flex items-center justify-center">
-                                <CheckCircle2 className="w-8 h-8 text-orange-500" />
+                             <div className="w-16 h-16 bg-white rounded-xl shadow-sm flex items-center justify-center">
+                                <CheckCircle2 className="w-8 h-8" />
                              </div>
                              <div>
-                                <h3 className="text-2xl font-black text-slate-900 tracking-tight">Sourcing Settlement Hub</h3>
+                                <h3 className="text-2xl font-bold text-slate-900 tracking-tight">Sourcing Settlement Hub</h3>
                                 <p className="text-sm font-bold text-slate-500">Ada {awaitingVerification.length} sesi belanja yang perlu divalidasi pembukuannya.</p>
                              </div>
                           </div>
                           <div className="flex gap-4">
                              <Button 
                                variant="outline"
-                               className="h-16 px-10 rounded-2xl border-orange-200 text-orange-600 font-black uppercase text-[10px] tracking-widest bg-white"
+                               className="h-16 px-10 rounded-2xl border-orange-200 text-orange-600 font-bold uppercase text-[11px] tracking-widest bg-white"
                                onClick={() => {
                                  const first = awaitingVerification.find(p => p.reconciliationStatus !== 'Terverifikasi')
                                  if (first) {
@@ -1003,7 +948,7 @@ export default function FinanceHubPage() {
                                 Input Hasil Belanja <Plus className="w-4 h-4 ml-2" />
                              </Button>
                              <Button 
-                               className="h-16 px-10 rounded-2xl bg-orange-600 hover:bg-orange-500 text-white font-black uppercase text-[10px] tracking-widest shadow-xl shadow-orange-200"
+                               className="h-16 px-10 rounded-2xl bg-orange-600 hover:bg-orange-500 text-white font-bold uppercase text-[11px] tracking-widest shadow-sm shadow-orange-200"
                                onClick={() => window.location.href = '/finance/approvals/sourcing-settlement'}
                              >
                                 Dashboard Settlement <ArrowRight className="w-4 h-4 ml-2" />
@@ -1018,22 +963,22 @@ export default function FinanceHubPage() {
                              const totalBudget = (purchase.budgetAmount || 0) + (purchase.operationalSpareAmount || 0)
                              
                              return (
-                               <Card key={purchase.id} className="border-none shadow-xl rounded-[2.5rem] overflow-hidden bg-white">
+                               <Card key={purchase.id} className="border-none shadow-sm rounded-2xl overflow-hidden bg-white">
                                   <div className="flex flex-col xl:flex-row">
                                      <div className="xl:w-1/3 p-8 bg-slate-50 border-r border-slate-100 flex flex-col justify-between">
                                         <div>
                                            <div className="flex justify-between items-start mb-6">
-                                              <Badge className="bg-orange-100 text-orange-600 border-none font-black text-[9px] px-3 py-1 uppercase">
+                                              <Badge className="bg-orange-100 text-orange-600 border-none font-bold text-[11px] px-3 py-1 uppercase">
                                                  {purchase.reconciliationStatus === 'Laporan Masuk' ? 'NEED AUDIT' : 'BELANJA AKTIF'}
                                               </Badge>
-                                              <h3 className="text-xl font-black text-slate-800 uppercase tracking-tighter">Ref: {purchase.id.slice(0,8)}</h3>
+                                              <h3 className="text-xl font-bold text-slate-800 ">Ref: {purchase.id.slice(0,8)}</h3>
                                            </div>
                                            <div className="space-y-3">
-                                              <div className="flex justify-between text-[10px] font-black uppercase"><span className="text-slate-400">Budget Given</span><span>{formatRupiah(totalBudget)}</span></div>
+                                              <div className="flex justify-between text-[11px] font-bold uppercase"><span className="text-slate-400">Budget Given</span><span>{formatRupiah(totalBudget)}</span></div>
                                               {purchase.reconciliationStatus === 'Laporan Masuk' && (
                                                  <>
-                                                    <div className="flex justify-between text-[10px] font-black uppercase"><span className="text-slate-400">Actual Spent</span><span className="text-emerald-600">{formatRupiah(purchase.actualSpent || 0)}</span></div>
-                                                    <div className="flex justify-between text-[10px] font-black uppercase pt-3 border-t border-slate-200"><span className="text-slate-400">Returns</span><span className="text-orange-500 font-black">{formatRupiah(purchase.changeReturned || 0)}</span></div>
+                                                    <div className="flex justify-between text-[11px] font-bold uppercase"><span className="text-slate-400">Actual Spent</span><span className="text-emerald-600">{formatRupiah(purchase.actualSpent || 0)}</span></div>
+                                                    <div className="flex justify-between text-[11px] font-bold uppercase pt-3 border-t border-slate-200"><span className="text-slate-400">Returns</span><span className="text-orange-500 font-bold">{formatRupiah(purchase.changeReturned || 0)}</span></div>
                                                  </>
                                               )}
                                            </div>
@@ -1041,27 +986,27 @@ export default function FinanceHubPage() {
                                         <div className="mt-8">
                                            {purchase.reconciliationStatus === 'Laporan Masuk' ? (
                                               <Button 
-                                                 className="w-full h-12 rounded-xl bg-slate-900 text-white font-black uppercase text-[10px]"
+                                                 className="w-full h-12 rounded-xl bg-slate-900 text-white font-bold uppercase text-[11px]"
                                                  onClick={() => handleVerifyReconciliation(purchase.id)}
                                               >Verify & Close Book</Button>
                                            ) : (
                                               <Button 
-                                                 className="w-full h-12 rounded-xl bg-orange-500 text-white font-black uppercase text-[10px]"
+                                                 className="w-full h-12 rounded-xl bg-orange-500 text-white font-bold uppercase text-[11px]"
                                                  onClick={() => openDirectSettle(purchase.id)}
                                               >Input Hasil Belanja</Button>
                                            )}
                                         </div>
                                      </div>
                                      <div className="xl:w-2/3 p-8">
-                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Sourcing PIC: {purchaser?.name || 'Pasar Team'}</p>
+                                        <p className="text-[11px] font-bold text-slate-400  mb-4">Sourcing PIC: {purchaser?.name || 'Pasar Team'}</p>
                                         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                                            {items.slice(0, 6).map(item => (
-                                              <div key={item.id} className="text-[10px] font-bold text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-center justify-between">
+                                              <div key={item.id} className="text-[11px] font-bold text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-center justify-between">
                                                  <span className="truncate mr-2">{products.find(p => p.id === item.productId)?.name}</span>
                                                  <span className="shrink-0 text-slate-400">{item.qtyTarget}x</span>
                                               </div>
                                            ))}
-                                           {items.length > 6 && <div className="text-[10px] font-bold text-slate-400 p-3 rounded-xl border border-dashed flex items-center justify-center">+{items.length - 6} more items</div>}
+                                           {items.length > 6 && <div className="text-[11px] font-bold text-slate-400 p-3 rounded-xl border border-dashed flex items-center justify-center">+{items.length - 6} more items</div>}
                                         </div>
                                      </div>
                                   </div>
@@ -1083,28 +1028,28 @@ export default function FinanceHubPage() {
                    {awaitingOnlineAudit.map(exp => {
                       const user = users.find(u => u.id === exp.reporterId)
                       return (
-                         <Card key={exp.id} className="border-none shadow-xl rounded-[2.5rem] bg-white group hover:scale-[1.02] transition-all">
+                         <Card key={exp.id} className="border-none shadow-sm rounded-2xl bg-white group hover:scale-[1.02] transition-all">
                             <CardHeader className="p-6 pb-2">
                                <div className="flex justify-between items-start mb-4">
-                                  <Badge className="bg-blue-50 text-blue-600 border-none font-black text-[9px] tracking-widest">HPP RECONCILIATION</Badge>
-                                  <span className="text-[10px] font-black text-slate-400">{new Date(exp.date).toLocaleDateString()}</span>
+                                  <Badge className="bg-blue-50 text-blue-600 border-none font-bold text-[11px] tracking-widest">HPP RECONCILIATION</Badge>
+                                  <span className="text-[11px] font-bold text-slate-400">{new Date(exp.date).toLocaleDateString()}</span>
                                </div>
-                               <CardTitle className="text-sm font-black uppercase leading-tight text-slate-800 line-clamp-1">{exp.description}</CardTitle>
-                               <CardDescription className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">BY {user?.name || 'ADMIN FINANCE'}</CardDescription>
+                               <CardTitle className="text-sm font-bold uppercase leading-tight text-slate-800 line-clamp-1">{exp.description}</CardTitle>
+                               <CardDescription className="text-[11px] font-bold text-slate-400  mt-1">BY {user?.name || 'ADMIN FINANCE'}</CardDescription>
                             </CardHeader>
                             <CardContent className="p-6 pt-4 space-y-6">
                                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100/50">
-                                  <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">Nilai Transaksi</span>
-                                  <span className="text-2xl font-black text-slate-900 leading-none">{formatRupiah(exp.amount)}</span>
+                                  <span className="text-[11px] font-bold text-slate-400 uppercase block mb-1">Nilai Transaksi</span>
+                                  <span className="text-2xl font-bold text-slate-900 leading-none">{formatRupiah(exp.amount)}</span>
                                </div>
                                <div className="flex gap-2 pt-2">
                                   <Button 
                                     variant="outline" 
-                                    className="flex-1 h-12 rounded-2xl border-rose-100 text-rose-500 font-black uppercase text-[9px] hover:bg-rose-50"
+                                    className="flex-1 h-12 rounded-2xl border-rose-100 text-rose-500 font-bold uppercase text-[11px] hover:bg-rose-50"
                                     onClick={() => updateExpense(exp.id, { status: 'Rejected' })}
                                   >Tolak</Button>
                                   <Button 
-                                    className="flex-[2] h-12 rounded-2xl bg-slate-900 text-white font-black uppercase text-[9px] shadow-lg shadow-slate-200"
+                                    className="flex-[2] h-12 rounded-2xl bg-slate-900 text-white font-bold uppercase text-[11px] shadow-sm"
                                     onClick={() => handleAuditExpense(exp.id, 'Approved')}
                                   >Approve Audit</Button>
                                </div>
@@ -1134,11 +1079,11 @@ export default function FinanceHubPage() {
                        ? cogsFallbackItems(so.id, soItems.filter(i => roundQtyToBook(i) > 0), purchaseItems)
                        : []
                      return (
-                        <Card key={delivery.id} className="border-none shadow-xl rounded-[2.5rem] bg-white group overflow-hidden">
+                        <Card key={delivery.id} className="border-none shadow-sm rounded-2xl bg-white group overflow-hidden">
                            <CardHeader className="p-6 pb-2">
-                              <Badge className="bg-blue-50 text-blue-600 border-none font-black text-[9px] w-fit mb-4">DELIVERY AUDIT</Badge>
-                              <CardTitle className="text-base font-black uppercase text-slate-800">{client?.companyName}</CardTitle>
-                              <CardDescription className="text-[10px] font-bold text-slate-400 uppercase">PO: {so?.poNumber} • {courier?.name}</CardDescription>
+                              <Badge className="bg-blue-50 text-blue-600 border-none font-bold text-[11px] w-fit mb-4">DELIVERY AUDIT</Badge>
+                              <CardTitle className="text-base font-bold uppercase text-slate-800">{client?.companyName}</CardTitle>
+                              <CardDescription className="text-[11px] font-bold text-slate-400 uppercase">PO: {so?.poNumber} • {courier?.name}</CardDescription>
                            </CardHeader>
                            <CardContent className="p-6 pt-4 space-y-4">
                               <div className="aspect-video bg-slate-100 rounded-2xl flex items-center justify-center relative overflow-hidden">
@@ -1146,27 +1091,27 @@ export default function FinanceHubPage() {
                                  {delivery.baUrl && <Button variant="secondary" size="icon" className="absolute bottom-2 right-2 rounded-xl" onClick={() => setPreviewImage(delivery.baUrl!)}><Eye className="w-4 h-4" /></Button>}
                               </div>
                               <div className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl">
-                                 <span className="text-[9px] font-black text-slate-400 uppercase">Invoice Value</span>
-                                 <span className="text-xl font-black text-slate-900">{formatRupiah(totalRev)}</span>
+                                 <span className="text-[11px] font-bold text-slate-400 uppercase">Invoice Value</span>
+                                 <span className="text-xl font-bold text-slate-900">{formatRupiah(totalRev)}</span>
                               </div>
                               {guessed.length > 0 && (
                                  <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl">
-                                    <p className="text-[9px] font-black text-amber-700 uppercase tracking-widest flex items-center gap-1.5">
+                                    <p className="text-[11px] font-bold text-amber-700  flex items-center gap-1.5">
                                        <AlertTriangle className="w-3.5 h-3.5" /> HPP Ditebak ({guessed.length} barang)
                                     </p>
-                                    <p className="text-[10px] font-bold text-slate-600 mt-1 leading-snug">
+                                    <p className="text-[11px] font-bold text-slate-600 mt-1 leading-snug">
                                        Tidak ada catatan pembelian, jadi biayanya memakai harga dasar produk. Laba yang tercatat bisa meleset.
                                     </p>
                                     <ul className="mt-2 space-y-0.5">
                                        {guessed.map(pid => (
-                                          <li key={pid} className="text-[10px] font-bold text-amber-800 truncate">
+                                          <li key={pid} className="text-[11px] font-bold text-amber-800 truncate">
                                              • {products.find(p => p.id === pid)?.name || pid}
                                           </li>
                                        ))}
                                     </ul>
                                  </div>
                               )}
-                              <Button className="w-full rounded-2xl h-12 bg-blue-600 text-white font-black uppercase text-[10px]" onClick={() => handleVerifyDelivery(delivery.id)}>Approve &amp; Record Revenue</Button>
+                              <Button className="w-full rounded-2xl h-12 bg-blue-600 text-white font-bold uppercase text-[11px]" onClick={() => handleVerifyDelivery(delivery.id)}>Approve &amp; Record Revenue</Button>
                            </CardContent>
                         </Card>
                      )
@@ -1177,25 +1122,25 @@ export default function FinanceHubPage() {
         </Tabs>
 
         <Dialog open={!!previewImage} onOpenChange={(open) => !open && setPreviewImage(null)}>
-           <DialogContent className="w-[95vw] sm:max-w-4xl border-none rounded-[2rem] p-0 overflow-hidden bg-slate-900">
+           <DialogContent className="w-[95vw] sm:max-w-4xl border-none rounded-xl p-0 overflow-hidden bg-slate-900">
               <div className="w-full h-[80vh] flex items-center justify-center p-4">
                  {previewImage && <img src={previewImage} className="max-w-full max-h-full object-contain" />}
               </div>
-              <div className="p-4 bg-white flex justify-center border-t border-slate-100"><Button className="rounded-2xl bg-slate-950 text-white font-black px-12 h-12" onClick={() => setPreviewImage(null)}>Tutup Preview</Button></div>
+              <div className="p-4 bg-white flex justify-center border-t border-slate-100"><Button className="rounded-2xl bg-slate-950 text-white font-bold px-12 h-12" onClick={() => setPreviewImage(null)}>Tutup Preview</Button></div>
            </DialogContent>
         </Dialog>
 
         {/* Direct Settlement Dialog */}
         <Dialog open={isDirectSettleOpen} onOpenChange={setIsDirectSettleOpen}>
-           <DialogContent className="w-[95vw] sm:max-w-4xl max-h-[90vh] border-none rounded-[3rem] p-0 bg-slate-50 shadow-2xl flex flex-col overflow-hidden">
+           <DialogContent className="w-[95vw] sm:max-w-4xl max-h-[90vh] border-none rounded-2xl p-0 bg-slate-50 shadow-sm flex flex-col overflow-hidden">
               <DialogHeader className="p-8 pb-6 bg-white shrink-0 z-10 border-b border-slate-100">
                  <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-orange-100 rounded-2xl flex items-center justify-center">
-                       <Banknote className="w-6 h-6 text-orange-600" />
+                       <Banknote className="w-6 h-6" />
                     </div>
                     <div>
-                       <DialogTitle className="text-2xl font-black text-slate-900 tracking-tighter uppercase">Settlement Belanja</DialogTitle>
-                       <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Ref: {directSettleId?.slice(0,8)} • Settle per-item hasil sourcing</p>
+                       <DialogTitle className="text-2xl font-bold text-slate-900 ">Settlement Belanja</DialogTitle>
+                       <p className="text-xs font-bold text-slate-400 ">Ref: {directSettleId?.slice(0,8)} • Settle per-item hasil sourcing</p>
                     </div>
                  </div>
               </DialogHeader>
@@ -1203,7 +1148,7 @@ export default function FinanceHubPage() {
               <div className="p-8 py-6 space-y-8 flex-1 overflow-y-auto">
                  {/* DAFTAR BELANJAAN */}
                  <div className="space-y-4">
-                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                    <h3 className="text-xs font-bold text-slate-400  flex items-center gap-2">
                       <CheckCircle2 className="w-4 h-4" /> Daftar Belanjaan
                     </h3>
                     <div className="grid gap-3">
@@ -1214,20 +1159,20 @@ export default function FinanceHubPage() {
                           return (
                              <div key={pi.id} className="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col xl:flex-row gap-4 xl:items-center">
                                 <div className="flex-1">
-                                   <p className="font-black text-slate-800 text-sm">{product?.name}</p>
-                                   <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Target: {pi.qtyTarget} {product?.uom}</p>
+                                   <p className="font-bold text-slate-800 text-sm">{product?.name}</p>
+                                   <p className="text-[11px] font-bold text-slate-400 uppercase mt-1">Target: {pi.qtyTarget} {product?.uom}</p>
                                 </div>
                                 <div className="flex flex-wrap sm:flex-nowrap items-center gap-3">
                                    <div className="space-y-1 w-44">
                                       <div className="flex items-center justify-between">
-                                         <label className="text-[9px] font-bold text-slate-400 uppercase">Vendor</label>
+                                         <label className="text-[11px] font-bold text-slate-400 uppercase">Vendor</label>
                                          <button 
                                            type="button"
                                            onClick={() => {
                                              setItemIdForNewVendor(pi.id)
                                              setIsNewVendorOpen(true)
                                            }}
-                                           className="text-[9px] font-extrabold text-orange-500 hover:text-orange-600 uppercase flex items-center gap-0.5"
+                                           className="text-[11px] font-semibold text-orange-500 hover:text-orange-600 uppercase flex items-center gap-0.5"
                                          >
                                             <Plus className="w-2.5 h-2.5" /> Tambah
                                          </button>
@@ -1258,7 +1203,7 @@ export default function FinanceHubPage() {
                                       </Select>
                                    </div>
                                    <div className="space-y-1 w-24">
-                                      <label className="text-[9px] font-bold text-slate-400 uppercase">Tipe Bayar</label>
+                                      <label className="text-[11px] font-bold text-slate-400 uppercase">Tipe Bayar</label>
                                       <Select 
                                         value={itemState.paymentMethod || 'Tempo'} 
                                         onValueChange={(val) => setSettlementItems(prev => ({
@@ -1278,7 +1223,7 @@ export default function FinanceHubPage() {
                                       </Select>
                                    </div>
                                    <div className="space-y-1">
-                                      <label className="text-[9px] font-bold text-slate-400 uppercase">Qty Aktual</label>
+                                      <label className="text-[11px] font-bold text-slate-400 uppercase">Qty Aktual</label>
                                       <input 
                                         type="number"
                                         min="0"
@@ -1290,7 +1235,7 @@ export default function FinanceHubPage() {
                                       />
                                    </div>
                                    <div className="space-y-1">
-                                      <label className="text-[9px] font-bold text-slate-400 uppercase">Harga / Satuan</label>
+                                      <label className="text-[11px] font-bold text-slate-400 uppercase">Harga / Satuan</label>
                                       <input 
                                         type="number"
                                         className="w-32 h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 font-bold text-xs text-slate-700 outline-none focus:border-orange-500 transition-all"
@@ -1300,10 +1245,10 @@ export default function FinanceHubPage() {
                                       />
                                    </div>
                                    <div className="space-y-1">
-                                      <label className="text-[9px] font-bold text-emerald-500 uppercase">Total Harga</label>
+                                      <label className="text-[11px] font-bold text-emerald-500 uppercase">Total Harga</label>
                                       <input 
                                         type="number"
-                                        className="w-32 h-10 bg-emerald-50 border border-emerald-200 rounded-xl px-3 font-black text-xs text-emerald-700 outline-none focus:border-emerald-500 transition-all"
+                                        className="w-32 h-10 bg-emerald-50 border border-emerald-200 rounded-xl px-3 font-bold text-xs text-emerald-700 outline-none focus:border-emerald-500 transition-all"
                                         value={((itemState.qtyPurchased || 0) * (itemState.actualPrice || 0)) ? parseFloat(((itemState.qtyPurchased || 0) * (itemState.actualPrice || 0)).toFixed(2)) : ''}
                                         onChange={(e) => {
                                            const newSub = parseFloat(e.target.value) || 0;
@@ -1322,7 +1267,7 @@ export default function FinanceHubPage() {
 
                  {/* BIAYA OPERASIONAL */}
                  <div className="space-y-4">
-                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                    <h3 className="text-xs font-bold text-slate-400  flex items-center gap-2">
                       <Truck className="w-4 h-4" /> Biaya Operasional
                     </h3>
                     <div className="grid gap-3">
@@ -1392,35 +1337,35 @@ export default function FinanceHubPage() {
 
                  {/* RINGKASAN */}
                  <div className="space-y-4">
-                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                    <h3 className="text-xs font-bold text-slate-400  flex items-center gap-2">
                       <Landmark className="w-4 h-4" /> Ringkasan & Sisa Dana
                     </h3>
-                    <div className="p-6 bg-white rounded-[2rem] border border-slate-100 shadow-sm space-y-4">
+                    <div className="p-6 bg-white rounded-xl border border-slate-100 shadow-sm space-y-4">
                        <div className="flex justify-between items-center pb-4 border-b border-slate-50">
-                          <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Budget Diberikan</span>
-                          <span className="text-sm font-black text-slate-800">{formatRupiah(directSettleBudget)}</span>
+                          <span className="text-xs font-bold text-slate-400 ">Budget Diberikan</span>
+                          <span className="text-sm font-bold text-slate-800">{formatRupiah(directSettleBudget)}</span>
                        </div>
                        <div className="flex justify-between items-center text-rose-500">
-                          <span className="text-xs font-black uppercase tracking-widest">Total HPP (Cash)</span>
-                          <span className="text-sm font-black">- {formatRupiah(currentTotalCashHPP)}</span>
+                          <span className="text-xs font-bold ">Total HPP (Cash)</span>
+                          <span className="text-sm font-bold">- {formatRupiah(currentTotalCashHPP)}</span>
                        </div>
                        {currentTotalTempoHPP > 0 && (
                           <div className="flex justify-between items-center text-slate-400">
-                             <span className="text-xs font-black uppercase tracking-widest">Total HPP (Tempo)</span>
+                             <span className="text-xs font-bold ">Total HPP (Tempo)</span>
                              <span className="text-sm font-bold">{formatRupiah(currentTotalTempoHPP)}</span>
                           </div>
                        )}
                        <div className="flex justify-between items-center pb-4 border-b border-slate-50 text-rose-500">
-                          <span className="text-xs font-black uppercase tracking-widest">Total Ops</span>
-                          <span className="text-sm font-black">- {formatRupiah(currentTotalOps)}</span>
+                          <span className="text-xs font-bold ">Total Ops</span>
+                          <span className="text-sm font-bold">- {formatRupiah(currentTotalOps)}</span>
                        </div>
                        
                        <div className={`pt-2 flex flex-col sm:flex-row sm:justify-between sm:items-center p-5 rounded-2xl border gap-4 ${netBalance >= 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
                           <div>
-                             <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${netBalance >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                             <p className={`text-[11px] font-bold  mb-1 ${netBalance >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                                {netBalance >= 0 ? 'Sisa Dana (Kembali)' : 'Talangan Sourcer (Defisit)'}
                              </p>
-                             <p className={`text-3xl font-black tracking-tighter leading-none ${netBalance >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                             <p className={`text-3xl font-bold tracking-tighter leading-none ${netBalance >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
                                 {formatRupiah(Math.abs(settlementReturnedCustom !== null ? settlementReturnedCustom : netBalance))}
                              </p>
                           </div>
@@ -1428,7 +1373,7 @@ export default function FinanceHubPage() {
                              <Button 
                                variant="outline" 
                                size="sm" 
-                               className={`rounded-xl font-black h-10 px-4 text-[10px] bg-white transition-all ${netBalance >= 0 ? 'border-emerald-200 text-emerald-600 hover:bg-emerald-100' : 'border-rose-200 text-rose-600 hover:bg-rose-100'}`}
+                               className={`rounded-xl font-bold h-10 px-4 text-[11px] bg-white transition-all ${netBalance >= 0 ? 'border-emerald-200 text-emerald-600 hover:bg-emerald-100' : 'border-rose-200 text-rose-600 hover:bg-rose-100'}`}
                                onClick={() => setSettlementReturnedCustom(null)}
                              >Auto</Button>
                              {netBalance >= 0 && (
@@ -1447,7 +1392,7 @@ export default function FinanceHubPage() {
 
                  {/* BUKTI */}
                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Link Foto Struk / Dokumen (Opsional)</label>
+                    <label className="text-[11px] font-bold text-slate-400 ">Link Foto Struk / Dokumen (Opsional)</label>
                     <input 
                       type="text" 
                       className="w-full h-12 bg-white rounded-xl px-4 font-bold text-xs outline-none border border-slate-200 focus:border-orange-500 transition-all"
@@ -1459,21 +1404,21 @@ export default function FinanceHubPage() {
               </div>
 
               <div className="p-6 bg-white shrink-0 z-10 border-t border-slate-100 flex gap-4">
-                 <Button variant="outline" className="flex-1 h-14 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-50 transition-all" onClick={() => setIsDirectSettleOpen(false)}>Batal</Button>
-                 <Button className="flex-[2] h-14 rounded-2xl bg-slate-950 hover:bg-slate-800 text-white font-black uppercase text-[10px] tracking-widest shadow-xl shadow-slate-500/20 transition-all" onClick={handleItemSettlement}>Tutup Buku Sesi Belanja</Button>
+                 <Button variant="outline" className="flex-1 h-14 rounded-2xl font-bold uppercase text-[11px] tracking-widest hover:bg-slate-50 transition-all" onClick={() => setIsDirectSettleOpen(false)}>Batal</Button>
+                 <Button className="flex-[2] h-14 rounded-2xl bg-slate-950 hover:bg-slate-800 text-white font-bold uppercase text-[11px] tracking-widest shadow-sm transition-all" onClick={handleItemSettlement}>Tutup Buku Sesi Belanja</Button>
               </div>
            </DialogContent>
         </Dialog>
 
          {/* Quick-Add Vendor Dialog */}
          <Dialog open={isNewVendorOpen} onOpenChange={setIsNewVendorOpen}>
-            <DialogContent className="w-[95vw] sm:max-w-md border-none rounded-[2rem] p-6 bg-white shadow-2xl">
+            <DialogContent className="w-[95vw] sm:max-w-md border-none rounded-xl p-6 bg-white shadow-sm">
                <DialogHeader className="pb-4 border-b border-slate-100">
-                  <DialogTitle className="text-lg font-black text-slate-900 tracking-tight">TAMBAH VENDOR BARU</DialogTitle>
+                  <DialogTitle className="text-lg font-bold text-slate-900 tracking-tight">TAMBAH VENDOR BARU</DialogTitle>
                </DialogHeader>
                <div className="space-y-4 py-4">
                   <div className="space-y-1">
-                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Nama Vendor / Perusahaan *</label>
+                     <label className="text-[11px] font-bold text-slate-400 ">Nama Vendor / Perusahaan *</label>
                      <input 
                        type="text"
                        value={newVendorForm.companyName}
@@ -1484,7 +1429,7 @@ export default function FinanceHubPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                      <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Nama PIC</label>
+                        <label className="text-[11px] font-bold text-slate-400 ">Nama PIC</label>
                         <input 
                           type="text"
                           value={newVendorForm.picName}
@@ -1494,7 +1439,7 @@ export default function FinanceHubPage() {
                         />
                      </div>
                      <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">No Telepon</label>
+                        <label className="text-[11px] font-bold text-slate-400 ">No Telepon</label>
                         <input 
                           type="text"
                           value={newVendorForm.phone}
@@ -1505,7 +1450,7 @@ export default function FinanceHubPage() {
                      </div>
                   </div>
                   <div className="space-y-1">
-                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Alamat</label>
+                     <label className="text-[11px] font-bold text-slate-400 ">Alamat</label>
                      <input 
                        type="text"
                        value={newVendorForm.address}
@@ -1516,7 +1461,7 @@ export default function FinanceHubPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                      <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Default Cara Bayar</label>
+                        <label className="text-[11px] font-bold text-slate-400 ">Default Cara Bayar</label>
                         <Select 
                           value={newVendorForm.isTempo ? "Tempo" : "Cash"}
                           onValueChange={(val) => setNewVendorForm(prev => ({ ...prev, isTempo: val === "Tempo" }))}
@@ -1532,7 +1477,7 @@ export default function FinanceHubPage() {
                      </div>
                      {newVendorForm.isTempo && (
                         <div className="space-y-1">
-                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Jatuh Tempo (Hari)</label>
+                           <label className="text-[11px] font-bold text-slate-400 ">Jatuh Tempo (Hari)</label>
                            <input 
                              type="number"
                              value={newVendorForm.paymentTermDays}
@@ -1557,11 +1502,11 @@ export default function FinanceHubPage() {
 
 function EmptyState({ title, desc }: { title: string, desc: string }) {
   return (
-    <Card className="border-none bg-slate-50/50 rounded-[3rem] py-32 shadow-inner">
+    <Card className="border-none bg-slate-50/50 rounded-2xl py-32 shadow-inner">
        <div className="flex flex-col items-center text-center px-6">
-          <div className="w-20 h-20 bg-white rounded-[2rem] shadow-xl shadow-slate-200/50 flex items-center justify-center mb-6"><CheckCircle2 className="w-10 h-10 text-emerald-500/20" /></div>
-          <h3 className="text-lg font-black text-slate-800 uppercase mb-2">{title}</h3>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{desc}</p>
+          <div className="w-20 h-20 bg-white rounded-xl shadow-sm flex items-center justify-center mb-6"><CheckCircle2 className="w-10 h-10 text-emerald-500/20" /></div>
+          <h3 className="text-lg font-bold text-slate-800 uppercase mb-2">{title}</h3>
+          <p className="text-[11px] font-bold text-slate-400 ">{desc}</p>
        </div>
     </Card>
   )

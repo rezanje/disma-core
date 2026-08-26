@@ -1,0 +1,129 @@
+"""Manual resolutions for the 114 doubtful sheet names, decided against the master list.
+
+Value forms:
+  'PRD-xxxx'  -> map to that SKU
+  'NEW'       -> create a new SKU (uom taken from the sheet)
+  'ASK'       -> genuinely ambiguous, waiting on the owner
+"""
+
+OVERRIDES = {
+    # --- resolved: same product, different spelling/wording -------------------
+    'PARSLEY BASAH': 'PRD-0151',                      # basah = fresh
+    'TELUR ASIN': 'PRD-1331',                         # only salted egg in master is bebek
+    'KACANG MEDE': 'PRD-0740',
+    'COCA-COLA ORIGINAL @330ML ISI 24CAN': 'PRD-1951',
+    'DAUN JERUK': 'PRD-0056',
+    'MONIN SYRUP LECI @700ML': 'PRD-1043',            # leci = lychee, 700 vs 720ml is the same bottle
+    'BERAS SETRA RAMOS - PREMIUM @5KG': 'PRD-0381',   # setra = sentra
+    'TEPUNG DRAGONFLY @1KG': 'PRD-1369',
+    'MARGARINE AMANDA@200GR': 'PRD-1929',
+    'LOBAK': 'PRD-0137',
+    'KABOCHA ORANGE': 'PRD-0132',
+    'KECAP INGGRIS @290ML LEA&PERRNIS W': 'PRD-0764',
+    'LENGKOAS': 'PRD-0136',
+    'SAGU TANI CAP PAK TANI @500GR': 'PRD-1365',
+    'LADA HITAM BUBUK @250GR': 'PRD-0890',            # bubuk = halus
+    'SABUN CUCI MAMA LEMON @680ML': 'PRD-1786',
+    'KETUMBAR UTUH': 'PRD-0796',                      # utuh = biji
+    'DAGING GILING REGULAR': 'PRD-1500',
+    'DAUN SELEDRI LOKAL': 'PRD-0075',
+    'DANCOW BUBUK @1KG': 'PRD-1293',
+    'TISSUE LIVI MULTIFOLD @150LBR': 'PRD-1969',
+    'BERTOLLI BALSAMIC VINEGAR @500ML': 'PRD-0346',
+    'ABC SIRUP LYCHEE @460ML': 'PRD-1261',
+    'PLASTIK SEGITIGA': 'PRD-1861',
+    'PEPING BAG': 'PRD-1861',                         # salah ketik "piping bag"
+    'SANREMO FETTUCINI PASTA @500GR': 'PRD-1207',
+    'SANREMO MACARONI ELBOW @500 GR': 'PRD-1206',     # elbow -> Sanremo Elbows
+    'SELEDRI STIK IMPORT': 'PRD-0048',
+    'SELEDRI STIK LOKAL': 'PRD-0049',
+    'SUSU MILO @990GR': 'PRD-2005',
+    'SODA KUE KOEPOE @1KG': 'PRD-1277',
+    'COCOA NIBS': 'PRD-0531',
+    'GARAM BATA': 'PRD-0610',
+    'CIRENG BRECXELLE ISI 20 PCS': 'PRD-1490',
+    'TEPUNG ROTI PUTIH MAMASUKA @1KG': 'PRD-0953',
+    'TEPUNG ROTI PUTIH': 'PRD-1355',
+    'SANTAN SUN KARA @1LITER': 'PRD-1218',
+    'HEINZ CUKA PUTIH @473ML': 'PRD-0678',            # 16 oz = 473 ml
+    'CUMI TUBE @1KG': 'PRD-1498',
+    'KANTONG PLASTIK PE UK 10X20 (1/4KG)': 'PRD-1862',
+    'KANTONG PLASTIK PUTIH UK 17': 'PRD-1837',
+    'KANTONG PLASTIK PUTIH SIZE 35': 'PRD-1840',
+    'KANTONG PLASTIK HITAM SIZE 35': 'PRD-1836',
+    'KANTONG PLASTIK PUTIH UK 40 @500GR': 'PRD-1841',
+    'PLASTIK KANTONG PUTIH UK 50 @500GR': 'PRD-1842',
+    'TAHU KUNING': 'PRD-1305',
+    'DAUN KUCAI': 'PRD-0127',
+    'TOGE BIASA': 'PRD-0179',                         # biasa = lokal; harga sama dengan bangkok
+    'BELIBIS SAUCE CABAI @5KG': 'PRD-1227',
+    'KENTANG DIENG AL (1-4 PCS)': 'PRD-0122',
+    'DELMONTE CHILI EXTRA HOT SACHET @8GR @24 PCS': 'PRD-0558',
+    'NANGKA MENTAH SAYUR': 'PRD-0142',                # kupas & potong harganya sama
+    'PARE HIJAU': 'PRD-0150',
+    'TAPAS SPONS': 'PRD-1946',
+    'BERAS ROJO LELE @20KG': 'PRD-2558',
+    'EBI DAGING TANPA KULIT': 'PRD-0585',
+    'BERTOLLI WHITE VINEGAR @500ML': 'PRD-0385',
+    'TUSUK BAMBU TEPOSUKI 10CM @100PCS': 'PRD-1981',
+    'DELMONTE SAUCE TOMAT @1KG': 'PRD-0564',
+    'TISSUE PLENTY KITCHEN TOWEL ROLLS @2PCS': 'PRD-1972',
+    'KNORR DEMI GLACE @1KG': 'PRD-0830',
+    'TELUR PUYUH': 'PRD-1336',
+    'PLASTIK WRAPPING MAKANAN UK 35X500CM': 'PRD-1875',
+    'KECAP MANIS BANGO 1500ML': 'PRD-0766',
+    'COLLATA DARK CHOCOLATE COUMPUND @1KG': 'PRD-0534',
+    'PLASTIK KLIP 20X12 @100PCS': 'PRD-1847',
+    'PLASTIK KLIP 30X20 @100PCS': 'PRD-1848',
+    'TISSUE LIVI KOTAK @150 LBR': 'PRD-1968',         # 150 vs 160 lembar, produk sama
+    'TYJ SPRING ROLL KULIT LUMPIA@20PCS': 'PRD-1406',
+    'PAPRIKA POWDER': 'PRD-1117',
+    'SUSU EVAPORASI CARNATION @405GR': 'PRD-2230',    # 405gr = 380ml, kaleng yang sama
+    'MADU URAY @875GR': 'PRD-0934',                   # master salah tulis 8750ML
+    'COLLATA GLAZE DARK CHOCOLATTE@1KG': 'NEW',       # glaze != compound
+    'COLLATA GLAZE WHITE CHOCOLATTE@1KG': 'NEW',
+
+    # --- new SKUs: ukuran/merek yang belum ada di master ----------------------
+    'PETAI BESAR': 'NEW',
+    'SPRITE @330ML ISI 24CAN': 'NEW',                 # master cuma @250ML
+    'COCA-COLA ZERO @330ML ISI 24CAN': 'NEW',
+    'FANTA MERAH @330ML ISI 24 CAN': 'NEW',
+    'SPRITE BOTOL @390ML ISI 12 PCS': 'NEW',
+    'JAMUR RED BOAT BRAND@425 GR': 'NEW',
+    'KANTONG PLASTIK PE UK 6X20': 'NEW',
+    'PLASTIK ROLL UK 25X40': 'NEW',
+    'SEMPIO GOCHUJANG@1KG': 'NEW',
+    'KEWPIE SAUS TARTAR@1KG': 'NEW',
+    'MESES COKLAT TULIP @500 GR': 'NEW',
+    'BAKING PAPER LABAKER 10MX40CM': 'NEW',
+    'TEH CELUP POCI ISI 25 PCS': 'NEW',
+    'SOSIS SAPI AKAI@1KG': 'NEW',
+    'CUSTARD POWDER HERCULES@300 GR': 'NEW',
+    'MARSHMALLOW WHITE@1KG': 'NEW',
+    'KIKKOMAN SAUCE TERIYAKI BAWANG@2,2 KG': 'NEW',
+    'SUNLIGHT @4.5LTR': 'NEW',
+    'SASA TEPUNG SERBAGUNA @1KG': 'NEW',
+    'KNORR TOMATO PRONTO SAUCE @2KG': 'NEW',
+    'TATURA NEUFCHATEL CHEESE@2KG': 'NEW',
+    'COLLATA GLAZE TIRAMISU@1KG': 'NEW',
+    'COLLATA GLAZE SPREAD GREEN TEA MATCHA @1KG': 'NEW',
+    'PAPER PLATE': 'NEW',
+    'TES TORTILLA JAGUNG BBQ@ 2KG': 'NEW',
+    'RUM BUTTERFLY ESSENSE@60ML': 'NEW',
+    'LAPCHIONG AROMA MALIA SOSIS AYAM@1KG': 'NEW',
+
+    # --- masih ambigu, tunggu jawaban pemilik --------------------------------
+    'BAWANG MERAH': 'ASK',
+    'OREGANO DRY': 'ASK',
+    'DELMONTE SAUCE SAMBAL @5,5KG': 'ASK',
+    'DELMONTE SAUCE SAMBAL @5.5KG': 'ASK',
+    'DELMONTE SAUCE SAMBAL @1KG': 'ASK',
+    'KANTONG PLASTIK BAWANG @1KG': 'ASK',
+    'KANTONG PLASTIK PE UK 15X30 (1KG)': 'ASK',
+    'GRATED  PARMESAN CHEESE PREMIUM@200GR': 'ASK',
+    'DIAMOND UHT MILK PLAIN @1LT': 'ASK',
+    'UDANG VANAME KUPAS (ISI 91/120) @1KG NON COOKED': 'ASK',
+    'CHILI FLAKES @ 1KG': 'ASK',
+    'PLASTIK WRAPPING MAKANAN UK 30 CM': 'ASK',
+    'SPONS': 'ASK',
+}

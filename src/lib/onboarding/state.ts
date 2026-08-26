@@ -7,12 +7,16 @@ import { AccessKey, Role, RolePermissionMap } from '@/types'
 import { APP_PAGES } from '@/lib/navigation'
 
 /**
+ * 'off'         — popup tidak pernah muncul. Panduannya tetap bisa dibuka sendiri
+ *                 lewat tombol Panduan di sidebar.
  * 'every-login' — popup "mau dibimbing?" muncul tiap kali user login.
  * 'once'        — popup hanya muncul sekali seumur akun.
  *
- * Ganti nilai ini kalau tim sudah terbiasa dan popupnya mulai mengganggu.
+ * Dimatikan 24 Agu 2026: alurnya masih sering berubah, jadi yang dituntunkan belum
+ * tentu masih benar — dan popup yang muncul tiap login lebih dulu jadi gangguan
+ * daripada bantuan. Hidupkan lagi kalau alurnya sudah settle.
  */
-export const ONBOARDING_POPUP_MODE: 'every-login' | 'once' = 'every-login'
+export const ONBOARDING_POPUP_MODE: 'off' | 'every-login' | 'once' = 'off'
 
 /** Ditulis saat login berhasil, dibaca sekali oleh provider lalu dihapus. */
 export const PENDING_WELCOME_KEY = 'disma_onboarding_pending_welcome'

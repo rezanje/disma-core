@@ -62,11 +62,11 @@ export function TfWindowWarning() {
           <div className="flex items-start gap-3">
             <Clock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
             <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-black uppercase tracking-widest text-amber-700">
+              <p className="text-[11px] font-bold  text-amber-700">
                 Segera dibuatkan TF ({urgent.length} invoice)
               </p>
               <p className="text-xs font-bold text-slate-600 mt-0.5">
-                Lewat {TF_WINDOW_DAYS} hari sejak terbit, invoice hilang dari daftar pilihan Generate TF.
+                Lewat {TF_WINDOW_DAYS} hari sejak terbit, invoice hilang dari daftar pilihan Buat Tukar Faktur.
               </p>
               <div className="mt-3 space-y-1">
                 {groupByClient(urgent).map(g => (
@@ -76,7 +76,7 @@ export function TfWindowWarning() {
                     </span>
                     <span className="shrink-0 flex items-center gap-3">
                       <span className="text-slate-500">{formatRupiah(g.total)}</span>
-                      <span className="text-amber-700 font-black">
+                      <span className="text-amber-700 font-bold">
                         {g.soonest === 0 ? 'hari ini' : `${g.soonest} hari lagi`}
                       </span>
                     </span>
@@ -93,11 +93,11 @@ export function TfWindowWarning() {
           <div className="flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
             <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-black uppercase tracking-widest text-rose-700">
+              <p className="text-[11px] font-bold  text-rose-700">
                 Sudah lewat batas ({expired.length} invoice)
               </p>
               <p className="text-xs font-bold text-slate-600 mt-0.5">
-                Barangnya sudah terkirim tapi belum masuk TF mana pun, dan sudah tidak muncul di Generate TF. Perlu ditagih di luar sistem.
+                Barangnya sudah terkirim tapi belum masuk tukar faktur mana pun, dan sudah tidak muncul di Buat Tukar Faktur. Perlu ditagih di luar sistem.
               </p>
               <div className="mt-3 space-y-1">
                 {groupByClient(expired).map(g => (
@@ -105,7 +105,7 @@ export function TfWindowWarning() {
                     <span className="truncate text-slate-700">
                       {g.name} <span className="text-slate-400">({g.count} invoice)</span>
                     </span>
-                    <span className="shrink-0 text-rose-700 font-black">{formatRupiah(g.total)}</span>
+                    <span className="shrink-0 text-rose-700 font-bold">{formatRupiah(g.total)}</span>
                   </div>
                 ))}
               </div>

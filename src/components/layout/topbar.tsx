@@ -92,14 +92,14 @@ export default function Topbar({ title, navItems = [], displayAllNav = false }: 
 
       {/* Center Title - replacing the horizontal nav */}
       <div className="hidden md:flex flex-1 items-center justify-center">
-        <h1 className="text-sm font-bold bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-transparent dark:from-white dark:to-slate-400 truncate max-w-md uppercase tracking-widest">
+        <h1 className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate max-w-md tracking-tight">
           {title}
         </h1>
       </div>
 
       {/* Right Section: Utils & Profile */}
       <div className="flex items-center gap-2">
-        <div className="hidden sm:flex items-center gap-1 mr-2 px-1 py-1 rounded-full bg-white/40 border border-white/40">
+        <div className="hidden sm:flex items-center gap-1 mr-2 px-1 py-1 rounded-full bg-muted border border-border">
           <button 
             onClick={() => setIsSearchOpen(true)}
             className="p-2 text-slate-500 hover:text-emerald-600 hover:bg-white rounded-full transition-all"
@@ -115,15 +115,15 @@ export default function Topbar({ title, navItems = [], displayAllNav = false }: 
             <DropdownMenuTrigger className="relative p-2 text-slate-500 hover:text-emerald-600 hover:bg-white rounded-full transition-all outline-none">
               <Bell className="w-4 h-4" />
               {unreadCount > 0 && (
-                <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border border-white ring-2 ring-rose-500/20 animate-pulse"></span>
+                <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border border-white ring-2 ring-rose-500/20"></span>
               )}
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80 liquid-card mt-2 p-0 border-none overflow-hidden">
+            <DropdownMenuContent align="end" className="w-80 liquid-card mt-2 p-0 overflow-hidden">
                <div className="p-4 border-b bg-slate-50/50 flex items-center justify-between">
-                  <h4 className="text-xs font-black uppercase tracking-widest text-slate-800">Notifications</h4>
+                  <h4 className="text-xs font-bold  text-slate-800">Notifications</h4>
                   <button
                     onClick={markAllRead}
-                    className="text-[10px] font-bold text-emerald-600 hover:underline"
+                    className="text-[11px] font-bold text-emerald-600 hover:underline"
                   >
                     Mark all read
                   </button>
@@ -132,7 +132,7 @@ export default function Topbar({ title, navItems = [], displayAllNav = false }: 
                   {notifItems.length === 0 ? (
                     <div className="p-8 text-center text-slate-400">
                        <Bell className="w-8 h-8 mx-auto mb-2 opacity-20" />
-                       <p className="text-[10px] font-bold uppercase tracking-widest">No assigned tasks</p>
+                       <p className="text-[11px] font-bold ">No assigned tasks</p>
                     </div>
                   ) : (
                     notifItems.map((n) => (
@@ -146,11 +146,11 @@ export default function Topbar({ title, navItems = [], displayAllNav = false }: 
                           )}
                         >
                           <div className="flex justify-between items-start mb-1">
-                             <h5 className="text-[11px] font-black text-slate-800 leading-tight">{n.title}</h5>
+                             <h5 className="text-[11px] font-bold text-slate-800 leading-tight">{n.title}</h5>
                              {!n.read && <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />}
                           </div>
-                          <p className="text-[10px] text-slate-500 leading-snug line-clamp-2 mb-2">{n.message}</p>
-                          <p className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">
+                          <p className="text-[11px] text-slate-500 leading-snug line-clamp-2 mb-2">{n.message}</p>
+                          <p className="text-[11px] font-bold text-slate-400 ">
                             {new Date(n.createdAt).toLocaleString()}
                           </p>
                         </Link>
@@ -158,7 +158,7 @@ export default function Topbar({ title, navItems = [], displayAllNav = false }: 
                   )}
                </div>
                <div className="p-3 bg-slate-50/50 border-t text-center">
-                  <button className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-emerald-600 transition-colors">
+                  <button className="text-[11px] font-bold  text-slate-400 hover:text-emerald-600 transition-colors">
                      View All Activity
                   </button>
                </div>
@@ -169,26 +169,26 @@ export default function Topbar({ title, navItems = [], displayAllNav = false }: 
         <DropdownMenu>
           <DropdownMenuTrigger className="flex items-center gap-3 pl-2 group cursor-pointer hover:opacity-80 transition-all outline-none">
              <div className="text-right hidden lg:block">
-                <p className="text-[11px] font-black text-slate-800 leading-none">{currentUser?.name}</p>
-                <p className="text-[9px] font-bold text-slate-400 mt-0.5 uppercase tracking-tighter">{currentUser?.role?.replace('_', ' ')}</p>
+                <p className="text-[11px] font-bold text-slate-800 leading-none">{currentUser?.name}</p>
+                <p className="text-[11px] font-bold text-slate-400 mt-0.5 ">{currentUser?.role?.replace('_', ' ')}</p>
              </div>
-             <div className="h-10 w-10 rounded-full border-2 border-white bg-gradient-to-tr from-emerald-600 to-green-400 flex items-center justify-center text-white font-black shadow-md">
+             <div className="h-10 w-10 rounded-full bg-emerald-600 flex items-center justify-center text-white font-bold">
                {currentUser?.name?.charAt(0) || 'U'}
              </div>
              <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-slate-800 transition-colors" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56 liquid-card mt-2 p-2 border-none">
+          <DropdownMenuContent align="end" className="w-56 liquid-card mt-2 p-2">
              <DropdownMenuGroup>
               <DropdownMenuLabel className="px-3 py-2">
-                  <p className="text-xs font-black text-slate-800">{currentUser?.name}</p>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase">{currentUser?.role}</p>
+                  <p className="text-xs font-bold text-slate-800">{currentUser?.name}</p>
+                  <p className="text-[11px] text-slate-400 font-bold uppercase">{currentUser?.role}</p>
               </DropdownMenuLabel>
               <DropdownMenuSeparator className="bg-slate-100" />
               {(currentUser?.role === 'super_admin' || currentUser?.role === 'ceo' || currentUser?.role === 'coo') && (
                 <Link href="/admin/users">
                   <DropdownMenuItem className="flex items-center gap-3 px-3 py-2.5 rounded-2xl hover:bg-emerald-50 text-emerald-600 cursor-pointer outline-none group">
                       <Shield className="w-4 h-4" />
-                      <span className="text-xs font-black uppercase tracking-tight">User & Role Management</span>
+                      <span className="text-xs font-bold ">User & Role Management</span>
                   </DropdownMenuItem>
                 </Link>
               )}
@@ -210,7 +210,7 @@ export default function Topbar({ title, navItems = [], displayAllNav = false }: 
                   className="flex items-center gap-3 px-3 py-2.5 rounded-2xl hover:bg-rose-50 text-rose-600 cursor-pointer"
               >
                   <LogOut className="w-4 h-4" />
-                  <span className="text-xs font-black uppercase tracking-tight">Log Out</span>
+                  <span className="text-xs font-bold ">Log Out</span>
               </DropdownMenuItem>
              </DropdownMenuGroup>
           </DropdownMenuContent>

@@ -41,15 +41,23 @@ export const MOCK_USERS: any[] = [
     // Hidupkan lagi saat mereka mulai memakai aplikasi sendiri.
     "isActive": false
   },
+  // --- Kurir ---------------------------------------------------------------
+  // Kurir tidak memakai aplikasi. Mereka cuma menerima surat jalan sesuai PO yang
+  // ditugaskan, jadi keberadaannya di sini murni sebagai nama yang bisa dipilih —
+  // bukan akun. PIN-nya dimatikan (`isActive: false`) supaya tidak ada yang bisa
+  // login memakainya, termasuk orang kantor yang kebetulan tahu angkanya.
   {
     "id": "44444444-4444-4444-4444-444444444444",
     "pin": "4444",
     "name": "Rivai (Logistik)",
     "role": "kurir",
-    // Mode Salin (16 Agu 2026): tim lapangan mencatat di kertas dan tidak memakai
-    // aplikasi. Selama PIN-nya hidup, satu-satunya kegunaannya adalah dipinjam
-    // penyalin — dan itu membuat setiap jejak audit menunjuk orang yang salah.
-    // Hidupkan lagi saat mereka mulai memakai aplikasi sendiri.
+    "isActive": false
+  },
+  {
+    "id": "44444444-4444-4444-4444-444444444445",
+    "pin": "4445",
+    "name": "Ivan (Logistik)",
+    "role": "kurir",
     "isActive": false
   },
   {
@@ -299,23 +307,28 @@ export const COA_SEED: any[] = [
   }
 ];
 
+/**
+ * Status normal tidak diberi warna — cukup teks abu. Warna hanya untuk yang
+ * butuh tindakan. Nada per status ada di components/ui/status-chip.tsx; peta ini
+ * dipertahankan untuk halaman yang masih memakainya langsung.
+ */
 export const STATUS_COLORS: Record<string, string> = {
-  Draft: 'bg-slate-200 text-slate-800',
-  'Pending Approval': 'bg-emerald-100 text-emerald-800 border-emerald-200',
-  Belanja: 'bg-indigo-100 text-indigo-800 border-indigo-200',
-  Sourcing: 'bg-purple-100 text-purple-800 border-purple-200',
-  QC: 'bg-amber-100 text-amber-800 border-amber-200',
-  Packing: 'bg-blue-100 text-blue-800 border-blue-200',
-  'Siap Kirim': 'bg-emerald-100 text-emerald-800 border-emerald-200',
-  Dikirim: 'bg-emerald-50 text-emerald-700',
-  Terkirim: 'bg-emerald-100 text-emerald-800',
-  'Kurang Kirim': 'bg-amber-100 text-amber-800 border-amber-200',
-  Batal: 'bg-rose-100 text-rose-800',
-  Pending: 'bg-amber-100 text-amber-800',
-  Selesai: 'bg-emerald-100 text-emerald-800',
-  Unpaid: 'bg-rose-100 text-rose-800',
-  Partial: 'bg-amber-100 text-amber-800',
-  Paid: 'bg-emerald-100 text-emerald-800',
+  Draft: 'text-slate-500',
+  'Pending Approval': 'bg-rose-50 text-rose-500',
+  Belanja: 'text-slate-500',
+  Sourcing: 'text-slate-500',
+  QC: 'bg-amber-100 text-amber-500',
+  Packing: 'text-slate-500',
+  'Siap Kirim': 'text-slate-500',
+  Dikirim: 'text-slate-500',
+  Terkirim: 'bg-emerald-50 text-emerald-600',
+  'Kurang Kirim': 'bg-amber-100 text-amber-500',
+  Batal: 'bg-rose-50 text-rose-500',
+  Pending: 'bg-amber-100 text-amber-500',
+  Selesai: 'bg-emerald-50 text-emerald-600',
+  Unpaid: 'bg-rose-50 text-rose-500',
+  Partial: 'bg-amber-100 text-amber-500',
+  Paid: 'bg-emerald-50 text-emerald-600',
 };
 
 export { CLIENTS_SEED } from './clients_seed';

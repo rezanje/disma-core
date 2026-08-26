@@ -44,7 +44,8 @@ assert.match(reportProblems({ ...dasar, ceilings: batas }, nama, 'u1')[0], /di a
 assert.deepEqual(reportProblems({ ...dasar, ceilings: batas, lines: [baris({ overCeilingReason: 'cabe lagi mahal' })] }, nama, 'u1'), []);
 
 // menyalin punya orang lain wajib foto kertasnya
-assert.match(reportProblems({ ...dasar, onBehalfOfUserId: 'u-hilman' }, nama, 'u-sifa').join(' '), /[Ff]oto/);
+// Foto kertasnya opsional: menyalin punya orang lain tanpa lampiran tetap boleh dikirim.
+assert.deepEqual(reportProblems({ ...dasar, onBehalfOfUserId: 'u-hilman' }, nama, 'u-sifa'), []);
 assert.deepEqual(reportProblems({ ...dasar, onBehalfOfUserId: 'u-hilman', proofImage: 'data:image/png;base64,x' }, nama, 'u-sifa'), []);
 
 // beberapa masalah dilaporkan sekaligus, bukan satu per satu tiap kali diklik

@@ -72,16 +72,16 @@ export default function GlobalUndoButton({ inline = false }: GlobalUndoButtonPro
         disabled={isUndoing || !canUndo}
         variant="outline"
         className={cn(
-          "transition-all font-black text-xs uppercase tracking-wider flex items-center gap-2 h-10 px-4 rounded-xl border",
+          "transition-all font-bold text-xs  flex items-center gap-2 h-10 px-4 rounded-xl border",
           canUndo 
-            ? "border-slate-300 bg-white text-slate-800 hover:bg-slate-50 hover:scale-105 active:scale-95 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200" 
+            ? "border-slate-300 bg-white text-slate-800 hover:bg-slate-50 active:scale-95 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200" 
             : "bg-slate-50 text-slate-300 border-slate-200 dark:bg-slate-950/20 dark:text-slate-600 dark:border-slate-800/10 cursor-not-allowed opacity-50"
         )}
       >
         {isUndoing ? (
           <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />
         ) : (
-          <Undo2 className={cn("h-3.5 w-3.5", canUndo ? "text-emerald-500 animate-pulse" : "text-slate-400")} />
+          <Undo2 className={cn("h-3.5 w-3.5", canUndo ? "text-emerald-500" : "text-slate-400")} />
         )}
         <span>{isUndoing ? "Membatalkan..." : titleText}</span>
       </Button>
@@ -89,22 +89,22 @@ export default function GlobalUndoButton({ inline = false }: GlobalUndoButtonPro
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-[9999] animate-in fade-in slide-in-from-bottom-4 duration-300">
+    <div className="fixed bottom-6 right-6 z-[9999] duration-300">
       <Button
         size="lg"
         onClick={handleUndoAction}
         disabled={isUndoing || !canUndo}
         className={cn(
-          "shadow-2xl transition-all font-black text-xs uppercase tracking-widest flex items-center gap-2 h-12 px-5 rounded-full border",
+          "shadow-sm transition-all font-bold text-xs  flex items-center gap-2 h-12 px-5 rounded-full border",
           canUndo 
-            ? "bg-slate-900 text-white border-slate-800 hover:bg-slate-800 hover:scale-105 hover:border-emerald-500/20 active:scale-95" 
+            ? "bg-slate-900 text-white border-slate-800 hover:bg-slate-800 hover:border-emerald-500/20 active:scale-95" 
             : "bg-slate-200/50 dark:bg-slate-950/20 text-slate-400 border-slate-300/20 dark:border-slate-800/10 opacity-30 cursor-not-allowed"
         )}
       >
         {isUndoing ? (
           <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
         ) : (
-          <Undo2 className={cn("h-4 w-4", canUndo ? "text-emerald-400 animate-pulse" : "text-slate-400")} />
+          <Undo2 className={cn("h-4 w-4", canUndo ? "text-emerald-400" : "text-slate-400")} />
         )}
         <span>{isUndoing ? "Membatalkan..." : titleText}</span>
       </Button>

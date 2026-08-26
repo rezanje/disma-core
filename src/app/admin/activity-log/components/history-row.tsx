@@ -9,7 +9,7 @@ import DiffViewer from "./diff-viewer"
 
 const ACTION_COLORS: Record<string, string> = {
   create: 'bg-emerald-100 text-emerald-700',
-  update: 'bg-blue-100 text-blue-700',
+  update: 'bg-muted text-slate-600',
   delete: 'bg-rose-100 text-rose-700',
   rollback: 'bg-amber-100 text-amber-700',
 }
@@ -31,18 +31,18 @@ export default function HistoryRow({
       <div className="flex items-center justify-between gap-3 p-4">
         <button onClick={() => setExpanded(p => !p)} className="flex items-center gap-3 flex-1 text-left min-w-0">
           {expanded ? <ChevronDown className="h-4 w-4 text-slate-400 shrink-0" /> : <ChevronRight className="h-4 w-4 text-slate-400 shrink-0" />}
-          <Badge className={`${ACTION_COLORS[entry.action] || 'bg-slate-100'} border-none text-[10px] font-black uppercase shrink-0`}>
+          <Badge className={`${ACTION_COLORS[entry.action] || 'bg-slate-100'} border-none text-[11px] font-bold uppercase shrink-0`}>
             {entry.action}
           </Badge>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-bold text-sm text-slate-800">{entry.tableName}</span>
-              <span className="font-mono text-[10px] text-slate-400">#{entry.recordId.slice(0, 8)}</span>
+              <span className="font-mono text-[11px] text-slate-400">#{entry.recordId.slice(0, 8)}</span>
               {entry.changedFields.length > 0 && (
-                <span className="text-[10px] text-slate-500 font-medium">{entry.changedFields.length} field</span>
+                <span className="text-[11px] text-slate-500 font-medium">{entry.changedFields.length} field</span>
               )}
             </div>
-            <div className="flex items-center gap-3 mt-1 text-[10px] text-slate-500">
+            <div className="flex items-center gap-3 mt-1 text-[11px] text-slate-500">
               <span className="inline-flex items-center gap-1"><User className="h-3 w-3" />{entry.userName || 'system'} {entry.userRole ? `(${entry.userRole})` : ''}</span>
               <span className="inline-flex items-center gap-1"><Clock className="h-3 w-3" />{when}</span>
               {entry.reason && <span className="italic truncate max-w-xs">— {entry.reason}</span>}
@@ -53,7 +53,7 @@ export default function HistoryRow({
           <Button
             size="sm"
             variant="outline"
-            className="rounded-xl border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-700 text-[10px] font-black uppercase tracking-widest shrink-0"
+            className="rounded-xl border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-700 text-[11px] font-bold  shrink-0"
             onClick={onRollback}
           >
             <Undo2 className="h-3 w-3 mr-1" /> Rollback

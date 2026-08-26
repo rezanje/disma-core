@@ -453,7 +453,7 @@ export default function ProductsPage() {
                     <option key={v.id} value={v.id}>{v.companyName}</option>
                   ))}
                 </select>
-                <p className="text-[10px] text-muted-foreground">Otomatis ke-assign ke vendor ini saat produk masuk daftar belanja.</p>
+                <p className="text-[11px] text-muted-foreground">Otomatis ke-assign ke vendor ini saat produk masuk daftar belanja.</p>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
@@ -492,7 +492,7 @@ export default function ProductsPage() {
                     variant="outline" 
                     size="sm" 
                     type="button"
-                    className="h-7 text-[10px] uppercase tracking-widest"
+                    className="h-7 text-[11px] "
                     onClick={() => {
                        // Sayuran and Buah carry a wider B2C margin than packaged goods,
                        // so the ladder is picked from the category, not fixed.
@@ -518,7 +518,7 @@ export default function ProductsPage() {
                 <div className="grid grid-cols-5 gap-2">
                   {[1, 2, 3, 4, 5].map(t => (
                     <div key={`tier${t}`} className="grid gap-1">
-                      <Label className="text-[10px] text-slate-500">Tier {t}</Label>
+                      <Label className="text-[11px] text-slate-500">Tier {t}</Label>
                       <Input 
                         type="text"
                         inputMode="numeric"
@@ -581,7 +581,7 @@ export default function ProductsPage() {
                 className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
                 onClick={() => requestSort('skuCode')}
               >
-                <div className="flex items-center uppercase text-[10px] font-bold tracking-wider">
+                <div className="flex items-center uppercase text-[11px] font-bold tracking-wider">
                   SKU {getSortIcon('skuCode')}
                 </div>
               </TableHead>
@@ -589,7 +589,7 @@ export default function ProductsPage() {
                 className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
                 onClick={() => requestSort('name')}
               >
-                <div className="flex items-center uppercase text-[10px] font-bold tracking-wider">
+                <div className="flex items-center uppercase text-[11px] font-bold tracking-wider">
                   Product Name {getSortIcon('name')}
                 </div>
               </TableHead>
@@ -597,7 +597,7 @@ export default function ProductsPage() {
                 className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
                 onClick={() => requestSort('uom')}
               >
-                <div className="flex items-center uppercase text-[10px] font-bold tracking-wider">
+                <div className="flex items-center uppercase text-[11px] font-bold tracking-wider">
                   UOM {getSortIcon('uom')}
                 </div>
               </TableHead>
@@ -605,7 +605,7 @@ export default function ProductsPage() {
                 className="text-right cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
                 onClick={() => requestSort('basePrice')}
               >
-                <div className="flex items-center justify-end uppercase text-[10px] font-bold tracking-wider">
+                <div className="flex items-center justify-end uppercase text-[11px] font-bold tracking-wider">
                   Base (Cost) {getSortIcon('basePrice')}
                 </div>
               </TableHead>
@@ -613,7 +613,7 @@ export default function ProductsPage() {
                 className="text-right cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
                 onClick={() => requestSort('sellingPrice')}
               >
-                <div className="flex items-center justify-end uppercase text-[10px] font-bold tracking-wider">
+                <div className="flex items-center justify-end uppercase text-[11px] font-bold tracking-wider">
                   Selling {getSortIcon('sellingPrice')}
                 </div>
               </TableHead>
@@ -621,14 +621,14 @@ export default function ProductsPage() {
                 className="text-right cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
                 onClick={() => requestSort('currentStock')}
               >
-                <div className="flex items-center justify-end uppercase text-[10px] font-bold tracking-wider">
+                <div className="flex items-center justify-end uppercase text-[11px] font-bold tracking-wider">
                   Stock {getSortIcon('currentStock')}
                 </div>
               </TableHead>
-              <TableHead className="text-right uppercase text-[10px] font-bold tracking-wider">
+              <TableHead className="text-right uppercase text-[11px] font-bold tracking-wider">
                 Weekly Range (Mon-Sun)
               </TableHead>
-              <TableHead className="w-[80px] uppercase text-[10px] font-bold tracking-wider">Actions</TableHead>
+              <TableHead className="w-[80px] uppercase text-[11px] font-bold tracking-wider">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -658,15 +658,15 @@ export default function ProductsPage() {
                   <TableCell className="text-right">
                     {p.weeklyPriceRange && typeof p.weeklyPriceRange.min === 'number' && p.weeklyPriceRange.min > 0 ? (
                       <div className="flex flex-col items-end">
-                        <div className="flex items-center gap-1.5 font-mono text-[10px] font-black text-slate-700 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
+                        <div className="flex items-center gap-1.5 font-mono text-[11px] font-bold text-slate-700 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
                           {formatRupiah(p.weeklyPriceRange.min)} - {formatRupiah(p.weeklyPriceRange.max || p.weeklyPriceRange.min)}
                         </div>
-                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter mt-1">
+                        <span className="text-[11px] font-bold text-slate-400  mt-1">
                           Updated: {p.weeklyPriceRange.lastUpdated ? format(new Date(p.weeklyPriceRange.lastUpdated), "dd/MM HH:mm") : "-"}
                         </span>
                       </div>
                     ) : (
-                      <span className="text-[10px] font-bold text-slate-300 italic">No history</span>
+                      <span className="text-[11px] font-bold text-slate-300 italic">No history</span>
                     )}
                   </TableCell>
                   <TableCell>
@@ -703,14 +703,14 @@ export default function ProductsPage() {
              {historyProduct.weeklyPriceRange && typeof historyProduct.weeklyPriceRange.min === 'number' && historyProduct.weeklyPriceRange.min > 0 && (
               <div className="bg-emerald-50 dark:bg-emerald-950/30 rounded-xl p-4 flex justify-between items-center border border-emerald-100 dark:border-emerald-900">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Range Harga Minggu Ini</p>
-                  <p className="text-xl font-black text-slate-800 dark:text-slate-100 mt-1">
+                  <p className="text-[11px] font-bold  text-emerald-600">Range Harga Minggu Ini</p>
+                  <p className="text-xl font-bold text-slate-800 dark:text-slate-100 mt-1">
                     {formatRupiah(historyProduct.weeklyPriceRange.min)} – {formatRupiah(historyProduct.weeklyPriceRange.max)}
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">per {historyProduct.uom}</p>
-                  <p className="text-[9px] text-slate-400 mt-1">
+                  <p className="text-[11px] font-bold text-slate-400 uppercase">per {historyProduct.uom}</p>
+                  <p className="text-[11px] text-slate-400 mt-1">
                     Updated: {historyProduct.weeklyPriceRange.lastUpdated ? format(new Date(historyProduct.weeklyPriceRange.lastUpdated), "dd/MM HH:mm") : "-"}
                   </p>
                 </div>
@@ -719,7 +719,7 @@ export default function ProductsPage() {
 
             {/* History Entries - last 7 days */}
             <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Histori 7 Hari Terakhir</p>
+              <p className="text-[11px] font-bold  text-slate-400 mb-2">Histori 7 Hari Terakhir</p>
               {(() => {
                 const sevenDaysAgo = new Date()
                 sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
@@ -740,16 +740,16 @@ export default function ProductsPage() {
                     {entries.map((h, idx) => (
                       <div key={idx} className="flex items-center justify-between bg-slate-50 dark:bg-slate-900 rounded-lg px-3 py-2 border border-slate-100 dark:border-slate-800">
                         <div className="flex items-center gap-3">
-                          <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                          <span className={`text-[11px] font-bold uppercase px-2 py-0.5 rounded-full ${
                             h.source === 'Pasar'
                               ? 'bg-emerald-100 text-emerald-700'
-                              : 'bg-blue-100 text-blue-700'
+                              : 'bg-muted text-slate-600'
                           }`}>
                             {h.source}
                           </span>
                           <span className="text-xs text-slate-400">{format(new Date(h.date), "dd MMM HH:mm")}</span>
                         </div>
-                        <span className="font-black text-sm text-slate-700 dark:text-slate-200">{formatRupiah(h.price)}</span>
+                        <span className="font-bold text-sm text-slate-700 dark:text-slate-200">{formatRupiah(h.price)}</span>
                       </div>
                     ))}
                   </div>

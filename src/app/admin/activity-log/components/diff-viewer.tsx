@@ -12,8 +12,8 @@ export default function DiffViewer({ entry }: { entry: RecordHistory }) {
   if (entry.action === 'delete') {
     return (
       <div>
-        <p className="text-[10px] font-black uppercase tracking-widest text-rose-600 mb-2">Snapshot record yang dihapus</p>
-        <pre className="text-[10px] bg-white border rounded-lg p-3 overflow-x-auto max-h-64">{JSON.stringify(entry.oldData, null, 2)}</pre>
+        <p className="text-[11px] font-bold  text-rose-600 mb-2">Snapshot record yang dihapus</p>
+        <pre className="text-[11px] bg-white border rounded-lg p-3 overflow-x-auto max-h-64">{JSON.stringify(entry.oldData, null, 2)}</pre>
       </div>
     )
   }
@@ -21,8 +21,8 @@ export default function DiffViewer({ entry }: { entry: RecordHistory }) {
   if (entry.action === 'create') {
     return (
       <div>
-        <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-2">Record baru</p>
-        <pre className="text-[10px] bg-white border rounded-lg p-3 overflow-x-auto max-h-64">{JSON.stringify(entry.newData, null, 2)}</pre>
+        <p className="text-[11px] font-bold  text-emerald-600 mb-2">Record baru</p>
+        <pre className="text-[11px] bg-white border rounded-lg p-3 overflow-x-auto max-h-64">{JSON.stringify(entry.newData, null, 2)}</pre>
       </div>
     )
   }
@@ -31,7 +31,7 @@ export default function DiffViewer({ entry }: { entry: RecordHistory }) {
 
   return (
     <div>
-      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">
+      <p className="text-[11px] font-bold  text-slate-500 mb-2">
         {entry.changedFields.length} field berubah
       </p>
       <div className="space-y-2">

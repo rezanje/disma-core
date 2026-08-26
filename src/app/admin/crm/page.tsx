@@ -113,7 +113,7 @@ export default function CRMPipelinePage() {
       <div className="space-y-6">
         <div className="bg-white dark:bg-slate-900 -mx-4 -mt-4 p-6 border-b shadow-sm mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-black tracking-tight flex items-center gap-2">
+            <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
               <Target className="text-rose-500" /> B2B CRM Pipeline
             </h2>
             <p className="text-slate-500 text-sm">Kelola leads dan tracking penawaran ke klien korporat.</p>
@@ -253,26 +253,26 @@ export default function CRMPipelinePage() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
            <Card className="border-none shadow-sm bg-white dark:bg-slate-900 border-l-4 border-l-emerald-500">
               <CardContent className="p-4">
-                 <p className="text-[10px] font-black uppercase text-slate-400 mb-1">Total Pipeline Value</p>
-                 <h4 className="text-xl font-black text-emerald-600">{formatRupiah(pipelineValue)}</h4>
+                 <p className="text-[11px] font-bold uppercase text-slate-400 mb-1">Total Pipeline Value</p>
+                 <h4 className="text-xl font-bold text-emerald-600">{formatRupiah(pipelineValue)}</h4>
               </CardContent>
            </Card>
            <Card className="border-none shadow-sm bg-white dark:bg-slate-900 border-l-4 border-l-emerald-500">
               <CardContent className="p-4">
-                 <p className="text-[10px] font-black uppercase text-slate-400 mb-1">Closed Deals Value</p>
-                 <h4 className="text-xl font-black text-emerald-600">{formatRupiah(closedValue)}</h4>
+                 <p className="text-[11px] font-bold uppercase text-slate-400 mb-1">Closed Deals Value</p>
+                 <h4 className="text-xl font-bold text-emerald-600">{formatRupiah(closedValue)}</h4>
               </CardContent>
            </Card>
            <Card className="border-none shadow-sm bg-white dark:bg-slate-900 border-l-4 border-l-rose-500">
               <CardContent className="p-4">
-                 <p className="text-[10px] font-black uppercase text-slate-400 mb-1">Active Leads</p>
-                 <h4 className="text-xl font-black text-rose-600">{activeLeadsCount}</h4>
+                 <p className="text-[11px] font-bold uppercase text-slate-400 mb-1">Active Leads</p>
+                 <h4 className="text-xl font-bold text-rose-600">{activeLeadsCount}</h4>
               </CardContent>
            </Card>
            <Card className="border-none shadow-sm bg-white dark:bg-slate-900 border-l-4 border-l-emerald-500">
               <CardContent className="p-4">
-                 <p className="text-[10px] font-black uppercase text-slate-400 mb-1">Growth Forecast</p>
-                 <h4 className="text-xl font-black text-emerald-600">+{(pipelineValue / 5000000).toFixed(0)} Deals</h4>
+                 <p className="text-[11px] font-bold uppercase text-slate-400 mb-1">Growth Forecast</p>
+                 <h4 className="text-xl font-bold text-emerald-600">+{(pipelineValue / 5000000).toFixed(0)} Deals</h4>
               </CardContent>
            </Card>
         </div>
@@ -284,14 +284,14 @@ export default function CRMPipelinePage() {
              return (
                 <div key={status} className="space-y-3 min-w-[300px] shrink-0">
                    <div className="flex items-center justify-between px-2">
-                      <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-1">
+                      <h4 className="text-[11px] font-bold  text-slate-500 flex items-center gap-1">
                          <Layers className="w-3 h-3" /> {status}
-                         <Badge variant="secondary" className="ml-1 h-4 px-1 text-[9px]">{currentLeads.length}</Badge>
+                         <Badge variant="secondary" className="ml-1 h-4 px-1 text-[11px]">{currentLeads.length}</Badge>
                       </h4>
                    </div>
-                   <div className="space-y-3 min-h-[500px] p-2 rounded-3xl bg-slate-100/50 dark:bg-slate-800/30 border border-dashed border-slate-300 dark:border-slate-700">
+                   <div className="space-y-3 min-h-[500px] p-2 rounded-lg bg-slate-100/50 dark:bg-slate-800/30 border border-dashed border-slate-300 dark:border-slate-700">
                       {currentLeads.length === 0 ? (
-                         <div className="h-40 flex flex-col items-center justify-center text-[10px] text-slate-400 italic gap-2">
+                         <div className="h-40 flex flex-col items-center justify-center text-[11px] text-slate-400 italic gap-2">
                             <Briefcase className="w-6 h-6 opacity-20" />
                             No active deals
                          </div>
@@ -303,7 +303,7 @@ export default function CRMPipelinePage() {
                                  setEditingLead(lead)
                                  setIsEditOpen(true)
                                }}
-                               className="border-none shadow-sm hover:shadow-xl transition-all duration-300 group rounded-2xl bg-white dark:bg-slate-900 overflow-hidden cursor-pointer"
+                               className="border-none shadow-sm hover:shadow-sm transition-all duration-300 group rounded-2xl bg-white dark:bg-slate-900 overflow-hidden cursor-pointer"
                             >
                                <div className={`h-1 w-full ${['Deal', 'Repeat'].includes(status) ? 'bg-emerald-500' : status === 'Sudah Berhenti' ? 'bg-rose-500' : 'bg-emerald-400'}`} />
                                <CardContent className="p-4">
@@ -345,18 +345,18 @@ export default function CRMPipelinePage() {
                                   <div className="flex flex-col gap-1.5 mb-3">
                                      <div className="flex items-center gap-1.5">
                                         <Users className="w-3 h-3 text-slate-400" />
-                                        <p className="text-[10px] text-slate-500 font-medium truncate">{lead.contactName}</p>
+                                        <p className="text-[11px] text-slate-500 font-medium truncate">{lead.contactName}</p>
                                      </div>
                                      {lead.picDisma && (
                                        <div className="flex items-center gap-1.5">
-                                          <Target className="w-3 h-3 text-indigo-400" />
-                                          <p className="text-[10px] text-indigo-500 font-bold truncate">PIC: {lead.picDisma}</p>
+                                          <Target className="w-3 h-3" />
+                                          <p className="text-[11px] text-indigo-500 font-bold truncate">PIC: {lead.picDisma}</p>
                                        </div>
                                      )}
                                   </div>
                                   <div className="flex items-center justify-between mt-auto">
-                                     <p className="text-sm font-black text-emerald-600">{formatRupiah(lead.value)}</p>
-                                     <Badge variant="outline" className="text-[8px] h-4 px-1 border-slate-200">
+                                     <p className="text-sm font-bold text-emerald-600">{formatRupiah(lead.value)}</p>
+                                     <Badge variant="outline" className="text-[11px] h-4 px-1 border-slate-200">
                                         {new Date(lead.createdAt).toLocaleDateString()}
                                      </Badge>
                                   </div>

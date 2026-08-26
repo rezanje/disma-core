@@ -114,7 +114,7 @@ export default function ActivityLogPage() {
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
             <div className="space-y-1">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Entity</label>
+              <label className="text-[11px] font-bold  text-slate-500">Entity</label>
               <select
                 className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-white text-xs"
                 value={filterTable}
@@ -127,7 +127,7 @@ export default function ActivityLogPage() {
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">User</label>
+              <label className="text-[11px] font-bold  text-slate-500">User</label>
               <select
                 className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-white text-xs"
                 value={filterUserId}
@@ -140,11 +140,11 @@ export default function ActivityLogPage() {
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Dari</label>
+              <label className="text-[11px] font-bold  text-slate-500">Dari</label>
               <Input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} className="h-10 rounded-xl text-xs" />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Sampai</label>
+              <label className="text-[11px] font-bold  text-slate-500">Sampai</label>
               <Input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)} className="h-10 rounded-xl text-xs" />
             </div>
             <div className="flex gap-2">
@@ -158,7 +158,7 @@ export default function ActivityLogPage() {
           <CardHeader>
             <CardTitle className="text-sm flex items-center gap-2">
               Timeline
-              <Badge variant="secondary" className="text-[10px] font-black">{total} total</Badge>
+              <Badge variant="secondary" className="text-[11px] font-bold">{total} total</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>

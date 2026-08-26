@@ -43,7 +43,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   'Sewa Gedung': 'bg-orange-100 text-orange-700',
   'Listrik/Air': 'bg-yellow-100 text-yellow-700',
   'Marketing': 'bg-pink-100 text-pink-700',
-  'Bensin/Transport': 'bg-blue-100 text-blue-700',
+  'Bensin/Transport': 'bg-muted text-slate-600',
   'ATK/Kantor': 'bg-slate-100 text-slate-700',
   'Inventaris Kantor': 'bg-emerald-100 text-emerald-700',
   'Perbaikan': 'bg-red-100 text-red-700',
@@ -180,19 +180,19 @@ export default function PengeluaranUmumPage() {
     <AuthGuard allowedRoles={['finance', 'super_admin', 'ceo']}>
       <div className="p-4 md:p-8 max-w-[1400px] mx-auto space-y-6 pb-24">
         {/* Header */}
-        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white -mx-4 md:mx-0 p-6 md:p-8 md:rounded-[2.5rem] shadow-xl border border-slate-100">
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white -mx-4 md:mx-0 p-6 md:p-8 md:rounded-2xl shadow-sm border border-slate-100">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-rose-600 text-white rounded-[1.5rem] flex items-center justify-center shadow-lg">
+            <div className="w-14 h-14 bg-rose-600 text-white rounded-xl flex items-center justify-center shadow-sm">
               <TrendingDown className="w-7 h-7" />
             </div>
             <div>
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight">Pengeluaran Umum</h1>
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Pengeluaran Umum</h1>
               <p className="text-sm text-slate-400 font-medium">Overhead & biaya non-orderan</p>
             </div>
           </div>
           <Button
             onClick={() => setIsAddOpen(true)}
-            className="bg-rose-600 hover:bg-rose-700 font-bold shadow-lg h-11 px-6 rounded-xl"
+            className="bg-rose-600 hover:bg-rose-700 font-bold shadow-sm h-11 px-6 rounded-xl"
           >
             <Plus className="w-4 h-4 mr-1" /> Catat Pengeluaran
           </Button>
@@ -201,9 +201,9 @@ export default function PengeluaranUmumPage() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           {/* Category breakdown sidebar */}
           <div className="md:col-span-1 space-y-3">
-            <Card className="rounded-[1.5rem] border-slate-100 shadow-sm">
+            <Card className="rounded-xl border-slate-100 shadow-sm">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-black text-slate-500 uppercase tracking-widest">Per Kategori</CardTitle>
+                <CardTitle className="text-sm font-bold text-slate-500 ">Per Kategori</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 {byCategory.length === 0 && (
@@ -216,7 +216,7 @@ export default function PengeluaranUmumPage() {
                     className={`w-full text-left px-3 py-2 rounded-xl transition-all text-xs font-bold flex justify-between items-center ${filterCat === cat ? 'ring-2 ring-rose-400 bg-rose-50' : 'hover:bg-slate-50'}`}
                   >
                     <span className={`px-2 py-0.5 rounded-lg ${CATEGORY_COLORS[cat] || 'bg-gray-100 text-gray-700'}`}>{cat}</span>
-                    <span className="text-slate-600 font-black">{formatRupiah(total)}</span>
+                    <span className="text-slate-600 font-bold">{formatRupiah(total)}</span>
                   </button>
                 ))}
               </CardContent>
@@ -252,19 +252,19 @@ export default function PengeluaranUmumPage() {
             {/* Summary bar */}
             <div className="bg-rose-50 border border-rose-100 rounded-2xl px-5 py-3 flex justify-between items-center">
               <span className="text-sm font-bold text-rose-700">{filtered.length} transaksi</span>
-              <span className="text-lg font-black text-rose-700">{formatRupiah(totalFiltered)}</span>
+              <span className="text-lg font-bold text-rose-700">{formatRupiah(totalFiltered)}</span>
             </div>
 
             {/* Table */}
-            <div className="bg-white rounded-[1.5rem] border border-slate-100 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-slate-50">
-                    <TableHead className="font-black text-xs uppercase tracking-wide">Tanggal</TableHead>
-                    <TableHead className="font-black text-xs uppercase tracking-wide">Kategori</TableHead>
-                    <TableHead className="font-black text-xs uppercase tracking-wide">Keterangan</TableHead>
-                    <TableHead className="font-black text-xs uppercase tracking-wide">Bank</TableHead>
-                    <TableHead className="font-black text-xs uppercase tracking-wide text-right">Nominal</TableHead>
+                    <TableHead className="font-bold text-xs ">Tanggal</TableHead>
+                    <TableHead className="font-bold text-xs ">Kategori</TableHead>
+                    <TableHead className="font-bold text-xs ">Keterangan</TableHead>
+                    <TableHead className="font-bold text-xs ">Bank</TableHead>
+                    <TableHead className="font-bold text-xs  text-right">Nominal</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -294,7 +294,7 @@ export default function PengeluaranUmumPage() {
                           )}
                         </TableCell>
                         <TableCell className="text-xs text-slate-500 font-medium">{bank?.name || '-'}</TableCell>
-                        <TableCell className="text-right font-black text-rose-600">{formatRupiah(tx.amount)}</TableCell>
+                        <TableCell className="text-right font-bold text-rose-600">{formatRupiah(tx.amount)}</TableCell>
                       </TableRow>
                     )
                   })}
@@ -309,7 +309,7 @@ export default function PengeluaranUmumPage() {
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
         <DialogContent className="sm:max-w-2xl max-h-[88vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-xl font-black">Catat Pengeluaran Umum</DialogTitle>
+            <DialogTitle className="text-xl font-bold">Catat Pengeluaran Umum</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-4">
@@ -360,7 +360,7 @@ export default function PengeluaranUmumPage() {
 
             {fCategory === 'Cicilan Pinjaman' && (
               <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 space-y-3">
-                <p className="text-xs font-black text-amber-700 uppercase tracking-widest">📋 Rincian Cicilan</p>
+                <p className="text-xs font-bold text-amber-700 ">📋 Rincian Cicilan</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs text-amber-700">Bagian Pokok</Label>
@@ -378,7 +378,7 @@ export default function PengeluaranUmumPage() {
                     </div>
                   </div>
                 </div>
-                <p className="text-[10px] text-amber-600">Pokok kurangi utang di neraca. Bunga masuk beban P&L.</p>
+                <p className="text-[11px] text-amber-600">Pokok kurangi utang di neraca. Bunga masuk beban P&L.</p>
               </div>
             )}
 
@@ -397,7 +397,7 @@ export default function PengeluaranUmumPage() {
           </div>
           <DialogFooter>
             <Button
-              className="w-full h-11 font-black rounded-xl bg-rose-600 hover:bg-rose-700"
+              className="w-full h-11 font-bold rounded-xl bg-rose-600 hover:bg-rose-700"
               onClick={handleSave}
             >
               Simpan Pengeluaran
