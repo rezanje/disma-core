@@ -300,7 +300,7 @@ export default function DisbursementsPage() {
         <Button
           size="sm"
           onClick={(e) => { stop(e); handleSubmitToCfo(dr.id) }}
-          className="h-7 px-3 bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold rounded-lg"
+          className="bg-amber-500 hover:bg-amber-600 text-white font-bold"
         >
           Ajukan ke CFO
         </Button>
@@ -308,7 +308,7 @@ export default function DisbursementsPage() {
         <Button
           size="sm"
           onClick={konfirmasiTransfer}
-          className="h-7 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg"
+          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
         >
           Transfer
         </Button>
@@ -320,7 +320,7 @@ export default function DisbursementsPage() {
         <Button
           size="sm"
           onClick={(e) => { stop(e); setSelectedDisbursement(dr); setIsDetailOpen(true) }}
-          className="h-7 px-3 bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold rounded-lg"
+          className="bg-amber-500 hover:bg-amber-600 text-white font-bold"
         >
           Tinjau
         </Button>
@@ -332,7 +332,7 @@ export default function DisbursementsPage() {
         <Button
           size="sm"
           onClick={konfirmasiTransfer}
-          className="h-7 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg"
+          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
         >
           Transfer
         </Button>
@@ -464,10 +464,18 @@ export default function DisbursementsPage() {
                     <TableCell className="text-center">
                       {renderStatus(dr.status)}
                     </TableCell>
-                    <TableCell className="text-center">
-                      <div className="flex items-center justify-center gap-1.5">
+                    {/* Seluruh sel ini menelan klik: barisnya membuka dialog, dan meleset
+                        sedikit dari tombol dulu berarti dialog terbuka — persis hal yang
+                        tidak diminta. Meleset di sini sekarang tidak melakukan apa-apa. */}
+                    <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-center gap-2 py-0.5">
                         {renderAksi(dr)}
-                        <Button variant="ghost" size="sm" className="h-7 text-[11px] font-bold uppercase hover:bg-slate-100 rounded-lg">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => { setSelectedDisbursement(dr); setIsDetailOpen(true) }}
+                          className="font-bold uppercase hover:bg-slate-100"
+                        >
                           Buka
                         </Button>
                       </div>
