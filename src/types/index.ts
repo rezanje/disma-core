@@ -17,6 +17,13 @@ export type AccessKey =
   | 'finance_dashboard' | 'finance_approvals' | 'finance_reports' | 'finance_assets' | 'finance_sku_pnl'
   | 'finance_cash_bank' | 'finance_expenses' | 'finance_ledger' | 'finance_invoices' | 'finance_collections'
   | 'finance_tukar_faktur' | 'finance_purchase_plan' | 'finance_salin_belanja' | 'finance_daily_close' | 'finance_disbursements' | 'finance_sourcing_monitor' | 'finance_rekon'
+  // Layar gabungan: satu menu, beberapa tab. Halaman lamanya tetap hidup di
+  // alamatnya sendiri supaya tautan lama tidak mati, tapi tidak lagi jadi menu.
+  | 'finance_piutang' | 'finance_laporan' | 'finance_biaya' | 'finance_arsip'
+  // Dua form biaya lapangan yang ikut dipasang di menu Biaya milik Finance.
+  // Kuncinya sengaja beda dari milik sourcing/kurir: satu kunci yang dipegang
+  // dua peran akan memunculkan menunya dua kali di sidebar orang yang sama.
+  | 'finance_biaya_sourcing' | 'finance_biaya_kurir'
   // Pintasan tab di dalam Finance Hub — dipakai sebagai kunci izin anak menu.
   | 'finance_settlement' | 'finance_settlement_dash' | 'finance_online_audit' | 'finance_delivery'
   | 'finance_ar_aging' | 'finance_ap_aging'

@@ -39,7 +39,7 @@ import jsPDF from "jspdf"
 import * as htmlToImage from "html-to-image"
 import { toast } from "sonner"
 
-export default function FinancialReportsPage() {
+export default function FinancialReportsPage({ embedded }: { embedded?: boolean } = {}) {
   const coas = useAppStore(state => state.coas)
   const journalLines = useAppStore(state => state.journalLines)
   const journalEntries = useAppStore(state => state.journalEntries)
@@ -270,10 +270,12 @@ export default function FinancialReportsPage() {
   return (
     <div className="space-y-8 duration-150 pb-20">
       <div className="flex justify-between items-end">
-        <div>
-          <h2 className="text-3xl font-bold text-slate-900 ">Financial Statements</h2>
-          <p className="text-xs font-bold text-slate-400  mt-2">Visibilitas Profitabilitas & Kesehatan Bisnis DISMA</p>
-        </div>
+        {!embedded && (
+          <div>
+            <h2 className="text-3xl font-bold text-slate-900 ">Financial Statements</h2>
+            <p className="text-xs font-bold text-slate-400  mt-2">Visibilitas Profitabilitas & Kesehatan Bisnis DISMA</p>
+          </div>
+        )}
         <div className="flex gap-3">
           <Popover>
             <PopoverTrigger render={

@@ -14,7 +14,7 @@ import {
   LossRecord,
 } from "@/lib/sku-pnl";
 
-export default function SkuPnlPage() {
+export default function SkuPnlPage({ embedded }: { embedded?: boolean } = {}) {
   const products = useAppStore((s) => s.products);
   const purchases = useAppStore((s) => s.purchases);
   const purchaseItems = useAppStore((s) => s.purchaseItems);
@@ -110,7 +110,8 @@ export default function SkuPnlPage() {
     n > 0 ? "text-emerald-600" : n < 0 ? "text-rose-600" : "text-muted-foreground";
 
   return (
-    <div className="space-y-4 p-4">
+    <div className={embedded ? "space-y-4" : "space-y-4 p-4"}>
+      {!embedded && (
       <div>
         <h1 className="text-2xl font-bold">Untung Rugi per SKU</h1>
         <p className="text-sm text-muted-foreground">
@@ -119,6 +120,7 @@ export default function SkuPnlPage() {
           menyentuh GL; kerugian fisik sudah tercatat di jurnal (5-2000).
         </p>
       </div>
+      )}
 
       <Card>
         <CardContent className="flex flex-wrap items-end gap-3 pt-4">

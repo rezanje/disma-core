@@ -55,7 +55,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   'Lainnya': 'bg-gray-100 text-gray-700',
 }
 
-export default function PengeluaranUmumPage() {
+export default function PengeluaranUmumPage({ embedded }: { embedded?: boolean } = {}) {
   const rawBankAccounts = useAppStore(s => s.bankAccounts)
   const cashTransactions = useAppStore(s => s.cashTransactions)
   const bankAccounts = useMemo(
@@ -178,18 +178,22 @@ export default function PengeluaranUmumPage() {
 
   return (
     <AuthGuard allowedRoles={['finance', 'super_admin', 'ceo']}>
-      <div className="p-4 md:p-8 max-w-[1400px] mx-auto space-y-6 pb-24">
+      <div className={embedded ? "space-y-6" : "p-4 md:p-8 max-w-[1400px] mx-auto space-y-6 pb-24"}>
         {/* Header */}
-        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white -mx-4 md:mx-0 p-6 md:p-8 md:rounded-2xl shadow-sm border border-slate-100">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-rose-600 text-white rounded-xl flex items-center justify-center shadow-sm">
-              <TrendingDown className="w-7 h-7" />
+        <header className={embedded
+          ? "flex flex-col md:flex-row justify-end items-start md:items-center gap-4"
+          : "flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white -mx-4 md:mx-0 p-6 md:p-8 md:rounded-2xl shadow-sm border border-slate-100"}>
+          {!embedded && (
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 bg-rose-600 text-white rounded-xl flex items-center justify-center shadow-sm">
+                <TrendingDown className="w-7 h-7" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Pengeluaran Umum</h1>
+                <p className="text-sm text-slate-400 font-medium">Overhead & biaya non-orderan</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Pengeluaran Umum</h1>
-              <p className="text-sm text-slate-400 font-medium">Overhead & biaya non-orderan</p>
-            </div>
-          </div>
+          )}
           <Button
             onClick={() => setIsAddOpen(true)}
             className="bg-rose-600 hover:bg-rose-700 font-bold shadow-sm h-11 px-6 rounded-xl"

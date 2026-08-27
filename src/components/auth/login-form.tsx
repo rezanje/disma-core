@@ -66,7 +66,7 @@ export default function LoginForm() {
       // Role-based redirect
       switch(matchedUser.role) {
         case 'admin_po':
-          router.push('/admin')
+          router.push('/admin/hari-ini')
           break
         case 'sourcing':
           router.push('/sourcing')

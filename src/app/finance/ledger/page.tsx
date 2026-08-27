@@ -24,7 +24,7 @@ import {
 import { toast } from "sonner"
 import { ChartOfAccount, JournalEntry, JournalLine } from "@/types"
 
-export default function LedgerPage() {
+export default function LedgerPage({ embedded }: { embedded?: boolean } = {}) {
   const accountBalances = useAppStore(state => state.coas)
   const journalEntries = useAppStore(state => state.journalEntries)
   const journalLines = useAppStore(state => state.journalLines)
@@ -106,12 +106,14 @@ export default function LedgerPage() {
 
   return (
     <div className="space-y-6 duration-150 pb-20">
-      <div className="flex justify-between items-center mb-0">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800 ">General Ledger (Buku Besar)</h2>
-          <p className="text-xs font-bold text-slate-400  mt-1">Audit Seluruh Transaksi Finansial DISMA</p>
+      {!embedded && (
+        <div className="flex justify-between items-center mb-0">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-800 ">General Ledger (Buku Besar)</h2>
+            <p className="text-xs font-bold text-slate-400  mt-1">Audit Seluruh Transaksi Finansial DISMA</p>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
         <Card className="bg-slate-900 border-none rounded-xl shadow-sm p-8 relative overflow-hidden group">

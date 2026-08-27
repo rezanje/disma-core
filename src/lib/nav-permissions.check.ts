@@ -67,6 +67,11 @@ assert.deepEqual(dangling.map(e => e.href), [],
 // --- 3. Every ?tab= link names a tab the page really has -------------------
 // An unrecognised tab matches no TabsContent, so the page body renders empty
 // with nothing explaining why. This is exactly how Finance's Audit Ops broke.
+//
+// Dua bentuk tab yang dipakai aplikasi ini, dan keduanya harus ikut terbaca:
+//   <TabsContent value="x">          — halaman yang menyusun tabnya sendiri
+//   <TabHost tabs={[{ key: 'x' }]}>  — layar gabungan (Piutang, Laporan, Biaya)
+// Membaca satu bentuk saja membuat pemeriksaan ini lulus untuk alasan yang salah.
 const tabbed = entries.filter(e => e.href.includes('?tab='));
 tabbed.forEach(e => {
   const [route, query] = e.href.split('?');
@@ -74,7 +79,10 @@ tabbed.forEach(e => {
   const file = path.join('src/app', route, 'page.tsx');
   if (!fs.existsSync(file)) return; // sudah ditangkap pemeriksaan di atas
   const src = fs.readFileSync(file, 'utf8');
-  const tabs = [...src.matchAll(/<TabsContent\s+value="([^"]+)"/g)].map(m => m[1]);
+  const tabs = [
+    ...[...src.matchAll(/<TabsContent\s+value="([^"]+)"/g)].map(m => m[1]),
+    ...[...src.matchAll(/\{\s*key:\s*'([^']+)',\s*title:/g)].map(m => m[1]),
+  ];
   if (tabs.length === 0) {
     assert.fail(`${e.key} menunjuk ${e.href}, tapi halamannya tidak punya tab sama sekali`);
   }
@@ -85,25 +93,26 @@ tabbed.forEach(e => {
 // --- 4. Nobody is left without the tools their job needs -------------------
 // Not exhaustive — a floor, so a permission list cannot silently lose the one
 // screen that makes a role able to work at all.
-// Mode Salin: tim lapangan mencatat di kertas dan Admin PO/Finance yang menyalinnya,
-// jadi keduanya harus bisa membuka setiap layar lapangan. Tanpa ini satu-satunya jalan
-// adalah meminjam PIN orang lapangan — dan seluruh jejak audit jadi menunjuk orang
-// yang salah.
-// 22 Agu 2026: QC, keluar barang, dan hasil kiriman pindah jadi tiga bagian di layar
-// 'Hari Ini'. Yang dijaga di sini tetap kemampuannya, bukan nama layarnya — jadi
-// admin_hari_ini yang wajib, bukan lagi ketiga layar lamanya.
-const FIELD_SCREENS = [
-  'admin_hari_ini',
-  'sourcing_list', 'sourcing_expenses',
-  'warehouse_inbound', 'warehouse_opname',
-  'courier_handover', 'courier_expenses',
-];
+// Mode Salin: tim lapangan mencatat di kertas dan kantor yang menyalinnya. Yang
+// dijaga di sini KEMAMPUANNYA, bukan nama layarnya — daftar ini sudah dua kali
+// berubah karena layarnya pindah, dan itu memang cara pakainya:
+//   22 Agu 2026 — QC, barang keluar, dan hasil kiriman jadi tiga bagian di 'Hari ini',
+//                 jadi yang wajib tinggal admin_hari_ini.
+//   27 Agu 2026 — penyalinan dipisah per peran. Finance menyalin uang: hasil belanja
+//                 lewat 'Salin kertas belanja', biaya lapangan lewat dua form di
+//                 bawah menu Biaya. Admin PO menyalin jalannya barang, dan itu semua
+//                 sudah ada di 'Hari ini'.
+// Tanpa izin ini satu-satunya jalan adalah meminjam PIN orang lapangan — dan seluruh
+// jejak audit jadi menunjuk orang yang salah.
 const mustHave: Record<string, string[]> = {
-  finance: ['finance_approvals', 'finance_invoices', 'finance_cash_bank', 'admin_purchase_requests', ...FIELD_SCREENS],
+  finance: [
+    'finance_approvals', 'finance_invoices', 'finance_cash_bank', 'admin_purchase_requests',
+    'admin_hari_ini', 'finance_salin_belanja', 'finance_biaya_sourcing', 'finance_biaya_kurir',
+  ],
   gudang: ['warehouse_inbound', 'warehouse_qc', 'warehouse_outbound', 'warehouse_opname'],
   sourcing: ['sourcing_list', 'sourcing_expenses'],
   kurir: ['courier_list', 'courier_handover'],
-  admin_po: ['admin_sales_orders', 'admin_shopping_list', 'admin_tukar_faktur', ...FIELD_SCREENS],
+  admin_po: ['admin_sales_orders', 'admin_shopping_list', 'admin_tukar_faktur', 'admin_hari_ini'],
 };
 Object.entries(mustHave).forEach(([role, keys]) => {
   keys.forEach(k => assert.ok(roles[role]?.includes(k), `peran ${role} kehilangan izin wajib: ${k}`));

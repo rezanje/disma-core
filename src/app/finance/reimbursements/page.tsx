@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { recordReimbursementPayment } from "@/lib/accounting"
 
-export default function ReimbursementManagementPage() {
+export default function ReimbursementManagementPage({ embedded }: { embedded?: boolean } = {}) {
   const reimbursements = useAppStore(state => state.reimbursements)
   const users = useAppStore(state => state.users)
   const rawBankAccounts = useAppStore(state => state.bankAccounts)
@@ -108,10 +108,12 @@ export default function ReimbursementManagementPage() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center px-2">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Pengajuan Reimburse</h2>
-          <p className="text-sm text-slate-500 font-medium">Validasi nota pengajuan & cairkan dana reimburse karyawan.</p>
-        </div>
+        {!embedded && (
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Pengajuan Reimburse</h2>
+            <p className="text-sm text-slate-500 font-medium">Validasi nota pengajuan & cairkan dana reimburse karyawan.</p>
+          </div>
+        )}
         <div className="flex items-center gap-3">
            <Badge variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-200 py-1.5 px-3 h-fit font-bold rounded-lg text-[11px] uppercase shadow-sm">
              {reimbursements.filter(r => r.status === 'Pending').length} Request Baru

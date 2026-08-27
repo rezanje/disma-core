@@ -675,33 +675,48 @@ const initialRolePermissions: RolePermissionMap = {
   // Setujui/Tolak khusus Finance. Tanpa izin ini, orang yang tombolnya dibuat
   // untuk dia tidak pernah bisa membuka halamannya. AuthGuard meloloskan siapa
   // pun yang punya kunci izin halamannya, jadi tidak perlu ubah penjaga rute.
-  finance: ['admin_purchase_requests', 'finance_dashboard', 'finance_approvals', 'finance_reports', 'finance_assets', 'finance_cash_bank', 'finance_expenses', 'finance_ledger', 'finance_invoices', 'finance_ar_aging', 'finance_ap_aging', 'finance_reconciliation', 'finance_rekon', 'finance_reimbursements', 'finance_online_purchase', 'finance_audit', 'finance_documents', 'finance_collections', 'finance_sku_pnl', 'finance_settlement', 'finance_settlement_dash', 'finance_online_audit', 'finance_delivery', 'tasks_global', 'settings_global', 'admin_price_lists', 'finance_disbursements', 'finance_sourcing_monitor', 'finance_purchase_plan', 'finance_salin_belanja', 'finance_daily_close',
-    // Mode Salin (16 Agu 2026): tim lapangan mencatat di kertas, Admin PO dan Finance
-    // yang menyalin. Tanpa izin ini satu-satunya jalan adalah meminjam PIN mereka, dan
-    // itu membuat seluruh jejak audit menunjuk orang yang salah. Ditulis penuh, bukan
-    // lewat konstanta bersama, karena nav-permissions.check.ts membaca berkas ini
-    // sebagai teks dan tidak melihat spread.
-    //
-    // 22 Agu 2026: 'warehouse_qc', 'warehouse_outbound' dan 'courier_list' dicabut dari
-    // sidebar — ketiganya sekarang jadi tiga bagian di layar 'Hari Ini'. Halamannya
-    // masih hidup dan bisa dibuka lewat URL kalau ada kasus yang layar harian belum
-    // tangani; yang hilang cuma menunya.
-    'admin_hari_ini', 'finance_salin_belanja',
-    'sourcing_dashboard', 'sourcing_list', 'sourcing_expenses',
-    'warehouse_inbound', 'warehouse_opname',
-    'courier_handover', 'courier_expenses'],
+  // Disusun mengikuti pekerjaannya, bukan isi database (27 Agu 2026). Dari 38 menu
+  // jadi 13: halaman yang satu pekerjaan digabung jadi tab (Piutang, Laporan
+  // keuangan, Biaya), laporan bulanan turun jadi anak menu Arsip, dan layar milik
+  // peran lain dilepas. Halaman lamanya tetap hidup di alamatnya sendiri.
+  finance: [
+    // Harian
+    'admin_hari_ini', 'finance_purchase_plan', 'finance_salin_belanja', 'finance_daily_close',
+    'admin_purchase_requests',
+    'finance_approvals', 'finance_settlement', 'finance_settlement_dash', 'finance_rekon',
+    'finance_audit', 'finance_online_audit', 'admin_audit_pengiriman',
+    // Uang
+    'finance_disbursements', 'finance_cash_bank', 'finance_ap_aging', 'finance_online_purchase',
+    'finance_piutang', 'finance_invoices', 'finance_collections', 'finance_ar_aging',
+    'finance_laporan', 'finance_dashboard', 'finance_reports', 'finance_ledger', 'finance_sku_pnl',
+    'finance_biaya', 'finance_expenses', 'finance_reimbursements',
+    // Mode Salin: biaya lapangan dicatat di kertas, Finance yang menyalinnya. Tanpa
+    // dua izin ini satu-satunya jalan adalah meminjam PIN orang lapangan, dan seluruh
+    // jejak audit jadi menunjuk orang yang salah.
+    'finance_biaya_sourcing', 'finance_biaya_kurir',
+    // Sistem
+    'finance_arsip', 'finance_documents', 'finance_assets', 'finance_sourcing_monitor',
+    'tasks_global', 'settings_global',
+  ],
   gudang: ['warehouse_dashboard', 'warehouse_catalog', 'warehouse_inbound', 'warehouse_outbound', 'warehouse_qc', 'warehouse_reject_monitor', 'warehouse_opname', 'tasks_global', 'settings_global'],
   sourcing: ['sourcing_dashboard', 'sourcing_list', 'sourcing_expenses', 'tasks_global', 'settings_global'],
   kurir: ['courier_dashboard', 'courier_list', 'courier_handover', 'courier_history', 'courier_expenses', 'tasks_global', 'settings_global'],
   // 'admin_purchase_requests': Admin PO yang membuat pengajuan dananya (otomatis dari
   // dokumen belanja), tapi dulu tidak punya menunya — jadi dia tidak pernah bisa
   // melihat pengajuannya sudah disetujui Finance atau belum.
-  admin_po: ['admin_dashboard', 'admin_sales_orders', 'admin_shopping_list', 'admin_purchase_requests', 'admin_dropship', 'admin_delivery_routes', 'admin_clients', 'admin_products', 'warehouse_catalog', 'tasks_global', 'settings_global', 'admin_price_lists', 'finance_invoices', 'admin_tukar_faktur',
-    // Mode Salin — lihat catatan di daftar izin finance di atas.
-    'admin_hari_ini', 'finance_salin_belanja',
-    'sourcing_dashboard', 'sourcing_list', 'sourcing_expenses',
-    'warehouse_inbound', 'warehouse_opname',
-    'courier_handover', 'courier_expenses'],
+  // Satu rantai kerja: pesanan masuk → disatukan → jadi kertas belanja → dipantau →
+  // ditutup jadi tagihan. Dari 24 menu jadi 12 (27 Agu 2026). Layar gudang, sourcing
+  // dan kurir dilepas — bagian yang benar-benar dipakainya tiap hari sudah ada di
+  // layar 'Hari ini', dan penyalinan biaya lapangan sekarang di Finance.
+  admin_po: [
+    'admin_hari_ini',
+    'admin_sales_orders', 'admin_dropship',
+    // Membuka 'Konsolidasi pesanan' sekaligus 'Kertas belanja' (menumpang izin ini).
+    'admin_shopping_list',
+    'admin_delivery_routes', 'admin_purchase_requests', 'admin_tukar_faktur',
+    'admin_products', 'admin_clients', 'admin_price_lists',
+    'tasks_global', 'settings_global',
+  ],
 };
 
 /**

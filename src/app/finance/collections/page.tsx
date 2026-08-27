@@ -20,7 +20,7 @@ import { toast } from 'sonner'
 import UniversalPDFPreview from '@/components/finance/UniversalPDFPreview'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
-export default function ARCollectionsPage() {
+export default function ARCollectionsPage({ embedded }: { embedded?: boolean } = {}) {
   const { invoices, clients, updateInvoice } = useAppStore()
   const [activeTab, setActiveTab] = useState<string>("invoice")
   const [search, setSearch] = useState('')
@@ -133,17 +133,19 @@ export default function ARCollectionsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-sm shadow-indigo-200">
-            <History className="w-6 h-6" />
-          </div>
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight text-slate-900">Daily Chase</h2>
-            <p className="text-xs text-slate-500 font-bold  mt-1">AR Collections Command Center</p>
+      {!embedded && (
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-sm shadow-indigo-200">
+              <History className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-3xl font-bold tracking-tight text-slate-900">Daily Chase</h2>
+              <p className="text-xs text-slate-500 font-bold  mt-1">AR Collections Command Center</p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="liquid-card shadow-sm bg-slate-900 text-white">

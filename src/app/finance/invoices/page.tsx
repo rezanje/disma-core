@@ -23,7 +23,7 @@ import { format } from "date-fns"
 import { v4 as uuidv4 } from 'uuid'
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
-export default function InvoicesPage() {
+export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) {
   const invoices = useAppStore(state => state.invoices)
   const salesOrders = useAppStore(state => state.salesOrders)
   const clients = useAppStore(state => state.clients)
@@ -507,10 +507,12 @@ export default function InvoicesPage() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Invoices & Piutang</h2>
-          <p className="text-muted-foreground">Kelola tagihan pelanggan dan catat pembayaran masuk.</p>
-        </div>
+        {!embedded && (
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight">Invoices & Piutang</h2>
+            <p className="text-muted-foreground">Kelola tagihan pelanggan dan catat pembayaran masuk.</p>
+          </div>
+        )}
         <div className="flex items-center gap-2">
           <Button
             variant="outline"

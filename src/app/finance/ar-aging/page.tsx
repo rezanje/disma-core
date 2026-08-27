@@ -58,7 +58,7 @@ function isActiveAR(inv: Invoice): boolean {
   return (inv.totalAmount - (inv.amountPaid || 0)) > 0
 }
 
-export default function ARAgingPage() {
+export default function ARAgingPage({ embedded }: { embedded?: boolean } = {}) {
   const invoices = useAppStore(s => s.invoices)
   const clients = useAppStore(s => s.clients)
   const isSyncing = useAppStore(s => s.isSyncing)
@@ -140,13 +140,15 @@ export default function ARAgingPage() {
 
   return (
     <AuthGuard allowedRoles={['finance', 'super_admin', 'ceo']}>
-      <div className="-m-4 pb-24 md:-m-6 lg:-m-8">
-        <PageHeader
-          title="Piutang"
-          context={`${formatRupiah(totals.all)} belum tertagih · ${overdueCount} invoice lewat jatuh tempo`}
-        />
+      <div className={embedded ? "pb-6" : "-m-4 pb-24 md:-m-6 lg:-m-8"}>
+        {!embedded && (
+          <PageHeader
+            title="Piutang"
+            context={`${formatRupiah(totals.all)} belum tertagih · ${overdueCount} invoice lewat jatuh tempo`}
+          />
+        )}
 
-        <div className="space-y-[18px] px-6 py-6 md:px-7">
+        <div className={embedded ? "space-y-[18px]" : "space-y-[18px] px-6 py-6 md:px-7"}>
           {/* Bar umur bertumpuk — panjang bar yang bicara, bukan warna lencana */}
           <div className="rounded-lg border border-border bg-card p-5">
             <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted">

@@ -59,7 +59,7 @@ export default function AuthGuard({ children, allowedRoles }: AuthGuardProps) {
     if (currentUser && pathname === "/login") {
       // Already logged in, trying to access login, redirect to respective dashboard
       switch(currentUser.role) {
-        case 'admin_po': router.push('/admin'); break;
+        case 'admin_po': router.push('/admin/hari-ini'); break;
         case 'sourcing': router.push('/sourcing'); break;
         case 'gudang': router.push('/warehouse'); break;
         case 'kurir': router.push('/courier'); break;
@@ -80,7 +80,7 @@ export default function AuthGuard({ children, allowedRoles }: AuthGuardProps) {
       console.warn(`User role ${currentUser.role} not authorized for ${pathname}`)
       // Redirect to their own dashboard
       switch(currentUser.role) {
-        case 'admin_po': router.push('/admin'); break;
+        case 'admin_po': router.push('/admin/hari-ini'); break;
         case 'sourcing': router.push('/sourcing'); break;
         case 'gudang': router.push('/warehouse'); break;
         case 'kurir': router.push('/courier'); break;
