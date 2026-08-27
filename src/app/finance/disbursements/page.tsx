@@ -272,6 +272,77 @@ export default function DisbursementsPage() {
     }
   }
 
+  /**
+   * Satu tombol per baris: HANYA langkah berikutnya untuk status itu.
+   *
+   * Sebelumnya seluruh aksi bersembunyi di balik "Buka", jadi mengurus lima
+   * pengajuan berarti lima kali buka-tutup dialog untuk satu klik di dalamnya —
+   * dan dari daftarnya tidak kelihatan mana yang sebenarnya menunggu dikerjakan.
+   *
+   * Persetujuan CFO sengaja TIDAK dibuat satu klik di sini: catatannya wajib diisi,
+   * dan tombol yang menyetujui tanpa alasan tertulis membuat kolom itu jadi formalitas.
+   * Barisnya mengarahkan ke dialog, tempat catatan itu ditulis.
+   *
+   * Yang memindahkan uang selalu bertanya dulu, dengan nominal dan nama rekeningnya
+   * disebut — satu klik nyasar di tabel tidak boleh langsung jadi mutasi kas.
+   */
+  const renderAksi = (dr: DisbursementRequest) => {
+    const stop = (e: React.MouseEvent) => e.stopPropagation()
+    const namaBank = (id: string) => bankAccounts.find(b => b.id === id)?.name || 'rekening'
+    const konfirmasiTransfer = (e: React.MouseEvent) => {
+      stop(e)
+      const pesan = `Pindahkan ${formatRupiah(dr.amount)} dari ${namaBank(dr.fromBankAccountId)} ke ${namaBank(dr.toBankAccountId)}?\n\nJurnal dan mutasi kas langsung tercatat.`
+      if (confirm(pesan)) handleExecuteTransfer(dr)
+    }
+
+    if (dr.status === 'Draft' && isFinance) {
+      return bankRequiresCfoApproval(dr.fromBankAccountId) ? (
+        <Button
+          size="sm"
+          onClick={(e) => { stop(e); handleSubmitToCfo(dr.id) }}
+          className="h-7 px-3 bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold rounded-lg"
+        >
+          Ajukan ke CFO
+        </Button>
+      ) : (
+        <Button
+          size="sm"
+          onClick={konfirmasiTransfer}
+          className="h-7 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg"
+        >
+          Transfer
+        </Button>
+      )
+    }
+
+    if (dr.status === 'Pending_CFO' && isCfo) {
+      return (
+        <Button
+          size="sm"
+          onClick={(e) => { stop(e); setSelectedDisbursement(dr); setIsDetailOpen(true) }}
+          className="h-7 px-3 bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold rounded-lg"
+        >
+          Tinjau
+        </Button>
+      )
+    }
+
+    if (dr.status === 'Approved' && isFinance) {
+      return (
+        <Button
+          size="sm"
+          onClick={konfirmasiTransfer}
+          className="h-7 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg"
+        >
+          Transfer
+        </Button>
+      )
+    }
+
+    // Sudah selesai, ditolak, atau bukan giliran peran ini — tidak ada yang bisa diklik.
+    return null
+  }
+
   return (
     <div className="space-y-6">
       {/* HEADER SECTION */}
@@ -354,7 +425,7 @@ export default function DisbursementsPage() {
               <TableHead className="font-bold text-[11px] uppercase text-slate-500 text-center">Ke Rekening</TableHead>
               <TableHead className="font-bold text-[11px] uppercase text-slate-500 text-right">Nominal</TableHead>
               <TableHead className="font-bold text-[11px] uppercase text-slate-500 text-center">Status</TableHead>
-              <TableHead className="font-bold text-[11px] uppercase text-slate-500 text-center w-20">Detail</TableHead>
+              <TableHead className="font-bold text-[11px] uppercase text-slate-500 text-center w-56">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -394,9 +465,12 @@ export default function DisbursementsPage() {
                       {renderStatus(dr.status)}
                     </TableCell>
                     <TableCell className="text-center">
-                      <Button variant="ghost" size="sm" className="h-7 text-[11px] font-bold uppercase hover:bg-slate-100 rounded-lg">
-                        Buka
-                      </Button>
+                      <div className="flex items-center justify-center gap-1.5">
+                        {renderAksi(dr)}
+                        <Button variant="ghost" size="sm" className="h-7 text-[11px] font-bold uppercase hover:bg-slate-100 rounded-lg">
+                          Buka
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 )
