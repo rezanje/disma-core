@@ -54,7 +54,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { format } from "date-fns"
+import { addDays, format } from "date-fns"
 import { Printer } from "lucide-react"
 import { toast } from "sonner"
 import { generateDocumentNumber, updateProductPriceHistory, finalizeSalesOrderDelivery } from "@/lib/accounting"
@@ -195,6 +195,8 @@ const PricelistRow = memo(function PricelistRow({
   )
 })
 
+const besokISO = () => format(addDays(new Date(), 1), 'yyyy-MM-dd')
+
 export default function SalesOrdersPage() {
   const salesOrders = useAppStore(state => state.salesOrders)
   const salesOrderItems = useAppStore(state => state.salesOrderItems)
@@ -232,7 +234,14 @@ export default function SalesOrdersPage() {
   
   const [isOpen, setIsOpen] = useState(false)
   const [clientId, setClientId] = useState("")
-  const [targetDate, setTargetDate] = useState(() => format(new Date(Date.now() + 86400000 * 3), 'yyyy-MM-dd')) // 3 days from now
+  // Tanggal kirim bawaan: BESOK. Hampir semua pesanan dikirim keesokan harinya, jadi
+  // itu yang paling jarang perlu diubah. Dulu H+3 dan angkanya tidak pernah cocok
+  // dengan hari kerja mana pun — setiap PO harus dibetulkan tangan.
+  //
+  // Fungsi, bukan nilai tetap: layar ini bisa dibuka semalaman, dan sekali dihitung
+  // saat komponennya lahir berarti PO yang dibuat lewat tengah malam memakai "besok"
+  // milik kemarin, yaitu hari ini.
+  const [targetDate, setTargetDate] = useState(besokISO)
   const [lineItems, setLineItems] = useState<LineItem[]>([])
   
   const [filterOrderDate, setFilterOrderDate] = useState("")
@@ -418,6 +427,9 @@ export default function SalesOrdersPage() {
     setIsOpen(false)
     setEditingSO(null)
     setClientId("")
+    // Tanpa baris ini tanggal kirim milik PO yang barusan diedit menempel ke PO
+    // berikutnya — satu-satunya kolom di form ini yang dulu tidak ikut dibersihkan.
+    setTargetDate(besokISO())
     setLineItems([])
     setPoNumberDraft("")
     setShowPricelistOnly(true)
