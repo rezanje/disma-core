@@ -1181,14 +1181,20 @@ export default function CeoDashboard() {
 
            {/* CEO Pengumuman */}
            <Card className="liquid-card bg-white shadow-sm">
-             <CardContent className="p-5 md:p-10 flex flex-col md:flex-row items-start gap-10">
-               <div className="shrink-0 flex items-center justify-center w-20 h-20 bg-emerald-500 rounded-2xl md:rounded-2xl shadow-sm group duration-150">
-                 <Megaphone className="w-10 h-10 text-slate-950 rotate-[-15deg] group-hover:rotate-0 transition-transform" />
+             {/* Di layar HP kartu ini dulu terpotong di kanan: badge, kotak pesan, dan
+                 tombol kirim semuanya keluar dari kartu. Penyebabnya kolom isi tidak
+                 boleh menyusut (flex item bawaannya min-width:auto), jadi lebarnya
+                 dipaksa oleh isi terlebar — dan kartunya memotong sisanya. */}
+             <CardContent className="p-5 md:p-10 flex flex-col md:flex-row items-start gap-5 md:gap-10">
+               <div className="shrink-0 flex items-center justify-center w-14 h-14 md:w-20 md:h-20 bg-emerald-500 rounded-2xl shadow-sm group duration-150">
+                 <Megaphone className="w-7 h-7 md:w-10 md:h-10 text-slate-950 rotate-[-15deg] group-hover:rotate-0 transition-transform" />
                </div>
-               <div className="flex-1 space-y-6">
+               {/* min-w-0: izin menyusut. Tanpa ini semua perbaikan di bawah tidak terpakai. */}
+               <div className="flex-1 min-w-0 w-full space-y-5 md:space-y-6">
                   <div>
-                     <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-2xl font-bold text-slate-900">Pengumuman</h3>
+                     {/* flex-wrap: badge turun ke baris berikutnya, bukan keluar kartu. */}
+                     <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <h3 className="text-xl md:text-2xl font-bold text-slate-900">Pengumuman</h3>
                         <Badge className="bg-emerald-100 text-emerald-700 font-bold text-[11px] rounded-full px-2 border-none">LEADERSHIP CONTROL</Badge>
                      </div>
                      <p className="text-xs font-bold text-slate-400 ">Push real-time banners to every active employee</p>
@@ -1197,21 +1203,26 @@ export default function CeoDashboard() {
                     value={announcementMsg}
                     onChange={(e) => setAnnouncementMsg(e.target.value)}
                     placeholder="Type your strategic message here..."
-                    className="min-h-[120px] bg-slate-50 border-none rounded-xl p-4 md:p-8 text-lg font-bold shadow-inner focus-visible:ring-emerald-500/20 ring-0 focus-visible:bg-white transition-all"
+                    className="min-h-[120px] w-full bg-slate-50 border-none rounded-xl p-4 md:p-8 text-base md:text-lg font-bold shadow-inner focus-visible:ring-emerald-500/20 ring-0 focus-visible:bg-white transition-all"
                   />
-                  <div className="flex items-center justify-between">
-                     <p className="text-[11px] font-bold text-slate-400 max-w-[200px] leading-normal uppercase">Your message will appear at the top of all user dashboards instantly.</p>
-                     <div className="flex gap-4">
+                  {/* Di HP tombolnya naik ke atas keterangan: yang dipakai ada di jempol,
+                      bukan di bawah tujuh baris teks penjelasan. */}
+                  <div className="flex flex-col-reverse gap-4 md:flex-row md:items-center md:justify-between">
+                     <p className="text-[11px] font-bold text-slate-400 md:max-w-[200px] leading-normal uppercase">Your message will appear at the top of all user dashboards instantly.</p>
+                     {/* Berdampingan, dua tombol ini butuh ~340px — lebih lebar dari kartunya
+                         di HP, dan label tombol tidak bisa dipatah. Jadi di HP ditumpuk,
+                         yang utama di atas. */}
+                     <div className="flex flex-col-reverse gap-2 md:flex-row md:gap-4">
                         <Button 
                           variant="ghost" 
-                          className="text-slate-400 font-bold px-4 md:px-8 h-14 rounded-full hover:bg-slate-50" 
+                          className="w-full md:w-auto text-slate-400 font-bold px-4 md:px-8 h-12 md:h-14 rounded-full hover:bg-slate-50" 
                           onClick={() => { setAnnouncementMsg(""); handleBroadcast(); }}
                         >
                           Clear Board
                         </Button>
                         <Button 
                           onClick={handleBroadcast} 
-                          className="bg-emerald-500 hover:bg-emerald-600 text-slate-900 font-bold px-12 h-14 rounded-xl shadow-sm transition-all"
+                          className="w-full md:w-auto bg-emerald-500 hover:bg-emerald-600 text-slate-900 font-bold px-6 md:px-12 h-12 md:h-14 rounded-xl shadow-sm transition-all"
                         >
                           Push to Team Now
                         </Button>
