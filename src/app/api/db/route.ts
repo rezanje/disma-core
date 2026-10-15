@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabase';
+import { MOCK_USERS } from '@/lib/constants';
+import { findActiveUserByPin } from '@/lib/auth-pin';
+import { canManageClientDeletion, describeBlockers, type DeletionBlocker } from '@/lib/client-delete';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -317,12 +320,68 @@ export async function POST(request: Request) {
 // DELETE: Remove record(s) from a table
 export async function DELETE(request: Request) {
   try {
-    const { table, id } = await request.json();
+    const { table, id, actor } = await request.json();
 
     if (!supabase) return NextResponse.json({ error: 'Supabase not initialized' }, { status: 500 });
     if (!table || !id) return NextResponse.json({ error: 'Table and ID required' }, { status: 400 });
 
     const ids = Array.isArray(id) ? id : [id];
+    if (table === 'clients') {
+      // Match the same PIN authority as login; never trust a role sent by the browser.
+      const user = typeof actor?.pin === 'string' ? findActiveUserByPin(MOCK_USERS, actor.pin) : null;
+      if (!user || user.id !== actor?.id || !canManageClientDeletion(user.role)) {
+        return NextResponse.json({ error: 'Hanya Super Admin atau Owner yang boleh menghapus klien.' }, { status: 403 });
+      }
+      if (typeof id !== 'string' || !id.trim()) {
+        return NextResponse.json({ error: 'Hapus satu klien setiap kali.' }, { status: 400 });
+      }
+      const { data: client, error: readError } = await supabase.from('clients').select('id').eq('id', id).maybeSingle();
+      if (readError) throw readError;
+      if (!client) return NextResponse.json({ error: 'Klien tidak ditemukan.' }, { status: 404 });
+
+      const links = [
+        ['sales_orders', 'client_id', 'salesOrders'],
+        ['invoices', 'client_id', 'invoices'],
+        ['tukar_faktur', 'client_id', 'tukarFakturs'],
+        ['clients', 'parent_id', 'branches'],
+      ] as const;
+      const blockers: DeletionBlocker[] = [];
+      for (const [linkedTable, column, kind] of links) {
+        const { count, error } = await supabase.from(linkedTable).select('id', { count: 'exact', head: true }).eq(column, id);
+        if (error) throw error;
+        if (count === null) throw new Error('Riwayat klien belum berhasil diperiksa.');
+        if (count) blockers.push({ kind, count });
+      }
+      if (blockers.length > 0) {
+        return NextResponse.json({ error: `Klien sudah punya ${describeBlockers(blockers)} — tidak bisa dihapus.` }, { status: 409 });
+      }
+
+      // Keep a copy of price rows until both deletes succeed, so a failed client delete
+      // can restore its price list instead of silently losing it.
+      const prices: Record<string, unknown>[] = [];
+      for (let offset = 0; ; offset += 1000) {
+        const { data, error } = await supabase.from('client_prices').select('*').eq('client_id', id).order('id').range(offset, offset + 999);
+        if (error) throw error;
+        prices.push(...(data || []));
+        if (!data || data.length < 1000) break;
+      }
+      try {
+        const { error: priceError } = await supabase.from('client_prices').delete().eq('client_id', id);
+        if (priceError) throw priceError;
+        const { error: clientError } = await supabase.from('clients').delete().eq('id', id);
+        if (clientError) throw clientError;
+      } catch (error) {
+        for (let offset = 0; offset < prices.length; offset += 200) {
+          const { error: restoreError } = await supabase.from('client_prices').upsert(prices.slice(offset, offset + 200), { onConflict: 'id' });
+          if (restoreError) {
+            console.error('Client price rollback failed:', restoreError);
+            return NextResponse.json({ error: 'Penghapusan gagal dan daftar harga belum berhasil dipulihkan. Hubungi Super Admin.' }, { status: 500 });
+          }
+        }
+        throw error;
+      }
+      return NextResponse.json({ success: true, count: 1 });
+    }
     const { error } = await withRetry(
       async () => await supabase.from(table).delete().in('id', ids),
       `delete ${table}`

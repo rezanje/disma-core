@@ -30,7 +30,7 @@ import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 import { loadLocalCache, saveLocalCache } from './local-cache';
 import { DEFAULT_MIN_MARGIN_PCT } from './price-ceiling';
-import { clientDeletionBlockers, describeBlockers, clientPriceIdsToRemove } from './client-delete';
+import { clientDeletionBlockers, describeBlockers, canManageClientDeletion } from './client-delete';
 
 const LOCAL_PRODUCTS_CACHE_KEY = 'disma_local_products_cache';
 const LOCAL_CLIENTS_CACHE_KEY = 'disma_local_clients_cache';
@@ -1598,6 +1598,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       // untuk alasannya. Daftar harganya ikut terhapus supaya tidak jadi yatim.
       deleteClient: async (id) => {
         const state = get();
+        if (!state.currentUser || !canManageClientDeletion(state.currentUser.role)) {
+          toast.error('Hanya Super Admin atau Owner yang boleh menghapus klien.');
+          return false;
+        }
         const before = state.clients.find(c => c.id === id);
         if (!before) return false;
 
@@ -1606,21 +1610,18 @@ export const useAppStore = create<AppState>((set, get) => ({
           invoices: state.invoices || [],
           tukarFakturs: state.tukarFakturs || [],
           clientPrices: state.clientPrices || [],
+          clients: state.clients || [],
         });
         if (blockers.length > 0) {
           toast.error(`${before.companyName} sudah punya ${describeBlockers(blockers)} — tidak bisa dihapus.`);
           return false;
         }
 
-        const priceIds = clientPriceIdsToRemove(id, state.clientPrices || []);
-
         try {
-          if (priceIds.length > 0) await state.deleteMultipleClientPrices(priceIds);
-
           const res = await fetch('/api/db', {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ table: 'clients', id })
+            body: JSON.stringify({ table: 'clients', id, actor: { id: state.currentUser.id, pin: state.currentUser.pin } })
           });
           if (!res.ok) {
             const err = await res.json().catch(() => ({}));
@@ -1628,8 +1629,10 @@ export const useAppStore = create<AppState>((set, get) => ({
           }
 
           const remaining = get().clients.filter(c => c.id !== id);
-          set({ clients: remaining });
+          const remainingPrices = get().clientPrices.filter(p => p.clientId !== id);
+          set({ clients: remaining, clientPrices: remainingPrices });
           saveLocalClientsCache(remaining);
+          saveLocalCache(LOCAL_CLIENT_PRICES_CACHE_KEY, remainingPrices);
           await get().logHistory({ table: 'clients', recordId: id, action: 'delete', oldData: before, newData: null });
           toast.success(`Klien ${before.companyName} dihapus.`);
           return true;

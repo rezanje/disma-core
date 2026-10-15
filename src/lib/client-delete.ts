@@ -19,9 +19,10 @@ export type ClientRecords = {
   invoices: ClientLink[];
   tukarFakturs: ClientLink[];
   clientPrices: ClientLink[];
+  clients?: { parentId?: string | null }[];
 };
 
-export type BlockerKind = 'salesOrders' | 'invoices' | 'tukarFakturs';
+export type BlockerKind = 'salesOrders' | 'invoices' | 'tukarFakturs' | 'branches';
 
 export type DeletionBlocker = { kind: BlockerKind; count: number };
 
@@ -29,14 +30,22 @@ const LABELS: Record<BlockerKind, string> = {
   salesOrders: 'PO',
   invoices: 'tagihan',
   tukarFakturs: 'tukar faktur',
+  branches: 'cabang',
 };
+
+export function canManageClientDeletion(role?: string): boolean {
+  return role === 'super_admin' || role === 'ceo';
+}
 
 /** What this client has done that makes removing them unsafe. Empty = safe. */
 export function clientDeletionBlockers(clientId: string, records: ClientRecords): DeletionBlocker[] {
-  const kinds: BlockerKind[] = ['salesOrders', 'invoices', 'tukarFakturs'];
-  return kinds
+  const kinds = ['salesOrders', 'invoices', 'tukarFakturs'] as const;
+  const blockers: DeletionBlocker[] = kinds
     .map(kind => ({ kind, count: records[kind].filter(r => r.clientId === clientId).length }))
     .filter(b => b.count > 0);
+  const branches = (records.clients || []).filter(c => c.parentId === clientId).length;
+  if (branches > 0) blockers.push({ kind: 'branches', count: branches });
+  return blockers;
 }
 
 export function canDeleteClient(clientId: string, records: ClientRecords): boolean {

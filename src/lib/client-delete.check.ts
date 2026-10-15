@@ -3,7 +3,13 @@
  * run directly:  npx tsx src/lib/client-delete.check.ts
  */
 import assert from 'node:assert/strict';
-import { clientDeletionBlockers, canDeleteClient, describeBlockers } from './client-delete';
+import { clientDeletionBlockers, canDeleteClient, describeBlockers, canManageClientDeletion } from './client-delete';
+
+assert.equal(canManageClientDeletion('super_admin'), true);
+assert.equal(canManageClientDeletion('ceo'), true);
+for (const role of ['admin_po', 'finance', 'coo', 'cmo', 'gudang', 'sourcing', 'kurir', '', undefined]) {
+  assert.equal(canManageClientDeletion(role), false, `role ${role} cannot delete clients`);
+}
 
 const empty = { salesOrders: [], invoices: [], tukarFakturs: [], clientPrices: [] };
 
@@ -57,5 +63,9 @@ assert.deepEqual(many, [
 assert.equal(describeBlockers(many), '3 PO, 1 tagihan, 2 tukar faktur');
 assert.equal(describeBlockers([{ kind: 'invoices', count: 1 }]), '1 tagihan');
 assert.equal(describeBlockers([]), '');
+assert.deepEqual(clientDeletionBlockers('c1', {
+  ...empty, clients: [{ parentId: 'c1' }, { parentId: 'c2' }],
+}), [{ kind: 'branches', count: 1 }]);
+assert.equal(describeBlockers([{ kind: 'branches', count: 2 }]), '2 cabang');
 
 console.log('client-delete: all checks passed');

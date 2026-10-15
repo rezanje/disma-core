@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { cn, formatRupiah, formatRupiahShort } from "@/lib/utils"
-import { clientDeletionBlockers, describeBlockers } from "@/lib/client-delete"
+import { clientDeletionBlockers, describeBlockers, canManageClientDeletion } from "@/lib/client-delete"
 import { format, parseISO, differenceInDays } from "date-fns"
 import { generateInvoicePDF, generateTukarFakturBundle } from "@/lib/pdf"
 import { 
@@ -48,6 +48,8 @@ export default function ClientsPage() {
   const updateClient = useAppStore(state => state.updateClient)
   const updateMultipleClients = useAppStore(state => state.updateMultipleClients)
   const deleteClient = useAppStore(state => state.deleteClient)
+  const currentUser = useAppStore(state => state.currentUser)
+  const mayDeleteClients = canManageClientDeletion(currentUser?.role)
   const tukarFakturs = useAppStore(state => state.tukarFakturs) || []
   const clientPrices = useAppStore(state => state.clientPrices) || []
   const salesOrders: SalesOrder[] = useAppStore(state => state.salesOrders)
@@ -276,13 +278,14 @@ export default function ClientsPage() {
   }
 
   const handleConfirmDelete = async () => {
-    if (!deleteTarget || isDeleting) return
+    if (!mayDeleteClients || !deleteTarget || isDeleting) return
     setIsDeleting(true)
     try {
       const ok = await deleteClient(deleteTarget.id)
       if (ok) {
         setDeleteTarget(null)
         setSelectedClientId(null)
+        setPanelClientId(null)
       }
     } finally {
       setIsDeleting(false)
@@ -692,6 +695,82 @@ export default function ClientsPage() {
     )
   }
 
+  const renderDeleteButton = (client: Client) => {
+    if (!mayDeleteClients) return null
+    const blockers = clientDeletionBlockers(client.id, {
+      salesOrders, invoices, tukarFakturs, clientPrices, clients,
+    })
+    const blocked = blockers.length > 0
+    return (
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={blocked}
+        aria-label={`Hapus klien ${client.companyName}`}
+        onClick={(event) => {
+          event.stopPropagation()
+          setDeleteTarget(client)
+        }}
+        className="border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+        title={blocked ? `Sudah punya ${describeBlockers(blockers)} — tidak bisa dihapus` : 'Hapus klien ini'}
+      >
+        <Trash2 className="mr-2 h-4 w-4" /> Hapus klien
+      </Button>
+    )
+  }
+
+  const deleteConfirmation = (
+    <Dialog open={mayDeleteClients && !!deleteTarget} onOpenChange={(open) => { if (!open && !isDeleting) setDeleteTarget(null) }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-sm font-bold  text-rose-600">
+            Hapus Klien
+          </DialogTitle>
+        </DialogHeader>
+        {deleteTarget && (
+          <div className="space-y-4">
+            <p className="text-sm font-bold text-slate-700">
+              Hapus <span className="font-bold text-slate-950">{deleteTarget.companyName}</span> dari daftar klien?
+            </p>
+            <div className="rounded-2xl bg-slate-50 p-3 space-y-1">
+              <p className="text-[11px] font-bold  text-slate-400">Yang ikut terhapus</p>
+                  <p className="text-xs font-bold text-slate-600">Data profil dan kontak klien ini</p>
+              <p className="text-xs font-bold text-slate-600">
+                Daftar harga khusus klien ini
+                {clientPrices.filter(p => p.clientId === deleteTarget.id).length > 0
+                  ? ` (${clientPrices.filter(p => p.clientId === deleteTarget.id).length} baris)`
+                  : ' (belum ada)'}
+              </p>
+              <p className="text-[11px] font-bold text-slate-400 pt-1">
+                Klien yang punya PO, tagihan, tukar faktur, atau cabang tidak bisa dihapus.
+              </p>
+            </div>
+            <p className="text-[11px] font-bold  text-rose-500">
+              Tindakan ini tidak bisa dibatalkan
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setDeleteTarget(null)}
+                disabled={isDeleting}
+                className="flex-1 rounded-xl h-11 font-semibold text-[11px] "
+              >
+                Batal
+              </Button>
+              <Button
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+                className="flex-1 bg-rose-600 hover:bg-rose-700 text-white rounded-xl h-11 font-semibold text-[11px] "
+              >
+                {isDeleting ? 'Menghapus...' : 'Ya, Hapus'}
+              </Button>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+
   if (selectedClient) {
     const brandBranches = selectedClient.isBrand ? clients.filter(c => c.parentId === selectedClient.id) : []
     const branchIds = brandBranches.map(b => b.id)
@@ -726,25 +805,7 @@ export default function ClientsPage() {
             <Button variant="outline" className="rounded-full h-10 font-bold border-slate-200" onClick={() => handleEdit(selectedClient)}>
               <Pencil className="mr-2 h-4 w-4" /> Edit Profil
             </Button>
-            {(() => {
-              const blockers = clientDeletionBlockers(selectedClient.id, {
-                salesOrders, invoices, tukarFakturs, clientPrices,
-              })
-              const blocked = blockers.length > 0
-              return (
-                <Button
-                  variant="outline"
-                  disabled={blocked}
-                  onClick={() => setDeleteTarget(selectedClient)}
-                  className="rounded-full h-10 font-bold border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-40"
-                  title={blocked
-                    ? `Sudah punya ${describeBlockers(blockers)} — tidak bisa dihapus`
-                    : 'Hapus klien ini'}
-                >
-                  <Trash2 className="mr-2 h-4 w-4" /> Hapus Klien
-                </Button>
-              )
-            })()}
+            {renderDeleteButton(selectedClient)}
           </div>
         </div>
 
@@ -1309,57 +1370,7 @@ export default function ClientsPage() {
           />
         )}
 
-      {/* Konfirmasi hapus klien. Sengaja pakai dialog aplikasi, bukan confirm()
-            bawaan browser — confirm() diblokir di sebagian browser dan tombolnya
-            jadi diam tanpa kabar. */}
-        <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open && !isDeleting) setDeleteTarget(null) }}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle className="text-sm font-bold  text-rose-600">
-                Hapus Klien
-              </DialogTitle>
-            </DialogHeader>
-            {deleteTarget && (
-              <div className="space-y-4">
-                <p className="text-sm font-bold text-slate-700">
-                  Hapus <span className="font-bold text-slate-950">{deleteTarget.companyName}</span> dari daftar klien?
-                </p>
-                <div className="rounded-2xl bg-slate-50 p-3 space-y-1">
-                  <p className="text-[11px] font-bold  text-slate-400">Yang ikut terhapus</p>
-                  <p className="text-xs font-bold text-slate-600">
-                    Daftar harga khusus klien ini
-                    {clientPrices.filter(p => p.clientId === deleteTarget.id).length > 0
-                      ? ` (${clientPrices.filter(p => p.clientId === deleteTarget.id).length} baris)`
-                      : ' (belum ada)'}
-                  </p>
-                  <p className="text-[11px] font-bold text-slate-400 pt-1">
-                    Klien ini belum punya PO, tagihan, atau tukar faktur — jadi tidak ada riwayat yang hilang.
-                  </p>
-                </div>
-                <p className="text-[11px] font-bold  text-rose-500">
-                  Tindakan ini tidak bisa dibatalkan
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setDeleteTarget(null)}
-                    disabled={isDeleting}
-                    className="flex-1 rounded-xl h-11 font-semibold text-[11px] "
-                  >
-                    Batal
-                  </Button>
-                  <Button
-                    onClick={handleConfirmDelete}
-                    disabled={isDeleting}
-                    className="flex-1 bg-rose-600 hover:bg-rose-700 text-white rounded-xl h-11 font-semibold text-[11px] "
-                  >
-                    {isDeleting ? 'Menghapus...' : 'Ya, Hapus'}
-                  </Button>
-                </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
+        {deleteConfirmation}
       </div>
     )
   }
@@ -1809,12 +1820,13 @@ export default function ClientsPage() {
               {renderSortHeader("outstandingAR", "Piutang", "right")}
               {renderSortHeader("nearestDue", "Jatuh tempo terdekat", "center")}
               {renderSortHeader("health", "Status", "center")}
+              {mayDeleteClients && <TableHead className="text-right">Aksi</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {processedClients.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-48 text-center text-slate-400 italic font-bold ">
+                <TableCell colSpan={mayDeleteClients ? 8 : 7} className="h-48 text-center text-slate-400 italic font-bold ">
                   Tidak ada outlet yang cocok dengan pencarian.
                 </TableCell>
               </TableRow>
@@ -1901,6 +1913,7 @@ export default function ClientsPage() {
                          {health.label}
                        </Badge>
                     </TableCell>
+                    {mayDeleteClients && <TableCell className="text-right">{renderDeleteButton(client)}</TableCell>}
                   </TableRow>
                 )
               })
@@ -1982,6 +1995,8 @@ export default function ClientsPage() {
           </aside>
         )}
       </div>
+
+      {deleteConfirmation}
 
       {/* DIALOG: CLIENT HISTORY & DOCUMENT ARCHIVE */}
       <Dialog open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
