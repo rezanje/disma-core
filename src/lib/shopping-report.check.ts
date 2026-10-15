@@ -1,5 +1,13 @@
 import assert from 'node:assert/strict';
-import { reportProblems, type ReportInput } from './shopping-report';
+import { purchaseUnitPrice, reportProblems, type ReportInput } from './shopping-report';
+
+assert.equal(purchaseUnitPrice(8000, 0.25), 32000);
+assert.equal(purchaseUnitPrice(8000, 0.5), 16000);
+assert.equal(purchaseUnitPrice(84000, 7), 12000);
+assert.equal(purchaseUnitPrice(8000, 0), 0);
+assert.equal(purchaseUnitPrice(-8000, 0.25), 0);
+assert.equal(purchaseUnitPrice(Infinity, 0.25), 0);
+assert.equal(purchaseUnitPrice(8000, NaN), 0);
 
 const NAMA: Record<string, string> = { cabe: 'Cabe', apel: 'Apel' };
 const nama = (id: string) => NAMA[id] || id;

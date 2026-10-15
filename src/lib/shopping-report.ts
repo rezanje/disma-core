@@ -15,6 +15,13 @@ import type { useAppStore as StoreType } from './store';
 
 type Store = ReturnType<typeof StoreType.getState>;
 
+/** Convert the amount paid for the whole row to the stored per-unit price. */
+export function purchaseUnitPrice(total: number, quantity: number): number {
+  if (!Number.isFinite(total) || total < 0 || !Number.isFinite(quantity) || quantity <= 0) return 0;
+  const price = total / quantity;
+  return Number.isFinite(price) ? price : 0;
+}
+
 export type ReportLine = {
   id: string;
   productId: string;

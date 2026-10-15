@@ -18,7 +18,7 @@ const COLUMNS: Record<WorksheetKind, WorksheetColumn[]> = {
     { header: 'Nama Barang', handwritten: false, width: 58 },
     { header: 'Qty Beli', handwritten: false, width: 22 },
     { header: 'Est. Total', handwritten: false, width: 28 },
-    { header: 'Harga Beli Asli', handwritten: true, width: 32 },
+    { header: 'Total Beli Asli', handwritten: true, width: 32 },
     { header: 'Qty Asli', handwritten: true, width: 22 },
     { header: 'Vendor', handwritten: true, width: 38 },
     { header: 'Catatan', handwritten: true, width: 45 },

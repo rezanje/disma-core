@@ -20,7 +20,7 @@ const headers = belanja.map(c => c.header);
 // kolom tulis tangan harus ada, dan urutannya sama dengan urutan pengisian di layar
 assert.deepEqual(
   belanja.filter(c => c.handwritten).map(c => c.header),
-  ['Harga Beli Asli', 'Qty Asli', 'Vendor', 'Catatan'],
+  ['Total Beli Asli', 'Qty Asli', 'Vendor', 'Catatan'],
 );
 
 // kolom cetak mendahului kolom tulis tangan — orang mengisi ke kanan, tidak melompat

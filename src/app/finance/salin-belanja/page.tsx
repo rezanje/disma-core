@@ -28,12 +28,13 @@ import { cn, formatRupiah, formatNumber, parseNumber } from "@/lib/utils"
 import { selectableVendors } from "@/lib/vendor-status"
 import { pocketOwners } from "@/lib/sourcing-pocket"
 import { ceilingByLine, isOverCeiling, overByPct } from "@/lib/price-ceiling"
-import { reportProblems, submitShoppingReport, type ReportLine } from "@/lib/shopping-report"
+import { purchaseUnitPrice, reportProblems, submitShoppingReport, type ReportLine } from "@/lib/shopping-report"
 import { toggleAll } from "@/lib/plan-table"
 import { OperationalExpense } from "@/types"
 import { v4 as uuidv4 } from "uuid"
 
 type OpsRow = { id: string; kategori: string; nominal: number; keterangan: string; sourceBankAccountId?: string }
+type DraftLine = Partial<ReportLine> & { actualTotal?: number }
 
 const KATEGORI_OPS = ['Bensin', 'Tol', 'Parkir', 'Kuli', 'Makan', 'Lainnya']
 
@@ -49,7 +50,7 @@ export default function SalinBelanjaPage() {
   const minMarginPct = useAppStore(s => s.minMarginPct)
   const addExpense = useAppStore(s => s.addExpense)
 
-  const [draft, setDraft] = useState<Record<string, Partial<ReportLine>>>({})
+  const [draft, setDraft] = useState<Record<string, DraftLine>>({})
   const [pilih, setPilih] = useState<Set<string>>(new Set())
   const [pocketId, setPocketId] = useState("")
   const [foto, setFoto] = useState<string | null>(null)
@@ -84,7 +85,7 @@ export default function SalinBelanjaPage() {
   }
 
   const nilai = (id: string, field: keyof ReportLine) => draft[id]?.[field]
-  const set = (id: string, patch: Partial<ReportLine>) =>
+  const set = (id: string, patch: DraftLine) =>
     setDraft(prev => ({ ...prev, [id]: { ...prev[id], ...patch } }))
 
   /** Baris siap kirim: gabungan yang tersimpan dengan yang barusan diketik. */
@@ -94,7 +95,9 @@ export default function SalinBelanjaPage() {
     purchaseId: pi.purchaseId,
     purchaseMethod: pi.purchaseMethod,
     isChecked: (nilai(pi.id, 'isChecked') as boolean | undefined) ?? true,
-    actualUnitPrice: (nilai(pi.id, 'actualUnitPrice') as number | undefined) ?? (pi.actualUnitPrice || pi.estimatedUnitPrice || 0),
+    actualUnitPrice: draft[pi.id]?.actualTotal !== undefined
+      ? purchaseUnitPrice(draft[pi.id].actualTotal!, (nilai(pi.id, 'qtyPurchased') as number | undefined) ?? (pi.qtyPurchased || pi.qtyTarget || 0))
+      : (nilai(pi.id, 'actualUnitPrice') as number | undefined) ?? (pi.actualUnitPrice || pi.estimatedUnitPrice || 0),
     qtyPurchased: (nilai(pi.id, 'qtyPurchased') as number | undefined) ?? (pi.qtyPurchased || pi.qtyTarget || 0),
     vendorId: (nilai(pi.id, 'vendorId') as string | undefined) ?? pi.vendorId ?? pi.plannedVendorId ?? null,
     paymentMethod: (nilai(pi.id, 'paymentMethod') as ReportLine['paymentMethod']) ?? (pi.paymentMethod as ReportLine['paymentMethod']) ?? 'Cash',
@@ -286,7 +289,7 @@ export default function SalinBelanjaPage() {
                       <TableHead className="text-[11px] font-bold">Nama Barang</TableHead>
                       <TableHead className="text-[11px] font-bold text-center">Qty Beli</TableHead>
                       <TableHead className="text-[11px] font-bold text-right">Perkiraan belanja</TableHead>
-                      <TableHead className="text-[11px] font-bold bg-amber-50">Harga Beli Asli</TableHead>
+                      <TableHead className="text-[11px] font-bold bg-amber-50">Total Beli Asli (Rp)</TableHead>
                       <TableHead className="text-[11px] font-bold bg-amber-50">Qty Asli</TableHead>
                       <TableHead className="text-[11px] font-bold bg-amber-50">Vendor</TableHead>
                       <TableHead className="text-[11px] font-bold bg-amber-50">Catatan</TableHead>
@@ -320,14 +323,17 @@ export default function SalinBelanjaPage() {
                             <span className="mt-0.5 block text-[11px] text-slate-500">{formatRupiah(pi.estimatedUnitPrice || 0)} per {product?.uom || 'unit'}</span>
                           </TableCell>
 
-                          <TableCell className="bg-amber-50/40">
+                          <TableCell className="bg-amber-50/40 whitespace-normal min-w-[160px] max-w-[220px]">
                             <Input
                               type="text" inputMode="numeric"
                               className={cn("h-9 w-28 text-right font-bold", lewat && "border-rose-300 text-rose-600")}
-                              value={l.actualUnitPrice ? formatNumber(l.actualUnitPrice) : ''}
+                              aria-label={`Total beli asli ${product?.name || l.productId}`}
+                              disabled={l.qtyPurchased <= 0}
+                              value={formatNumber(draft[l.id]?.actualTotal ?? Math.round(l.actualUnitPrice * l.qtyPurchased))}
                               placeholder="0"
-                              onChange={e => set(l.id, { actualUnitPrice: parseNumber(e.target.value) })}
+                              onChange={e => set(l.id, { actualTotal: parseNumber(e.target.value) })}
                             />
+                            <p className="mt-1 text-[11px] text-slate-500">Total untuk {l.qtyPurchased} {product?.uom || 'unit'} · {formatRupiah(l.actualUnitPrice)} per {product?.uom || 'unit'}</p>
                             {/* Batas 0 = sistem tidak tahu harga jualnya (belanja stok atau
                                 barang belum pernah dijual). Diamnya harus terbaca sebagai
                                 "belum ketahuan", bukan "aman". */}
@@ -340,13 +346,13 @@ export default function SalinBelanjaPage() {
                                 kelihatan SEBELUM nawar, bukan setelah kena merah. */}
                             {ceil > 0 && !lewat && (
                               <p className="tabular mt-1 text-[11px] text-slate-400">
-                                Batas {formatRupiah(ceil)}
+                                Batas total {formatRupiah(ceil * l.qtyPurchased)}
                               </p>
                             )}
                             {lewat && (
                               <>
                                 <p className="text-[11px] font-bold text-rose-600 mt-1">
-                                  Lewat batas {formatRupiah(ceil)} ({overByPct(l.actualUnitPrice, ceil)}%) — alasannya?
+                                  Lewat batas total {formatRupiah(ceil * l.qtyPurchased)} ({overByPct(l.actualUnitPrice, ceil)}%) — alasannya?
                                 </p>
                                 <Input
                                   className="h-8 mt-1 text-xs border-rose-200"
@@ -366,7 +372,7 @@ export default function SalinBelanjaPage() {
                               value={l.qtyPurchased || ''}
                               onChange={e => {
                                 const q = parseFloat(e.target.value) || 0
-                                set(l.id, { qtyPurchased: q, isChecked: q > 0 })
+                                set(l.id, { qtyPurchased: q, isChecked: q > 0, ...(q <= 0 ? { actualTotal: 0 } : {}) })
                               }}
                             />
                           </TableCell>
