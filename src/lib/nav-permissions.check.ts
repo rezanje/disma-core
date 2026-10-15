@@ -22,6 +22,14 @@ import path from 'node:path';
 
 const nav = fs.readFileSync('src/lib/navigation.tsx', 'utf8');
 const store = fs.readFileSync('src/lib/store.ts', 'utf8');
+const sidebar = fs.readFileSync('src/components/layout/sidebar.tsx', 'utf8');
+
+// Menu induk punya halaman sendiri: membuka anak menu tidak boleh menelan klik
+// menuju halaman itu (Pesanan pernah hanya membuka Kiriman vendor).
+const parentLink = sidebar.match(/<Link\s+href=\{item.href\}([\s\S]*?)\n\s*>/);
+assert.ok(parentLink, 'tautan menu utama tidak ditemukan');
+assert.doesNotMatch(parentLink[1], /toggleSubMenu|preventDefault/,
+  'klik menu utama harus membuka halamannya; pembuka anak menu harus tombol terpisah');
 
 // `access` dipakai kalau menu menumpang izin menu lain — itulah kunci yang benar-benar
 // menentukan menu ini muncul untuk siapa, jadi itu yang diperiksa kepemilikannya.

@@ -100,9 +100,8 @@ export default function Sidebar({ roleName }: SidebarProps) {
   // Sub-menu state
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({})
 
-  const toggleSubMenu = (e: React.MouseEvent, key: string) => {
-    e.preventDefault()
-    setExpandedMenus(prev => ({ ...prev, [key]: !prev[key] }))
+  const toggleSubMenu = (key: string, isExpanded: boolean) => {
+    setExpandedMenus(prev => ({ ...prev, [key]: !isExpanded }))
   }
 
   // Group items by category
@@ -273,7 +272,7 @@ export default function Sidebar({ roleName }: SidebarProps) {
             <nav className="space-y-1">
               {categories[catKey].map((item, index) => {
                 const hasChildren = item.children && item.children.length > 0;
-                const isExpanded = expandedMenus[item.key] || pathname.startsWith(item.href);
+                const isExpanded = expandedMenus[item.key] ?? pathname.startsWith(item.href);
                 const isActive = pathname === item.href || (
                   pathname.startsWith(`${item.href}/`) && 
                   !allItems.some(other => 
@@ -284,12 +283,13 @@ export default function Sidebar({ roleName }: SidebarProps) {
                 )
                 return (
                   <div key={index} className="space-y-1">
+                    <div className="relative">
                     <Link
                       href={item.href}
-                      onClick={(e) => hasChildren && !isMinimized ? toggleSubMenu(e, item.key) : undefined}
                       className={cn(
                         "flex items-center rounded-2xl transition-all duration-300 group relative",
                         isMinimized ? "justify-center w-12 h-12 mx-auto" : "gap-3 px-4 py-3 text-xs font-bold",
+                        hasChildren && !isMinimized && "pr-12",
                         isActive && !hasChildren
                           ? "bg-emerald-600 text-white shadow-sm dark:shadow-none"
                           : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50",
@@ -307,15 +307,22 @@ export default function Sidebar({ roleName }: SidebarProps) {
                       {!isMinimized && (
                         <span className="truncate tracking-tight flex-1">{item.title}</span>
                       )}
-                      {!isMinimized && hasChildren && (
-                        <div className={cn("transition-transform duration-300", isExpanded ? "rotate-90" : "rotate-0")}>
-                           <ChevronRight className="w-3 h-3 opacity-50" />
-                        </div>
-                      )}
                       {isActive && !isMinimized && !hasChildren && (
                         <div className="absolute right-3 w-1.5 h-1.5 bg-white rounded-full shadow-sm" />
                       )}
                     </Link>
+                    {!isMinimized && hasChildren && (
+                      <button
+                        type="button"
+                        aria-label={`Anak menu ${item.title}`}
+                        aria-expanded={isExpanded}
+                        onClick={() => toggleSubMenu(item.key, isExpanded)}
+                        className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-emerald-600"
+                      >
+                        <ChevronRight className={cn("h-3 w-3 transition-transform duration-300", isExpanded && "rotate-90")} />
+                      </button>
+                    )}
+                    </div>
 
                     {/* Sub-menu rendering */}
                     {!isMinimized && hasChildren && isExpanded && (
