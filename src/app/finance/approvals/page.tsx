@@ -935,20 +935,6 @@ export default function FinanceHubPage() {
                           </div>
                           <div className="flex gap-4">
                              <Button 
-                               variant="outline"
-                               className="h-16 px-10 rounded-2xl border-orange-200 text-orange-600 font-bold uppercase text-[11px] tracking-widest bg-white"
-                               onClick={() => {
-                                 const first = awaitingVerification.find(p => p.reconciliationStatus !== 'Terverifikasi')
-                                 if (first) {
-                                   openDirectSettle(first.id)
-                                 } else {
-                                   toast.info("Pilih sesi belanja di bawah untuk input mandiri.")
-                                 }
-                               }}
-                             >
-                                Input Hasil Belanja <Plus className="w-4 h-4 ml-2" />
-                             </Button>
-                             <Button 
                                className="h-16 px-10 rounded-2xl bg-orange-600 hover:bg-orange-500 text-white font-bold uppercase text-[11px] tracking-widest shadow-sm shadow-orange-200"
                                onClick={() => window.location.href = '/finance/approvals/sourcing-settlement'}
                              >
