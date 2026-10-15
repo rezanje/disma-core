@@ -1820,7 +1820,7 @@ export default function ClientsPage() {
               {renderSortHeader("outstandingAR", "Piutang", "right")}
               {renderSortHeader("nearestDue", "Jatuh tempo terdekat", "center")}
               {renderSortHeader("health", "Status", "center")}
-              {mayDeleteClients && <TableHead className="text-right">Aksi</TableHead>}
+              {mayDeleteClients && <TableHead className="sticky right-0 z-10 min-w-36 bg-card text-right">Aksi</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -1913,7 +1913,7 @@ export default function ClientsPage() {
                          {health.label}
                        </Badge>
                     </TableCell>
-                    {mayDeleteClients && <TableCell className="text-right">{renderDeleteButton(client)}</TableCell>}
+                    {mayDeleteClients && <TableCell className="sticky right-0 min-w-36 bg-card text-right">{renderDeleteButton(client)}</TableCell>}
                   </TableRow>
                 )
               })
