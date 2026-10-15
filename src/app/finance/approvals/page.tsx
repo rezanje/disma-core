@@ -759,6 +759,7 @@ export default function FinanceHubPage() {
                                         <div className="bg-slate-50/50 p-4 rounded-lg border border-slate-100">
                                            <p className="text-[11px] font-bold text-slate-400 ">Keterangan Biaya</p>
                                            <p className="text-xs font-bold text-slate-700 mt-1 italic whitespace-pre-wrap leading-relaxed opacity-70">&quot;{exp.description}&quot;</p>
+                                           {exp.sourceBankAccountId && <p className="mt-2 text-xs font-bold text-slate-600">Sumber kas: {bankAccounts.find(b => b.id === exp.sourceBankAccountId)?.name || 'Tidak ditemukan — pilih ulang sebelum menyetujui'}</p>}
                                            <div className="mt-4 pt-4 border-t border-slate-100 flex justify-between items-baseline">
                                               <span className="text-[11px] font-bold text-slate-400 uppercase">Nilai Transaksi</span>
                                               <span className="text-2xl font-bold text-slate-900 tracking-tighter">{formatRupiah(exp.amount)}</span>

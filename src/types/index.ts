@@ -453,6 +453,7 @@ export interface OperationalExpense {
   id: string;
   date: string;
   reporterId: string;
+  sourceBankAccountId?: string; // Explicit cash source selected during transcription.
   purchaseId?: string; // Links this expense to a specific sourcing budget drop
   category: 'Bensin' | 'Tol' | 'Parkir' | 'Kuli' | 'Makan' | 'Lainnya' | 'Belanja Online' | 'Sourcing (HPP)' | 'Sales Revenue' | 'Setoran Pengembalian';
   amount: number;

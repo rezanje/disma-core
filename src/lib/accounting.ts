@@ -468,6 +468,13 @@ export const recordOperationalExpense = async (
   bankAccountId: string = 'bank-4'
 ) => {
   const store = useAppStore.getState();
+  const selectedSourceId = store.expenses.find(e => e.id === expenseId)?.sourceBankAccountId;
+  if (selectedSourceId) {
+    const source = store.bankAccounts.find(b => b.id === selectedSourceId);
+    if (!source?.accountCode) return false;
+    bankAccountId = source.id;
+    creditAccountCode = source.accountCode;
+  }
   let expenseAccountCode = resolveExpenseAccountCode(category);
   
   const targetCoa = store.coas.find(c => c.accountCode === expenseAccountCode);
@@ -509,6 +516,10 @@ export const recordAdvanceExpense = async (
   category?: string
 ) => {
   const store = useAppStore.getState();
+  // A saved source wins over the reporter's wallet across every approval screen.
+  if (store.expenses.find(e => e.id === expenseId)?.sourceBankAccountId) {
+    return recordOperationalExpense(expenseId, amount, description, date, category);
+  }
   const wallet = getAdvanceWalletByUserId(reporterId);
   if (!wallet) {
     console.error(`Advance wallet not found for reporter ${reporterId}`);

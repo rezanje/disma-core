@@ -569,6 +569,7 @@ export default function SourcingSettlementPage() {
                                              <div>
                                                 <p className="text-xs font-bold text-slate-800 uppercase leading-none mb-1">{e.category}</p>
                                                 <p className="text-[11px] font-bold text-slate-400 uppercase line-clamp-1">{e.description}</p>
+                                                {e.sourceBankAccountId && <p className="mt-1 text-xs text-slate-500">Sumber kas: {bankAccounts.find(b => b.id === e.sourceBankAccountId)?.name || 'Tidak ditemukan'}</p>}
                                              </div>
                                              <div className="flex items-center gap-3">
                                                 <span className="text-xs font-bold text-slate-900">{formatRupiah(e.amount)}</span>

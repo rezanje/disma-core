@@ -33,7 +33,7 @@ export type ReportLine = {
 export type ReportInput = {
   purchaseIds: string[];
   lines: ReportLine[];
-  /** Kantong yang dipotong. Wajib ada kalau ada belanja tunai. */
+  /** Sumber kas yang dipotong. Wajib ada kalau ada belanja tunai. */
   pocketBankAccountId?: string | null;
   /** Siapa yang benar-benar belanja, kalau bukan yang mengetik. */
   onBehalfOfUserId?: string | null;
@@ -78,14 +78,14 @@ export function reportProblems(
     }
   }
 
-  // Belanja tunai hanya bisa dibukukan lewat kantong si pembelanja. Tanpa kantong,
+  // Belanja tunai harus punya sumber kas yang jelas. Tanpa sumber kas,
   // uangnya tidak pernah keluar dari kas mana pun — laporannya "berhasil" padahal
   // saldo bank tidak berkurang sepeser pun.
   const tunai = dibeli.reduce((sum, l) =>
     (l.paymentMethod !== 'Tempo' && l.paymentMethod !== 'Transfer' && l.purchaseMethod !== 'Online')
       ? sum + l.qtyPurchased * l.actualUnitPrice : sum, 0);
   if (tunai > 0 && !input.pocketBankAccountId) {
-    masalah.push('Belum jelas kantong siapa yang dipotong. Pilih dulu belanja ini atas nama siapa.');
+    masalah.push('Sumber kas belanja belum dipilih. Pilih kas atau rekening yang dipakai.');
   }
 
   // Foto kertasnya tidak diwajibkan. Sempat dipaksa waktu penyalinan masih dianggap
@@ -107,6 +107,9 @@ export async function submitShoppingReport(
   const { recordPocketPurchase, recordVendorTransferPurchase } = await import('./accounting');
   const warnings: string[] = [];
   const state = getState();
+  if (input.pocketBankAccountId && !state.bankAccounts.some(b => b.id === input.pocketBankAccountId && b.accountCode)) {
+    return { ok: false, problems: ['Sumber kas belanja tidak ditemukan. Pilih kembali sumber kas.'] };
+  }
 
   const pm = (l: ReportLine) => l.paymentMethod || 'Cash';
   const total = (l: ReportLine) => l.qtyPurchased * l.actualUnitPrice;
@@ -132,6 +135,19 @@ export async function submitShoppingReport(
     const cashCost = baris.reduce((s, l) => pm(l) === 'Cash' && l.purchaseMethod !== 'Online' ? s + total(l) : s, 0);
     const budget = (doc?.budgetAmount || 0) + (doc?.operationalSpareAmount || 0);
 
+    if (input.pocketBankAccountId && cashCost > 0) {
+      const posted = await recordPocketPurchase(purchaseId, input.pocketBankAccountId, cashCost, state.currentUser?.name || 'Sourcing');
+      if (!posted) throw new Error('Belanja belum berhasil dipotong dari sumber kas pilihan.');
+    }
+
+    // Transfer dibayar langsung finance dari BCA — tidak lewat kantong, tidak antre.
+    const transferCost = baris.reduce((s, l) => pm(l) === 'Transfer' && l.purchaseMethod !== 'Online' ? s + total(l) : s, 0);
+    if (transferCost > 0) {
+      const bca = getState().bankAccounts.find(b => b.accountCode === '1-1200');
+      if (bca) await recordVendorTransferPurchase(purchaseId, bca.id, transferCost, state.currentUser?.name || 'Sourcing');
+      else warnings.push('Rekening BCA tidak ketemu — belanja transfer belum terbukukan.');
+    }
+
     await getState().updatePurchase(purchaseId, {
       status: 'Selesai',
       // Yang belanja di lapangan, bukan yang mengetik laporannya.
@@ -142,18 +158,6 @@ export async function submitShoppingReport(
       reconciliationStatus: 'Laporan Masuk',
       reconciliationProofUrl: input.proofImage || undefined,
     });
-
-    if (input.pocketBankAccountId && cashCost > 0) {
-      await recordPocketPurchase(purchaseId, input.pocketBankAccountId, cashCost, state.currentUser?.name || 'Sourcing');
-    }
-
-    // Transfer dibayar langsung finance dari BCA — tidak lewat kantong, tidak antre.
-    const transferCost = baris.reduce((s, l) => pm(l) === 'Transfer' && l.purchaseMethod !== 'Online' ? s + total(l) : s, 0);
-    if (transferCost > 0) {
-      const bca = getState().bankAccounts.find(b => b.accountCode === '1-1200');
-      if (bca) await recordVendorTransferPurchase(purchaseId, bca.id, transferCost, state.currentUser?.name || 'Sourcing');
-      else warnings.push('Rekening BCA tidak ketemu — belanja transfer belum terbukukan.');
-    }
   }
 
   // 3. Harga pasar hari ini ikut tercatat dari angka yang barusan diketik. Gagal di

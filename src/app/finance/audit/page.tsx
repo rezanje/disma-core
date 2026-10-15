@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 
 export default function AuditTransitionPage() {
+  const bankAccounts = useAppStore(state => state.bankAccounts)
   const expenses = useAppStore(state => state.expenses)
   const purchaseItems = useAppStore(state => state.purchaseItems)
   const products = useAppStore(state => state.products)
@@ -49,11 +50,6 @@ export default function AuditTransitionPage() {
     const expense = expenses.find(e => e.id === expenseId)
     if (!expense) return
 
-    updateExpense(expenseId, {
-      status: 'Approved',
-      auditDate: new Date().toISOString()
-    })
-
     let success = false
     if (expense.category === 'Belanja Online' && expense.referenceId) {
       const pItem = purchaseItems.find(i => i.id === expense.referenceId)
@@ -82,6 +78,7 @@ export default function AuditTransitionPage() {
     }
 
     if (success) {
+      await updateExpense(expenseId, { status: 'Approved', auditDate: new Date().toISOString() })
       toast.success("Transaksi Valid & Terposting ke Ledger!")
     } else {
       toast.error("Validasi gagal - Data reference tidak valid.")
@@ -195,6 +192,7 @@ export default function AuditTransitionPage() {
                                  {exp.category}
                               </Badge>
                               <span className="text-sm font-bold text-slate-600 line-clamp-1">{exp.description}</span>
+                              {exp.sourceBankAccountId && <span className="text-xs text-slate-500">Sumber kas: {bankAccounts.find(b => b.id === exp.sourceBankAccountId)?.name || 'Tidak ditemukan'}</span>}
                            </div>
                         </TableCell>
                         <TableCell className="text-right">

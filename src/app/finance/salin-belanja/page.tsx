@@ -33,7 +33,7 @@ import { toggleAll } from "@/lib/plan-table"
 import { OperationalExpense } from "@/types"
 import { v4 as uuidv4 } from "uuid"
 
-type OpsRow = { id: string; kategori: string; nominal: number; keterangan: string }
+type OpsRow = { id: string; kategori: string; nominal: number; keterangan: string; sourceBankAccountId?: string }
 
 const KATEGORI_OPS = ['Bensin', 'Tol', 'Parkir', 'Kuli', 'Makan', 'Lainnya']
 
@@ -107,24 +107,18 @@ export default function SalinBelanjaPage() {
     [baris, salesOrderItems, minMarginPct],
   )
 
-  const totalBelanja = lines.filter(l => l.isChecked).reduce((s, l) => s + l.qtyPurchased * l.actualUnitPrice, 0)
+  const totalBelanja = lines.filter(l => l.isChecked && l.paymentMethod === 'Cash').reduce((s, l) => s + l.qtyPurchased * l.actualUnitPrice, 0)
   const totalOps = ops.reduce((s, o) => s + o.nominal, 0)
 
   const namaProduk = (productId: string) => products.find(p => p.id === productId)?.name || productId
 
-  // Kantong tidak ditanyakan lagi. Sourcing menarik dari kantong mingguannya sendiri,
-  // jadi jawabannya selalu sama dan menanyakannya tiap hari cuma satu klik yang bisa
-  // salah. Tetap dipakai di pembukuan: tanpa kantong, belanja tercatat tapi tidak ada
-  // rekening yang berkurang, dan selisihnya baru ketahuan berbulan-bulan kemudian.
-  //
-  // Ditanyakan HANYA kalau kantongnya lebih dari satu — di situ menebak berarti
-  // memotong uang orang yang salah.
+  // Keep the usual pocket as the default, while letting Finance choose another source.
   const kantong = pocketOwners(bankAccounts)
   const kantongTunggal = kantong.length === 1 ? kantong[0] : null
-  const kantongTerpakai = kantongTunggal || kantong.find(b => b.id === pocketId) || null
+  const kantongTerpakai = bankAccounts.find(b => b.id === (pocketId || kantongTunggal?.id)) || null
   // Yang belanja di lapangan = pemilik kantongnya. Kalau itu bukan yang mengetik,
   // foto kertasnya tetap wajib — aturan buktinya tidak ikut disederhanakan.
-  const atasNama = kantongTerpakai?.ownerUserId || ""
+  const atasNama = kantongTerpakai?.ownerUserId || kantongTunggal?.ownerUserId || ""
   const pocketDipakai = kantongTerpakai?.id || ""
   const terpilih = lines.filter(l => pilih.has(l.id))
 
@@ -142,9 +136,14 @@ export default function SalinBelanjaPage() {
     { purchaseIds: menunggu.map(p => p.id), lines, pocketBankAccountId: pocketDipakai || null, onBehalfOfUserId: atasNama || null, proofImage: foto, ceilings: batas },
     namaProduk, currentUser?.id,
   ) : ['Belum ada dokumen belanja yang menunggu laporan.']
+  for (const o of ops) {
+    if (o.nominal > 0 && !bankAccounts.some(b => b.id === (o.sourceBankAccountId || pocketDipakai) && b.accountCode)) {
+      masalah.push(`Pilih sumber kas untuk biaya ${o.kategori}.`)
+    }
+  }
 
   const simpan = async () => {
-    if (menunggu.length === 0 || masalah.length > 0) return
+    if (kirim || menunggu.length === 0 || masalah.length > 0) return
     setKirim(true)
     const t = toast.loading("Menyimpan salinan kertas belanja…")
     try {
@@ -163,11 +162,11 @@ export default function SalinBelanjaPage() {
       for (const o of ops) {
         if (!(o.nominal > 0)) continue
         await addExpense({
-          id: uuidv4(),
+          id: o.id,
           date: new Date().toISOString(),
           reporterId: currentUser?.id || 'system',
-          // Satu perjalanan ke pasar, satu kantong. Biaya parkir tidak bisa dibelah
-          // per dokumen, jadi dibebankan ke dokumen pertama hari itu.
+          sourceBankAccountId: o.sourceBankAccountId || pocketDipakai,
+          // Biaya perjalanan dibebankan ke dokumen pertama hari itu.
           purchaseId: menunggu[0].id,
           category: (o.kategori || 'Lainnya') as OperationalExpense['category'],
           amount: o.nominal,
@@ -227,22 +226,15 @@ export default function SalinBelanjaPage() {
                   )}
                 </div>
                 <div className="flex flex-wrap items-end gap-3">
-                  {kantongTunggal ? (
-                    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 dark:bg-slate-900">
-                      <p className="text-[11px] font-bold  text-slate-400">Dipotong dari kantong</p>
-                      <p className="text-sm font-bold text-slate-700">{kantongTunggal.name}</p>
-                    </div>
-                  ) : (
-                    <div className="w-60">
-                      <Label className="text-[11px] font-bold uppercase text-slate-500">Kantong yang dipotong</Label>
-                      <SearchSelect
-                        value={pocketId}
-                        onChange={setPocketId}
-                        options={kantong.map(b2 => ({ value: b2.id, label: b2.name || b2.id }))}
-                        placeholder="— Pilih kantong —"
-                      />
-                    </div>
-                  )}
+                  <div className="w-64">
+                    <Label className="text-[11px] font-bold uppercase text-slate-500">Sumber kas belanja tunai</Label>
+                    <SearchSelect
+                      value={pocketDipakai}
+                      onChange={setPocketId}
+                      options={bankAccounts.map(b => ({ value: b.id, label: b.name || b.id }))}
+                      placeholder="— Pilih sumber kas —"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -413,6 +405,7 @@ export default function SalinBelanjaPage() {
                     <Plus className="w-3.5 h-3.5 mr-1" /> Tambah baris
                   </Button>
                 </div>
+                <p className="text-xs text-slate-500">Sumber kas bisa berbeda tiap biaya. Jika tidak dipilih, mengikuti kas belanja. Kas biaya operasional dipotong setelah disetujui Finance.</p>
                 {ops.length === 0 && <p className="text-xs text-slate-400 font-bold">Belum ada. Bensin, tol, parkir, kuli, makan.</p>}
                 {ops.map(o => (
                   <div key={o.id} className="flex flex-wrap items-center gap-2">
@@ -430,6 +423,15 @@ export default function SalinBelanjaPage() {
                       value={o.nominal ? formatNumber(o.nominal) : ''}
                       onChange={e => setOps(prev => prev.map(x => x.id === o.id ? { ...x, nominal: parseNumber(e.target.value) } : x))}
                     />
+                    <div className="w-60" aria-label={`Sumber kas biaya ${o.kategori}`}>
+                      <SearchSelect
+                        value={o.sourceBankAccountId || ''}
+                        onChange={v => setOps(prev => prev.map(x => x.id === o.id ? { ...x, sourceBankAccountId: v || undefined } : x))}
+                        options={bankAccounts.map(b => ({ value: b.id, label: b.name || b.id }))}
+                        placeholder={`Kas belanja: ${kantongTerpakai?.name || 'belum dipilih'}`}
+                        emptyLabel="Ikuti sumber kas belanja"
+                      />
+                    </div>
                     <Input
                       className="h-9 flex-1 min-w-[160px] text-xs"
                       placeholder="Keterangan"
@@ -453,7 +455,7 @@ export default function SalinBelanjaPage() {
                   <div className="flex justify-between"><span className="font-bold text-slate-500">Belanja</span><span className="font-bold">{formatRupiah(totalBelanja)}</span></div>
                   <div className="flex justify-between"><span className="font-bold text-slate-500">Operasional</span><span className="font-bold">{formatRupiah(totalOps)}</span></div>
                   <div className="flex justify-between md:col-span-2 border-t pt-2">
-                    <span className="font-bold text-slate-500">Total dipotong dari kantong</span>
+                    <span className="font-bold text-slate-500">Total pengeluaran kas</span>
                     <span className="font-bold text-emerald-600">{formatRupiah(totalBelanja + totalOps)}</span>
                   </div>
                 </div>

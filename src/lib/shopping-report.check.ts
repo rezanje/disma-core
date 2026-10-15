@@ -32,7 +32,7 @@ assert.match(reportProblems({ ...dasar, lines: [baris({ actualUnitPrice: 0 })] }
 assert.deepEqual(reportProblems({ ...dasar, lines: [baris({ isChecked: false, vendorId: null, actualUnitPrice: 0 })] }, nama, 'u1'), []);
 
 // tunai tanpa kantong
-assert.match(reportProblems({ ...dasar, pocketBankAccountId: null }, nama, 'u1')[0], /kantong siapa/);
+assert.match(reportProblems({ ...dasar, pocketBankAccountId: null }, nama, 'u1')[0], /Sumber kas/);
 // tempo dan transfer tidak menarik tunai, jadi tidak butuh kantong
 assert.deepEqual(reportProblems({ ...dasar, pocketBankAccountId: null, lines: [baris({ paymentMethod: 'Tempo' })] }, nama, 'u1'), []);
 assert.deepEqual(reportProblems({ ...dasar, pocketBankAccountId: null, lines: [baris({ paymentMethod: 'Transfer' })] }, nama, 'u1'), []);
