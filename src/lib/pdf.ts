@@ -691,12 +691,12 @@ function buildShoppingListPDF(
 
       doc.text(`${item.totalQty}${item.uom ? ' ' + item.uom : ''}`, colX[2], y)
 
-      // Harga patokan hanya berarti untuk barang yang dibayar tunai di tempat. Tempo
+      // Perkiraan total hanya berarti untuk barang yang dibayar tunai di tempat. Tempo
       // ditagih belakangan dan Transfer sudah dibayar kantor — mencetak angkanya bikin
       // orang menjumlahkannya jadi uang yang harus dibawa, padahal tidak.
       const priceText = item.paymentMethod === 'Transfer' ? '(Dibayar Kantor)'
         : item.paymentMethod === 'Tempo' ? '(Tempo / Ditagih)'
-        : formatRupiah(item.estimatedPrice)
+        : formatRupiah(item.estimatedPrice * item.totalQty)
       doc.text(priceText, colX[3], y)
 
       // Adjust y based on number of lines in product name

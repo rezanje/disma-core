@@ -61,5 +61,8 @@ assert.equal(tunaiDibutuhkan([
   { totalQty: 3, estimatedPrice: 10000, purchaseMethod: 'Vendor', paymentMethod: 'Transfer' }, // dibayar kantor
 ]), 200000);
 assert.equal(tunaiDibutuhkan([]), 0);
+assert.equal(tunaiDibutuhkan(gabungBaris([
+  baris({ totalQty: 0.25, estimatedPrice: 33000 }),
+])), 8250);
 
 console.log('belanja-merge: OK');

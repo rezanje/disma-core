@@ -259,8 +259,7 @@ export default function KonsolidasiBelanjaPage() {
                       <TableHead>Produk</TableHead>
                       <TableHead className="w-[150px]">Vendor</TableHead>
                       <TableHead className="w-[90px] text-right">Qty</TableHead>
-                      <TableHead className="w-[120px] text-right">Patokan</TableHead>
-                      <TableHead className="w-[130px] text-right">Subtotal</TableHead>
+                      <TableHead className="w-[180px] text-right">Perkiraan belanja</TableHead>
                       <TableHead className="w-[150px] text-center">Lokasi · Bayar</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -283,8 +282,10 @@ export default function KonsolidasiBelanjaPage() {
                         <TableCell className="text-right text-sm font-bold text-slate-700">
                           {r.totalQty}{r.uom ? ` ${r.uom}` : ''}
                         </TableCell>
-                        <TableCell className="text-right text-xs font-bold text-slate-500">{formatRupiah(r.estimatedPrice)}</TableCell>
-                        <TableCell className="text-right text-xs font-bold text-emerald-600">{formatRupiah(r.estimatedPrice * r.totalQty)}</TableCell>
+                        <TableCell className="text-right">
+                          <span className="block text-sm font-bold text-emerald-600">{formatRupiah(r.estimatedPrice * r.totalQty)}</span>
+                          <span className="mt-0.5 block text-[11px] text-slate-500">{formatRupiah(r.estimatedPrice)} per {r.uom || 'unit'}</span>
+                        </TableCell>
                         <TableCell className="text-center text-[11px] font-bold  text-slate-400">
                           {LOKASI_LABEL[r.purchaseMethod || 'Pasar'] || r.purchaseMethod} · {r.paymentMethod || 'Cash'}
                         </TableCell>

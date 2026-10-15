@@ -293,7 +293,7 @@ export default function SalinBelanjaPage() {
                       <TableHead className="text-[11px] font-bold">SKU</TableHead>
                       <TableHead className="text-[11px] font-bold">Nama Barang</TableHead>
                       <TableHead className="text-[11px] font-bold text-center">Qty Beli</TableHead>
-                      <TableHead className="text-[11px] font-bold text-right">Harga Patokan</TableHead>
+                      <TableHead className="text-[11px] font-bold text-right">Perkiraan belanja</TableHead>
                       <TableHead className="text-[11px] font-bold bg-amber-50">Harga Beli Asli</TableHead>
                       <TableHead className="text-[11px] font-bold bg-amber-50">Qty Asli</TableHead>
                       <TableHead className="text-[11px] font-bold bg-amber-50">Vendor</TableHead>
@@ -323,7 +323,10 @@ export default function SalinBelanjaPage() {
                             </p>
                           </TableCell>
                           <TableCell className="text-center font-bold text-sm">{pi.qtyTarget} {product?.uom}</TableCell>
-                          <TableCell className="text-right text-xs font-bold text-slate-500">{formatRupiah(pi.estimatedUnitPrice || 0)}</TableCell>
+                          <TableCell className="text-right">
+                            <span className="block text-xs font-bold text-slate-700">{formatRupiah((pi.estimatedUnitPrice || 0) * pi.qtyTarget)}</span>
+                            <span className="mt-0.5 block text-[11px] text-slate-500">{formatRupiah(pi.estimatedUnitPrice || 0)} per {product?.uom || 'unit'}</span>
+                          </TableCell>
 
                           <TableCell className="bg-amber-50/40">
                             <Input
