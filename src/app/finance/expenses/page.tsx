@@ -20,6 +20,7 @@ import { computeBankBalances } from "@/lib/bank-balance"
 import ReceiptUpload from "@/components/ui/receipt-upload"
 import { v4 as uuidv4 } from "uuid"
 import AuthGuard from "@/components/auth/auth-guard"
+import { loanPaymentDebits } from "@/lib/loan-interest"
 
 const EXPENSE_CATEGORIES = [
   { value: 'Beban Gaji', label: '👥 Beban Gaji Karyawan', coa: '6-1000' },
@@ -134,15 +135,8 @@ export default function PengeluaranUmumPage({ embedded }: { embedded?: boolean }
     try {
       let jeSuccess = false
       if (fCategory === 'Cicilan Pinjaman') {
-        const bunga = Math.max(0, fAmount - fPokok)
-        if (fPokok <= 0 || fPokok > fAmount) {
-          toast.error("Bagian pokok tidak valid.", { id: loadingToast }); return
-        }
         // JE first — only commit cash tx if JE succeeds
-        const debits = [
-          { accountCode: '2-4000', amount: fPokok },
-          ...(bunga > 0 ? [{ accountCode: '6-3000', amount: bunga }] : [])
-        ]
+        const debits = loanPaymentDebits(fAmount, fPokok)
         jeSuccess = await createAccountingEntry(
           `Cicilan Pinjaman: ${fDesc}`, 'Adjustment', txId,
           debits, [{ accountCode: bankCode, amount: fAmount }], now

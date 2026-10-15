@@ -23,6 +23,7 @@ import type { BankAccountPurpose } from "@/types"
 import { computeBankBalances } from "@/lib/bank-balance"
 import ReceiptUpload from "@/components/ui/receipt-upload"
 import { Checkbox } from "@/components/ui/checkbox"
+import { calculateLoanInterest, describeLoanInterest, loanPaymentDebits, type LoanInterestTerms } from "@/lib/loan-interest"
 
 const formatCategory = (cat: string) => {
   const map: Record<string, string> = {
@@ -85,6 +86,13 @@ export default function CashAndBankPage() {
   const [counterpart, setCounterpart] = useState('')
   const [receiptUrl, setReceiptUrl] = useState('')
   const [cicilanPokok, setCicilanPokok] = useState(0)
+  const [loanMode, setLoanMode] = useState<LoanInterestTerms['mode']>('percent')
+  const [loanPeriod, setLoanPeriod] = useState<LoanInterestTerms['period']>('monthly')
+  const [loanValue, setLoanValue] = useState('')
+  const [loanMonths, setLoanMonths] = useState('')
+  const loanTerms: LoanInterestTerms = { mode: loanMode, period: loanPeriod, value: loanValue.trim() ? Number(loanValue.replace(',', '.')) : NaN, months: Number(loanMonths) }
+  let loanEstimate: ReturnType<typeof calculateLoanInterest> | null = null
+  try { loanEstimate = calculateLoanInterest(amount, loanTerms) } catch {}
   const [searchTerm, setSearchTerm] = useState("")
 
   const [selectedBankFilter, setSelectedBankFilter] = useState<string | null>(null)
@@ -326,6 +334,7 @@ export default function CashAndBankPage() {
   }
 
   const handleSaveTx = async () => {
+    if (isSubmitting) return
     if (txType === 'Transfer') {
       if (!bankId || !targetBankId || amount <= 0 || !description) {
         toast.error("Mohon lengkapi data transfer internal.")
@@ -418,6 +427,12 @@ export default function CashAndBankPage() {
       return
     }
 
+    let savedDescription = description
+    if (txType === 'In' && category === 'Pinjaman') {
+      try { savedDescription = `${description.trim()}\n${describeLoanInterest(amount, loanTerms)}` }
+      catch (error) { toast.error((error as Error).message); return }
+    }
+
     setIsSubmitting(true)
     const loadingToast = toast.loading(`Mencatat transaksi kas ${txType === 'In' ? 'Masuk' : 'Keluar'}...`)
     
@@ -458,16 +473,8 @@ export default function CashAndBankPage() {
       // Special case: Cicilan Pinjaman (split JE: pokok → liability, bunga → expense)
       const bankAccountCode = bank?.accountCode || '1-1000'
       if (txType === 'Out' && category === 'Cicilan Pinjaman') {
-        const bunga = Math.max(0, amount - cicilanPokok)
-        if (cicilanPokok <= 0 || cicilanPokok > amount) {
-          toast.error("Bagian pokok cicilan tidak valid.", { id: loadingToast })
-          return
-        }
         // JE first — if it fails, no cash tx created (data integrity)
-        const debits = [
-          { accountCode: '2-4000', amount: cicilanPokok },
-          ...(bunga > 0 ? [{ accountCode: '6-3000', amount: bunga }] : [])
-        ]
+        const debits = loanPaymentDebits(amount, cicilanPokok)
         const success = await createAccountingEntry(
           `Cicilan Pinjaman: ${description}`, 'Adjustment', txId,
           debits, [{ accountCode: bankAccountCode, amount }], now
@@ -491,7 +498,7 @@ export default function CashAndBankPage() {
         amount,
         bankAccountId: bankId,
         category,
-        description,
+        description: savedDescription,
         counterpartName: counterpart,
         receiptUrl,
         referenceType: 'Manual'
@@ -501,7 +508,7 @@ export default function CashAndBankPage() {
       // In: Debit Bank, Credit Target Account
       // Out: Debit Target Account, Credit Bank
       const success = await createAccountingEntry(
-        `${txType === 'In' ? 'Penerimaan' : 'Pengiriman'} Kas: ${description}`,
+        `${txType === 'In' ? 'Penerimaan' : 'Pengiriman'} Kas: ${savedDescription}`,
         'Adjustment',
         txId,
         txType === 'In' ? [{ accountCode: bankAccountCode, amount }] : [{ accountCode: targetAccountCode, amount }],
@@ -519,6 +526,8 @@ export default function CashAndBankPage() {
         setCounterpart('')
         setCategory('')
         setCicilanPokok(0)
+        setLoanValue('')
+        setLoanMonths('')
       } else {
         toast.error("Gagal mencatat jurnal kas.", { id: loadingToast })
       }
@@ -624,7 +633,7 @@ export default function CashAndBankPage() {
            <Dialog open={isAddTxOpen} onOpenChange={(open) => {
               setIsAddTxOpen(open)
               if (!open) {
-                setAmount(0); setCategory(''); setDescription(''); setCounterpart('')
+                setAmount(0); setCategory(''); setDescription(''); setCounterpart(''); setLoanValue(''); setLoanMonths('')
                 setCicilanPokok(0); setReceiptUrl(''); setTargetBankId('')
                 setTxDate(new Date().toISOString().split('T')[0])
               }
@@ -763,6 +772,46 @@ export default function CashAndBankPage() {
                         </div>
                      </div>
 
+                     {category === 'Pinjaman' && txType === 'In' && (
+                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 space-y-3">
+                           <p className="text-sm font-semibold text-emerald-800">Bunga pinjaman</p>
+                           <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-1">
+                                 <Label htmlFor="loan-period">Periode bunga</Label>
+                                 <Select value={loanPeriod} onValueChange={v => { if (v) setLoanPeriod(v as LoanInterestTerms['period']) }}>
+                                    <SelectTrigger id="loan-period" className="w-full"><SelectValue>{loanPeriod === 'monthly' ? 'Per bulan (flat)' : 'Total selama pinjaman'}</SelectValue></SelectTrigger>
+                                    <SelectContent><SelectItem value="monthly">Per bulan (flat)</SelectItem><SelectItem value="total">Total selama pinjaman</SelectItem></SelectContent>
+                                 </Select>
+                              </div>
+                              <div className="space-y-1">
+                                 <Label htmlFor="loan-mode">Isi bunga sebagai</Label>
+                                 <Select value={loanMode} onValueChange={v => { if (v) { setLoanMode(v as LoanInterestTerms['mode']); setLoanValue('') } }}>
+                                    <SelectTrigger id="loan-mode" className="w-full"><SelectValue>{loanMode === 'percent' ? 'Persentase (%)' : 'Nominal rupiah (Rp)'}</SelectValue></SelectTrigger>
+                                    <SelectContent><SelectItem value="percent">Persentase (%)</SelectItem><SelectItem value="amount">Nominal rupiah (Rp)</SelectItem></SelectContent>
+                                 </Select>
+                              </div>
+                              <div className="space-y-1">
+                                 <Label htmlFor="loan-value">Bunga {loanPeriod === 'monthly' ? 'per bulan' : 'total'} ({loanMode === 'percent' ? '%' : 'Rp'})</Label>
+                                 <Input id="loan-value" inputMode={loanMode === 'percent' ? 'decimal' : 'numeric'} value={loanMode === 'amount' && loanValue ? formatNumber(loanValue) : loanValue} placeholder="Isi 0 jika tanpa bunga" onChange={e => setLoanValue(loanMode === 'amount' ? e.target.value.replace(/\D/g, '') : e.target.value)} />
+                              </div>
+                              {loanPeriod === 'monthly' && (
+                                 <div className="space-y-1">
+                                    <Label htmlFor="loan-months">Lama pinjaman (bulan)</Label>
+                                    <Input id="loan-months" type="number" min="1" step="1" value={loanMonths} placeholder="Contoh: 3" onChange={e => setLoanMonths(e.target.value)} />
+                                 </div>
+                              )}
+                           </div>
+                           <p className="text-xs text-emerald-800">Persentase dihitung dari pokok awal. Nominal transaksi di atas adalah pokok pinjaman yang diterima utuh.</p>
+                           {loanEstimate && (
+                              <div className="grid grid-cols-2 gap-3 text-sm text-emerald-900" aria-live="polite">
+                                 <p>Total bunga<strong className="block">{formatRupiah(loanEstimate.totalInterest)}</strong></p>
+                                 <p>Pokok + bunga<strong className="block">{formatRupiah(loanEstimate.totalRepayment)}</strong></p>
+                              </div>
+                           )}
+                           <p className="text-xs text-slate-600">Ketentuan bunga disimpan di keterangan transaksi. Belum dibukukan sebagai beban saat pencairan. Saat membayar, pilih Kas Keluar → Cicilan Pinjaman dan pisahkan pokok dari bunga. Tidak ada pembukuan bunga bulanan otomatis.</p>
+                        </div>
+                     )}
+
                      {category === 'Cicilan Pinjaman' && txType === 'Out' && (
                         <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 space-y-3">
                            <p className="text-xs font-bold text-amber-700 ">📋 Rincian Cicilan Pinjaman</p>
@@ -784,7 +833,7 @@ export default function CashAndBankPage() {
                                  </div>
                               </div>
                            </div>
-                           <p className="text-[11px] text-amber-600">Pokok kurangi utang di neraca. Bunga masuk beban P&L.</p>
+                           <p className="text-[11px] text-amber-600">Pokok mengurangi utang. Bunga masuk beban bunga dan mengurangi laba. Isi pokok 0 jika hanya membayar bunga.</p>
                         </div>
                      )}
 
@@ -1176,7 +1225,7 @@ export default function CashAndBankPage() {
                                     {(() => {
                                       const tujuan = tujuanTransaksi(tx, kamusRujukan)
                                       const judul = tanpaRef(tx.description)
-                                      if (!tujuan) return <span className="font-bold text-sm">{judul}</span>
+                                      if (!tujuan) return <span className="whitespace-pre-line font-bold text-sm">{judul}</span>
                                       return (
                                         <Link
                                           href={tujuan.href}
