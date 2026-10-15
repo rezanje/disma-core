@@ -929,16 +929,16 @@ export default function FinanceHubPage() {
                                 <CheckCircle2 className="w-8 h-8" />
                              </div>
                              <div>
-                                <h3 className="text-2xl font-bold text-slate-900 tracking-tight">Sourcing Settlement Hub</h3>
-                                <p className="text-sm font-bold text-slate-500">Ada {awaitingVerification.length} sesi belanja yang perlu divalidasi pembukuannya.</p>
+                                <h3 className="text-2xl font-bold text-slate-900 tracking-tight">Salin Berkas QC</h3>
+                                <p className="text-sm font-bold text-slate-500">Ada {awaitingVerification.length} sesi belanja. Salin hasil pemeriksaan dari kertas tim QC.</p>
                              </div>
                           </div>
                           <div className="flex gap-4">
                              <Button 
                                className="h-16 px-10 rounded-2xl bg-orange-600 hover:bg-orange-500 text-white font-bold uppercase text-[11px] tracking-widest shadow-sm shadow-orange-200"
-                               onClick={() => window.location.href = '/finance/approvals/sourcing-settlement'}
+                               onClick={() => window.location.href = '/finance/salin-qc'}
                              >
-                                Dashboard Settlement <ArrowRight className="w-4 h-4 ml-2" />
+                                Salin Berkas QC <ArrowRight className="w-4 h-4 ml-2" />
                              </Button>
                           </div>
                        </div>

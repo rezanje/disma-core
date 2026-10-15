@@ -62,7 +62,7 @@ export const APP_PAGES: NavItemConfig[] = [
       // (settlement / audit_online / audit_ops_lain / delivery). Tab yang tidak
       // dikenali membuat isi halaman kosong tanpa pesan apa pun.
       { key: 'finance_settlement', title: 'Settlement sourcing', href: '/finance/approvals?tab=settlement' },
-      { key: 'finance_settlement_dash', title: 'Ringkasan settlement', href: '/finance/approvals/sourcing-settlement' },
+      { key: 'finance_settlement_dash', title: 'Salin berkas QC', href: '/finance/salin-qc' },
       // Rekonsiliasi dulu menu sendiri, padahal pintu ketiga ke pekerjaan yang sama.
       { key: 'finance_rekon', title: 'Rekonsiliasi', href: '/finance/reconciliation' },
       { key: 'finance_audit', title: 'Audit operasional', href: '/finance/approvals?tab=audit_ops_lain' },
