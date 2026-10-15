@@ -34,6 +34,7 @@ import { clientDeletionBlockers, describeBlockers, canManageClientDeletion } fro
 
 const LOCAL_PRODUCTS_CACHE_KEY = 'disma_local_products_cache';
 const LOCAL_CLIENTS_CACHE_KEY = 'disma_local_clients_cache';
+const LOCAL_VENDORS_CACHE_KEY = 'disma_local_vendors_cache';
 const LOCAL_SALES_ORDERS_CACHE_KEY = 'disma_local_sales_orders_cache';
 const LOCAL_SALES_ORDER_ITEMS_CACHE_KEY = 'disma_local_sales_order_items_cache';
 const LOCAL_PURCHASES_CACHE_KEY = 'disma_local_purchases_cache';
@@ -394,6 +395,9 @@ interface AppState {
   deleteMultipleClientPrices: (ids: string[]) => Promise<void>;
   
   vendors: Vendor[];
+  vendorsLoading: boolean;
+  vendorsError: string | null;
+  refreshVendors: () => Promise<void>;
   addVendor: (vendor: Vendor) => void;
   updateVendor: (id: string, data: Partial<Vendor>) => void;
   vendorPrices: VendorPrice[];
@@ -1288,6 +1292,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
             // --- UPDATE LOCAL CACHE (for Phase 1 on next load) ---
             if (data.clients !== undefined) saveLocalClientsCache(data.clients);
+            if (data.vendors !== undefined) saveLocalCache(LOCAL_VENDORS_CACHE_KEY, data.vendors);
             if (data.products !== undefined) saveLocalProductsCache(finalProducts);
             if (data.salesOrders !== undefined) saveLocalSalesOrdersCache(data.salesOrders);
             if (data.salesOrderItems !== undefined) saveLocalSalesOrderItemsCache(data.salesOrderItems);
@@ -1741,7 +1746,27 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
       },
 
-      vendors: VENDORS_SEED,
+      vendors: loadLocalCache<Vendor>(LOCAL_VENDORS_CACHE_KEY),
+      vendorsLoading: false,
+      vendorsError: null,
+      refreshVendors: async () => {
+        if (get().vendorsLoading) return;
+        const before = get().vendors;
+        set({ vendorsLoading: true, vendorsError: null });
+        try {
+          const response = await fetch('/api/db?group=vendors', { cache: 'no-store', signal: AbortSignal.timeout(20000) });
+          if (!response.ok) throw new Error('Vendor request failed');
+          const data = await response.json();
+          if (!Array.isArray(data.vendors)) throw new Error('Invalid vendor response');
+          // Preserve vendors edited while the request was in flight.
+          if (get().vendors === before) set({ vendors: data.vendors });
+          saveLocalCache(LOCAL_VENDORS_CACHE_KEY, get().vendors);
+        } catch {
+          set({ vendorsError: 'Daftar vendor terbaru belum berhasil dimuat. Coba lagi.' });
+        } finally {
+          set({ vendorsLoading: false });
+        }
+      },
       addVendor: async (vendor) => {
         set((state) => ({ vendors: [...state.vendors, vendor] }));
         await get().syncTable('vendors', vendor);

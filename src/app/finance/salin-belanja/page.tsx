@@ -11,7 +11,7 @@
 // dengan cetakan, dan yang diketik cuma empat kolom yang di kertas ditulis tangan.
 // Sisanya sudah tercetak — tinggal dibaca.
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useAppStore } from "@/lib/store"
 import AuthGuard from "@/components/auth/auth-guard"
 import { Card, CardContent } from "@/components/ui/card"
@@ -43,6 +43,10 @@ export default function SalinBelanjaPage() {
   const purchaseItems = useAppStore(s => s.purchaseItems)
   const products = useAppStore(s => s.products)
   const vendors = useAppStore(s => s.vendors)
+  const vendorsLoading = useAppStore(s => s.vendorsLoading)
+  const vendorsError = useAppStore(s => s.vendorsError)
+  const refreshVendors = useAppStore(s => s.refreshVendors)
+  useEffect(() => { void refreshVendors() }, [refreshVendors])
   const salesOrders = useAppStore(s => s.salesOrders)
   const salesOrderItems = useAppStore(s => s.salesOrderItems)
   const bankAccounts = useAppStore(s => s.bankAccounts)
@@ -210,6 +214,13 @@ export default function SalinBelanjaPage() {
           </Card>
         )}
 
+        {(vendorsLoading || vendorsError) && (
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3" role={vendorsError ? 'alert' : 'status'}>
+            <p className="text-xs text-slate-700">{vendorsLoading ? 'Memuat daftar vendor lengkap…' : vendorsError}{vendors.length > 0 && ` ${vendors.length} vendor terakhir tetap bisa dicari.`}</p>
+            {vendorsError && <Button variant="outline" size="sm" disabled={vendorsLoading} onClick={() => refreshVendors()}>Coba lagi</Button>}
+          </div>
+        )}
+
         {menunggu.length > 0 && (
           <Card className="overflow-hidden">
             <CardContent className="p-0">
@@ -251,6 +262,7 @@ export default function SalinBelanjaPage() {
                       value=""
                       onChange={v => v && massal({ vendorId: v })}
                       options={selectableVendors(vendors).map(v => ({ value: v.id, label: v.companyName }))}
+                      disabled={vendorsLoading && vendors.length === 0}
                       placeholder="Vendor…"
                       className="border-emerald-200"
                     />
@@ -382,6 +394,7 @@ export default function SalinBelanjaPage() {
                               value={l.vendorId || ''}
                               onChange={v => set(l.id, { vendorId: v || null })}
                               options={selectableVendors(vendors, l.vendorId || undefined).map(v => ({ value: v.id, label: v.companyName }))}
+                              disabled={vendorsLoading && vendors.length === 0}
                               placeholder="— Pilih vendor —"
                               emptyLabel="— Kosongkan —"
                             />

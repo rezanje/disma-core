@@ -93,6 +93,13 @@ export async function GET(request: Request) {
         }
     };
 
+    // Vendor pickers must not depend on the heavier warehouse/price-history group.
+    if (group === 'vendors') {
+      return NextResponse.json({ vendors: toCamel(await fetchTable('vendors')) }, {
+        headers: { 'Cache-Control': 'no-store, max-age=0' },
+      });
+    }
+
     // Baca ulang beberapa baris tertentu, by id.
     //
     // Dipakai alur yang menulis lewat fungsi database (RPC) lalu perlu melihat
