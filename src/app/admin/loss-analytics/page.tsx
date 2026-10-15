@@ -621,7 +621,7 @@ export default function LossAnalyticsPage() {
                     <span className="text-[11px] font-bold text-slate-400 uppercase pl-3 pr-2 border-r flex items-center gap-1">
                       <Filter className="w-3 h-3" /> Jenis
                     </span>
-                    <Select value={lossCategoryFilter} onValueChange={setLossCategoryFilter}>
+                    <Select value={lossCategoryFilter} onValueChange={(value) => setLossCategoryFilter(value ?? 'all')}>
                       <SelectTrigger className="w-[140px] h-8 border-none bg-transparent focus:ring-0 font-bold text-xs ring-0">
                         <SelectValue placeholder="Semua Kategori" />
                       </SelectTrigger>

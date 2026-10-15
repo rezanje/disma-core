@@ -398,7 +398,7 @@ export default function DisbursementsPage() {
           />
         </div>
         <div className="w-full sm:w-48">
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value ?? 'ALL')}>
             <SelectTrigger className="h-10 border-slate-200 rounded-xl text-xs bg-white">
               <SelectValue placeholder="Filter Status" />
             </SelectTrigger>
@@ -534,7 +534,7 @@ export default function DisbursementsPage() {
 
             <div className="space-y-1.5">
               <Label className="text-[11px] font-bold  text-slate-500 pl-0.5">Rekening Asal (From Account)</Label>
-              <Select value={fromBankId} onValueChange={setFromBankId}>
+              <Select value={fromBankId} onValueChange={(value) => setFromBankId(value ?? '')}>
                 <SelectTrigger className="h-10 border-slate-200 rounded-xl text-xs bg-white">
                   <SelectValue placeholder="Pilih rekening asal...">{fromBankId ? derivedBankAccounts.find(b => b.id === fromBankId)?.name : undefined}</SelectValue>
                 </SelectTrigger>
@@ -550,7 +550,7 @@ export default function DisbursementsPage() {
 
             <div className="space-y-1.5">
               <Label className="text-[11px] font-bold  text-slate-500 pl-0.5">Rekening Tujuan (To Account)</Label>
-              <Select value={toBankId} onValueChange={setToBankId}>
+              <Select value={toBankId} onValueChange={(value) => setToBankId(value ?? '')}>
                 <SelectTrigger className="h-10 border-slate-200 rounded-xl text-xs bg-white">
                   <SelectValue placeholder="Pilih rekening tujuan...">{toBankId ? derivedBankAccounts.find(b => b.id === toBankId)?.name : undefined}</SelectValue>
                 </SelectTrigger>
