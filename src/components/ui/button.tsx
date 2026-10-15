@@ -106,7 +106,9 @@ function Button({
     }
   }
 
-  const isLoading = isClicked && (isSyncing || isAwaitingPromise)
+  // Disabling a submit button during its click cancels the browser's form submission.
+  // Forms own their pending state through the disabled prop.
+  const isLoading = props.type !== "submit" && isClicked && (isSyncing || isAwaitingPromise)
 
   return (
     <ButtonPrimitive
