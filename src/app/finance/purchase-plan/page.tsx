@@ -15,7 +15,7 @@ import {
   toPurchaseMethod, fromPurchaseMethod, unplannedLines, lineIsPlanned, cashNeeded,
   HANDLING_LABEL, type Handling, type PaymentMethod,
 } from "@/lib/purchase-plan"
-import { sortRows, groupRows, toggleAll, type SortKey, type GroupKey } from "@/lib/plan-table"
+import { sortRows, groupRows, rowValue, toggleAll, type SortKey, type GroupKey } from "@/lib/plan-table"
 import { vendorPrefills } from "@/lib/vendor-suggest"
 
 /**
@@ -393,7 +393,7 @@ export default function PurchasePlanPage() {
                   <TableHead className="text-[11px] font-bold">Barang</TableHead>
                   <TableHead className="text-[11px] font-bold">Untuk PO</TableHead>
                   <TableHead className="text-[11px] font-bold text-center w-24">Qty</TableHead>
-                  <TableHead className="text-[11px] font-bold w-32">Harga perkiraan</TableHead>
+                  <TableHead className="text-[11px] font-bold w-40">Perkiraan belanja</TableHead>
                   <TableHead className="text-[11px] font-bold">Beli online?</TableHead>
                   <TableHead className="text-[11px] font-bold">Barangnya gimana</TableHead>
                   <TableHead className="text-[11px] font-bold">Vendor</TableHead>
@@ -459,6 +459,12 @@ export default function PurchasePlanPage() {
                           dan angka inilah yang jadi uang tunai yang dia serahkan sendiri
                           ke kantong sourcing. */}
                       <TableCell>
+                        <output
+                          aria-label={`Perkiraan belanja ${product?.name || line.productId}`}
+                          className="mb-1.5 block text-sm font-bold tabular-nums text-slate-900 dark:text-slate-100"
+                        >
+                          {formatRupiah(rowValue(line))}
+                        </output>
                         {/* Bukan type="number": angka rupiah tanpa titik ribuan sulit
                             dibaca, dan kolom angka ikut berubah kalau roda mouse
                             digulir sementara kursornya kebetulan di situ — salah harga
@@ -466,13 +472,14 @@ export default function PurchasePlanPage() {
                         <input
                           type="text"
                           inputMode="numeric"
+                          aria-label={`Harga per ${product?.uom || 'unit'} ${product?.name || line.productId}`}
                           className="h-9 w-28 rounded-lg border border-slate-200 px-2 text-xs font-bold bg-white dark:bg-slate-900 text-right"
                           value={line.estimatedUnitPrice ? formatNumber(line.estimatedUnitPrice) : ''}
                           placeholder="0"
                           onChange={e => setLine(line.id, { estimatedUnitPrice: parseNumber(e.target.value) })}
                         />
                         <span className="block text-[11px] text-slate-400 font-bold mt-0.5">
-                          per {product?.uom || 'unit'}
+                          Harga per {product?.uom || 'unit'}
                         </span>
                       </TableCell>
 

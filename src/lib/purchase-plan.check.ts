@@ -52,6 +52,10 @@ const PRICED = [
 ];
 assert.equal(cashNeeded(PRICED), 400000);
 assert.equal(cashNeeded([]), 0);
+assert.equal(cashNeeded([
+  { id: 'mint', purchaseMethod: 'Pasar', paymentMethod: 'Cash', qtyTarget: 0.25, estimatedUnitPrice: 100000 },
+  { id: 'bawang', purchaseMethod: 'Vendor', paymentMethod: 'Cash', qtyTarget: 7, estimatedUnitPrice: 12000 },
+]), 109000);
 assert.equal(cashNeeded([{ id: 'x', purchaseMethod: 'Pasar', paymentMethod: 'Cash' }]), 0);
 
 console.log('purchase-plan: OK');

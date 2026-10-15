@@ -19,6 +19,9 @@ const labels = {
 assert.equal(rowValue(ROWS[0]), 200000);
 assert.equal(rowValue(ROWS[1]), 200000);
 assert.equal(rowValue({ id: 'x', productId: 'p1' }), 0);
+assert.equal(rowValue({ id: 'mint', productId: 'p1', qtyTarget: 0.25, estimatedUnitPrice: 100000 }), 25000);
+assert.equal(rowValue({ id: 'bawang', productId: 'p2', qtyTarget: 7, estimatedUnitPrice: 12000 }), 84000);
+assert.equal(rowValue({ id: 'nol', productId: 'p1', qtyTarget: 0, estimatedUnitPrice: 100000 }), 0);
 
 // --- urutan ---
 assert.deepEqual(sortRows(ROWS, 'nama', nameOf).map(r => r.id), ['b', 'c', 'a']); // Apel, Bawang, Cabe
