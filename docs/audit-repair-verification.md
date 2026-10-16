@@ -1,6 +1,6 @@
 # Hasil perbaikan dan verifikasi DISMA
 
-Perubahan berada di checkout kode `/workspace/disma-core`. Tidak ada migrasi, transaksi uji, perubahan akses database online, push atau deploy ke production yang dilakukan selama perbaikan ini.
+Pemeriksaan implementasi di bawah dilakukan sebelum rollout, tanpa menulis ke database live. Setelah pengguna mengizinkan push dan deploy, perubahan digabungkan ke `main`, sembilan migrasi diterapkan dan versi production diaktifkan. Hasil pemeriksaan live dicatat di [audit-repair-deployment.md](audit-repair-deployment.md). Tidak ada transaksi keuangan percobaan dibuat di production.
 
 ## Hasil pemeriksaan akhir
 

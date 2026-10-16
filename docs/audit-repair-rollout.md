@@ -1,6 +1,6 @@
 # Penerapan perbaikan DISMA — 16 Oktober 2026
 
-Perbaikan mempertahankan aplikasi dan dokumen lama. Berkas migrasi disiapkan di repositori; penerapan dan pengujian transaksi online belum dilakukan. Bukti uji database berasal dari PostgreSQL terpisah tanpa jaringan dan tanpa port host.
+Perbaikan mempertahankan aplikasi dan dokumen lama. Sembilan migrasi telah diterapkan dan aplikasi diaktifkan di production pada 16 Oktober 2026 setelah pengguna mengizinkan push dan deploy. Catatan penerapan dan batas verifikasi live ada di [audit-repair-deployment.md](audit-repair-deployment.md). Bukti uji transaksi berasal dari PostgreSQL terpisah tanpa jaringan dan tanpa port host.
 
 ## Cara kerja setelah penerapan
 
