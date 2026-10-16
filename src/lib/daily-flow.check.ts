@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { awaitingQc, buildFifoAllocations, stillOwed } from './daily-flow';
+import { awaitingArrival, awaitingQc, buildFifoAllocations, stillOwed } from './daily-flow';
 
 const purchases = [
   { id: 'P-selesai', status: 'Selesai' },
@@ -62,3 +62,14 @@ assert.deepEqual(nganggur.allocations, []);
 assert.equal(nganggur.inventoryRemainder, 6);
 
 console.log('daily-flow: OK');
+
+// Finance receives only ordered goods destined for our warehouse.
+assert.deepEqual(awaitingArrival([
+  { id: 'vendor', purchaseId: 'P-jalan', purchaseMethod: 'Vendor', isOnlineOrdered: true },
+  { id: 'online', purchaseId: 'P-jalan', purchaseMethod: 'Online', isOnlineOrdered: true },
+  { id: 'not-ordered', purchaseId: 'P-jalan', purchaseMethod: 'Vendor' },
+  { id: 'dropship', purchaseId: 'P-jalan', purchaseMethod: 'Dropship', isOnlineOrdered: true },
+  { id: 'received', purchaseId: 'P-jalan', purchaseMethod: 'Vendor', isOnlineOrdered: true, inboundStatus: 'pra_inbound' },
+  { id: 'finished', purchaseId: 'P-jalan', purchaseMethod: 'Vendor', isOnlineOrdered: true, isQCed: true },
+  { id: 'missing', purchaseId: 'missing', purchaseMethod: 'Vendor', isOnlineOrdered: true },
+], purchases).map(i => i.id), ['vendor', 'online']);

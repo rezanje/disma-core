@@ -15,6 +15,15 @@ export type QueueItem = {
 
 export type QueueParent = { id: string; status: string };
 
+/** Pesanan ke gudang yang belum dikonfirmasi datang; dropship langsung ke klien. */
+export function awaitingArrival<T extends QueueItem>(items: T[], purchases: QueueParent[]): T[] {
+  return items.filter(item =>
+    (item.purchaseMethod === 'Vendor' || item.purchaseMethod === 'Online') &&
+    item.isOnlineOrdered && !item.isQCed && !item.inboundStatus &&
+    purchases.some(p => p.id === item.purchaseId && p.status !== 'Batal'),
+  );
+}
+
 /** Barang yang sudah dibeli tapi belum diperiksa. */
 export function awaitingQc<T extends QueueItem>(items: T[], purchases: QueueParent[]): T[] {
   return (items || []).filter(pi => {

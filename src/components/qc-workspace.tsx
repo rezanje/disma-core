@@ -9,7 +9,7 @@ import { barisSiap, kesiapan, labelKesiapan } from "@/lib/kesiapan-po"
 import { useAppStore } from "@/lib/store"
 import { processInboundQC } from "@/lib/qc-process"
 import { costBasisFor } from "@/lib/cogs-source"
-import { awaitingQc, buildFifoAllocations } from "@/lib/daily-flow"
+import { awaitingArrival, awaitingQc, buildFifoAllocations } from "@/lib/daily-flow"
 import { recordShrinkage, recordStockMovement, createAccountingEntry, VENDOR_RETURN_CLAIM_ACCOUNT } from "@/lib/accounting"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -51,8 +51,24 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
   // Antreannya dihitung di src/lib/daily-flow.ts supaya layar harian gabungan
   // melihat daftar yang persis sama.
   const pendingQCItems = awaitingQc(purchaseItems, purchases)
+    .filter(item => !transcription || item.purchaseMethod !== 'Online' || item.inboundStatus === 'pra_inbound')
     .map(item => ({ ...item, product: products.find(p => p.id === item.productId) }))
     .filter(item => item.product)
+
+  const waitingArrivals = transcription ? awaitingArrival(purchaseItems, purchases) : []
+  const [acceptingArrival, setAcceptingArrival] = useState<string | null>(null)
+  const acceptArrival = async (itemId: string) => {
+    if (acceptingArrival) return
+    setAcceptingArrival(itemId)
+    try {
+      await updatePurchaseItem(itemId, { inboundStatus: 'pra_inbound' })
+      toast.success("Barang datang dicatat. Lanjutkan Salin Hasil QC di bawah.")
+    } catch {
+      toast.error("Barang datang belum berhasil dicatat. Coba lagi.")
+    } finally {
+      setAcceptingArrival(null)
+    }
+  }
 
   const [selectedPurchaseItemId, setSelectedPurchaseItemId] = useState("")
   const [qtyPassToInventory, setQtyPassToInventory] = useState(0)
@@ -641,6 +657,29 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
           <p className="text-slate-500 font-bold mt-1 uppercase text-[11px] tracking-widest">{transcription ? "Salin hasil pemeriksaan dari berkas QC. Isi jumlah sesuai kertas dan pilih nama pemeriksanya." : "Validasi barang masuk dari Sourcing & Retur Customer."}</p>
         </div>
       </div>
+
+      {transcription && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Menunggu barang datang ({waitingArrivals.length})</CardTitle>
+            <p className="text-sm text-slate-500">Pesanan vendor dan online ke gudang. Konfirmasi hanya setelah barang benar-benar tiba; stok bertambah setelah hasil QC disimpan.</p>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {waitingArrivals.length === 0 && <p className="text-sm text-slate-500">Tidak ada pesanan yang menunggu barang datang.</p>}
+            {waitingArrivals.map(item => {
+              const product = products.find(p => p.id === item.productId)
+              const vendor = vendors.find(v => v.id === (item.vendorId || item.plannedVendorId))
+              const purchase = purchases.find(p => p.id === item.purchaseId)
+              return (
+                <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3">
+                  <div><p className="font-semibold">{product?.name || item.productId}</p><p className="text-sm text-slate-500">{item.qtyPurchased || item.qtyTarget} {product?.uom} · {vendor?.companyName || 'Vendor belum diisi'} · {purchase?.advanceCode || item.purchaseId}</p></div>
+                  <Button disabled={acceptingArrival !== null} onClick={() => acceptArrival(item.id)}>{acceptingArrival === item.id ? 'Menyimpan…' : 'Barang sudah datang'}</Button>
+                </div>
+              )
+            })}
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs defaultValue="sourcing" className="w-full">
         {!transcription && <TabsList className="bg-slate-100 p-1 rounded-2xl mb-6">

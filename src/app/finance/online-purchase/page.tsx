@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import React, { useState, useEffect } from "react"
 import { useAppStore } from "@/lib/store"
 import { recordOnlinePurchase } from "@/lib/accounting"
@@ -450,15 +451,16 @@ export default function OnlinePurchasePage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <ShieldCheck className="h-5 w-5 text-emerald-500" />
-              Sudah dipesan, menunggu barang datang
+              Sudah dipesan
             </CardTitle>
+            <Link href="/finance/salin-qc" className="text-sm font-semibold text-emerald-700 underline">Catat barang datang & salin QC</Link>
           </CardHeader>
           <CardContent className="space-y-2">
             {(['Vendor', 'Dropship'] as const).flatMap(m => barisJalur(m, true)).map(pi => (
               <div key={pi.id} className="flex items-center justify-between rounded-2xl border px-4 py-2">
                 <span className="text-sm font-bold text-slate-700">{pi.product?.name || pi.productId}</span>
                 <span className="text-xs font-bold text-slate-400">
-                  {pi.qtyTarget} {pi.product?.uom} · {namaVendor(pi.plannedVendorId || pi.vendorId || '')}
+                  {pi.qtyTarget} {pi.product?.uom} · {namaVendor(pi.plannedVendorId || pi.vendorId || '')} · {pi.inboundStatus === 'pra_inbound' ? 'Sudah datang — menunggu salin QC' : 'Menunggu barang datang'}
                 </span>
               </div>
             ))}
