@@ -354,10 +354,6 @@ export default function PurchaseRequestsPage() {
         approvedByFinance: currentUser?.name || currentUser?.id || "Finance Admin",
         financeNote: financeNote
       }
-      if (action === 'approve') {
-        updatePayload.approvedByCfo = `Auto (Finance) - ${currentUser?.name || currentUser?.id || "Finance Admin"}`
-        updatePayload.cfoNote = "Disetujui langsung oleh Finance"
-      }
       await updatePurchaseRequest(activePR.id, updatePayload)
       const successMsg = action === 'reject'
         ? "PR berhasil ditolak oleh Finance."
@@ -385,7 +381,7 @@ export default function PurchaseRequestsPage() {
       // 1. Update status PR
       await updatePurchaseRequest(activePR.id, {
         status,
-        approvedByCfo: currentUser?.name || currentUser?.id || "CFO / Owner",
+        approvedByCfo: currentUser?.id,
         cfoNote: cfoNote
       })
 
@@ -420,7 +416,7 @@ export default function PurchaseRequestsPage() {
 
     // Rekening strategis (BRI/Mandiri) butuh approval CFO dulu sebelum bisa
     // dicairkan — jarang terjadi (mayoritas pencairan dari BCA/Jago, bebas).
-    if (bankRequiresCfoApproval(disburseBankId)) {
+    if (bankRequiresCfoApproval(disburseBankId) && !activePR.approvedByCfo) {
       await updatePurchaseRequest(activePR.id, { status: 'Pending_CFO' })
       toast.success('Rekening sumber butuh approval CFO. PR diajukan ke CFO — cairkan lagi setelah disetujui.')
       setDisburseOpen(false)
@@ -440,11 +436,6 @@ export default function PurchaseRequestsPage() {
 
       if (!ok) { toast.error('Gagal mencatat transaksi ke ledger.', { id: loadingId }); return }
 
-      await updatePurchaseRequest(activePR.id, {
-        disbursedAt: now,
-        disbursementType: 'other',
-        disbursedBy: currentUser?.name || currentUser?.id,
-      })
       toast.success('Transaksi tercatat & dana dicairkan.', { id: loadingId })
       setDisburseOpen(false)
     } catch (e) {

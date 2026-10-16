@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import { canAccessRoute } from './access-policy';
+assert.equal(canAccessRoute('admin_po','/admin/settings/maintenance'),false);
+assert.equal(canAccessRoute('admin_po','/finance/cash-bank'),false);
+assert.equal(canAccessRoute('finance','/admin/users'),false);
+assert.equal(canAccessRoute('admin_po','/admin/operasi?tab=handover'),true);
+assert.equal(canAccessRoute('finance','/admin/tukar-faktur/tf1/print'),true);
+assert.equal(canAccessRoute('super_admin','/finance/piutang'),true);
+assert.equal(canAccessRoute('gudang','/warehouse/qc'),false);
+assert.equal(canAccessRoute(undefined,'/admin/hari-ini'),false);
+assert.equal(canAccessRoute('finance','/finance-other'),false);
+assert.equal(canAccessRoute('finance','/courier/expenses'),true);
+console.log('access-policy: PASS');

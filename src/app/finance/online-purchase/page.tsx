@@ -3,7 +3,8 @@
 import Link from "next/link"
 import React, { useState, useEffect } from "react"
 import { useAppStore } from "@/lib/store"
-import { recordOnlinePurchase } from "@/lib/accounting"
+import { lineIsPlanned } from "@/lib/purchase-plan"
+import { executePurchaseCommand, type PurchaseCommand } from "@/lib/purchase-command"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,12 +19,15 @@ export default function OnlinePurchasePage() {
   const purchases = useAppStore(state => state.purchases)
   const purchaseItems = useAppStore(state => state.purchaseItems)
   const products = useAppStore(state => state.products)
-  const updatePurchaseItem = useAppStore(state => state.updatePurchaseItem)
   const bankAccounts = useAppStore(state => state.bankAccounts) || []
 
   const vendors = useAppStore(state => state.vendors)
   const salesOrders = useAppStore(state => state.salesOrders)
 
+  const [pendingOrders,setPendingOrders] = useState<Record<string,PurchaseCommand>>({})
+  const [vendorSources,setVendorSources] = useState<Record<string,string>>({})
+  const [sourceByOrder, setSourceByOrder] = useState<Record<string, string>>({})
+  const [orderingId, setOrderingId] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [filter, setFilter] = useState<'semua' | 'Online' | 'Vendor' | 'Dropship'>('semua')
   const [menandai, setMenandai] = useState<string | null>(null)
@@ -47,8 +51,7 @@ export default function OnlinePurchasePage() {
   // ke status dokumen. Dokumen lama tetap lolos lewat cek status rekonsiliasi di bawah.
   const sentPurchaseIds = new Set(
     purchases
-      .filter(p => p.status !== 'Menunggu Rencana' || !!p.budgetTransferDate ||
-        p.reconciliationStatus === 'Belum Transfer' || p.reconciliationStatus === 'Laporan Masuk' || p.reconciliationStatus === 'Terverifikasi')
+      .filter(p => ['Pending', 'Belanja'].includes(p.status))
       .map(p => p.id)
   )
 
@@ -124,6 +127,7 @@ export default function OnlinePurchasePage() {
   const tandaiDipesan = async (metode: 'Vendor' | 'Dropship', vendorId: string) => {
     const items = barisJalur(metode, false).filter(pi => (pi.plannedVendorId || pi.vendorId || '') === vendorId)
     if (items.length === 0 || menandai) return
+    if (items.some(item=>!lineIsPlanned(item))) return toast.error('Rencana vendor/cara bayar tidak didukung. Dropship Cash belum tersedia; perbaiki rencana Finance terlebih dahulu.')
     setMenandai(`${metode}:${vendorId}`)
     const t = toast.loading(`Menandai ${items.length} barang sudah dipesan…`)
     try {
@@ -133,11 +137,11 @@ export default function OnlinePurchasePage() {
         // diketahui. QC nanti tinggal memakainya untuk nilai persediaan, HPP dan nominal
         // tagihan tempo, tanpa perlu menanyakannya lagi ke gudang.
         const harga = hargaVendor[pi.id]
-        await updatePurchaseItem(pi.id, {
-          isOnlineOrdered: true,
-          onlineOrderDate: new Date().toISOString(),
-          ...(harga > 0 ? { actualUnitPrice: harga } : {}),
-        })
+        const command:PurchaseCommand = pendingOrders[pi.id] || {eventId:`vendor-order:${pi.id}`,stage:'vendor-order',sourceId:pi.id,payload:{unitPrice:harga || pi.actualUnitPrice || pi.estimatedUnitPrice,bankAccountId:vendorSources[`${metode}:${vendorId}`] || ''}}
+        setPendingOrders(prev=>({...prev,[pi.id]:command}))
+        await executePurchaseCommand(useAppStore.getState,command)
+        setPendingOrders(prev=>{const next={...prev};delete next[pi.id];return next})
+
       }
       toast.success(`${items.length} barang ditandai sudah dipesan ke ${namaVendor(vendorId)}.`, { id: t })
     } catch (e) {
@@ -185,73 +189,31 @@ export default function OnlinePurchasePage() {
     })
   }
 
-  const currentUser = useAppStore(state => state.currentUser)
   const handleCompleteOrder = async (itemId: string) => {
-    const calc = calculatorState[itemId]
-    if (!calc || calc.totalPrice <= 0) {
-      toast.error("Masukkan detail harga yang valid.")
-      return
+    if (orderingId) return
+    const item=purchaseItems.find(i=>i.id===itemId)
+    const product=products.find(p=>p.id===item?.productId)
+    if(!item || !product)return
+    let command=pendingOrders[itemId]
+    if(!command){
+      const calc=calculatorState[itemId]
+      const bankAccountId=sourceByOrder[itemId] || ''
+      if(!calc || !Number.isFinite(calc.totalPrice) || !(calc.unitPrice>0) || calc.adminFee<0 || calc.shippingFee<0){toast.error('Harga dan biaya harus valid.');return}
+      if(!bankAccounts.some(b=>b.id===bankAccountId && b.accountCode)){toast.error('Pilih rekening sumber pembayaran order.');return}
+      command={eventId:`online:${item.id}`,stage:'online',sourceId:item.id,payload:{unitPrice:calc.unitPrice,adminFee:calc.adminFee,shippingFee:calc.shippingFee,bankAccountId,ref:calc.ref}}
     }
-
-    const item = purchaseItems.find(i => i.id === itemId)
-    const product = products.find(p => p.id === item?.productId)
-    if (!item || !product) return
-
-    const toastId = toast.loading(`Memproses order ${product.name}...`)
-
-    // 1. Determine bank account from parent purchase
-    const parentPurchase = purchases.find(p => p.id === item.purchaseId)
-    const bankAccountId = parentPurchase?.budgetBankAccountId || bankAccounts[0]?.id || 'bank-1'
-
-    // 2. Mark item as ordered + checked (so it appears in settlement QC gate)
-    await updatePurchaseItem(itemId, {
-      isOnlineOrdered: true,
-      isChecked: true,
-      actualUnitPrice: calc.unitPrice,
-      qtyPurchased: item.qtyTarget,
-      onlineRef: calc.ref,
-      onlineOrderDate: new Date().toISOString(),
-      notes: `${item.notes || ''} (Detailed Cost: Unit @${calc.unitPrice}, Admin: ${calc.adminFee}, Ship: ${calc.shippingFee})`
-    })
-
-    // 3. Record journal entry + cash transaction immediately (no separate audit step needed)
-    const success = await recordOnlinePurchase(
-      itemId,
-      calc.totalPrice,
-      product.name,
-      calc.adminFee,
-      calc.shippingFee,
-      bankAccountId
-    )
-
-    if (!success) {
-      toast.error(`Gagal mencatat jurnal untuk ${product.name}.`, { id: toastId })
-      return
-    }
-
-    toast.success(`Order ${product.name} selesai & dijurnal otomatis.`, { id: toastId })
-
-    // 3. Auto-advance Sales Order if ALL items are now ready/sourced
-    if (item.salesOrderId) {
-      const store = useAppStore.getState()
-      const soId = item.salesOrderId
-      const allPOItems = store.purchaseItems.filter(pi => pi.salesOrderId === soId)
-      
-      // All items are READY if: (Market & Tempo: isChecked) AND (Online: isOnlineOrdered)
-      // Note: In sourcing list, Market and Tempo items are marked isChecked
-      // ("Tandai Sudah Diambil" for Tempo). In this hub, Online items are marked isOnlineOrdered.
-      const isAllReady = allPOItems.every(pi => {
-        if (pi.id === itemId) return true; // Just finished this one
-        if (pi.purchaseMethod === 'Online') return pi.isOnlineOrdered;
-        return pi.isChecked; // Market & Tempo items
-      })
-
-      if (isAllReady) {
-        store.updateSalesOrder(soId, { status: 'QC' })
-        toast.info(`PO ${store.salesOrders.find(s => s.id === soId)?.poNumber} kini masuk ke Antrean QC (Semua barang sudah dibeli/dipesan).`)
-      }
-    }
+    const request=command
+    setPendingOrders(prev=>({...prev,[itemId]:request}))
+    setOrderingId(itemId)
+    const toastId=toast.loading(`Memproses order ${product.name}...`)
+    try{
+      await executePurchaseCommand(useAppStore.getState,request)
+      setPendingOrders(prev=>{const next={...prev};delete next[itemId];return next})
+      toast.success(`Order ${product.name} tersimpan; catat penerimaan saat barang datang.`,{id:toastId})
+    }catch(e){toast.error(e instanceof Error ? e.message : String(e),{id:toastId})}
+    finally{setOrderingId(null)}
   }
+
 
   return (
     <div className="space-y-6">
@@ -341,6 +303,7 @@ export default function OnlinePurchasePage() {
                               <span className="text-[11px] font-bold text-slate-600">{namaVendor(vendorId)}</span>
                               <span className="text-[11px] font-bold text-slate-400">{items.length} barang</span>
                               {j.key !== 'Online' && (
+                                <><select aria-label="Sumber kas order vendor tunai" className="rounded border p-2 text-xs" value={vendorSources[`${j.key}:${vendorId}`] || ''} onChange={e=>setVendorSources(prev=>({...prev,[`${j.key}:${vendorId}`]:e.target.value}))}><option value="">Sumber kas vendor tunai</option>{bankAccounts.filter(b=>b.accountCode).map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select>
                                 <Button
                                   size="sm"
                                   disabled={!vendorId || menandai === `${j.key}:${vendorId}`}
@@ -349,7 +312,7 @@ export default function OnlinePurchasePage() {
                                   onClick={() => tandaiDipesan(j.key as 'Vendor' | 'Dropship', vendorId)}
                                 >
                                   {menandai === `${j.key}:${vendorId}` ? 'Menandai…' : 'Tandai Dipesan'}
-                                </Button>
+                                </Button></>
                               )}
                             </div>
                           </td>
@@ -404,13 +367,17 @@ export default function OnlinePurchasePage() {
                                       onChange={e => updateCalc(item.id, { ref: e.target.value })} />
                                   </td>
                                   <td className="px-3 py-2">
+                                    <select aria-label={`Sumber pembayaran ${item.product?.name || item.id}`} className="mb-2 w-44 rounded border p-2 text-xs" value={sourceByOrder[item.id] || ''} onChange={e => setSourceByOrder(prev => ({...prev, [item.id]: e.target.value}))}>
+                                      <option value="">Pilih sumber pembayaran</option>
+                                      {bankAccounts.filter(b => b.accountCode).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                                    </select>
                                     <Button
                                       size="sm"
-                                      disabled={calc.totalPrice <= 0}
+                                      disabled={!!orderingId || calc.totalPrice <= 0}
                                       className="h-9 rounded-xl bg-slate-900 text-[11px] font-bold  text-white hover:bg-black disabled:bg-slate-100 disabled:text-slate-400"
                                       onClick={() => handleCompleteOrder(item.id)}
                                     >
-                                      <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> Order
+                                      <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> {pendingOrders[item.id] ? 'Coba order yang sama' : 'Order'}
                                     </Button>
                                   </td>
                                 </>

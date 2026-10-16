@@ -1,12 +1,15 @@
 "use client"
 
-import { useState, Fragment, useEffect } from "react"
+import { useState, Fragment, useEffect, useRef } from "react"
 import Link from "next/link"
 import { useAppStore } from "@/lib/store"
-import { recordManualReceivable, recordPaymentReceived, recordCreditNote } from "@/lib/accounting"
-import { creditLimit, validateCreditNote, applyCreditNote, buildCreditNoteNumber } from "@/lib/credit-note"
+import { recordPaymentReceived } from "@/lib/accounting"
+import { recordManualReceivableCommand, recordCreditNoteCommand, recordCreditRefundCommand } from "@/lib/finance-commands"
+import { validateReceiptAllocations, batchPaymentHistory, sourceReturnCredit } from "@/lib/billing-document"
+import { GenerateTfModal } from "@/components/tukar-faktur/GenerateTfModal"
+import { creditLimit, validateCreditNote, buildCreditNoteNumber } from "@/lib/credit-note"
 import { cn, formatRupiah } from "@/lib/utils"
-import { Invoice } from "@/types"
+import { Invoice, CreditNote } from "@/types"
 import { Card, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import UniversalPDFPreview from "@/components/finance/UniversalPDFPreview"
@@ -28,12 +31,14 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
   const salesOrders = useAppStore(state => state.salesOrders)
   const clients = useAppStore(state => state.clients)
   const tukarFakturs = useAppStore(state => state.tukarFakturs)
-  const updateInvoice = useAppStore(state => state.updateInvoice)
+  const pendingReturns = useAppStore(state => state.pendingReturns)
+  const creditLinkHandled = useRef("")
   const creditNotes = useAppStore(state => state.creditNotes)
-  const addCreditNote = useAppStore(state => state.addCreditNote)
   const currentUser = useAppStore(state => state.currentUser)
   const recordTukarFakturPayment = useAppStore(state => state.recordTukarFakturPayment)
 
+  const paymentAttempt = useRef<{ id: string; payload: string } | null>(null)
+  const paymentInFlight = useRef(false)
   const [activeInvoice, setActiveInvoice] = useState<Invoice | null>(null)
 
   // Listen to URL search param detailId to auto-open invoice payment modal
@@ -56,6 +61,14 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
   const [allocations, setAllocations] = useState<Record<string, number>>({})
   // Credit note — koreksi invoice yang sudah terbit.
   const [cnInvoice, setCnInvoice] = useState<Invoice | null>(null)
+  const [cnSourceReturnId,setCnSourceReturnId]=useState("")
+  const [refundCredit,setRefundCredit]=useState<CreditNote|null>(null)
+  const [refundAmount,setRefundAmount]=useState(0)
+  const [refundBank,setRefundBank]=useState("")
+  const [refundDate,setRefundDate]=useState(new Date().toISOString().slice(0,10))
+  const [refundBusy,setRefundBusy]=useState(false)
+  const refundAttempt=useRef<{id:string;payload:string}|null>(null)
+  const refundInFlight=useRef(false)
   const [cnAmount, setCnAmount] = useState(0)
   const [cnReason, setCnReason] = useState("")
   const [cnBusy, setCnBusy] = useState(false)
@@ -73,14 +86,20 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
   // Tukar Faktur States
   const [selectedInvoiceForPreview, setSelectedInvoiceForPreview] = useState<{ id: string, isConsolidated: boolean } | null>(null)
   const [isTukarFakturOpen, setIsTukarFakturOpen] = useState(false)
-  const [tfClientId, setTfClientId] = useState("")
-  const [isTfClientSearchOpen, setIsTfClientSearchOpen] = useState(false)
-  const [tfClientSearch, setTfClientSearch] = useState("")
-  const [selectedPOIds, setSelectedPOIds] = useState<string[]>([])
-  const [isConsolidating, setIsConsolidating] = useState(false)
   const [isRecordingPayment, setIsRecordingPayment] = useState(false)
   
-  const addInvoice = useAppStore(state => state.addInvoice)
+
+  useEffect(()=> {
+    const returnId=new URLSearchParams(window.location.search).get('creditReturnId')
+    if(!returnId || creditLinkHandled.current===returnId) return
+    const source=pendingReturns.find(row=>row.id===returnId)
+    const invoice=invoices.find(row=>row.id===source?.invoiceId)
+    if(!source || !invoice) return
+    creditLinkHandled.current=returnId
+    const amount=sourceReturnCredit(invoice,source)
+    if(amount===null) {toast.error('Retur belum memiliki sumber invoice yang dapat dikoreksi, atau sudah dikreditkan. Periksa riwayat sumber.');return}
+    setCnInvoice(invoice);setCnSourceReturnId(source.id);setCnAmount(amount);setCnReason(`Retur ${source.diNumber || source.id}: ${source.reason}`)
+  },[pendingReturns,invoices])
 
   const filteredInvoices = invoices.filter(inv => {
     const client = clients.find(c => c.id === inv.clientId)
@@ -139,6 +158,7 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
         amountPaid,
         status: amountPaid >= totalAmount && totalAmount > 0 ? 'Paid' : amountPaid > 0 ? 'Partial' : 'Unpaid',
         isConsolidated: true,
+        payments: batchPaymentHistory(children),
         consolidatedOrderNumbers: poNumbers.length ? poNumbers : [tf.tfNumber],
         salesOrderIds: children.map(c => c.salesOrderId).filter(Boolean) as string[],
       } satisfies Invoice
@@ -149,48 +169,53 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
     })
 
   const batchRows = [...consolidatedInvoices, ...tukarFakturRows]
-  const visibleInvoices = [...regularInvoices, ...manualInvoices, ...consolidatedInvoices]
+  const visibleInvoices = [...regularInvoices, ...manualInvoices, ...consolidatedInvoices].filter(invoice=>invoice.status!=='Draft')
 
   const childInvoices = activeInvoice && activeInvoice.isConsolidated
     ? childrenOfBatch(activeInvoice.id)
     : []
 
+  const creditAttempt = useRef<{id:string;payload:string;cnNumber:string;date:string}|null>(null)
+  const manualAttempt = useRef<{id:string;payload:string}|null>(null)
+  const creditBusy = useRef(false)
+  const manualBusy = useRef(false)
+
   const handleCreateCreditNote = async () => {
-    const salah = validateCreditNote(cnInvoice, cnAmount, cnReason)
-    if (salah) { toast.error(salah); return }
-    if (!cnInvoice) return
-
-    setCnBusy(true)
+    if(creditBusy.current || !cnInvoice) return
+    const salah=validateCreditNote(cnInvoice,cnAmount,cnReason)
+    if(salah) {toast.error(salah);return}
+    if(cnSourceReturnId) {
+      const source=pendingReturns.find(row=>row.id===cnSourceReturnId)
+      if(!source || sourceReturnCredit(cnInvoice,source)!==cnAmount) {toast.error('Nilai koreksi harus sama dengan retur sumber yang belum dikreditkan.');return}
+    }
+    const payload=JSON.stringify({invoiceId:cnInvoice.id,amount:cnAmount,reason:cnReason,sourceReturnId:cnSourceReturnId})
+    if(creditAttempt.current && creditAttempt.current.payload!==payload) {toast.error('Ulangi koreksi sebelumnya dengan data yang sama untuk memastikan hasil.');return}
+    if(!creditAttempt.current) creditAttempt.current={id:uuidv4(),payload,cnNumber:buildCreditNoteNumber(new Date(),creditNotes.map(c=>c.cnNumber)),date:new Date().toISOString()}
+    creditBusy.current=true;setCnBusy(true)
     try {
-      const cnId = uuidv4()
-      const nomor = buildCreditNoteNumber(new Date(), creditNotes.map(c => c.cnNumber))
-      const klien = clients.find(c => c.id === cnInvoice.clientId)?.companyName || ''
+      const attempt=creditAttempt.current
+      const ok=await recordCreditNoteCommand({eventId:attempt.id,invoiceId:cnInvoice.id,amount:cnAmount,reason:cnReason,cnNumber:attempt.cnNumber,date:attempt.date,createdBy:currentUser?.id,sourceReturnId:cnSourceReturnId || undefined})
+      if(!ok) throw new Error('Credit note belum terkonfirmasi. Ulangi data yang sama.')
+      creditAttempt.current=null;setCnInvoice(null);setCnSourceReturnId("");toast.success('Credit note dan koreksi tagihan dicatat bersama.')
+    } catch(e) {toast.error((e as Error).message)}
+    finally {creditBusy.current=false;setCnBusy(false)}
+  }
 
-      // Jurnal dulu. Kalau jurnalnya gagal, invoice-nya tidak boleh berubah — nilai
-      // tagihan yang turun tanpa jurnal membuat piutang di Neraca dan di AR Aging
-      // berbeda, dan itu tepat yang paling sulit ditelusuri belakangan.
-      const ok = await recordCreditNote(cnId, cnAmount, `${nomor} — ${klien}: ${cnReason}`)
-      if (!ok) { toast.error("Gagal mencatat jurnal credit note. Tidak ada yang diubah."); return }
-
-      await addCreditNote({
-        id: cnId,
-        cnNumber: nomor,
-        invoiceId: cnInvoice.id,
-        clientId: cnInvoice.clientId,
-        date: new Date().toISOString(),
-        amount: cnAmount,
-        invoiceTotalBefore: cnInvoice.totalAmount,
-        reason: cnReason,
-        createdBy: currentUser?.name || currentUser?.id,
-        createdAt: new Date().toISOString(),
-      })
-
-      await updateInvoice(cnInvoice.id, applyCreditNote(cnInvoice, cnAmount))
-      toast.success(`${nomor} dibuat. Tagihan turun ${formatRupiah(cnAmount)}.`)
-      setCnInvoice(null)
-    } catch (e) {
-      toast.error("Gagal membuat credit note: " + (e instanceof Error ? e.message : String(e)))
-    } finally { setCnBusy(false) }
+  const handleCreditRefund=async()=> {
+    if(refundInFlight.current || !refundCredit) return
+    const current=creditNotes.find(note=>note.id===refundCredit.id) || refundCredit
+    const remaining=Math.max(0,(current.refundableAmount || 0)-(current.refundedAmount || 0))
+    if(!refundBank || !Number.isFinite(refundAmount) || refundAmount<=0 || refundAmount>remaining || !refundDate || Number.isNaN(new Date(refundDate).getTime())) {toast.error('Pilih bank, tanggal dan nominal dalam sisa refund credit note.');return}
+    const payload=JSON.stringify({creditNoteId:current.id,bankAccountId:refundBank,amount:refundAmount,date:refundDate})
+    if(refundAttempt.current && refundAttempt.current.payload!==payload) {toast.error('Ulangi refund sebelumnya dengan data yang sama untuk memastikan hasil.');return}
+    if(!refundAttempt.current) refundAttempt.current={id:uuidv4(),payload}
+    refundInFlight.current=true;setRefundBusy(true)
+    try {
+      const ok=await recordCreditRefundCommand({eventId:refundAttempt.current.id,creditNoteId:current.id,bankAccountId:refundBank,amount:refundAmount,date:new Date(refundDate).toISOString()})
+      if(!ok) throw new Error('Refund belum terkonfirmasi. Ulangi data yang sama.')
+      refundAttempt.current=null;setRefundCredit(null);toast.success('Refund credit note, jurnal dan kas dicatat bersama.')
+    } catch(error) {toast.error((error as Error).message)}
+    finally {refundInFlight.current=false;setRefundBusy(false)}
   }
 
   const handleAutoDistribute = () => {
@@ -199,7 +224,7 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
     const nextAllocations: Record<string, number> = {}
     const sortedChildren = [...childInvoices].sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
     for (const child of sortedChildren) {
-      const unpaid = child.totalAmount - child.amountPaid
+      const unpaid = Math.max(0, child.totalAmount - child.amountPaid)
       if (remaining <= 0) {
         nextAllocations[child.id] = 0
       } else if (remaining >= unpaid) {
@@ -216,26 +241,36 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
   const handleAllocationChange = (childId: string, value: number) => {
     setAllocations(prev => ({
       ...prev,
-      [childId]: value
+      [childId]: Math.min(Math.max(0, Number.isFinite(value) ? value : 0), Math.max(0, (childInvoices.find(c => c.id === childId)?.totalAmount || 0) - (childInvoices.find(c => c.id === childId)?.amountPaid || 0)))
     }))
   }
 
   const totalAllocated = Object.values(allocations).reduce((sum, val) => sum + (val || 0), 0)
 
   const handleRecordPayment = async () => {
-    if (!activeInvoice || paymentAmount <= 0) return
+    if (paymentInFlight.current || !activeInvoice || !Number.isFinite(paymentAmount) || paymentAmount <= 0) return
+    if(activeInvoice.status==='Draft') {toast.error('Draft tagihan menunggu audit Finance. Terbitkan invoice sebelum menerima pembayaran.');return}
+    if (activeInvoice.isConsolidated && !tukarFakturs.some(tf => tf.id === activeInvoice.id)) {
+      toast.error('TF konsolidasi lama perlu direkonsiliasi dengan invoice dan jurnal asal sebelum menerima pembayaran. Hubungi Super Admin untuk pemetaan sumber; jangan membuat tagihan pengganti.'); return
+    }
     if (!paymentBankAccountId) {
       toast.error("Silakan pilih rekening bank tujuan penerimaan!")
       return
     }
-    if (paymentAmount > (activeInvoice.totalAmount - activeInvoice.amountPaid)) {
+    if (paymentAmount > (Math.max(0, activeInvoice.totalAmount - activeInvoice.amountPaid))) {
       toast.error("Nominal pembayaran melebihi sisa tagihan!")
       return
     }
-    if (activeInvoice.isConsolidated && totalAllocated !== paymentAmount) {
-      toast.error("Total alokasi per PO harus sama dengan nominal diterima!")
-      return
+    if (activeInvoice.isConsolidated) {
+      const error = validateReceiptAllocations(childInvoices, allocations, paymentAmount)
+      if (error) { toast.error(error); return }
     }
+    const payload = JSON.stringify({ invoiceId: activeInvoice.id, paymentAmount, paymentDate, paymentBankAccountId, allocations })
+    if (paymentAttempt.current && paymentAttempt.current.payload !== payload) {
+      toast.error('Percobaan sebelumnya belum terkonfirmasi. Ulangi data yang sama dan periksa hasil sebelum mengubah pembayaran.'); return
+    }
+    if (!paymentAttempt.current) paymentAttempt.current = { id: uuidv4(), payload }
+    paymentInFlight.current = true
 
     setIsRecordingPayment(true)
     try {
@@ -246,47 +281,21 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
           allocations,
           new Date(paymentDate).toISOString(),
           paymentBankAccountId,
-          paymentAmount
+          paymentAmount,
+          paymentAttempt.current.id
         )
       } else {
         success = await recordPaymentReceived(
           activeInvoice.id,
           paymentAmount,
           new Date(paymentDate).toISOString(),
-          paymentBankAccountId
+          paymentBankAccountId,
+          paymentAttempt.current.id
         )
       }
 
       if (success) {
-        if (!activeInvoice.isConsolidated) {
-          const newAmountPaid = activeInvoice.amountPaid + paymentAmount
-          const status = newAmountPaid >= activeInvoice.totalAmount ? 'Paid' : 'Partial'
-
-          const paymentRecord = {
-            id: uuidv4(),
-            amount: paymentAmount,
-            date: new Date(paymentDate).toISOString(),
-            note: "Pembayaran diterima"
-          }
-
-          // Jurnal + kas sudah tercatat di atas. Kalau penandaan invoice ini gagal,
-          // pembukuan bilang lunas sementara AR Aging masih menagih klien yang sama —
-          // jadi kegagalannya harus diteriakkan, bukan ditelan lalu dilaporkan sukses.
-          try {
-            await updateInvoice(activeInvoice.id, {
-              amountPaid: newAmountPaid,
-              status: status,
-              payments: [...(activeInvoice.payments || []), paymentRecord]
-            })
-          } catch (e) {
-            toast.error(
-              `Uang sudah masuk pembukuan, tapi status invoice GAGAL diperbarui. Piutang klien ini masih terbuka — perbaiki manual sebelum menagih lagi.`,
-              { duration: 15000 }
-            )
-            throw e
-          }
-        }
-
+        paymentAttempt.current = null
         toast.success(`Pembayaran ${formatRupiah(paymentAmount)} berhasil dicatat ke rekening tujuan.`)
         setActiveInvoice(null)
         setPaymentAmount(0)
@@ -294,117 +303,18 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
         setPaymentBankAccountId("")
         setAllocations({})
       } else {
-        toast.error("Gagal mencatat jurnal pembayaran. Transaksi dibatalkan.")
+        toast.error("Penerimaan belum terkonfirmasi. Ulangi data yang sama; ID pembayaran dipertahankan.")
       }
     } catch (e) {
       console.error(e)
-      toast.error("Terjadi kesalahan saat memproses pembayaran.")
+      toast.error("Penerimaan belum terkonfirmasi. Ulangi data yang sama untuk memeriksa hasil tanpa menggandakan penerimaan.")
     } finally {
+      paymentInFlight.current = false
       setIsRecordingPayment(false)
     }
   }
 
   const salesOrderItems = useAppStore(state => state.salesOrderItems)
-
-  const calculateSOTotal = (soId: string) => {
-    return salesOrderItems
-      .filter(item => item.salesOrderId === soId)
-      .reduce((sum, item) => sum + (item.subtotalFinal ?? item.subtotal), 0)
-  }
-
-  const getInvoicesForSalesOrder = (soId: string) => {
-    return invoices.filter(inv => inv.salesOrderId === soId || inv.salesOrderIds?.includes(soId))
-  }
-
-  const isOutstandingSalesOrder = (soId: string) => {
-    const relatedInvoices = getInvoicesForSalesOrder(soId)
-    const hasConsolidatedInvoice = relatedInvoices.some(inv => inv.isConsolidated)
-    const singleInvoices = relatedInvoices.filter(inv => !inv.isConsolidated)
-    const hasNoSingleInvoiceYet = singleInvoices.length === 0
-    const hasUnpaidSingleInvoice = singleInvoices.some(inv => inv.status !== 'Paid')
-
-    return !hasConsolidatedInvoice && (hasNoSingleInvoiceYet || hasUnpaidSingleInvoice)
-  }
-
-  const outstandingClients = clients.filter(client =>
-    salesOrders.some(so =>
-      so.clientId === client.id &&
-      ['Terkirim', 'Selesai'].includes(so.status) &&
-      isOutstandingSalesOrder(so.id)
-    )
-  )
-
-  const outstandingSalesOrders = salesOrders.filter(so =>
-    so.clientId === tfClientId &&
-    ['Terkirim', 'Selesai'].includes(so.status) &&
-    isOutstandingSalesOrder(so.id)
-  )
-
-  const handleCreateConsolidatedInvoice = async () => {
-    if (!tfClientId || selectedPOIds.length === 0) return
-
-    const selectedSOs = salesOrders.filter(so => selectedPOIds.includes(so.id))
-
-    // GUARD 1: every selected SO must belong to the chosen client (no cross-client leakage)
-    const foreignSOs = selectedSOs.filter(so => so.clientId !== tfClientId)
-    if (foreignSOs.length > 0) {
-      toast.error(`Gagal: ${foreignSOs.length} SO bukan milik client ini (${foreignSOs.map(s => s.poNumber).join(', ')}). Tukar Faktur dibatalkan.`)
-      return
-    }
-    if (selectedSOs.length !== selectedPOIds.length) {
-      toast.error("Gagal: ada SO yang tidak ditemukan. Refresh halaman.")
-      return
-    }
-
-    setIsConsolidating(true)
-    const now = new Date().toISOString()
-    const invId = `TF-${uuidv4().substring(0,8)}`
-    const totalAmount = selectedPOIds.reduce((sum, id) => sum + calculateSOTotal(id), 0)
-
-    // Carry over payments already received against the standalone invoices being absorbed.
-    // Without this, the TF shows full outstanding even though AR has already been credited by
-    // those partial payments, causing the invoice list total to diverge from the GL.
-    const supersedeTargets = invoices.filter(inv =>
-      !inv.isConsolidated &&
-      inv.salesOrderId &&
-      selectedPOIds.includes(inv.salesOrderId) &&
-      !inv.supersededByInvoiceId
-    )
-    const carriedPayments = supersedeTargets.flatMap(inv => inv.payments || [])
-    const carriedAmount = supersedeTargets.reduce((sum, inv) => sum + (inv.amountPaid || 0), 0)
-    const carriedStatus: Invoice['status'] =
-      carriedAmount >= totalAmount ? 'Paid' : carriedAmount > 0 ? 'Partial' : 'Unpaid'
-
-    const newInvoice: Invoice = {
-      id: invId,
-      clientId: tfClientId,
-      salesOrderIds: selectedPOIds,
-      isConsolidated: true,
-      consolidatedOrderNumbers: selectedSOs.map(so => so.poNumber),
-      issueDate: now,
-      dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-      totalAmount,
-      amountPaid: carriedAmount,
-      status: carriedStatus,
-      payments: carriedPayments,
-      paidDate: carriedStatus === 'Paid' ? now : undefined,
-    }
-
-    addInvoice(newInvoice)
-
-    // Mark every standalone (non-consolidated) invoice for the absorbed SOs as superseded.
-    // Revenue/AR already posted via these originals; the consolidated invoice carries only the
-    // settlement journal — leaving the originals in 'Unpaid' would misrepresent the receivables.
-    for (const orig of supersedeTargets) {
-      await updateInvoice(orig.id, { supersededByInvoiceId: invId })
-    }
-
-    generateTukarFakturBundle(invId)
-    toast.success(`Tukar Faktur berhasil${supersedeTargets.length ? `, ${supersedeTargets.length} invoice asli ditandai superseded` : ''}.`)
-    setIsConsolidating(false)
-    setIsTukarFakturOpen(false)
-    setSelectedPOIds([])
-  }
 
   const resetManualReceivableForm = () => {
     setManualClientId("")
@@ -424,52 +334,20 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
   }
 
   const handleCreateManualReceivable = async () => {
-    if (!manualClientId) {
-      toast.error("Pilih client terlebih dahulu.")
-      return
-    }
-    if (manualAmount <= 0) {
-      toast.error("Nominal piutang harus lebih dari 0.")
-      return
-    }
-    if (!manualIssueDate || !manualDueDate) {
-      toast.error("Tanggal invoice dan jatuh tempo wajib diisi.")
-      return
-    }
-
-    const invoiceId = manualInvoiceRef.trim() || `AR-${uuidv4().substring(0, 8).toUpperCase()}`
-    if (invoices.some(inv => inv.id.toLowerCase() === invoiceId.toLowerCase())) {
-      toast.error("Nomor invoice/piutang sudah dipakai.")
-      return
-    }
-
-    setIsCreatingManualReceivable(true)
+    if(manualBusy.current) return
+    if(!manualClientId || !Number.isFinite(manualAmount) || manualAmount<=0 || !manualIssueDate || !manualDueDate) {toast.error('Pilih klien, tanggal dan nominal positif.');return}
+    const payload=JSON.stringify({clientId:manualClientId,ref:manualInvoiceRef.trim(),amount:manualAmount,issueDate:manualIssueDate,dueDate:manualDueDate})
+    if(manualAttempt.current && manualAttempt.current.payload!==payload) {toast.error('Ulangi piutang sebelumnya dengan data yang sama untuk memastikan hasil.');return}
+    if(!manualAttempt.current) manualAttempt.current={id:uuidv4(),payload}
+    const eventId=manualAttempt.current.id
+    const invoiceId=manualInvoiceRef.trim()||`AR-${eventId.slice(0,8).toUpperCase()}`
+    manualBusy.current=true;setIsCreatingManualReceivable(true)
     try {
-      const issueDate = new Date(manualIssueDate).toISOString()
-      const newInvoice: Invoice = {
-        id: invoiceId,
-        clientId: manualClientId,
-        issueDate,
-        dueDate: new Date(manualDueDate).toISOString(),
-        totalAmount: manualAmount,
-        amountPaid: 0,
-        status: 'Unpaid',
-        payments: []
-      }
-
-      addInvoice(newInvoice)
-      const success = await recordManualReceivable(invoiceId, manualAmount, issueDate)
-
-      if (success) {
-        toast.success("Piutang manual berhasil dicatat per client.")
-        resetManualReceivableForm()
-        setIsManualReceivableOpen(false)
-      } else {
-        toast.error("Piutang tersimpan, tapi jurnal AR gagal dibuat.")
-      }
-    } finally {
-      setIsCreatingManualReceivable(false)
-    }
+      const ok=await recordManualReceivableCommand({eventId,invoice:{id:invoiceId,clientId:manualClientId,issueDate:new Date(manualIssueDate).toISOString(),dueDate:new Date(manualDueDate).toISOString(),totalAmount:manualAmount,amountPaid:0,status:'Unpaid',payments:[]}})
+      if(!ok) throw new Error('Piutang belum terkonfirmasi. Ulangi data yang sama.')
+      manualAttempt.current=null;resetManualReceivableForm();setIsManualReceivableOpen(false);toast.success('Piutang dan jurnal dicatat bersama.')
+    } catch(e) {toast.error((e as Error).message)}
+    finally {manualBusy.current=false;setIsCreatingManualReceivable(false)}
   }
 
   const handleShareWA = (inv: Invoice) => {
@@ -484,7 +362,7 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
     const so = salesOrders.find(s => s.id === inv.salesOrderId);
     const invoiceLabel = inv.id.substring(0, 8).toUpperCase();
     const docInfo = so?.poNumber ? `Invoice INV-#${invoiceLabel} (PO: ${so.poNumber})` : `Invoice INV-#${invoiceLabel}`;
-    const outstanding = inv.totalAmount - inv.amountPaid;
+    const outstanding = Math.max(0, inv.totalAmount - inv.amountPaid);
     const formattedOutstanding = formatRupiah(outstanding);
     const dueDateFormatted = format(new Date(inv.dueDate), 'dd/MM/yyyy');
     
@@ -545,10 +423,10 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
 
             <div className="flex gap-2 text-sm text-slate-600 font-medium ml-auto bg-slate-100 dark:bg-slate-900 p-2 rounded-lg">
               <div className="px-3 border-r border-slate-300 dark:border-slate-800">
-                Total Unpaid: {formatRupiah(visibleInvoices.filter(i => i.status !== 'Paid').reduce((sum, i) => sum + (i.totalAmount - i.amountPaid), 0))}
+                Total Unpaid: {formatRupiah(visibleInvoices.filter(i => i.status !== 'Paid').reduce((sum, i) => sum + (Math.max(0, i.totalAmount - i.amountPaid)), 0))}
               </div>
               <div className="px-3 text-emerald-600">
-                Total Paid: {formatRupiah(visibleInvoices.reduce((sum, i) => sum + i.amountPaid, 0))}
+                Penerimaan bruto: {formatRupiah(visibleInvoices.reduce((sum, i) => sum + i.amountPaid, 0))}
               </div>
             </div>
           </div>
@@ -564,11 +442,29 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
               <TabsTrigger value="consolidated" className="rounded-lg px-6 font-bold uppercase text-[11px] tracking-widest data-[state=active]:bg-white data-[state=active]:shadow-md">
                 Tukar Faktur ({batchRows.length})
               </TabsTrigger>
+              <TabsTrigger value="credits" className="rounded-lg px-6 font-bold text-[11px]">Credit Note & Refund ({creditNotes.length})</TabsTrigger>
             </TabsList>
 
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[11px] font-bold  text-amber-700">
-              Pembayaran invoice reguler diterima melalui Tukar Faktur. Piutang manual bisa langsung dicatat pembayarannya dari tab Piutang Manual.
+              Penerimaan dapat dicatat pada invoice atau alokasi Tukar Faktur. Credit note atas invoice yang sudah dibayar membuat kewajiban refund terpisah.
             </div>
+
+            <TabsContent value="credits">
+              <div className="space-y-4">
+                <label className="text-sm font-bold">Koreksi invoice terbit</label>
+                <select aria-label="Invoice untuk credit note" value="" onChange={e=>{const invoice=invoices.find(row=>row.id===e.target.value);if(invoice){setCnInvoice(invoice);setCnAmount(0);setCnReason('');setCnSourceReturnId('')}}} className="block border rounded-lg p-2 text-sm">
+                  <option value="">Pilih invoice (termasuk yang sudah dibayar)</option>
+                  {[...regularInvoices,...manualInvoices].filter(invoice=>creditLimit(invoice)>0).map(invoice=><option key={invoice.id} value={invoice.id}>{invoice.id} · {clients.find(client=>client.id===invoice.clientId)?.companyName} · {formatRupiah(invoice.totalAmount)}</option>)}
+                </select>
+                <Table><TableHeader><TableRow><TableHead>Credit note</TableHead><TableHead>Invoice / retur sumber</TableHead><TableHead>Nilai koreksi</TableHead><TableHead>Sisa kewajiban refund</TableHead><TableHead>Aksi</TableHead></TableRow></TableHeader><TableBody>
+                  {creditNotes.filter(note=>!searchTerm || clients.find(client=>client.id===note.clientId)?.companyName.toLowerCase().includes(searchTerm.toLowerCase()) || note.cnNumber.toLowerCase().includes(searchTerm.toLowerCase())).map(note=> {
+                    const remaining=Math.max(0,(note.refundableAmount || 0)-(note.refundedAmount || 0))
+                    return <TableRow key={note.id}><TableCell>{note.cnNumber}<p className="text-xs text-slate-500">{note.reason}</p></TableCell><TableCell>{note.invoiceId}<p className="text-xs">{note.sourceReturnId || 'Koreksi manual'}</p></TableCell><TableCell>{formatRupiah(note.amount)}</TableCell><TableCell>{formatRupiah(remaining)}</TableCell><TableCell><Button size="sm" variant="outline" disabled={remaining<=0} onClick={()=>{setRefundCredit(note);setRefundAmount(remaining);setRefundBank('');setRefundDate(new Date().toISOString().slice(0,10))}}>Catat Refund</Button></TableCell></TableRow>
+                  })}
+                  {creditNotes.length===0 && <TableRow><TableCell colSpan={5}>Belum ada credit note.</TableCell></TableRow>}
+                </TableBody></Table>
+              </div>
+            </TabsContent>
 
             <TabsContent value="regular">
               <div className="rounded-md border bg-white dark:bg-slate-950">
@@ -597,7 +493,7 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
                       regularInvoices.map((inv) => {
                         const client = clients.find(c => c.id === inv.clientId)
                         const so = salesOrders.find(s => s.id === inv.salesOrderId)
-                        const unpaid = inv.totalAmount - inv.amountPaid
+                        const unpaid = Math.max(0, inv.totalAmount - inv.amountPaid)
                         const isExpanded = expandedInvoiceId === inv.id
 
                         return (
@@ -643,7 +539,7 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
                                     inv.status === 'Unpaid' ? 'bg-rose-500/10 text-rose-600 border-rose-500/20' :
                                       'bg-amber-500/10 text-amber-600 border-amber-500/20'
                                 }>
-                                  {inv.status}
+                                  {inv.status === 'Draft' ? 'Menunggu audit' : inv.status}
                                 </Badge>
                               </TableCell>
                               <TableCell className="text-right flex items-center justify-end gap-2">
@@ -659,7 +555,7 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
                                     size="sm"
                                     variant="ghost"
                                     className="h-8 w-8 rounded-lg p-0 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"
-                                    onClick={() => handleShareWA(inv)}
+                                    disabled={inv.status==='Draft'} onClick={() => handleShareWA(inv)}
                                  >
                                     <Share2 className="w-4 h-4" />
                                  </Button>
@@ -667,13 +563,12 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
                                     size="sm"
                                     variant="ghost"
                                     className="h-8 w-8 rounded-lg p-0 text-slate-400 hover:text-blue-600 hover:bg-blue-50"
-                                    onClick={() => handleShareEmail(inv)}
+                                    disabled={inv.status==='Draft'} onClick={() => handleShareEmail(inv)}
                                  >
                                     <Mail className="w-4 h-4" />
                                  </Button>
-                                <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-500">
-                                  Bayar via Tukar Faktur
-                                </Badge>
+                                <Button size="sm" variant="outline" disabled={inv.status === 'Draft' || inv.status === 'Paid' || inv.status === 'Cancelled'} onClick={() => { setActiveInvoice(inv); setPaymentAmount(Math.max(0, inv.totalAmount - inv.amountPaid)) }}>Catat Bayar</Button>
+                                {creditLimit(inv)>0 && <Button size="sm" variant="outline" onClick={()=>{setCnInvoice(inv);setCnAmount(0);setCnReason('');setCnSourceReturnId('')}}>Credit Note</Button>}
                               </TableCell>
                             </TableRow>
 
@@ -763,7 +658,7 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
                     ) : (
                       manualInvoices.map((inv) => {
                         const client = clients.find(c => c.id === inv.clientId)
-                        const unpaid = inv.totalAmount - inv.amountPaid
+                        const unpaid = Math.max(0, inv.totalAmount - inv.amountPaid)
                         const isExpanded = expandedInvoiceId === inv.id
 
                         return (
@@ -797,7 +692,7 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
                                     inv.status === 'Unpaid' ? 'bg-rose-500/10 text-rose-600 border-rose-500/20' :
                                       'bg-amber-500/10 text-amber-600 border-amber-500/20'
                                 }>
-                                  {inv.status}
+                                  {inv.status === 'Draft' ? 'Menunggu audit' : inv.status}
                                 </Badge>
                               </TableCell>
                               <TableCell className="text-right">
@@ -826,12 +721,12 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
                                   )}
                                   {/* Satu-satunya cara membetulkan tagihan yang sudah terbit tanpa
                                       mengubah angkanya diam-diam. */}
-                                  {inv.status !== 'Paid' && (
+                                  {creditLimit(inv)>0 && (
                                     <Button
                                       size="sm"
                                       variant="outline"
                                       className="border-amber-200 bg-amber-50/50 hover:bg-amber-50 text-amber-700 font-bold h-8"
-                                      onClick={() => { setCnInvoice(inv); setCnAmount(0); setCnReason("") }}
+                                      onClick={() => { setCnInvoice(inv); setCnAmount(0); setCnReason(""); setCnSourceReturnId("") }}
                                       title="Koreksi tagihan yang sudah terbit"
                                     >
                                       <FileMinus className="w-3.5 h-3.5 mr-2" /> Credit Note
@@ -928,7 +823,7 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
                     ) : (
                       batchRows.map((inv) => {
                         const client = clients.find(c => c.id === inv.clientId)
-                        const unpaid = inv.totalAmount - inv.amountPaid
+                        const unpaid = Math.max(0, inv.totalAmount - inv.amountPaid)
                         const isExpanded = expandedInvoiceId === inv.id
                         const poLabels = inv.consolidatedOrderNumbers?.length
                           ? inv.consolidatedOrderNumbers
@@ -952,6 +847,7 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
                               <TableCell className="font-semibold text-[11px] font-mono text-slate-500">
                                 {/* Batch sistem baru dikenali lewat nomor TF-nya, bukan uuid mentah. */}
                                 {tukarFakturs.find(t => t.id === inv.id)?.tfNumber || inv.id}
+                                {!tukarFakturs.some(tf => tf.id === inv.id) && <p className="text-[10px] text-amber-700">TF lama: rekonsiliasi sumber sebelum penerimaan</p>}
                               </TableCell>
                               <TableCell className="font-medium">{client?.companyName}</TableCell>
                               <TableCell>
@@ -983,7 +879,7 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
                                     inv.status === 'Unpaid' ? 'bg-rose-500/10 text-rose-600 border-rose-500/20' :
                                       'bg-amber-500/10 text-amber-600 border-amber-500/20'
                                 }>
-                                  {inv.status}
+                                  {inv.status === 'Draft' ? 'Menunggu audit' : inv.status}
                                 </Badge>
                               </TableCell>
                               <TableCell className="text-right">
@@ -992,7 +888,7 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
                                     size="sm"
                                     variant="ghost"
                                     className="h-8 w-8 rounded-lg p-0 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50"
-                                    onClick={() => setSelectedInvoiceForPreview({ id: inv.id, isConsolidated: true })}
+                                    onClick={() => { if (tukarFakturs.some(tf => tf.id === inv.id)) window.open(`/finance/tukar-faktur/${inv.id}/print`, "_blank", "noopener,noreferrer"); else setSelectedInvoiceForPreview({ id: inv.id, isConsolidated: true }) }}
                                   >
                                     <Eye className="w-4 h-4" />
                                   </Button>
@@ -1000,7 +896,7 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
                                     size="sm"
                                     variant="ghost"
                                     className="h-8 w-8 rounded-lg p-0 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50"
-                                    onClick={() => handleShareWA(inv)}
+                                    disabled={inv.status==='Draft'} onClick={() => handleShareWA(inv)}
                                   >
                                     <Share2 className="w-4 h-4" />
                                   </Button>
@@ -1008,11 +904,11 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
                                     size="sm"
                                     variant="ghost"
                                     className="h-8 w-8 rounded-lg p-0 text-slate-400 hover:text-blue-600 hover:bg-blue-50"
-                                    onClick={() => handleShareEmail(inv)}
+                                    disabled={inv.status==='Draft'} onClick={() => handleShareEmail(inv)}
                                   >
                                     <Mail className="w-4 h-4" />
                                   </Button>
-                                  {inv.status !== 'Paid' && (
+                                  {inv.status !== 'Paid' && tukarFakturs.some(tf => tf.id === inv.id) && (
                                     <Button
                                       size="sm"
                                       variant="outline"
@@ -1073,7 +969,7 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
                                                 }
                                                 return childInvoices.map((child) => {
                                                   const childSo = salesOrders.find(s => s.id === child.salesOrderId);
-                                                  const childUnpaid = child.totalAmount - child.amountPaid;
+                                                  const childUnpaid = Math.max(0, child.totalAmount - child.amountPaid);
                                                   return (
                                                     <TableRow key={child.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50">
                                                       <TableCell className="py-2.5 font-semibold text-xs">{childSo?.poNumber || child.id.substring(0, 8)}</TableCell>
@@ -1092,7 +988,7 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
                                                         </Badge>
                                                       </TableCell>
                                                       <TableCell className="py-2.5 text-right">
-                                                        {childUnpaid > 0 && (
+                                                        {childUnpaid > 0 && tukarFakturs.some(tf => tf.id === inv.id) && (
                                                           <Button
                                                             size="sm"
                                                             variant="outline"
@@ -1159,7 +1055,7 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
                                           )}
                                         </div>
 
-                                        {inv.status !== 'Paid' && (
+                                        {inv.status !== 'Paid' && tukarFakturs.some(tf => tf.id === inv.id) && (
                                           <div className="pt-2 flex justify-between items-center">
                                             <span className="text-xs text-slate-500 italic">Sisa tagihan tersisa: <span className="font-bold text-rose-600">{formatRupiah(unpaid)}</span></span>
                                           </div>
@@ -1370,7 +1266,7 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
                 <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
                   {childInvoices.map((child) => {
                     const childSo = salesOrders.find(s => s.id === child.salesOrderId);
-                    const childUnpaid = child.totalAmount - child.amountPaid;
+                    const childUnpaid = Math.max(0, child.totalAmount - child.amountPaid);
                     const allocatedVal = allocations[child.id] || 0;
                     return (
                       <div key={child.id} className="flex items-center justify-between gap-4 p-2 bg-slate-50 dark:bg-slate-900 rounded border border-slate-100 dark:border-slate-800">
@@ -1384,6 +1280,7 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
                             type="number"
                             className="h-9 text-xs font-bold pl-8 pr-2"
                             placeholder="0"
+                            max={childUnpaid}
                             value={allocatedVal || ""}
                             onChange={(e) => handleAllocationChange(child.id, Math.max(0, parseInt(e.target.value) || 0))}
                           />
@@ -1418,138 +1315,7 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
       </Dialog>
 
       {/* TUKAR FAKTUR MODAL */}
-      <Dialog open={isTukarFakturOpen} onOpenChange={setIsTukarFakturOpen}>
-        <DialogContent className="sm:max-w-4xl p-0 overflow-hidden rounded-2xl border-none shadow-sm">
-           <DialogHeader className="p-8 bg-slate-900 text-white relative">
-              <div className="absolute top-0 right-0 p-8 opacity-10">
-                 <FileText className="w-24 h-24" />
-              </div>
-              <div className="relative z-10">
-                 <Badge className="bg-emerald-500 text-white border-none px-4 py-1 rounded-full font-bold uppercase text-[11px] tracking-widest mb-4">New Workflow</Badge>
-                 <DialogTitle className="text-3xl font-bold ">Proses Tukar Faktur</DialogTitle>
-                 <p className="text-slate-400 font-bold uppercase text-[11px] tracking-widest mt-1 opacity-70">Konsolidasi banyak PO menjadi satu tagihan resmi</p>
-              </div>
-           </DialogHeader>
-
-           <div className="p-10 bg-slate-50 space-y-8">
-               <div className="grid grid-cols-1 gap-6">
-                  <div className="space-y-2">
-                     <label className="text-[11px] font-bold uppercase text-slate-400 tracking-widest ml-1">Cari & Pilih Client (Hanya Dengan Outstanding PO)</label>
-                     <Popover open={isTfClientSearchOpen} onOpenChange={setIsTfClientSearchOpen}>
-                        <PopoverTrigger className="w-full h-14 rounded-2xl bg-white border-none shadow-sm font-bold flex justify-between items-center px-4 hover:bg-slate-50 transition-colors outline-none text-left overflow-hidden">
-                           <span className="truncate">
-                              {tfClientId ? clients.find(c => c.id === tfClientId)?.companyName : "Pilih Perusahaan"}
-                           </span>
-                           <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-2 rounded-2xl shadow-sm border-none">
-                           <div className="flex items-center border-b border-slate-100 p-2 mb-2">
-                              <Search className="mr-2 h-4 w-4 text-slate-400" />
-                              <input
-                                 className="flex h-10 w-full bg-transparent text-sm outline-none placeholder:text-slate-400 capitalize font-medium"
-                                 placeholder="Ketik nama client..."
-                                 value={tfClientSearch}
-                                 onChange={(e) => setTfClientSearch(e.target.value)}
-                              />
-                           </div>
-                           <div className="max-h-[250px] overflow-y-auto space-y-1">
-                              {outstandingClients
-                                 .filter(c => {
-                                    const matchesSearch = c.companyName.toLowerCase().includes(tfClientSearch.toLowerCase())
-                                    return matchesSearch
-                                 })
-                                 .map(c => (
-                                    <div
-                                       key={c.id}
-                                       className={cn(
-                                          "px-3 py-3 rounded-xl text-sm font-medium cursor-pointer transition-colors flex items-center justify-between",
-                                          tfClientId === c.id ? "bg-emerald-50 text-emerald-700" : "hover:bg-slate-50"
-                                       )}
-                                       onClick={() => {
-                                          setTfClientId(c.id)
-                                          setSelectedPOIds([])
-                                          setIsTfClientSearchOpen(false)
-                                          setTfClientSearch("")
-                                       }}
-                                    >
-                                       {c.companyName}
-                                       {tfClientId === c.id && <CheckCircle2 className="w-4 h-4" />}
-                                    </div>
-                                 ))
-                              }
-                              {outstandingClients.filter(c => {
-                                 const matchesSearch = c.companyName.toLowerCase().includes(tfClientSearch.toLowerCase())
-                                 return matchesSearch
-                              }).length === 0 && (
-                                 <div className="text-center py-6 text-xs text-slate-400 italic">Tidak ada client dengan outstanding PO.</div>
-                              )}
-                           </div>
-                        </PopoverContent>
-                     </Popover>
-                  </div>
-               </div>
-
-              <div className="space-y-4">
-                 <div className="flex justify-between items-end px-2">
-                    <h4 className="text-[11px] font-bold  text-slate-400">Pilih PO Terkirim (Settled)</h4>
-                    <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">{selectedPOIds.length} Terpilih</span>
-                 </div>
-                 
-                 <div className="max-h-[300px] overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-inner">
-                    <Table>
-                       <TableHeader className="bg-slate-50/50">
-                          <TableRow>
-                             <TableHead className="w-12 text-center">Pilih</TableHead>
-                             <TableHead>No PO</TableHead>
-                             <TableHead>Tanggal Kirim</TableHead>
-                             <TableHead className="text-right">Total Nilai</TableHead>
-                          </TableRow>
-                       </TableHeader>
-                       <TableBody>
-                          {outstandingSalesOrders.map(so => (
-                             <TableRow key={so.id} className="cursor-pointer hover:bg-slate-50 transition-colors" onClick={() => {
-                                if (selectedPOIds.includes(so.id)) setSelectedPOIds(prev => prev.filter(id => id !== so.id))
-                                else setSelectedPOIds(prev => [...prev, so.id])
-                             }}>
-                                <TableCell className="text-center">
-                                   <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${selectedPOIds.includes(so.id) ? 'bg-emerald-500 border-emerald-500' : 'border-slate-200'}`}>
-                                      {selectedPOIds.includes(so.id) && <CheckCircle2 className="w-3 h-3 text-white" />}
-                                   </div>
-                                </TableCell>
-                                <TableCell className="font-bold">{so.poNumber}</TableCell>
-                                <TableCell className="text-slate-500 text-xs font-medium">{format(new Date(so.orderDate), 'dd/MM/yyyy')}</TableCell>
-                                <TableCell className="text-right font-bold">{formatRupiah(calculateSOTotal(so.id))}</TableCell>
-                             </TableRow>
-                          ))}
-                          {outstandingSalesOrders.length === 0 && (
-                            <TableRow>
-                               <TableCell colSpan={4} className="h-32 text-center text-slate-400 italic">Pilih klien dan rentang tanggal untuk melihat PO yang tersedia.</TableCell>
-                            </TableRow>
-                          )}
-                       </TableBody>
-                    </Table>
-                 </div>
-              </div>
-
-              <div className="flex gap-4 pt-4">
-                 <Button 
-                    variant="ghost" 
-                    className="flex-1 h-16 rounded-2xl font-bold uppercase text-[11px] tracking-widest text-slate-400"
-                    onClick={() => setIsTukarFakturOpen(false)}
-                 >
-                    Batalkan
-                 </Button>
-                 <Button 
-                    className="flex-[2] h-16 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold uppercase text-[11px] tracking-widest shadow-sm"
-                    disabled={selectedPOIds.length === 0 || isConsolidating}
-                    onClick={handleCreateConsolidatedInvoice}
-                 >
-                    Terbitkan Tukar Faktur ({selectedPOIds.length} PO)
-                 </Button>
-              </div>
-           </div>
-        </DialogContent>
-      </Dialog>
+      <GenerateTfModal open={isTukarFakturOpen} onOpenChange={setIsTukarFakturOpen} />
       {/* Global Invoice & Tukar Faktur Preview Modal */}
       {selectedInvoiceForPreview && (
         <UniversalPDFPreview 
@@ -1559,6 +1325,15 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
           isConsolidated={selectedInvoiceForPreview.isConsolidated}
         />
       )}
+      <Dialog open={!!refundCredit} onOpenChange={open=>{if(!open && !refundBusy)setRefundCredit(null)}}>
+        <DialogContent className="max-w-md"><DialogHeader><DialogTitle>Refund Credit Note {refundCredit?.cnNumber}</DialogTitle></DialogHeader>
+          <p className="text-xs text-slate-500">Pembayaran ini mengurangi kewajiban refund klien dan saldo bank. Penerimaan invoice asli tetap dipertahankan.</p>
+          <Input aria-label="Tanggal refund" type="date" value={refundDate} onChange={event=>setRefundDate(event.target.value)} />
+          <Input aria-label="Nominal refund" type="number" min={0} max={Math.max(0,(refundCredit?.refundableAmount || 0)-(refundCredit?.refundedAmount || 0))} value={refundAmount || ''} onChange={event=>setRefundAmount(Number(event.target.value))} />
+          <select aria-label="Rekening sumber refund" value={refundBank} onChange={event=>setRefundBank(event.target.value)} className="border rounded-lg p-2 text-sm"><option value="">Pilih rekening sumber</option>{bankAccounts.map(bank=><option key={bank.id} value={bank.id}>{bank.name}</option>)}</select>
+          <Button onClick={handleCreditRefund} disabled={refundBusy || !refundBank || refundAmount<=0}>{refundBusy?'Mencatat…':'Konfirmasi Refund'}</Button>
+        </DialogContent>
+      </Dialog>
       {cnInvoice && (
         <Dialog open onOpenChange={(o) => { if (!o) setCnInvoice(null) }}>
           <DialogContent className="max-w-md">
@@ -1569,11 +1344,22 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
               <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs font-bold space-y-1">
                 <p>{clients.find(c => c.id === cnInvoice.clientId)?.companyName}</p>
                 <p className="text-slate-500">Tagihan sekarang {formatRupiah(cnInvoice.totalAmount)}</p>
-                <p className="text-slate-500">Sisa yang bisa dikoreksi {formatRupiah(creditLimit(cnInvoice))}</p>
+                <p className="text-slate-500">Nilai yang masih bisa dikoreksi {formatRupiah(creditLimit(cnInvoice))}</p>
+              </div>
+              <div>
+                <label className="text-[11px] font-bold uppercase text-slate-500">Sumber retur (opsional)</label>
+                <select aria-label="Retur sumber credit note" value={cnSourceReturnId} onChange={event=> {
+                  setCnSourceReturnId(event.target.value)
+                  const source=pendingReturns.find(row=>row.id===event.target.value)
+                  if(source) {const amount=sourceReturnCredit(cnInvoice,source);setCnAmount(amount || 0);setCnReason(`Retur ${source.diNumber || source.id}: ${source.reason}`)}
+                }} className="block border rounded-lg p-2 text-sm w-full">
+                  <option value="">Koreksi manual dengan alasan</option>
+                  {pendingReturns.filter(source=>source.invoiceId===cnInvoice.id && source.financialAdjustmentStatus==='Pending Finance').map(source=><option key={source.id} value={source.id} disabled={sourceReturnCredit(cnInvoice,source)===null}>{source.diNumber || source.id} · {source.qty} · {source.returnDecision==='Replace'?'Penggantian':'Batal'} · {formatRupiah(sourceReturnCredit(cnInvoice,source) || 0)}</option>)}
+                </select>
               </div>
               <div>
                 <label className="text-[11px] font-bold uppercase text-slate-500">Nilai koreksi</label>
-                <Input type="number" value={cnAmount || ''} onChange={e => setCnAmount(Number(e.target.value))}
+                <Input type="number" disabled={!!cnSourceReturnId} max={creditLimit(cnInvoice)} value={cnAmount || ''} onChange={e => setCnAmount(Number(e.target.value))}
                   className="h-11 font-bold" placeholder="0" />
               </div>
               <div>
@@ -1583,7 +1369,7 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
               </div>
               <p className="text-[11px] text-slate-400 font-bold">
                 Tagihan klien turun sebesar ini dan pendapatan ikut dikoreksi. Stok tidak
-                tersentuh — barang yang benar-benar kembali diproses lewat retur customer.
+                tersentuh; barang yang kembali diproses lewat retur customer. Nilai yang sudah dibayar menjadi kewajiban refund dan dibayarkan dari tab Credit Note & Refund.
               </p>
               <Button disabled={cnBusy} onClick={handleCreateCreditNote}
                 className="w-full h-12 font-bold bg-amber-600 hover:bg-amber-700">

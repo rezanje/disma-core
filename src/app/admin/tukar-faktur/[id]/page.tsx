@@ -4,8 +4,10 @@ import { use, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useAppStore } from "@/lib/store"
+import { tukarFakturAmounts } from "@/lib/billing-document"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import ReceiptUpload from "@/components/ui/receipt-upload"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, Send, CheckCircle2, Trash2, Printer } from "lucide-react"
@@ -33,6 +35,8 @@ export default function TukarFakturDetailPage({ params }: { params: Promise<{ id
   const updateInvoice = useAppStore(s => s.updateInvoice)
 
   const [receivedBy, setReceivedBy] = useState("")
+  const [receivedDate, setReceivedDate] = useState(new Date().toISOString().slice(0, 10))
+  const [receivedProof, setReceivedProof] = useState("")
   const [bulkDays, setBulkDays] = useState(0)
   const [busy, setBusy] = useState(false)
 
@@ -46,6 +50,7 @@ export default function TukarFakturDetailPage({ params }: { params: Promise<{ id
   }
 
   const client = clients.find(c => c.id === tf.clientId)
+  const amounts = tukarFakturAmounts(tf.totalAmount, linkedInvoices)
   const isLocked = tf.status === "Received" || tf.status === "Paid"
   const isDraftish = tf.status === "Draft" || tf.status === "Issued"
 
@@ -54,19 +59,20 @@ export default function TukarFakturDetailPage({ params }: { params: Promise<{ id
     try {
       const today = new Date().toISOString().slice(0, 10)
       await issueTukarFaktur(id, linkedInvoices.map(i => i.id), today, currentUser?.id || "system")
-      toast.success("TF berhasil di-Issue. Jatuh tempo invoice ter-update.")
+      toast.success("TF berhasil diterbitkan. Jatuh tempo kontrak invoice tetap berlaku.")
     } catch (e) {
       toast.error(`Issue gagal: ${e instanceof Error ? e.message : String(e)}`)
     } finally { setBusy(false) }
   }
 
   async function handleMarkReceived() {
-    if (!receivedBy.trim()) { toast.error("Isi nama PIC penerima."); return }
+    if (busy || !receivedBy.trim() || !receivedProof || !receivedDate) { toast.error("Isi PIC, tanggal dan unggah bukti TF diterima."); return }
     setBusy(true)
     try {
       await updateTukarFaktur(id, {
         status: "Received",
-        receivedAt: new Date().toISOString(),
+        receivedAt: new Date(receivedDate).toISOString(),
+        receivedProofUrl: receivedProof,
         receivedBy: receivedBy.trim(),
       })
       toast.success("Ditandai diterima klien.")
@@ -77,7 +83,7 @@ export default function TukarFakturDetailPage({ params }: { params: Promise<{ id
   }
 
   async function handleDelete() {
-    if (!confirm(`Hapus TF ${tf?.tfNumber}? Invoice akan di-unlink & jatuh tempo direvert.`)) return
+    if (!confirm(`Hapus TF ${tf?.tfNumber}? Invoice akan dilepas dari TF; jatuh tempo kontrak tetap berlaku.`)) return
     setBusy(true)
     try {
       await deleteTukarFaktur(id)
@@ -88,29 +94,6 @@ export default function TukarFakturDetailPage({ params }: { params: Promise<{ id
     } finally { setBusy(false) }
   }
 
-  async function handleEditDueDate(invoiceId: string, newDate: string) {
-    try {
-      await updateInvoice(invoiceId, { dueDate: newDate })
-    } catch (e) {
-      toast.error(`Update dueDate gagal: ${e instanceof Error ? e.message : String(e)}`)
-    }
-  }
-
-  async function handleBulkOverride() {
-    if (bulkDays === 0) { toast.error("Isi jumlah hari (boleh negatif)."); return }
-    setBusy(true)
-    try {
-      for (const inv of linkedInvoices) {
-        const newDate = new Date(inv.dueDate)
-        newDate.setDate(newDate.getDate() + bulkDays)
-        await updateInvoice(inv.id, { dueDate: newDate.toISOString().slice(0, 10) })
-      }
-      toast.success(`${linkedInvoices.length} dueDate digeser ${bulkDays} hari.`)
-      setBulkDays(0)
-    } catch (e) {
-      toast.error(`Bulk override gagal: ${e instanceof Error ? e.message : String(e)}`)
-    } finally { setBusy(false) }
-  }
 
   return (
     <div className="p-6 md:p-10 space-y-6">
@@ -156,14 +139,18 @@ export default function TukarFakturDetailPage({ params }: { params: Promise<{ id
             <h3 className="font-bold text-sm">Konfirmasi Penerimaan Klien</h3>
             <p className="text-xs text-slate-500 mt-0.5">Tandai bahwa dokumen TF fisik sudah diterima oleh klien.</p>
           </div>
+          <ReceiptUpload label="Bukti tanda terima TF" currentFile={receivedProof} onFileSelect={setReceivedProof} />
+          <Input type="date" aria-label="Tanggal diterima klien" value={receivedDate} onChange={e => setReceivedDate(e.target.value)} />
           <div className="flex gap-2 max-w-md">
             <Input placeholder="Nama PIC Klien Penerima…" value={receivedBy} onChange={e => setReceivedBy(e.target.value)} />
-            <Button onClick={handleMarkReceived} disabled={busy || !receivedBy.trim()} className="bg-blue-600 hover:bg-blue-700 text-white">
+            <Button onClick={handleMarkReceived} disabled={busy || !receivedBy.trim() || !receivedProof || !receivedDate} className="bg-blue-600 hover:bg-blue-700 text-white">
               <CheckCircle2 className="w-4 h-4 mr-2" /> Diterima
             </Button>
           </div>
         </Card>
       )}
+
+      {tf.receivedAt && <p className="text-sm">Diterima {tf.receivedBy || "(PIC belum tercatat)"} pada {formatDate(tf.receivedAt)}. {tf.receivedProofUrl ? <a className="underline" href={tf.receivedProofUrl} target="_blank" rel="noopener noreferrer">Lihat bukti</a> : "Bukti historis belum terunggah."}</p>}
 
       {/* Detail Invoices */}
       <Card className="rounded-2xl overflow-hidden border-slate-100">
@@ -183,11 +170,7 @@ export default function TukarFakturDetailPage({ params }: { params: Promise<{ id
                 <td className="px-4 py-3 font-bold">{inv.id.slice(0, 8)}</td>
                 <td className="px-4 py-3">{formatDate(inv.issueDate)}</td>
                 <td className="px-4 py-3">
-                  {tf.status === "Draft" ? (
-                    <Input type="date" value={inv.dueDate} onChange={e => handleEditDueDate(inv.id, e.target.value)} className="h-8 w-40 text-xs rounded-lg" />
-                  ) : (
-                    formatDate(inv.dueDate)
-                  )}
+                  {formatDate(inv.dueDate)}
                 </td>
                 <td className="px-4 py-3 text-right font-bold">{formatRupiah(inv.totalAmount)}</td>
                 <td className="px-4 py-3 text-center">
@@ -198,29 +181,19 @@ export default function TukarFakturDetailPage({ params }: { params: Promise<{ id
               </tr>
             ))}
             <tr className="border-t border-slate-200 bg-slate-50 font-bold">
-              <td colSpan={3} className="px-4 py-3 text-right">TOTAL TF:</td>
-              <td className="px-4 py-3 text-right text-emerald-700">{formatRupiah(tf.totalAmount)}</td>
+              <td colSpan={3} className="px-4 py-3 text-right">Nilai terbit:</td>
+              <td className="px-4 py-3 text-right">{formatRupiah(amounts.issued)}</td>
               <td className="px-4 py-3 text-center">{linkedInvoices.length} inv</td>
             </tr>
+            <tr><td colSpan={3} className="px-4 py-2 text-right">Koreksi (credit note):</td><td className="px-4 py-2 text-right">{formatRupiah(-amounts.correction)}</td><td /></tr>
+            <tr className="font-bold"><td colSpan={3} className="px-4 py-2 text-right">Nilai bersih saat ini:</td><td className="px-4 py-2 text-right">{formatRupiah(amounts.net)}</td><td /></tr>
+            <tr><td colSpan={3} className="px-4 py-2 text-right">Pembayaran diterima:</td><td className="px-4 py-2 text-right">{formatRupiah(amounts.paid)}</td><td /></tr>
+            <tr className="font-bold text-emerald-700"><td colSpan={3} className="px-4 py-3 text-right">Sisa piutang:</td><td className="px-4 py-3 text-right">{formatRupiah(amounts.outstanding)}</td><td /></tr>
           </tbody>
         </table>
       </Card>
 
-      {/* Bulk Override Due Date */}
-      {tf.status === "Issued" && (
-        <Card className="p-6 rounded-2xl border-slate-100 space-y-4">
-          <div>
-            <h3 className="font-bold text-sm">Undur / Geser Jatuh Tempo (Bulk)</h3>
-            <p className="text-xs text-slate-500 mt-0.5">Geser tanggal jatuh tempo semua invoice dalam TF ini sekaligus.</p>
-          </div>
-          <div className="flex items-center gap-2 max-w-sm">
-            <Input type="number" placeholder="Jumlah hari (misal: 7 atau -7)…" value={bulkDays || ""} onChange={e => setBulkDays(Number(e.target.value))} />
-            <Button onClick={handleBulkOverride} disabled={busy} className="bg-slate-800 hover:bg-slate-900 text-white whitespace-nowrap">
-              Geser Tanggal
-            </Button>
-          </div>
-        </Card>
-      )}
+      <p className="text-xs text-slate-500">Jatuh tempo mengikuti kontrak invoice. Perubahan memerlukan kesepakatan dan pencatatan renegosiasi; penggeseran massal tidak tersedia.</p>
     </div>
   )
 }

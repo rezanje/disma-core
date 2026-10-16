@@ -1,0 +1,24 @@
+import assert from 'node:assert/strict';
+import Module from 'node:module';
+const originalLoad=(Module as any)._load;const originalFetch=globalThis.fetch;
+const keys=['purchases','purchaseItems','salesOrders','salesOrderItems','products','stockMovements','notifications','purchaseRequests','rejectedItems','bankAccounts','cashTransactions','journalEntries','journalLines','expenses'];
+let state:any={_lastLocalMutationAt:0,currentUser:{id:'u'},...Object.fromEntries(keys.map(k=>[k,[]]))};
+let applied=0;
+const store={getState:()=>state,setState:(fn:any)=>{state={...state,...fn(state)};applied++}};
+(Module as any)._load=function(id:string,...args:unknown[]){if(id==='./store')return {useAppStore:store};return originalLoad.call(this,id,...args)};
+const {submitShoppingReport}=require('./shopping-report');
+(async()=>{
+ const calls:unknown[]=[];
+ const input:any={eventId:'paper-1',purchaseIds:['p'],pocketBankAccountId:'bank',occurredAt:'2026-10-16T06:00:00Z',onBehalfOfUserId:'worker',lines:[{id:'a',purchaseId:'p',productId:'x',isChecked:true,qtyPurchased:2,actualUnitPrice:10,vendorId:'v',paymentMethod:'Cash'}]};
+ const updates={...Object.fromEntries(keys.map(k=>[k,[]])),purchases:[{id:'p',status:'Belanja'}],purchaseItems:[{id:'a',qtyPurchased:2}],bankAccounts:[{id:'bank',balance:80}]};
+ globalThis.fetch=(async(url:any,request:any)=>{assert.equal(url,'/api/operations/purchases');calls.push(JSON.parse(request.body));return {ok:true,json:async()=>({ok:true,eventId:'paper-1',updates})} as Response}) as typeof fetch;
+ await assert.rejects(()=>submitShoppingReport(()=>state,input),/keuangan/,'empty financial arrays cannot confirm a paid paper');
+ Object.assign(updates,{cashTransactions:[{id:'financial:paper-cash:paper-1:p:out'}],journalEntries:[{id:'financial:paper-cash:paper-1:p:journal'}],journalLines:[{id:'debit',journalEntryId:'financial:paper-cash:paper-1:p:journal'},{id:'credit',journalEntryId:'financial:paper-cash:paper-1:p:journal'}]});
+ assert.deepEqual(await submitShoppingReport(()=>state,input),{ok:true,warnings:[]});
+ await submitShoppingReport(()=>state,input);assert.deepEqual(calls[1],calls[2]);assert.equal(applied,2);
+ assert.equal(state.bankAccounts[0].balance,80,'hydrate authoritative amount, not a client debit per retry');
+ globalThis.fetch=(async()=>({ok:false,json:async()=>({error:'Transfer failed; all allocations rolled back'})} as Response)) as typeof fetch;
+ await assert.rejects(()=>submitShoppingReport(()=>state,input),/Transfer failed/);assert.equal(applied,2);
+ assert.equal((await submitShoppingReport(()=>state,{...input,eventId:undefined})).ok,false);
+ console.log('shopping submission: OK');
+})().finally(()=>{globalThis.fetch=originalFetch;(Module as any)._load=originalLoad});

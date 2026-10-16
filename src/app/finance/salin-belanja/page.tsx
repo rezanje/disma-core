@@ -28,7 +28,7 @@ import { cn, formatRupiah, formatNumber, parseNumber } from "@/lib/utils"
 import { selectableVendors } from "@/lib/vendor-status"
 import { pocketOwners } from "@/lib/sourcing-pocket"
 import { ceilingByLine, isOverCeiling, overByPct } from "@/lib/price-ceiling"
-import { purchaseUnitPrice, reportProblems, submitShoppingReport, type ReportLine } from "@/lib/shopping-report"
+import { allocateMergedActuals, purchaseUnitPrice, reportProblems, submitShoppingReport, type ReportLine, type ReportInput } from "@/lib/shopping-report"
 import { toggleAll } from "@/lib/plan-table"
 import { OperationalExpense } from "@/types"
 import { v4 as uuidv4 } from "uuid"
@@ -50,10 +50,16 @@ export default function SalinBelanjaPage() {
   const salesOrders = useAppStore(s => s.salesOrders)
   const salesOrderItems = useAppStore(s => s.salesOrderItems)
   const bankAccounts = useAppStore(s => s.bankAccounts)
+  const performers = useAppStore(s=>s.users)
   const currentUser = useAppStore(s => s.currentUser)
   const minMarginPct = useAppStore(s => s.minMarginPct)
-  const addExpense = useAppStore(s => s.addExpense)
 
+  const [pendingReport, setPendingReport] = useState<{input:ReportInput; expenses:OperationalExpense[]} | null>(null)
+  const [selectedDocs, setSelectedDocs] = useState<Set<string>>(new Set())
+  const [eventId, setEventId] = useState(() => uuidv4())
+  const [transferBankId, setTransferBankId] = useState('')
+  const [performedBy, setPerformedBy] = useState('')
+  const [occurredAt, setOccurredAt] = useState(new Date().toISOString().slice(0,16))
   const [draft, setDraft] = useState<Record<string, DraftLine>>({})
   const [pilih, setPilih] = useState<Set<string>>(new Set())
   const [pocketId, setPocketId] = useState("")
@@ -62,26 +68,30 @@ export default function SalinBelanjaPage() {
   const [ops, setOps] = useState<OpsRow[]>([])
   const [kirim, setKirim] = useState(false)
 
-  // Dokumen yang rencananya sudah dilepas dan laporannya belum masuk.
-  //
-  // Semuanya disalin sekaligus, bukan satu tab per dokumen. Yang pulang dari pasar itu
-  // SATU lembar hasil gabungan beberapa dokumen — memaksa penyalinnya berpindah tab
-  // sambil mencari baris mana milik dokumen mana adalah cara paling rapi untuk membuat
-  // salah ketik jadi rutin.
+  // Finance explicitly selects the documents on the returned paper.
   const menunggu = purchases.filter(p =>
     ['Pending', 'Belanja'].includes(p.status) &&
     p.reconciliationStatus !== 'Laporan Masuk' && p.reconciliationStatus !== 'Terverifikasi')
-  const idMenunggu = menunggu.map(p => p.id).join('|')
-
-  // Barang yang dibeli sendiri di pasar. Kiriman vendor dan belanja online tidak lewat
-  // kertas ini — vendor mengantar sendiri, online dipesan Finance dari mejanya.
-  const baris = useMemo(
-    () => {
-      const ids = new Set(idMenunggu ? idMenunggu.split('|') : [])
-      return purchaseItems.filter(pi => ids.has(pi.purchaseId) && (pi.purchaseMethod === 'Pasar' || !pi.purchaseMethod))
-    },
-    [purchaseItems, idMenunggu],
-  )
+  const selectedPurchases = menunggu.filter(p => selectedDocs.has(p.id))
+  const idMenunggu = selectedPurchases.map(p => p.id).join('|')
+  const baris = useMemo(() => {
+    const ids = new Set(idMenunggu ? idMenunggu.split('|') : [])
+    const groups = new Map<string, typeof purchaseItems[number] & { members: typeof purchaseItems }>()
+    for (const pi of purchaseItems.filter(pi => ids.has(pi.purchaseId) && (!pi.purchaseMethod || pi.purchaseMethod === 'Pasar') && pi.qtyPurchased < pi.qtyTarget)) {
+      const key = [pi.productId, pi.plannedVendorId || '', pi.purchaseMethod || 'Pasar', pi.paymentMethod || 'Cash'].join('|')
+      const remaining = pi.qtyTarget - (pi.qtyPurchased || 0)
+      const old = groups.get(key)
+      if (old) { old.qtyTarget += remaining; old.members.push({...pi, qtyTarget:remaining}); old.estimatedUnitPrice = Math.max(old.estimatedUnitPrice, pi.estimatedUnitPrice) }
+      else groups.set(key, {...pi, id:key, qtyTarget:remaining, qtyPurchased:0, members:[{...pi,qtyTarget:remaining}]})
+    }
+    return [...groups.values()].sort((a,b) => {
+      const va = vendors.find(v=>v.id===a.plannedVendorId)?.companyName || ''
+      const vb = vendors.find(v=>v.id===b.plannedVendorId)?.companyName || ''
+      if (!va && vb) return 1
+      if (va && !vb) return -1
+      return va.localeCompare(vb) || (products.find(p=>p.id===a.productId)?.name || '').localeCompare(products.find(p=>p.id===b.productId)?.name || '')
+    })
+  }, [purchaseItems, idMenunggu, vendors, products])
 
   const kodeDokumen = (purchaseId: string) => {
     const p = purchases.find(x => x.id === purchaseId)
@@ -98,23 +108,32 @@ export default function SalinBelanjaPage() {
     productId: pi.productId,
     purchaseId: pi.purchaseId,
     purchaseMethod: pi.purchaseMethod,
-    isChecked: (nilai(pi.id, 'isChecked') as boolean | undefined) ?? true,
+    isChecked: (nilai(pi.id, 'isChecked') as boolean | undefined) ?? false,
     actualUnitPrice: draft[pi.id]?.actualTotal !== undefined
-      ? purchaseUnitPrice(draft[pi.id].actualTotal!, (nilai(pi.id, 'qtyPurchased') as number | undefined) ?? (pi.qtyPurchased || pi.qtyTarget || 0))
+      ? purchaseUnitPrice(draft[pi.id].actualTotal!, (nilai(pi.id, 'qtyPurchased') as number | undefined) ?? (pi.qtyPurchased || 0))
       : (nilai(pi.id, 'actualUnitPrice') as number | undefined) ?? (pi.actualUnitPrice || pi.estimatedUnitPrice || 0),
-    qtyPurchased: (nilai(pi.id, 'qtyPurchased') as number | undefined) ?? (pi.qtyPurchased || pi.qtyTarget || 0),
+    qtyPurchased: (nilai(pi.id, 'qtyPurchased') as number | undefined) ?? (pi.qtyPurchased || 0),
     vendorId: (nilai(pi.id, 'vendorId') as string | undefined) ?? pi.vendorId ?? pi.plannedVendorId ?? null,
     paymentMethod: (nilai(pi.id, 'paymentMethod') as ReportLine['paymentMethod']) ?? (pi.paymentMethod as ReportLine['paymentMethod']) ?? 'Cash',
     notes: (nilai(pi.id, 'notes') as string | undefined) ?? pi.notes ?? '',
     overCeilingReason: (nilai(pi.id, 'overCeilingReason') as string | undefined) ?? pi.overCeilingReason ?? '',
   }))
 
-  const batas = useMemo(
-    () => ceilingByLine(baris, salesOrderItems, minMarginPct),
-    [baris, salesOrderItems, minMarginPct],
-  )
+  const batas = useMemo(() => {
+    const original = ceilingByLine(purchaseItems, salesOrderItems, minMarginPct)
+    return new Map(baris.map(g => [g.id, Math.min(...g.members.map(m=>original.get(m.id) || Infinity))]))
+  }, [baris, purchaseItems, salesOrderItems, minMarginPct])
+  const allocatedLines = () => lines.flatMap(l => {
+    const group = baris.find(b=>b.id===l.id)!
+    return allocateMergedActuals(group.members, l.isChecked ? l.qtyPurchased : 0, l.isChecked ? l.qtyPurchased * l.actualUnitPrice : 0)
+      .filter(a=>a.qtyPurchased > 0)
+      .map(a=>({...l,...a,purchaseId:group.members.find(m=>m.id===a.id)!.purchaseId,isChecked:true}))
+  })
 
-  const totalBelanja = lines.filter(l => l.isChecked && l.paymentMethod === 'Cash').reduce((s, l) => s + l.qtyPurchased * l.actualUnitPrice, 0)
+  const totalTunai = lines.filter(l => l.isChecked && l.paymentMethod === 'Cash').reduce((s, l) => s + l.qtyPurchased * l.actualUnitPrice, 0)
+  const totalBelanja = lines.filter(l=>l.isChecked).reduce((s,l)=>s+l.qtyPurchased*l.actualUnitPrice,0)
+  const totalTransfer = lines.filter(l=>l.isChecked && l.paymentMethod === 'Transfer').reduce((s,l)=>s+l.qtyPurchased*l.actualUnitPrice,0)
+  const totalTempo = lines.filter(l=>l.isChecked && l.paymentMethod === 'Tempo').reduce((s,l)=>s+l.qtyPurchased*l.actualUnitPrice,0)
   const totalOps = ops.reduce((s, o) => s + o.nominal, 0)
 
   const namaProduk = (productId: string) => products.find(p => p.id === productId)?.name || productId
@@ -140,9 +159,14 @@ export default function SalinBelanjaPage() {
   }
 
   const masalah = menunggu.length > 0 ? reportProblems(
-    { purchaseIds: menunggu.map(p => p.id), lines, pocketBankAccountId: pocketDipakai || null, onBehalfOfUserId: atasNama || null, proofImage: foto, ceilings: batas },
+    { purchaseIds: selectedPurchases.map(p => p.id), lines, pocketBankAccountId: pocketDipakai || null, onBehalfOfUserId: performedBy || atasNama || null, proofImage: foto, ceilings: batas },
     namaProduk, currentUser?.id,
   ) : ['Belum ada dokumen belanja yang menunggu laporan.']
+  if (!selectedPurchases.length) masalah.push('Pilih dokumen pada kertas yang diterima.')
+  if (!lines.some(l=>l.isChecked && l.qtyPurchased > 0)) masalah.push('Isi hasil pembelian yang benar-benar terjadi; sisanya tetap terbuka.')
+  if (lines.some(l=>l.paymentMethod === 'Transfer' && l.isChecked) && !transferBankId) masalah.push('Pilih rekening sumber transfer.')
+  if (lines.some(l=>l.qtyPurchased > (baris.find(b=>b.id===l.id)?.qtyTarget || 0))) masalah.push('Qty beli melebihi sisa kebutuhan.')
+  if (!occurredAt || !performedBy.trim()) masalah.push('Isi tanggal kejadian dan pelaksana pada kertas.')
   for (const o of ops) {
     if (o.nominal > 0 && !bankAccounts.some(b => b.id === (o.sourceBankAccountId || pocketDipakai) && b.accountCode)) {
       masalah.push(`Pilih sumber kas untuk biaya ${o.kategori}.`)
@@ -150,41 +174,32 @@ export default function SalinBelanjaPage() {
   }
 
   const simpan = async () => {
-    if (kirim || menunggu.length === 0 || masalah.length > 0) return
+    if (kirim || (!pendingReport && (menunggu.length === 0 || masalah.length > 0))) return
     setKirim(true)
     const t = toast.loading("Menyimpan salinan kertas belanja…")
     try {
-      const res = await submitShoppingReport(useAppStore.getState, {
-        purchaseIds: menunggu.map(p => p.id),
-        lines,
-        pocketBankAccountId: pocketDipakai || null,
-        onBehalfOfUserId: atasNama || null,
-        proofImage: foto,
-        reconciliationNote: catatan,
-      })
-      if (!res.ok) { toast.error(res.problems.join(' · '), { id: t }); return }
-      res.warnings.forEach(w => toast.warning(w))
-
-      // Ops ikut disimpan dari layar yang sama — di kertasnya juga ada di bawah tabel.
-      for (const o of ops) {
-        if (!(o.nominal > 0)) continue
-        await addExpense({
-          id: o.id,
-          date: new Date().toISOString(),
-          reporterId: currentUser?.id || 'system',
-          sourceBankAccountId: o.sourceBankAccountId || pocketDipakai,
-          // Biaya perjalanan dibebankan ke dokumen pertama hari itu.
-          purchaseId: menunggu[0].id,
-          category: (o.kategori || 'Lainnya') as OperationalExpense['category'],
-          amount: o.nominal,
-          description: o.keterangan || o.kategori,
-          receiptUrl: foto || undefined,
-          status: 'Pending Audit',
-        })
+      const submission = pendingReport || {
+        input: {
+          purchaseIds: selectedPurchases.map(p => p.id), lines: allocatedLines(),
+          eventId, transferBankAccountId: transferBankId, occurredAt: new Date(occurredAt).toISOString(),
+          pocketBankAccountId: pocketDipakai || null, onBehalfOfUserId: performedBy || atasNama || null,
+          proofImage: foto, reconciliationNote: catatan, ceilings: ceilingByLine(purchaseItems, salesOrderItems, minMarginPct),
+        },
+        expenses: ops.filter(o=>o.nominal > 0).map(o=>({
+          id:o.id,date:new Date(occurredAt).toISOString(),reporterId:performedBy || atasNama,
+          sourceBankAccountId:o.sourceBankAccountId || pocketDipakai,purchaseId:selectedPurchases[0].id,
+          category:(o.kategori || 'Lainnya') as OperationalExpense['category'],amount:o.nominal,
+          description:o.keterangan || o.kategori,receiptUrl:foto || undefined,status:'Pending Audit' as const,
+        })),
       }
+      setPendingReport(submission)
+      const res = await submitShoppingReport(useAppStore.getState, {...submission.input,expenses:submission.expenses})
+      if (!res.ok) { setPendingReport(null); toast.error(res.problems.join(' · '), { id: t }); return }
+      res.warnings.forEach(w => toast.warning(w))
+      setPendingReport(null)
 
       toast.success(`Salinan tersimpan. Belanja ${formatRupiah(totalBelanja)}${totalOps > 0 ? ` + ops ${formatRupiah(totalOps)}` : ''}.`, { id: t })
-      setDraft({}); setPilih(new Set()); setOps([]); setFoto(null); setCatatan("")
+      setEventId(uuidv4()); setSelectedDocs(new Set()); setDraft({}); setPilih(new Set()); setOps([]); setFoto(null); setCatatan("")
     } catch (e) {
       toast.error("Gagal menyimpan: " + (e instanceof Error ? e.message : String(e)), { id: t })
     } finally {
@@ -201,6 +216,18 @@ export default function SalinBelanjaPage() {
             Urutan kolomnya sama dengan lembar yang dibawa ke pasar — tinggal disalin
           </p>
         </div>
+
+        {pendingReport && <div role="alert" className="p-4 rounded border border-amber-300 bg-amber-50 text-sm">Transaksi {pendingReport.input.eventId} belum selesai. Percobaan ulang memakai angka dan ID yang sama.<Button onClick={simpan} disabled={kirim} className="ml-3">Coba simpan ulang</Button></div>}
+        {menunggu.length > 0 && <Card><CardContent className="space-y-3 p-4">
+          <Label>Pilih persis dokumen yang tertulis pada kertas / sesi gabungan</Label>
+          {menunggu.map(p=><label key={p.id} className="flex gap-2 text-sm"><input type="checkbox" disabled={!!pendingReport} checked={selectedDocs.has(p.id)} onChange={()=>{setSelectedDocs(prev=>{const n=new Set(prev);n.has(p.id)?n.delete(p.id):n.add(p.id);return n});setDraft({});setEventId(uuidv4())}} />{kodeDokumen(p.id)} · {p.paperSessionId || 'Kertas lama tanpa ID sesi'}</label>)}
+          <div className="flex flex-wrap gap-3">
+            <label>Pelaksana di kertas<select className="block border rounded p-2" value={performedBy} onChange={e=>setPerformedBy(e.target.value)}><option value="">Pilih pelaksana</option>{performers.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+            <label>Tanggal kejadian<Input type="datetime-local" value={occurredAt} onChange={e=>setOccurredAt(e.target.value)} /></label>
+            <label>Sumber transfer<select className="block border rounded p-2" value={transferBankId} onChange={e=>setTransferBankId(e.target.value)}><option value="">Pilih rekening</option>{bankAccounts.filter(b=>b.accountCode).map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
+          </div>
+          <p className="text-xs text-slate-500">Satu SKU/vendor pada kertas diisi sekali. Qty dialokasikan berurutan ke dokumen dan PO di bawah; pembelian parsial tetap terbuka.</p>
+        </CardContent></Card>}
 
         {menunggu.length === 0 && (
           <Card className="py-20 text-center border-dashed">
@@ -228,14 +255,14 @@ export default function SalinBelanjaPage() {
                 <div>
                   <p className="text-[11px] font-bold uppercase text-slate-400 tracking-widest">Kertas Belanja</p>
                   <h3 className="font-bold text-lg">
-                    {menunggu.length === 1
-                      ? kodeDokumen(menunggu[0].id)
-                      : `${menunggu.length} dokumen sekaligus`}
+                    {selectedPurchases.length === 1
+                      ? kodeDokumen(selectedPurchases[0].id)
+                      : `${selectedPurchases.length} dokumen dipilih`}
                   </h3>
                   <p className="text-xs text-slate-500 font-bold">{baris.length} barang siap disalin</p>
-                  {menunggu.length > 1 && (
+                  {selectedPurchases.length > 1 && (
                     <p className="mt-0.5 text-[11px] font-bold text-slate-400">
-                      {menunggu.map(p => kodeDokumen(p.id)).join(' · ')}
+                      {selectedPurchases.map(p => kodeDokumen(p.id)).join(' · ')}
                     </p>
                   )}
                 </div>
@@ -312,6 +339,7 @@ export default function SalinBelanjaPage() {
                       const pi = baris.find(b => b.id === l.id)!
                       const product = products.find(p => p.id === l.productId)
                       const so = salesOrders.find(s => s.id === pi.salesOrderId)
+                      const allocations = l.qtyPurchased >= 0 && l.qtyPurchased <= pi.qtyTarget ? allocateMergedActuals(pi.members,l.qtyPurchased,l.qtyPurchased*l.actualUnitPrice) : []
                       const ceil = batas.get(l.id) || 0
                       const lewat = isOverCeiling(l.actualUnitPrice, ceil)
                       return (
@@ -325,9 +353,10 @@ export default function SalinBelanjaPage() {
                           <TableCell>
                             <p className="font-bold text-sm">{product?.name}</p>
                             <p className="text-[11px] text-slate-400 font-bold uppercase">
-                              {so?.poNumber || '—'}
+                              {pi.members.map(m => `${kodeDokumen(m.purchaseId)} / ${salesOrders.find(s=>s.id===m.salesOrderId)?.poNumber || 'stok'}: sisa ${m.qtyTarget}`).join(' · ')}
                               {menunggu.length > 1 && ` · ${kodeDokumen(l.purchaseId)}`}
                             </p>
+                            <p className="text-[11px] text-emerald-700">{allocations.filter(a=>a.qtyPurchased > 0).map(a=>`${kodeDokumen(pi.members.find(m=>m.id===a.id)!.purchaseId)}: ${a.qtyPurchased} ${product?.uom || ''} = ${formatRupiah(a.qtyPurchased*a.actualUnitPrice)}`).join(' · ')}</p>
                           </TableCell>
                           <TableCell className="text-center font-bold text-sm">{pi.qtyTarget} {product?.uom}</TableCell>
                           <TableCell className="text-right">
@@ -472,10 +501,11 @@ export default function SalinBelanjaPage() {
               <div className="p-5 border-t bg-slate-50 dark:bg-slate-900/50 space-y-3">
                 <div className="grid gap-2 md:grid-cols-2 text-sm">
                   <div className="flex justify-between"><span className="font-bold text-slate-500">Belanja</span><span className="font-bold">{formatRupiah(totalBelanja)}</span></div>
+                  <div className="flex justify-between"><span>Tunai / Transfer / Tempo</span><span>{formatRupiah(totalTunai)} / {formatRupiah(totalTransfer)} / {formatRupiah(totalTempo)}</span></div>
                   <div className="flex justify-between"><span className="font-bold text-slate-500">Operasional</span><span className="font-bold">{formatRupiah(totalOps)}</span></div>
                   <div className="flex justify-between md:col-span-2 border-t pt-2">
                     <span className="font-bold text-slate-500">Total pengeluaran kas</span>
-                    <span className="font-bold text-emerald-600">{formatRupiah(totalBelanja + totalOps)}</span>
+                    <span className="font-bold text-emerald-600">{formatRupiah(totalTunai + totalTransfer + totalOps)}</span>
                   </div>
                 </div>
 

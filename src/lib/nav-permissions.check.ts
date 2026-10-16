@@ -20,7 +20,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const nav = fs.readFileSync('src/lib/navigation.tsx', 'utf8');
+const navSource = fs.readFileSync('src/lib/navigation.tsx', 'utf8');
+// Legacy registry permissions; active task groups are exercised by task-navigation.check.
+const nav = navSource.slice(0, navSource.indexOf('const taskGroups:'));
 const store = fs.readFileSync('src/lib/store.ts', 'utf8');
 const sidebar = fs.readFileSync('src/components/layout/sidebar.tsx', 'utf8');
 

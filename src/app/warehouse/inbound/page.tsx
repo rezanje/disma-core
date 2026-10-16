@@ -16,7 +16,6 @@ export default function InboundDashboard() {
   const purchaseItems = useAppStore(state => state.purchaseItems)
   const products = useAppStore(state => state.products)
   const users = useAppStore(state => state.users)
-  const updatePurchaseItem = useAppStore(state => state.updatePurchaseItem)
 
   const allInboundCandidates = purchaseItems
     .filter(pi => {
@@ -50,25 +49,14 @@ export default function InboundDashboard() {
   const pendingAccept = allInboundCandidates.filter(i => i.inboundStatus !== 'pra_inbound')
   const pendingQC = allInboundCandidates.filter(i => i.inboundStatus === 'pra_inbound')
 
-  const handleAcceptItem = async (itemId: string) => {
-    await updatePurchaseItem(itemId, { inboundStatus: 'pra_inbound' })
-    toast.success("Barang diterima. Lanjutkan ke QC.")
-  }
-
-  const handleAcceptAll = async () => {
-    if (pendingAccept.length === 0) return
-    const toastId = toast.loading(`Menerima ${pendingAccept.length} item...`)
-    for (const item of pendingAccept) {
-      await updatePurchaseItem(item.id, { inboundStatus: 'pra_inbound' })
-    }
-    toast.success(`${pendingAccept.length} item diterima. Lanjutkan ke QC.`, { id: toastId })
-  }
+  const handleAcceptItem = async (_itemId: string) => { window.location.href='/admin/hari-ini' }
+  const handleAcceptAll = async () => { window.location.href='/admin/hari-ini' }
 
   const ItemTable = ({ items, showAccept }: { items: typeof allInboundCandidates, showAccept: boolean }) => (
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Waktu Tiba</TableHead>
+          <TableHead>Tanggal pembelian (bukan waktu tiba)</TableHead>
           <TableHead>SKU</TableHead>
           <TableHead>Nama Barang</TableHead>
           <TableHead>Metode</TableHead>
@@ -144,7 +132,7 @@ export default function InboundDashboard() {
             kind="inbound"
             title="LEMBAR TERIMA BARANG"
             label="Print Lembar Terima"
-            rows={pendingAccept.map(item => ({
+            rows={purchaseItems.filter(i=>!i.isQCed&&i.purchaseMethod!=='Dropship').map(i=>({...i,product:products.find(p=>p.id===i.productId)})).map(item => ({
               cells: [
                 item.product?.skuCode || '',
                 item.product?.name || item.productId,
@@ -214,7 +202,7 @@ export default function InboundDashboard() {
               className="border-emerald-300 text-emerald-700 hover:bg-emerald-50 shrink-0"
               onClick={handleAcceptAll}
             >
-              Terima Semua ({pendingAccept.length})
+              Salin berkas penerimaan ({pendingAccept.length})
             </Button>
           )}
         </CardHeader>

@@ -13,9 +13,7 @@ interface GlobalUndoButtonProps {
 
 export default function GlobalUndoButton({ inline = false }: GlobalUndoButtonProps) {
   const pathname = usePathname()
-  const historyCount = useAppStore(state => state.devHistoryStack.length)
   const isUndoing = useAppStore(state => state.isUndoing)
-  const undoDevSnapshot = useAppStore(state => state.undoDevSnapshot)
 
   // Shopping list page-level bridge
   const shoppingListUndo = useAppStore(state => state.shoppingListUndo)
@@ -47,23 +45,20 @@ export default function GlobalUndoButton({ inline = false }: GlobalUndoButtonPro
 
   const isShoppingList = pathname === "/admin/shopping-list"
   const hasShoppingListHistory = isShoppingList && shoppingListHistoryLength > 0
-  const hasGlobalHistory = historyCount > 0
-  const canUndo = hasShoppingListHistory || hasGlobalHistory
+  // Selection undo is local UI state; posted transactions require source reversal.
+  const canUndo = hasShoppingListHistory && Boolean(shoppingListUndo)
+  if (!isShoppingList) return null
 
   const handleUndoAction = async () => {
     if (isUndoing || !canUndo) return
     if (hasShoppingListHistory && shoppingListUndo) {
       shoppingListUndo()
-    } else {
-      await undoDevSnapshot()
     }
   }
 
   const titleText = hasShoppingListHistory
     ? `Undo Pemilihan (${shoppingListHistoryLength})`
-    : hasGlobalHistory
-      ? `Undo Transaksi (${historyCount})`
-      : "Undo"
+    : "Undo Pemilihan"
 
   if (inline) {
     return (

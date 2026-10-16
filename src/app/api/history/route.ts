@@ -1,3 +1,4 @@
+import { requireApiUser, apiAuthResponse } from '@/lib/api-auth';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabase';
 
@@ -40,16 +41,11 @@ const toCamel = (obj: any): any => {
 
 export async function GET(request: Request) {
   try {
+    await requireApiUser(request, ['super_admin']);
     if (!supabase) return NextResponse.json({ error: 'Supabase not initialized' }, { status: 500 });
 
     const url = new URL(request.url);
     const sp = url.searchParams;
-
-    // Defense-in-depth role check (client AuthGuard is primary). Strict server-side session check is a follow-up.
-    const role = sp.get('userRole');
-    if (role && !['super_admin', 'ceo'].includes(role)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
 
     const table = sp.get('table');
     const recordId = sp.get('recordId');
@@ -84,6 +80,8 @@ export async function GET(request: Request) {
       offset,
     }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
+    const authError = apiAuthResponse(error);
+    if (authError) return authError;
     console.error('API /history GET Error:', error);
     return NextResponse.json({ error: 'Failed to fetch history' }, { status: 500 });
   }

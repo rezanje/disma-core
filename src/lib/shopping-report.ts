@@ -7,10 +7,10 @@
 // Bukan fungsi murni: menulis kantong, jurnal, harga pasar, dan status pesanan.
 // Pemeriksaannya dipisah ke reportProblems() supaya bisa diuji tanpa database.
 
-import { v4 as uuidv4 } from 'uuid';
-import { buildMarketPriceRows } from './market-price';
+import { purchasingQuantity } from './purchase-plan';
+import { executePurchaseCommand } from './purchase-command';
 import { linesNeedingReason } from './price-ceiling';
-import { resolveActor } from './actor';
+import type { OperationalExpense } from '../types';
 import type { useAppStore as StoreType } from './store';
 
 type Store = ReturnType<typeof StoreType.getState>;
@@ -39,7 +39,12 @@ export type ReportLine = {
 
 export type ReportInput = {
   purchaseIds: string[];
+  /** Stable ID retained while retrying this paper transaction. */
+  eventId?: string;
+  transferBankAccountId?: string | null;
+  occurredAt?: string;
   lines: ReportLine[];
+  expenses?: OperationalExpense[];
   /** Sumber kas yang dipotong. Wajib ada kalau ada belanja tunai. */
   pocketBankAccountId?: string | null;
   /** Siapa yang benar-benar belanja, kalau bukan yang mengetik. */
@@ -63,6 +68,8 @@ export function reportProblems(
 ): string[] {
   const masalah: string[] = [];
   const dibeli = input.lines.filter(l => l.isChecked);
+  if (input.lines.some(l => !Number.isFinite(l.qtyPurchased) || l.qtyPurchased < 0 || (l.isChecked && l.qtyPurchased <= 0))) masalah.push('Jumlah qty beli harus valid dan lebih dari nol untuk barang dibeli.');
+  if (dibeli.some(l => !Number.isFinite(l.actualUnitPrice))) masalah.push('Harga beli harus angka yang valid.');
 
   const tanpaVendor = dibeli.filter(l => !l.vendorId);
   if (tanpaVendor.length > 0) {
@@ -106,98 +113,27 @@ export type ReportResult =
   | { ok: false; problems: string[] }
   | { ok: true; warnings: string[] };
 
-/** Bukukan laporannya. Panggil reportProblems() dulu — ini tidak memeriksa ulang. */
+/** Validate and book one selected paper transaction; remaining demand stays open. */
 export async function submitShoppingReport(
   getState: () => Store,
   input: ReportInput,
 ): Promise<ReportResult> {
-  const { recordPocketPurchase, recordVendorTransferPurchase } = await import('./accounting');
-  const warnings: string[] = [];
   const state = getState();
-  if (input.pocketBankAccountId && !state.bankAccounts.some(b => b.id === input.pocketBankAccountId && b.accountCode)) {
-    return { ok: false, problems: ['Sumber kas belanja tidak ditemukan. Pilih kembali sumber kas.'] };
-  }
+  const problems = reportProblems(input, id=>state.products.find(p=>p.id===id)?.name || id,state.currentUser?.id);
+  if (!input.eventId) problems.push('ID transaksi kertas belum tersedia.');
+  if (problems.length) return {ok:false,problems};
+  await executePurchaseCommand(getState, {eventId:input.eventId!,stage:'report',sourceId:input.eventId!,payload:{...input,ceilings:undefined}});
+  return {ok:true,warnings:[]};
+}
 
-  const pm = (l: ReportLine) => l.paymentMethod || 'Cash';
-  const total = (l: ReportLine) => l.qtyPurchased * l.actualUnitPrice;
-
-  // 1. Simpan tiap baris apa adanya.
-  for (const l of input.lines) {
-    await getState().updatePurchaseItem(l.id, {
-      isChecked: l.isChecked,
-      actualUnitPrice: l.actualUnitPrice,
-      qtyPurchased: l.qtyPurchased,
-      vendorId: l.vendorId || undefined,
-      paymentMethod: pm(l),
-      notes: l.notes,
-      overCeilingReason: l.overCeilingReason || '',
-    });
-  }
-
-  // 2. Tutup tiap dokumen belanjanya.
-  for (const purchaseId of input.purchaseIds) {
-    const baris = input.lines.filter(l => l.purchaseId === purchaseId && l.isChecked);
-    const doc = getState().purchases.find(p => p.id === purchaseId);
-    const totalCost = baris.reduce((s, l) => s + total(l), 0);
-    const cashCost = baris.reduce((s, l) => pm(l) === 'Cash' && l.purchaseMethod !== 'Online' ? s + total(l) : s, 0);
-    const budget = (doc?.budgetAmount || 0) + (doc?.operationalSpareAmount || 0);
-
-    if (input.pocketBankAccountId && cashCost > 0) {
-      const posted = await recordPocketPurchase(purchaseId, input.pocketBankAccountId, cashCost, state.currentUser?.name || 'Sourcing');
-      if (!posted) throw new Error('Belanja belum berhasil dipotong dari sumber kas pilihan.');
-    }
-
-    // Transfer dibayar langsung finance dari BCA — tidak lewat kantong, tidak antre.
-    const transferCost = baris.reduce((s, l) => pm(l) === 'Transfer' && l.purchaseMethod !== 'Online' ? s + total(l) : s, 0);
-    if (transferCost > 0) {
-      const bca = getState().bankAccounts.find(b => b.accountCode === '1-1200');
-      if (bca) await recordVendorTransferPurchase(purchaseId, bca.id, transferCost, state.currentUser?.name || 'Sourcing');
-      else warnings.push('Rekening BCA tidak ketemu — belanja transfer belum terbukukan.');
-    }
-
-    await getState().updatePurchase(purchaseId, {
-      status: 'Selesai',
-      // Yang belanja di lapangan, bukan yang mengetik laporannya.
-      purchaserId: resolveActor(input.onBehalfOfUserId || undefined, state.currentUser?.id),
-      actualSpent: totalCost,
-      changeReturned: budget > cashCost ? budget - cashCost : 0,
-      reconciliationNote: input.reconciliationNote || 'Salinan kertas belanja',
-      reconciliationStatus: 'Laporan Masuk',
-      reconciliationProofUrl: input.proofImage || undefined,
-    });
-  }
-
-  // 3. Harga pasar hari ini ikut tercatat dari angka yang barusan diketik. Gagal di
-  // sini tidak boleh menggagalkan laporannya: ini data pendukung, bukan uang.
-  try {
-    const hari = new Date().toISOString().slice(0, 10);
-    for (const row of buildMarketPriceRows(input.lines, hari, 'salin-belanja')) {
-      await getState().addVendorPrice({
-        id: uuidv4(),
-        vendorId: row.vendorId,
-        productId: row.productId,
-        price: row.price,
-        uom: getState().products.find(p => p.id === row.productId)?.uom || 'Kg',
-        validFrom: row.validFrom,
-        validTo: row.validTo,
-        status: row.status,
-        source: row.source,
-        lastUpdated: new Date().toISOString(),
-      } as never);
-    }
-  } catch (e) {
-    console.warn('[market-price] gagal mencatat harga pasar harian:', e);
-    warnings.push('Harga pasar harian gagal dicatat — belanjanya tetap tersimpan.');
-  }
-
-  // 4. Pesanan yang barangnya sudah dibeli naik ke QC.
-  const soIds = new Set(
-    input.lines.filter(l => l.isChecked).map(l =>
-      getState().purchaseItems.find(pi => pi.id === l.id)?.salesOrderId).filter(Boolean) as string[],
-  );
-  for (const soId of soIds) {
-    await getState().updateSalesOrder(soId, { status: 'QC' });
-  }
-
-  return { ok: true, warnings };
+/** One paper transaction, allocated once in printed document/PO order. */
+export function allocateMergedActuals(rows: Array<{ id: string; qtyTarget: number }>, quantity: number, total: number): Array<{ id: string; qtyPurchased: number; actualUnitPrice: number }> {
+  const capacity = purchasingQuantity(rows.reduce((s, r) => s + r.qtyTarget, 0));
+  if (!Number.isFinite(quantity) || quantity < 0 || quantity > capacity || !Number.isFinite(total) || total < 0 || (quantity === 0 && total !== 0)) throw new Error('Qty/total gabungan tidak valid atau melebihi kebutuhan.');
+  let remainder = quantity;
+  return rows.map(r => {
+    const qtyPurchased = Math.min(remainder, r.qtyTarget);
+    remainder = purchasingQuantity(remainder - qtyPurchased);
+    return { id: r.id, qtyPurchased, actualUnitPrice: purchaseUnitPrice(total, quantity) };
+  });
 }

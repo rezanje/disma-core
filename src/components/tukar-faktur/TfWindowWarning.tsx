@@ -4,18 +4,13 @@ import { useMemo } from "react"
 import { useAppStore } from "@/lib/store"
 import { Card } from "@/components/ui/card"
 import { AlertTriangle, Clock } from "lucide-react"
-import { TF_WINDOW_DAYS, daysLeftInTfWindow, tfWindowBucket, isInvoiceIssued } from "@/lib/tf-window"
+import { TF_WINDOW_DAYS, daysLeftInTfWindow, tfWindowBucket, isInvoiceEligibleForTf } from "@/lib/tf-window"
 
 function formatRupiah(n: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(n || 0)
 }
 
-/**
- * Invoices are only offered by the TF picker for TF_WINDOW_DAYS after issue.
- * Past that they vanish from it silently: goods delivered, invoice raised, no
- * way to bill it from that screen. This panel puts both edges of that in front
- * of Admin PO — what is about to slip, and what already has.
- */
+/** Unbatched outstanding invoices nearing or past the administrative target. */
 export function TfWindowWarning() {
   const invoices = useAppStore(s => s.invoices) || []
   const salesOrders = useAppStore(s => s.salesOrders) || []
@@ -23,7 +18,7 @@ export function TfWindowWarning() {
 
   const { urgent, expired } = useMemo(() => {
     const today = new Date()
-    const loose = invoices.filter(inv => !inv.tukarFakturId && isInvoiceIssued(inv, salesOrders))
+    const loose = invoices.filter(inv => isInvoiceEligibleForTf(inv, salesOrders, invoices))
     return {
       urgent: loose
         .filter(inv => tfWindowBucket(inv.issueDate, today) === 'urgent')
@@ -66,7 +61,7 @@ export function TfWindowWarning() {
                 Segera dibuatkan TF ({urgent.length} invoice)
               </p>
               <p className="text-xs font-bold text-slate-600 mt-0.5">
-                Lewat {TF_WINDOW_DAYS} hari sejak terbit, invoice hilang dari daftar pilihan Buat Tukar Faktur.
+                Target administrasi {TF_WINDOW_DAYS} hari sejak terbit. Invoice tetap dapat dipilih setelah target ini.
               </p>
               <div className="mt-3 space-y-1">
                 {groupByClient(urgent).map(g => (
@@ -94,10 +89,10 @@ export function TfWindowWarning() {
             <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
             <div className="min-w-0 flex-1">
               <p className="text-[11px] font-bold  text-rose-700">
-                Sudah lewat batas ({expired.length} invoice)
+                Lewat target administrasi ({expired.length} invoice)
               </p>
               <p className="text-xs font-bold text-slate-600 mt-0.5">
-                Barangnya sudah terkirim tapi belum masuk tukar faktur mana pun, dan sudah tidak muncul di Buat Tukar Faktur. Perlu ditagih di luar sistem.
+                Invoice ini tetap tersedia di Buat Tukar Faktur. Prioritaskan penagihan; jatuh tempo kontrak tetap berlaku.
               </p>
               <div className="mt-3 space-y-1">
                 {groupByClient(expired).map(g => (

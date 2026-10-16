@@ -1,66 +1,42 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect } from "react"
 import { usePathname } from "next/navigation"
 import { useAppStore } from "@/lib/store"
 
 export default function StoreSync() {
   const pathname = usePathname()
-  const init = useAppStore((state) => state.init)
-  const saveToHdd = useAppStore((state) => state.saveToHdd)
-  const timerRef = useRef<NodeJS.Timeout | null>(null)
-
+  const init = useAppStore(state => state.init)
   useEffect(() => {
-
-    // 1. Initial load from Supabase
-    init()
-
-    // 2. Realtime Listener (Cross-tab)
-    const bc = new BroadcastChannel('disma_core_sync');
-    bc.onmessage = (event) => {
-        if (event.data?.type === 'SYNC_UPDATE') {
-            // Skip if this tab just synced (avoid self-notification race condition)
-            const ignoreUntil = useAppStore.getState()._ignoreBroadcastUntil || 0;
-            if (Date.now() < ignoreUntil) {
-                console.log(`[REALTIME-SYNC] Ignoring own broadcast for ${event.data.table}`);
-                return;
-            }
-            console.log(`[REALTIME-SYNC] Update received for ${event.data.table}. Refreshing UI...`);
-            init();
+    let disposed = false
+    const refresh = async () => {
+      try {
+        const response = await fetch('/api/auth/session', {cache:'no-store',credentials:'same-origin'})
+        if(disposed) return
+        if(!response.ok) {
+          useAppStore.getState().setCurrentUser(null)
+          return
         }
-    };
-
-    // 3. Failsafe Polling (Long interval for safety)
-    const pollInterval = setInterval(() => {
-        const { isSyncing } = useAppStore.getState();
-        if (!isSyncing) {
-            init();
-        }
-    }, 60000); // 1 minute failsafe
-
-    // 4. Persistence Listener (Save changes to HDD)
-    const unsubscribe = useAppStore.subscribe((state, prevState) => {
-        if (state.isSyncing !== prevState.isSyncing) return;
-        if (state.currentUser !== prevState.currentUser) return;
-        if (state._ignoreBroadcastUntil !== prevState._ignoreBroadcastUntil) return;
-        
-        // Only run saveToHdd if navigation configurations or role permissions actually changed.
-        // This prevents infinite syncing loops on unrelated state changes (like logs, transactions, etc.).
-        if (state.navConfigs === prevState.navConfigs && state.rolePermissions === prevState.rolePermissions) return;
-        
-        if (timerRef.current) clearTimeout(timerRef.current);
-        timerRef.current = setTimeout(() => {
-           saveToHdd();
-        }, 3000);
-    })
-
-    return () => {
-        bc.close();
-        unsubscribe();
-        clearInterval(pollInterval);
-        if (timerRef.current) clearTimeout(timerRef.current);
+        const {user} = await response.json()
+        if(disposed || !user) return
+        useAppStore.getState().setCurrentUser(user)
+        await init()
+      } catch { /* Retain the last read state; APIs still fail closed. */ }
     }
-  }, [init, pathname, saveToHdd])
-
+    // No data reads or persistence until the server has verified the session.
+    void refresh()
+    const bc = new BroadcastChannel('disma_core_sync')
+    bc.onmessage = event => {
+      if (event.data?.type === 'SYNC_UPDATE' && Date.now() >= (useAppStore.getState()._ignoreBroadcastUntil || 0)) void refresh()
+    }
+    const pollInterval=setInterval(()=>{
+      if(!useAppStore.getState().isSyncing) void refresh()
+    },60000)
+    return ()=>{
+      disposed=true
+      bc.close()
+      clearInterval(pollInterval)
+    }
+  },[init,pathname])
   return null
 }

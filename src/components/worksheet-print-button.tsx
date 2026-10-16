@@ -9,6 +9,7 @@
 // semua tahap supaya orang yang sama tidak perlu menghafal empat gaya lembar.
 
 import { useState } from "react"
+import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { PdfCanvasPreview } from "@/components/pdf-canvas-preview"
@@ -33,6 +34,7 @@ export function WorksheetPrintButton({
   catatanOperasional?: boolean
   className?: string
 }) {
+  const [paperNumber,setPaperNumber]=useState('')
   const [pdf, setPdf] = useState<string | null>(null)
 
   const buka = () => {
@@ -40,11 +42,14 @@ export function WorksheetPrintButton({
       toast.error("Belum ada barang untuk dicetak.")
       return
     }
-    setPdf(generateWorksheetPDFDataUrl(kind, title, rows, { catatanOperasional }))
+    const number=paperNumber.trim()||`${kind.toUpperCase()}-${new Date().toISOString().slice(0,10)}-${crypto.randomUUID().slice(0,8)}`
+    setPaperNumber(number)
+    setPdf(generateWorksheetPDFDataUrl(kind, `${title} · ${number}`, rows, { catatanOperasional }))
   }
 
   return (
     <>
+      <Input aria-label="Nomor berkas / revisi cetak" placeholder="Nomor berkas / revisi (otomatis jika kosong)" value={paperNumber} onChange={e=>setPaperNumber(e.target.value)} className="max-w-xs"/>
       <Button
         variant="outline"
         onClick={buka}

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useRef } from "react"
 import { useAppStore } from "@/lib/store"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,7 +15,7 @@ import { toast } from "sonner"
 import { format } from "date-fns"
 import { id as localeId } from "date-fns/locale"
 import { formatRupiah, formatNumber, parseNumber } from "@/lib/utils"
-import { createAccountingEntry } from "@/lib/accounting"
+import { recordManualCashCommand } from "@/lib/finance-commands"
 import { computeBankBalances } from "@/lib/bank-balance"
 import ReceiptUpload from "@/components/ui/receipt-upload"
 import { v4 as uuidv4 } from "uuid"
@@ -63,7 +63,9 @@ export default function PengeluaranUmumPage({ embedded }: { embedded?: boolean }
     () => computeBankBalances(rawBankAccounts, cashTransactions),
     [rawBankAccounts, cashTransactions]
   )
-  const addCashTransaction = useAppStore(s => s.addCashTransaction)
+  const saving = useRef(false)
+  const eventId = useRef<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
 
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -115,59 +117,40 @@ export default function PengeluaranUmumPage({ embedded }: { embedded?: boolean }
   }, [expenseTxs])
 
   const resetForm = () => {
+    eventId.current = null
     setFDate(new Date().toISOString().split('T')[0])
     setFBankId(''); setFCategory(''); setFAmount(0)
     setFDesc(''); setFCounterpart(''); setFReceipt(''); setFPokok(0)
   }
 
   const handleSave = async () => {
-    if (!fBankId || !fCategory || fAmount <= 0 || !fDesc) {
+    if (saving.current) return
+    if (!fBankId || !fCategory || !Number.isFinite(fAmount) || fAmount <= 0 || !fDesc.trim()) {
       toast.error("Lengkapi semua field yang wajib.")
       return
     }
     const bank = bankAccounts.find(b => b.id === fBankId)
-    const bankCode = bank?.accountCode || '1-1000'
+    if (!bank?.accountCode) { toast.error('Pilih rekening sumber yang memiliki akun jurnal.'); return }
     const catDef = EXPENSE_CATEGORIES.find(c => c.value === fCategory)
-    const now = new Date(fDate).toISOString()
-    const txId = uuidv4()
+    const txId = eventId.current ||= uuidv4()
     const loadingToast = toast.loading("Mencatat pengeluaran...")
-
+    saving.current = true; setIsSaving(true)
     try {
-      let jeSuccess = false
-      if (fCategory === 'Cicilan Pinjaman') {
-        // JE first — only commit cash tx if JE succeeds
-        const debits = loanPaymentDebits(fAmount, fPokok)
-        jeSuccess = await createAccountingEntry(
-          `Cicilan Pinjaman: ${fDesc}`, 'Adjustment', txId,
-          debits, [{ accountCode: bankCode, amount: fAmount }], now
-        )
-        if (!jeSuccess) { toast.error("Gagal mencatat jurnal cicilan.", { id: loadingToast }); return }
-        await addCashTransaction({
-          id: txId, date: now, type: 'Out', amount: fAmount, bankAccountId: fBankId,
-          category: fCategory, description: fDesc, counterpartName: fCounterpart,
-          receiptUrl: fReceipt, referenceType: 'Manual'
-        })
-      } else {
-        const coaCode = catDef?.coa || '6-9000'
-        // JE first
-        jeSuccess = await createAccountingEntry(
-          `Pengeluaran Umum: ${fDesc}`, 'Adjustment', txId,
-          [{ accountCode: coaCode, amount: fAmount }],
-          [{ accountCode: bankCode, amount: fAmount }], now
-        )
-        if (!jeSuccess) { toast.error("Gagal mencatat jurnal.", { id: loadingToast }); return }
-        await addCashTransaction({
-          id: txId, date: now, type: 'Out', amount: fAmount, bankAccountId: fBankId,
-          category: fCategory, description: fDesc, counterpartName: fCounterpart,
-          receiptUrl: fReceipt, referenceType: 'Manual'
-        })
-      }
+      const debits = fCategory === 'Cicilan Pinjaman'
+        ? loanPaymentDebits(fAmount, fPokok)
+        : [{accountCode: catDef?.coa || '6-9000', amount: fAmount}]
+      const success = await recordManualCashCommand({eventId: txId,
+        transaction: {id: txId, date: new Date(fDate).toISOString(), type: 'Out', amount: fAmount,
+          bankAccountId: fBankId, category: fCategory, description: fDesc.trim(), counterpartName: fCounterpart,
+          receiptUrl: fReceipt, referenceType: 'Manual'},
+        counterAccountCode: catDef?.coa || '6-9000', debits,
+        credits: [{accountCode: bank.accountCode, amount: fAmount}]})
+      if (!success) { toast.error('Pengeluaran belum tercatat. Periksa isian dan ulangi.', {id: loadingToast}); return }
       toast.success("Pengeluaran berhasil dicatat!", { id: loadingToast })
-      setIsAddOpen(false)
-      resetForm()
-    } catch (e: any) {
-      toast.error("Gagal: " + e.message, { id: loadingToast })
-    }
+      setIsAddOpen(false); resetForm()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Pengeluaran gagal.', {id: loadingToast})
+    } finally { saving.current = false; setIsSaving(false) }
   }
 
   return (
@@ -397,6 +380,7 @@ export default function PengeluaranUmumPage({ embedded }: { embedded?: boolean }
             <Button
               className="w-full h-11 font-bold rounded-xl bg-rose-600 hover:bg-rose-700"
               onClick={handleSave}
+              disabled={isSaving}
             >
               Simpan Pengeluaran
             </Button>

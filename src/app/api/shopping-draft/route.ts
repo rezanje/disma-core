@@ -1,3 +1,4 @@
+import { requireApiUser, apiAuthResponse } from '@/lib/api-auth';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabase';
 
@@ -17,8 +18,9 @@ const errorMessage = (error: unknown) => {
 
 const isMissingTableError = (error: unknown) => /could not find the table/i.test(errorMessage(error));
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const user = await requireApiUser(request);
     if (!supabase) return NextResponse.json({ error: 'Supabase not initialized' }, { status: 500 });
 
     const { data, error } = await supabase
@@ -38,6 +40,8 @@ export async function GET() {
       updatedBy: data?.updated_by ?? null,
     }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
   } catch (e) {
+    const authError = apiAuthResponse(e);
+    if (authError) return authError;
     console.error('[shopping-draft] GET failed:', e);
     return NextResponse.json({ error: errorMessage(e) || 'Gagal memuat draft belanja' }, { status: 500 });
   }
@@ -45,6 +49,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const user = await requireApiUser(request);
     if (!supabase) return NextResponse.json({ error: 'Supabase not initialized' }, { status: 500 });
 
     const body = await request.json().catch(() => null);
@@ -58,7 +63,7 @@ export async function POST(request: Request) {
         id: DRAFT_ID,
         data: body.draft,
         updated_at: new Date().toISOString(),
-        updated_by: typeof body.updatedBy === 'string' ? body.updatedBy : null,
+        updated_by: user.id,
       });
 
     if (error && isMissingTableError(error)) {
@@ -68,6 +73,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (e) {
+    const authError = apiAuthResponse(e);
+    if (authError) return authError;
     console.error('[shopping-draft] POST failed:', e);
     return NextResponse.json({ error: errorMessage(e) || 'Gagal menyimpan draft belanja' }, { status: 500 });
   }

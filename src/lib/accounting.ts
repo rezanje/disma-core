@@ -2,11 +2,13 @@ import { v4 as uuidv4 } from 'uuid';
 import { useAppStore } from './store';
 import { JournalEntry, JournalLine, StockMovement, VendorBill } from '@/types';
 import { format } from 'date-fns';
-import { supabase } from './supabase';
+import {postedDay} from './daily-close';
 import { dueDateFor } from './vendor-payable';
-import { roundQtyToBook, nextSoStatus } from './backorder';
-import { splitDropshipTotals } from './dropship';
 import { costBasisFor } from './cogs-source';
+
+import { recordDepreciationCommand } from './finance-commands';
+import { executePurchaseCommand } from './purchase-command';
+import { executeGoodsCommand, PaperEvidence } from './goods-command';
 
 /**
  * Double-Entry Bookkeeping Helper functions
@@ -19,6 +21,71 @@ type JournalPostResponse = {
   lines?: JournalLine[];
   error?: string;
 };
+
+const financialDate = (date?: string) => postedDay(date || new Date());
+
+const postFinancialEvent = async (input: Record<string, unknown>): Promise<boolean> => {
+  const stamp = useAppStore.getState()._lastLocalMutationAt;
+  try {
+    const response = await fetch('/api/accounting/financial-events', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+    });
+    const data = await response.json();
+    const required = ['bankAccounts', 'journalEntries', 'journalLines', 'cashTransactions'];
+    if (!response.ok || !data.event || required.some(key => !Array.isArray(data[key]) || !data[key].length)) return false;
+    if (useAppStore.getState()._lastLocalMutationAt !== stamp) return false;
+    useAppStore.setState(state => {
+      const next: Record<string, unknown> = { _lastLocalMutationAt: Math.max(Date.now(), state._lastLocalMutationAt + 1) };
+      for (const key of [...required, 'vendorBills', 'reimbursements', 'expenses', 'purchaseItems', 'purchaseRequests'] as const) {
+        const rows = data[key] as Array<{ id: string }> | undefined;
+        if (!Array.isArray(rows)) continue;
+        const ids = new Set(rows.map(row => row.id));
+        const previous = state[key as keyof typeof state] as Array<{ id: string }>;
+        next[key] = [...previous.filter(row => !ids.has(row.id)), ...rows];
+      }
+      return next;
+    });
+    return true;
+  } catch (error) {
+    console.error('[Accounting] Financial event failed:', error);
+    return false;
+  }
+};
+
+export const recordVendorPayment = async (input: {
+  paymentId: string; billId: string; date: string; bankAccountId: string; amount: number; note?: string;
+}): Promise<boolean> => postFinancialEvent({ ...input, eventId: input.paymentId, kind: 'vendor-payment', date: financialDate(input.date) });
+
+export const recordCashTransfer = async (input: {
+  eventId: string; date: string; bankAccountId: string; targetBankAccountId: string;
+  amount: number; description: string; referenceId?: string; sourceExpenseId?: string;
+}): Promise<boolean> => postFinancialEvent({ ...input, kind: 'transfer', date: financialDate(input.date) });
+
+type VendorEventBase = {eventId: string; date: string; amount: number; note?: string};
+const postVendorEvent = async (kind: string, input: Record<string, unknown>, endpoint = '/api/accounting/vendor-events'): Promise<boolean> => {
+  const stamp = useAppStore.getState()._lastLocalMutationAt;
+  try {
+    const response = await fetch(endpoint, {method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({...input, kind})});
+    const data = await response.json();
+    if (!response.ok || !data.event || !Array.isArray(data.journalEntries) || !data.journalEntries.length || !Array.isArray(data.journalLines) || !data.journalLines.length) return false;
+    if (useAppStore.getState()._lastLocalMutationAt !== stamp) return false;
+    useAppStore.setState(state => {
+      const changes: Record<string, unknown> = {_lastLocalMutationAt: Math.max(Date.now(), state._lastLocalMutationAt + 1)};
+      for (const key of ['bankAccounts','vendorBills','vendorReturns','invoices','tukarFakturs','cashTransactions','journalEntries','journalLines'] as const) {
+        if (!Array.isArray(data[key])) continue;
+        const ids = new Set(data[key].map((row: {id: string}) => row.id));
+        changes[key] = [...state[key].filter(row => !ids.has(row.id)), ...data[key]];
+      }
+      return changes;
+    });
+    return true;
+  } catch (error) { console.error('[Accounting] Vendor source command failed:', error); return false; }
+};
+export const recordVendorAdvance = (input: VendorEventBase & {bankAccountId: string; purchaseId: string; vendorId: string}) => postVendorEvent('vendor-advance',input);
+export const recordVendorClaimRefund = (input: VendorEventBase & {bankAccountId: string; vendorReturnId: string}) => postVendorEvent('vendor-refund',input);
+export const recordVendorClaimNetoff = (input: VendorEventBase & {vendorReturnId: string; billId: string}) => postVendorEvent('vendor-netoff',input);
+
+export const recordFinancialReversal = (input: {eventId: string; date: string; sourceType: 'client-receipt' | 'vendor-payment'; sourceId: string; reason: string}) => postVendorEvent('reversal',input,'/api/accounting/reversals');
 
 export const HPP_ACCOUNT_CODE = '5-1000';
 /** Tagihan ke vendor atas barang yang diretur — pengganti belum datang, uang belum balik. */
@@ -40,16 +107,6 @@ export const ADVANCE_WALLETS = {
 
 export const USER_WALLETS: Record<string, { bankAccountId: string, accountCode: string, label: string }> = {
   '22222222-2222-2222-2222-222222222222': { bankAccountId: 'bank-advance-sourcing', accountCode: '1-1500', label: 'KAS SOURCING (HILMAN)' },
-};
-
-const resolveExpenseAccountCode = (category?: string) => {
-  if (category === 'Bensin' || category === 'Tol' || category === 'Parkir') {
-    return '6-1400';
-  }
-  if (category === 'Belanja Online' || category === 'Sourcing (HPP)') {
-    return HPP_ACCOUNT_CODE;
-  }
-  return '6-9000';
 };
 
 // Single source of truth for the CFO approval gate: transfers OUT of a
@@ -90,63 +147,6 @@ const normalizePostingLine = (line: PostingLineInput, side: 'debit' | 'credit') 
     throw new Error(`${side} amount for account ${line.accountCode} cannot be negative.`);
   }
   return { ...line, amount };
-};
-
-const cleanupJournalEntry = async (entryId: string, lineIds: string[] = []) => {
-  const idsToDelete = lineIds.length > 0
-    ? lineIds
-    : useAppStore.getState().journalLines
-      .filter((line) => line.journalEntryId === entryId)
-      .map((line) => line.id);
-
-  useAppStore.setState((state) => ({
-    journalEntries: state.journalEntries.filter((entry) => entry.id !== entryId),
-    journalLines: state.journalLines.filter((line) => line.journalEntryId !== entryId && !idsToDelete.includes(line.id)),
-  }));
-
-  try {
-    if (idsToDelete.length > 0) {
-      await fetch('/api/db', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ table: 'journal_lines', id: idsToDelete }),
-      });
-    }
-    await fetch('/api/db', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ table: 'journal_entries', id: entryId }),
-    });
-  } catch (cleanupError) {
-    console.error('[Accounting] Failed to cleanup partial journal entry:', cleanupError);
-  }
-};
-
-const cleanupCashTransactions = async (transactionIds: string[]) => {
-  for (const txId of transactionIds) {
-    try {
-      const existing = useAppStore.getState().cashTransactions.find((tx) => tx.id === txId);
-      if (existing) {
-        await useAppStore.getState().deleteCashTransaction(txId);
-      } else {
-        await fetch('/api/db', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ table: 'cash_transactions', id: txId }),
-        });
-      }
-    } catch (cleanupError) {
-      console.error(`[Accounting] Failed to cleanup cash transaction ${txId}:`, cleanupError);
-    }
-  }
-};
-
-const findPostedEntry = (referenceType: JournalEntry['referenceType'], referenceId: string, description: string) => {
-  return useAppStore.getState().journalEntries.find((entry) =>
-    entry.referenceType === referenceType &&
-    entry.referenceId === referenceId &&
-    entry.description === description
-  );
 };
 
 export const createAccountingEntry = async (
@@ -320,24 +320,41 @@ export const updateProductPriceHistory = (productId: string, price: number, sour
 };
 
 export const recordStockMovement = async (
-  movement: Omit<StockMovement, 'id' | 'date' | 'resultingStock'> & { date?: string }
+  movement: Omit<StockMovement, 'id' | 'date' | 'resultingStock'> & { id?: string; date?: string }
 ) => {
   const store = useAppStore.getState();
   const product = store.products.find(p => p.id === movement.productId);
   if (!product) return false;
 
-  const delta = Number(movement.stockDelta || 0);
+  const delta = Number(movement.stockDelta);
+  const quantity = Number(movement.quantity ?? Math.abs(delta));
+  const unitCost = Number(movement.unitCost ?? 0);
+  if (!Number.isFinite(delta) || !Number.isFinite(quantity) || quantity < 0 || !Number.isFinite(unitCost) || unitCost < 0) return false;
+  const movementId = movement.id || uuidv4();
+  const previous = store.stockMovements.find(m => m.id === movementId);
+  if (previous) {
+    return previous.productId === movement.productId
+      && Number(previous.stockDelta) === delta && Number(previous.quantity) === quantity
+      && previous.kind === movement.kind && previous.referenceId === movement.referenceId
+      && previous.referenceType === movement.referenceType && previous.direction === movement.direction
+      && previous.source === movement.source && previous.destination === movement.destination
+      && previous.purchaseItemId === movement.purchaseItemId && previous.salesOrderId === movement.salesOrderId
+      && (previous.unitCost || 0) === unitCost && (previous.batchNumber || '') === (movement.batchNumber || '')
+      && (previous.expiryDate || '') === (movement.expiryDate || '')
+      && (!movement.date || previous.date === movement.date)
+      && (previous.warehouseId || 'main') === (movement.warehouseId || 'main');
+  }
   const isB2C = (movement.warehouseId || 'main') === 'b2c';
   const currentStock = Number(isB2C ? (product.b2cStock || 0) : (product.currentStock || 0));
-  const resultingStock = Math.max(0, currentStock + delta);
+  const resultingStock = currentStock + delta;
 
   await store.addStockMovement({
-    id: uuidv4(),
+    id: movementId,
     date: movement.date || new Date().toISOString(),
     productId: product.id,
     productName: product.name,
     skuCode: product.skuCode,
-    quantity: Number(movement.quantity || Math.abs(delta)),
+    quantity,
     stockDelta: delta,
     resultingStock,
     direction: movement.direction,
@@ -353,7 +370,7 @@ export const recordStockMovement = async (
     warehouseId: movement.warehouseId || 'main',
     batchNumber: movement.batchNumber || undefined,
     expiryDate: movement.expiryDate || undefined,
-    unitCost: Number(movement.unitCost || 0),
+    unitCost,
   });
 
   if (delta !== 0) {
@@ -370,193 +387,37 @@ export const recordStockMovement = async (
 // --- Specific Triggers ---
 
 export const recordOnlinePurchase = async (
-  itemId: string, 
-  _totalAmount: number, 
-  productName: string, 
-  _adminFee: number = 0, 
-  _shippingFee: number = 0,
-  bankAccountId: string = 'bank-1'
+  itemId: string, totalAmount: number, _productName: string, adminFee?: number, shippingFee?: number, bankAccountId?: string,
 ) => {
-  const store = useAppStore.getState();
-  const totalAmount = Number(_totalAmount || 0);
-  const adminFee = Number(_adminFee || 0);
-  const shippingFee = Number(_shippingFee || 0);
-  
-  // Prevent duplicate recording
-  const existingItem = store.purchaseItems.find(pi => pi.id === itemId);
-  if (existingItem?.isOnlineAudited) {
-    console.warn(`Attempted to record already audited online purchase: ${itemId}`);
-    return true; // Already done
-  }
-
-  const baseProductAmount = totalAmount - adminFee - shippingFee;
-
-  // 1. Double Entry (Split) - Debit AP Accrual instead of HPP for inventory portion
-  const bank = store.bankAccounts.find(b => b.id === bankAccountId);
-  const bankAccountCode = bank?.accountCode || '1-1000';
-
-  const debits = [
-    { accountCode: '2-1100', amount: baseProductAmount }
-  ];
-  
-  if (adminFee > 0) debits.push({ accountCode: '6-1600', amount: adminFee });
-  if (shippingFee > 0) debits.push({ accountCode: '6-1700', amount: shippingFee });
-
-  const description = `Pembelian Online: ${productName} - Ref: ${itemId.slice(0,8)}`;
-  const success = await createAccountingEntry(
-    description,
-    'Purchase',
-    itemId,
-    debits,
-    [{ accountCode: bankAccountCode, amount: totalAmount }]
-  );
-
-  if (success) {
-    // 2. Cash History
-    //
-    // Jurnalnya sudah tercatat di atas. Kalau baris mutasi kasnya gagal dan
-    // jurnalnya dibiarkan, kas di Neraca berkurang sementara saldo rekening tidak —
-    // dan saldo rekening dihitung DARI mutasi, jadi selisihnya permanen dan tidak
-    // kelihatan di mana pun sampai ada yang mencocokkan dua angka itu. Persis
-    // begitu Rp260.000 pernah hilang dari kecocokan. Jalur settlement sourcing sudah
-    // membatalkan jurnalnya sejak lama; jalur ini yang belum.
-    if (totalAmount > 0) {
-      try {
-        await store.addCashTransaction({
-          id: uuidv4(),
-          date: new Date().toISOString(),
-          amount: totalAmount,
-          type: 'Out',
-          category: 'Belanja Online',
-          description: `Belanja Online: ${productName} (Incl. Admin & Ongkir)`,
-          bankAccountId: bankAccountId,
-          referenceId: itemId,
-          referenceType: 'Purchase'
-        });
-      } catch (err) {
-        console.error('[Accounting] Mutasi kas belanja online gagal, jurnalnya dibatalkan:', err);
-        const posted = findPostedEntry('Purchase', itemId, description);
-        if (posted) await cleanupJournalEntry(posted.id);
-        return false;
-      }
-    }
-
-    // 3. Mark as Audited in Purchase Items
-    await store.updatePurchaseItem(itemId, { 
-      isOnlineAudited: true,
-      actualUnitPrice: baseProductAmount / (existingItem?.qtyTarget || 1)
-    });
-
-    // 4. Update Price History (Stock movement is now delayed until QC)
-    const product = store.products.find(p => p.name === productName || p.skuCode === productName || p.id === itemId || p.id === existingItem?.productId);
-    if (product) {
-      const qtyReceived = existingItem?.qtyTarget || 1;
-      updateProductPriceHistory(product.id, baseProductAmount / qtyReceived, 'Online Purchase');
-    }
-  }
-
-  return success;
+  const state = useAppStore.getState();
+  const item = state.purchaseItems.find(row => row.id === itemId);
+  const sourceExpense = state.expenses.find(row => row.referenceId === itemId && row.category === 'Belanja Online');
+  adminFee ??= sourceExpense?.adminFee || 0; shippingFee ??= sourceExpense?.shippingFee || 0;
+  bankAccountId = sourceExpense?.sourceBankAccountId || bankAccountId || 'bank-1';
+  if (!item || !(item.qtyTarget > 0) || totalAmount <= adminFee + shippingFee) return false;
+  try {
+    await executePurchaseCommand(useAppStore.getState, {eventId: `online:${itemId}`, stage: 'online', sourceId: itemId,
+      payload: {unitPrice: (totalAmount-adminFee-shippingFee)/item.qtyTarget, adminFee, shippingFee, bankAccountId, ref: item.onlineRef || ''}});
+    return true;
+  } catch (error) { console.error('[Accounting] Online source command failed:', error); return false; }
 };
 
 export const recordOperationalExpense = async (
-  expenseId: string, 
-  amount: number, 
-  description: string, 
-  date?: string, 
-  category?: string, 
-  creditAccountCode: string = '1-1000',
-  bankAccountId: string = 'bank-4'
+  expenseId: string, amount: number, description: string, date?: string, category?: string,
+  _creditAccountCode: string = '1-1000', bankAccountId: string = 'bank-4',
 ) => {
-  const store = useAppStore.getState();
-  const selectedSourceId = store.expenses.find(e => e.id === expenseId)?.sourceBankAccountId;
-  if (selectedSourceId) {
-    const source = store.bankAccounts.find(b => b.id === selectedSourceId);
-    if (!source?.accountCode) return false;
-    bankAccountId = source.id;
-    creditAccountCode = source.accountCode;
-  }
-  let expenseAccountCode = resolveExpenseAccountCode(category);
-  
-  const targetCoa = store.coas.find(c => c.accountCode === expenseAccountCode);
-  if (!targetCoa) {
-    const backupCoa = store.coas.find(c => c.accountCode.startsWith('6-'));
-    if (backupCoa) expenseAccountCode = backupCoa.accountCode;
-  }
-
-  const success = await createAccountingEntry(
-    `Beban Ops: ${description}`,
-    'Expense',
-    expenseId,
-    [{ accountCode: expenseAccountCode, amount: amount }],
-    [{ accountCode: creditAccountCode, amount: amount }],
-    date
-  );
-
-  // Record Cash Transaction for both standard bank accounts AND the Sourcing Advance account
-  if (success && amount > 0) {
-    await store.addCashTransaction({
-      id: uuidv4(),
-      date: date || new Date().toISOString(),
-      amount: amount,
-      type: 'Out',
-      category: category || 'Operational',
-      description: description,
-      bankAccountId: bankAccountId
-    });
-  }
-  return success;
+  const saved = useAppStore.getState().expenses.find(expense => expense.id === expenseId);
+  return postFinancialEvent({eventId: `expense:${expenseId}`, kind: 'expense', date: financialDate(date), amount,
+    bankAccountId: saved?.sourceBankAccountId || bankAccountId, referenceId: expenseId, description, category});
 };
 
 export const recordAdvanceExpense = async (
-  expenseId: string,
-  reporterId: string,
-  amount: number,
-  description: string,
-  date?: string,
-  category?: string
+  expenseId: string, reporterId: string, amount: number, description: string, date?: string, category?: string,
 ) => {
-  const store = useAppStore.getState();
-  // A saved source wins over the reporter's wallet across every approval screen.
-  if (store.expenses.find(e => e.id === expenseId)?.sourceBankAccountId) {
-    return recordOperationalExpense(expenseId, amount, description, date, category);
-  }
+  const saved = useAppStore.getState().expenses.find(expense => expense.id === expenseId);
   const wallet = getAdvanceWalletByUserId(reporterId);
-  if (!wallet) {
-    console.error(`Advance wallet not found for reporter ${reporterId}`);
-    return false;
-  }
-
-  let expenseAccountCode = resolveExpenseAccountCode(category);
-  const targetCoa = store.coas.find(c => c.accountCode === expenseAccountCode);
-  if (!targetCoa) {
-    const backupCoa = store.coas.find(c => c.accountCode.startsWith('6-'));
-    if (backupCoa) expenseAccountCode = backupCoa.accountCode;
-  }
-
-  const success = await createAccountingEntry(
-    `Beban ${wallet.label}: ${description}`,
-    'Expense',
-    expenseId,
-    [{ accountCode: expenseAccountCode, amount }],
-    [{ accountCode: wallet.accountCode, amount }],
-    date
-  );
-
-  if (success && amount > 0) {
-    await store.addCashTransaction({
-      id: `exp-${expenseId}`,
-      date: date || new Date().toISOString(),
-      amount,
-      type: 'Out',
-      category: category || 'Operasional',
-      description,
-      bankAccountId: wallet.bankAccountId,
-      referenceId: expenseId,
-      referenceType: 'Expense',
-    });
-  }
-
-  return success;
+  if (!saved?.sourceBankAccountId && !wallet) return false;
+  return recordOperationalExpense(expenseId, amount, description, date, category, undefined, saved?.sourceBankAccountId || wallet!.bankAccountId);
 };
 
 export const recordOperationalAdvanceTransfer = async (
@@ -569,53 +430,9 @@ export const recordOperationalAdvanceTransfer = async (
   targetActorName: string,
   date?: string
 ) => {
-  const store = useAppStore.getState();
-  const sourceBank = store.bankAccounts.find(bank => bank.id === sourceBankAccountId);
-  const targetBank = store.bankAccounts.find(bank => bank.id === targetBankAccountId);
-
-  if (!sourceBank || !targetBank) {
-    console.error('Operational advance transfer failed: source/target bank account not found.');
-    return false;
-  }
-
-  const success = await createAccountingEntry(
-    description,
-    'Transfer',
-    referenceId,
-    [{ accountCode: targetBank.accountCode || '1-1000', amount }],
-    [{ accountCode: sourceBank.accountCode || '1-1000', amount }],
-    date
-  );
-
-  if (success && amount > 0) {
-    const transactionDate = date || new Date().toISOString();
-    await store.addCashTransaction({
-      id: `ops-out-${referenceId}`,
-      date: transactionDate,
-      amount,
-      type: 'Out',
-      category: 'Distribusi Kas Operasional',
-      description,
-      bankAccountId: sourceBankAccountId,
-      counterpartName: targetActorName,
-      referenceType: 'Transfer',
-      referenceId,
-    });
-    await store.addCashTransaction({
-      id: `ops-in-${referenceId}`,
-      date: transactionDate,
-      amount,
-      type: 'In',
-      category: 'Distribusi Kas Operasional',
-      description,
-      bankAccountId: targetBankAccountId,
-      counterpartName: sourceActorName,
-      referenceType: 'Transfer',
-      referenceId,
-    });
-  }
-
-  return success;
+  void sourceActorName; void targetActorName;
+  return recordCashTransfer({eventId: `ops-transfer:${referenceId}`, date: financialDate(date), bankAccountId: sourceBankAccountId,
+    targetBankAccountId, amount, description, referenceId});
 };
 
 export const recordDeliveryAndInvoice = async (
@@ -631,16 +448,6 @@ export const recordDeliveryAndInvoice = async (
   postingDate?: string
 ) => {
   const store = useAppStore.getState();
-
-  // 1. Guard against duplicate execution
-  const hasExistingInvoiceEntry = store.journalEntries.some(
-    entry => entry.referenceId === invoiceId && entry.referenceType === 'Invoice'
-  );
-  
-  if (hasExistingInvoiceEntry) {
-    console.warn(`[Accounting] Invoice ${invoiceId} already recorded. Skipping.`);
-    return true;
-  }
 
   // Find if client is B2C to determine warehouse and COA
   const invoice = store.invoices.find(inv => inv.id === invoiceId);
@@ -665,7 +472,7 @@ export const recordDeliveryAndInvoice = async (
   // Debit: HPP 5-1000
   // Credit: Persediaan 1-3000 or 1-3100
   if (cogsTotal > 0) {
-    await createAccountingEntry(
+    const hppSuccess = await createAccountingEntry(
       `Pengakuan HPP Delivery - Ref: ${deliveryId}`,
       'Delivery',
       deliveryId,
@@ -673,6 +480,7 @@ export const recordDeliveryAndInvoice = async (
       [{ accountCode: inventoryAccount, amount: cogsTotal }],
       postingDate
     );
+    if (!hppSuccess) return false;
   }
 
   // 4. Physical Inventory Sync (Deduction)
@@ -683,11 +491,11 @@ export const recordDeliveryAndInvoice = async (
   // tidak pernah ditambahkan ke stok, hasilnya minus yang makin dalam tiap kiriman.
   // Potongan di bawah ini tinggal untuk jalur yang MELEWATI gudang (mis. tombol
   // "Dikirim → Terkirim" manual di halaman PO), yang tidak punya langkah rilis.
-  const alreadyReleased = store.stockMovements.some(
-    m => m.kind === 'DELIVERY_OUTBOUND' && m.referenceId === deliveryId
-  );
-
-  for (const item of alreadyReleased ? [] : items) {
+  for (const item of items) {
+    const alreadyReleased = useAppStore.getState().stockMovements.some(
+      m => m.kind === 'DELIVERY_OUTBOUND' && m.referenceId === deliveryId && m.productId === item.productId
+    );
+    if (alreadyReleased) continue;
     const product = store.products.find(p => p.id === item.productId);
     if (product) {
       // Harga satuan untuk kartu stok — dasar yang sama dengan pengakuan HPP,
@@ -695,7 +503,8 @@ export const recordDeliveryAndInvoice = async (
       const pItem = costBasisFor(invoice?.salesOrderId, item.productId, store.purchaseItems, store.purchases);
       const unitCost = pItem ? pItem.actualUnitPrice : (product.basePrice || 0);
 
-      await recordStockMovement({
+      const moved = await recordStockMovement({
+        id: `delivery:${deliveryId}:${product.id}:outbound`,
         productId: product.id,
         quantity: item.qty,
         stockDelta: -item.qty,
@@ -709,78 +518,17 @@ export const recordDeliveryAndInvoice = async (
         warehouseId: warehouseId,
         unitCost: unitCost
       });
+      if (!moved) return false;
     }
   }
 
   return true;
 };
 
-// Finalize a delivered sales order the same way the finance delivery audit does:
-// ensure an invoice + delivery exist, then book revenue, HPP and deduct stock.
-// Used by the manual "Dikirim -> Terkirim" shortcut so it stops skipping the
-// books (previously it only flipped status → no invoice, no omzet/HPP, no stock,
-// so Tukar Faktur had nothing to pull). Idempotent: recordDeliveryAndInvoice
-// dup-guards on the invoice, so re-running (e.g. after courier already booked)
-// is a no-op. Wrapped as one undo batch.
-export const finalizeSalesOrderDelivery = async (soId: string) => {
-  const store = useAppStore.getState();
-  const so = store.salesOrders.find(s => s.id === soId);
-  if (!so) return false;
-
-  const soItems = store.salesOrderItems.filter(i => i.salesOrderId === soId);
-  const roundQtyById = new Map(soItems.map(i => [i.id, roundQtyToBook(i)]));
-  const totalRevenue = soItems.reduce((sum, item) => sum + ((roundQtyById.get(item.id) ?? 0) * item.unitPrice), 0);
-
-  // Nothing left to ship this round → nothing to book.
-  if (totalRevenue <= 0 && soItems.every(i => (roundQtyById.get(i.id) ?? 0) <= 0)) {
-    return true;
-  }
-
-  store.beginUndoableBatch();
-  try {
-    // Fresh invoice for THIS round (never reuse an already-booked one).
-    const invoiceId = uuidv4();
-    await store.addInvoice({
-      id: invoiceId,
-      salesOrderId: soId,
-      clientId: so.clientId || '',
-      issueDate: new Date().toISOString(),
-      dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-      totalAmount: totalRevenue,
-      amountPaid: 0,
-      status: 'Unpaid',
-    });
-
-    // Fresh delivery for THIS round.
-    const deliveryId = uuidv4();
-    await store.addDelivery({
-      id: deliveryId,
-      salesOrderId: soId,
-      courierId: '',
-      status: 'Terkirim',
-      deliveryDate: new Date().toISOString(),
-      invoiceId,
-      notes: 'Manual ship (PO page)',
-    });
-
-    let totalCogs = 0;
-    const stockDeductionItems: { productId: string; qty: number }[] = [];
-    soItems.forEach(item => {
-      const roundQty = roundQtyById.get(item.id) ?? 0;
-      if (roundQty <= 0) return;
-      let pItem = store.purchaseItems.find(pi => pi.salesOrderId === soId && pi.productId === item.productId && pi.actualUnitPrice > 0);
-      if (!pItem) pItem = store.purchaseItems.filter(pi => pi.productId === item.productId && pi.actualUnitPrice > 0).pop();
-      const unitCogs = pItem ? pItem.actualUnitPrice : (store.products.find(p => p.id === item.productId)?.basePrice || 0);
-      totalCogs += unitCogs * roundQty;
-      stockDeductionItems.push({ productId: item.productId, qty: roundQty });
-    });
-
-    const ok = await recordDeliveryAndInvoice(deliveryId, invoiceId, totalRevenue, totalCogs, stockDeductionItems, false);
-    if (!ok) return false;
-    return true;
-  } finally {
-    store.endUndoableBatch();
-  }
+/** Legacy status-only shortcut cannot supply frozen delivery-round evidence. */
+export const finalizeSalesOrderDelivery = async (_soId: string) => {
+  console.error('Selesaikan pengiriman melalui Hari ini → Serah terima → Penerimaan klien → Audit Finance agar bukti ronde tersimpan.');
+  return false;
 };
 
 export type DropshipConfirmLine = {
@@ -792,156 +540,22 @@ export type DropshipConfirmLine = {
   unitPrice: number;
 };
 
-/**
- * Books a dropship delivery the client has confirmed receiving.
- *
- * Goods went vendor → client and never entered the warehouse, so persediaan is
- * not involved on either side: the cost goes straight to HPP against the same
- * GR/IR accrual (2-1100) that QC would have raised, and the vendor payment paths
- * below clear it exactly as they do after QC. No stock movement is written —
- * writing one here would inflate on-hand for goods nobody ever held.
- *
- * Idempotent: every purchase item it books is flagged isQCed, so a repeat call
- * with the same lines returns early. This cannot lean on the invoice dup-guard
- * inside recordDeliveryAndInvoice — each call mints a fresh invoice id, so that
- * guard would never fire and a double press would bill the client twice.
- */
+/** Direct vendor deliveries use the same locked goods command as office rounds. */
 export const recordDropshipDelivery = async (
-  salesOrderId: string,
-  vendorId: string,
-  lines: DropshipConfirmLine[],
-  confirmedBy: string,
-  bankAccountId?: string,
-  note?: string,
-  proofUrl?: string,
-) => {
-  const store = useAppStore.getState();
-  const so = store.salesOrders.find(s => s.id === salesOrderId);
-  if (!so || lines.length === 0) return false;
-
-  // Already booked (double press, or two tabs open) — do nothing rather than
-  // issue a second invoice for goods delivered once.
-  const alreadyBooked = lines.every(l =>
-    store.purchaseItems.find(pi => pi.id === l.purchaseItemId)?.isQCed
-  );
-  if (alreadyBooked) {
-    console.warn('[Dropship] Lines already confirmed. Skipping.');
-    return true;
-  }
-
-  const { revenue, cogs, shortfalls } = splitDropshipTotals(lines);
-
-  store.beginUndoableBatch();
+  salesOrderId: string, vendorId: string, lines: DropshipConfirmLine[], _confirmedBy: string,
+  bankAccountId?: string, note?: string, proofUrl?: string, evidence?: PaperEvidence,
+): Promise<boolean> => {
   try {
-    const invoiceId = uuidv4();
-    const deliveryId = uuidv4();
-
-    if (revenue > 0) {
-      await store.addInvoice({
-        id: invoiceId,
-        salesOrderId,
-        clientId: so.clientId || '',
-        issueDate: new Date().toISOString(),
-        dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-        totalAmount: revenue,
-        amountPaid: 0,
-        status: 'Unpaid',
-      });
-      await store.addDelivery({
-        id: deliveryId,
-        salesOrderId,
-        courierId: '',
-        status: 'Terkirim',
-        deliveryDate: new Date().toISOString(),
-        invoiceId,
-        baUrl: proofUrl,
-        notes: note || 'Diantar vendor langsung ke klien',
-      });
-      await createAccountingEntry(
-        `Invoice Terbit (Kiriman Vendor) - Ref: ${invoiceId}`,
-        'Invoice',
-        invoiceId,
-        [{ accountCode: '1-2000', amount: revenue }],
-        [{ accountCode: '4-1000', amount: revenue }],
-      );
-    }
-
-    if (cogs > 0) {
-      // Dr HPP / Cr 2-1100 — persediaan dilewati, barangnya tidak pernah masuk gudang.
-      await createAccountingEntry(
-        `HPP Kiriman Vendor - Ref: ${deliveryId}`,
-        'Delivery',
-        deliveryId,
-        [{ accountCode: '5-1000', amount: cogs }],
-        [{ accountCode: '2-1100', amount: cogs }],
-      );
-    }
-
-    // Vendor obligation, on the same two paths QC uses.
-    const firstItem = store.purchaseItems.find(pi => pi.id === lines[0]?.purchaseItemId);
-    if (cogs > 0 && firstItem?.paymentMethod === 'Tempo') {
-      await recordVendorBillFromInbound(
-        firstItem.id,
-        vendorId,
-        cogs,
-        `Tempo kiriman vendor ke klien (${new Date().toLocaleDateString('id-ID')})`,
-        firstItem.purchaseId,
-      );
-    } else if (cogs > 0 && firstItem?.paymentMethod === 'Transfer') {
-      const bank = bankAccountId
-        ? store.bankAccounts.find(b => b.id === bankAccountId)
-        : store.bankAccounts.find(b => b.accountCode === '1-1200');
-      if (bank) {
-        await recordVendorTransferPurchase(firstItem.purchaseId, bank.id, cogs, confirmedBy);
-      }
-    }
-
-    // Per-line bookkeeping: mark the purchase item done, credit the client's
-    // order for what arrived, and push the shortfall into the susulan list.
-    const soItems = store.salesOrderItems.filter(i => i.salesOrderId === salesOrderId);
-    for (const line of lines) {
-      await store.updatePurchaseItem(line.purchaseItemId, {
-        isQCed: true,
-        inboundStatus: line.qtyReceived === 0 ? 'rejected'
-          : line.qtyReceived < line.qtyOrdered ? 'partial' : 'verified',
-        inboundQtyReceived: line.qtyReceived,
-        inboundVerifiedAt: new Date().toISOString(),
-        inboundVerifiedBy: confirmedBy,
-        actualUnitPrice: line.unitCost,
-        qtyPurchased: line.qtyReceived,
-      });
-
-      const soItem = soItems.find(i => i.productId === line.productId);
-      if (soItem) {
-        await store.updateSalesOrderItem(soItem.id, {
-          qtyFinal: null,
-          qtyDelivered: (soItem.qtyDelivered ?? 0) + line.qtyReceived,
-        });
-      }
-    }
-
-    for (const short of shortfalls) {
-      const line = lines[short.index];
-      await store.addRejectedItem({
-        id: uuidv4(),
-        date: new Date().toISOString(),
-        productId: line.productId,
-        qty: short.qty,
-        reason: 'Kurang dikirim vendor (kiriman langsung ke klien)',
-        source: 'Dropship',
-        referenceId: line.purchaseItemId,
-        reportedBy: confirmedBy,
-      });
-    }
-
-    // Order selesai hanya kalau tidak ada sisa di sisi mana pun — sisa barang gudang
-    // pada PO campuran tetap menahan statusnya.
-    const fresh = useAppStore.getState().salesOrderItems.filter(i => i.salesOrderId === salesOrderId);
-    await store.updateSalesOrder(salesOrderId, { status: nextSoStatus(fresh) });
-
-    return true;
-  } finally {
-    store.endUndoableBatch();
+    const sourceItems = [...new Set(lines.map(line => line.purchaseItemId))].sort();
+    const result = await executeGoodsCommand(useAppStore.getState, {
+      eventId: `dropship:${salesOrderId}:${vendorId}:${sourceItems.join(':')}`,
+      stage: 'dropship', sourceId: salesOrderId,
+      payload: {vendorId, lines, bankAccountId, note, paperProof: proofUrl, ...evidence},
+    });
+    return result.ok === true;
+  } catch (error) {
+    console.error('[Accounting] Dropship command failed:', error);
+    return false;
   }
 };
 
@@ -967,211 +581,32 @@ export const recordManualReceivable = async (invoiceId: string, amount: number, 
   );
 };
 
-export const recordReimbursementPayment = async (reimbId: string, amount: number, description: string, bankAccountId: string, userName: string) => {
-  const store = useAppStore.getState();
-  const bank = store.bankAccounts.find(b => b.id === bankAccountId);
-  const bankCode = bank?.accountCode || '1-1000';
-
-  // Pilih akun debit berdasarkan kind reimburse (eksplisit, bukan parse string).
-  // - Sourcing-Defisit: HPP/Ops sudah dijurnal saat settlement; payment-nya potong Utang Talangan Karyawan (2-1500).
-  // - Auto-Talangan: bagian ops yg gak ketutup wallet saat input; samain ke Beban Ops Pasar (6-1400).
-  // - Manual / undefined (legacy): masuk Beban Operasional Lainnya (6-9000).
-  const reimb = store.reimbursements.find(r => r.id === reimbId);
-  const kindLower = (description || '').toLowerCase();
-  const isLegacyDefisitSourcing = !reimb?.kind && (kindLower.includes('talangan sourcing') || kindLower.includes('defisit sourcing'));
-  const isLegacyAutoTalangan = !reimb?.kind && kindLower.includes('auto-talangan');
-
-  let debitAccountCode: string;
-  if (reimb?.kind === 'Sourcing-Defisit' || isLegacyDefisitSourcing) {
-    debitAccountCode = '2-1500';
-  } else if (reimb?.kind === 'Auto-Talangan' || isLegacyAutoTalangan) {
-    debitAccountCode = '6-1400';
-  } else {
-    debitAccountCode = '6-9000';
-  }
-
-  const success = await createAccountingEntry(
-    `Pembayaran Reimburse: ${description} (${userName})`,
-    'Reimbursement',
-    reimbId,
-    [{ accountCode: debitAccountCode, amount: amount }],
-    [{ accountCode: bankCode, amount: amount }]
-  );
-
-  if (success && amount > 0) {
-    await store.addCashTransaction({
-      id: uuidv4(),
-      date: new Date().toISOString(),
-      amount: amount,
-      type: 'Out',
-      category: 'Reimbursement',
-      description: `Reimburse: ${description} (${userName})`,
-      bankAccountId: bankAccountId,
-      referenceType: 'Reimbursement',
-      referenceId: reimbId,
-      counterpartName: userName
-    });
-  }
-  return success;
-};
+export const recordReimbursementPayment = async (reimbId: string, amount: number, description: string, bankAccountId: string, userName: string) => postFinancialEvent({
+  eventId: `reimbursement:${reimbId}`, kind: 'reimbursement', date: financialDate(), amount,
+  bankAccountId, referenceId: reimbId, description: `Pembayaran Reimburse: ${description} (${userName})`,
+});
 
 export const recordBudgetTransfer = async (purchaseId: string, amount: number, bankAccountId: string, recipientName: string, destBankAccountId?: string) => {
   const store = useAppStore.getState();
-  const bank = store.bankAccounts.find(b => b.id === bankAccountId);
-  const sourceBankCode = bank?.accountCode || '1-1200';
-
-  let targetBankId: string;
-  let targetAccountCode: string;
-  let targetName: string;
-  if (destBankAccountId) {
-    const destBank = store.bankAccounts.find(b => b.id === destBankAccountId);
-    targetBankId = destBankAccountId;
-    targetAccountCode = destBank?.accountCode || '1-1500';
-    targetName = destBank?.name || recipientName;
-  } else {
-    const purchaser = store.users.find(u => u.name === recipientName || u.id === recipientName);
-    const wallet = getAdvanceWalletByUserId(purchaser?.id);
-    targetBankId = wallet?.bankAccountId || 'bank-advance-sourcing';
-    targetAccountCode = wallet?.accountCode || '1-1500';
-    targetName = wallet?.label || 'Kas Sourcing';
-  }
-
-  if (bankAccountId === targetBankId) {
-    throw new Error(`Source bank tidak boleh sama dengan rekening tujuan (${bankAccountId}).`);
-  }
-
-  // One undo snapshot for the whole transfer (journal + Out + In + caller's
-  // purchase status update) so a single undo reverses money AND the PO together.
-  store.beginUndoableBatch();
-  try {
-    const success = await createAccountingEntry(
-      `Pencairan Budget Sourcing: ${recipientName} - Ref: ${purchaseId.slice(0, 8)}`,
-      'Transfer',
-      purchaseId,
-      [{ accountCode: targetAccountCode, amount }],
-      [{ accountCode: sourceBankCode, amount }]
-    );
-
-    if (success && amount > 0) {
-      const now = new Date().toISOString();
-      await store.addCashTransaction({
-        id: uuidv4(), date: now, amount, type: 'Out',
-        category: 'Transfer Uang Muka Sourcing',
-        description: `Pencairan Dana ke ${recipientName} - Ref: ${purchaseId.slice(0, 8)}`,
-        bankAccountId, counterpartName: targetName,
-      });
-      await store.addCashTransaction({
-        id: uuidv4(), date: now, amount, type: 'In',
-        category: 'Transfer Uang Muka Sourcing',
-        description: `Penerimaan Dana - Ref: ${purchaseId.slice(0, 8)}`,
-        bankAccountId: targetBankId, counterpartName: bank?.name || 'Kas Pusat',
-      });
-    }
-    return success;
-  } finally {
-    store.endUndoableBatch();
-  }
+  const purchaser = store.users.find(u => u.name === recipientName || u.id === recipientName);
+  const wallet = getAdvanceWalletByUserId(purchaser?.id);
+  const targetBankAccountId = destBankAccountId || wallet?.bankAccountId || 'bank-advance-sourcing';
+  return recordCashTransfer({eventId: `budget:${purchaseId}`, date: financialDate(), bankAccountId,
+    targetBankAccountId, amount, description: `Pencairan Budget Sourcing: ${recipientName}`, referenceId: purchaseId});
 };
 
 // Sourcing self-serve: move cash from the shared pool (Bank Jago) into a
 // sourcer's cash-in-hand pocket. Pool → pocket, no PurchaseId. Guarded by the
 // caller against pool balance; this fn assumes amount is already validated.
 export const recordPocketWithdrawal = async (
-  poolBankAccountId: string,
-  pocketBankAccountId: string,
-  amount: number,
-  sourcerName: string
-) => {
-  const store = useAppStore.getState();
-  const pool = store.bankAccounts.find(b => b.id === poolBankAccountId);
-  const pocket = store.bankAccounts.find(b => b.id === pocketBankAccountId);
-  if (!pool || !pocket || amount <= 0) return false;
-  if (poolBankAccountId === pocketBankAccountId) return false;
+  poolBankAccountId: string, pocketBankAccountId: string, amount: number, sourcerName: string, eventId: string = uuidv4(),
+) => recordCashTransfer({eventId: `pocket-withdraw:${eventId}`, date: financialDate(), bankAccountId: poolBankAccountId,
+  targetBankAccountId: pocketBankAccountId, amount, description: `Tarik Kantong: ${sourcerName}`});
 
-  const poolCode = pool.accountCode || '1-1000';
-  const pocketCode = pocket.accountCode || '1-1500';
-  const ref = `POCKET-W-${Date.now().toString().slice(-8)}`;
-
-  store.beginUndoableBatch();
-  try {
-    const ok = await createAccountingEntry(
-      `Tarik Kantong: ${sourcerName} - ${new Date().toLocaleDateString('id-ID')}`,
-      'Transfer',
-      ref,
-      [{ accountCode: pocketCode, amount }],
-      [{ accountCode: poolCode, amount }]
-    );
-    if (!ok) return false;
-    const now = new Date().toISOString();
-    await store.addCashTransaction({
-      id: uuidv4(), date: now, amount, type: 'Out',
-      category: 'Tarik Kantong Sourcing',
-      description: `Tarik ke kantong ${sourcerName}`,
-      bankAccountId: poolBankAccountId, counterpartName: pocket.name,
-      referenceId: ref, referenceType: 'Transfer',
-    });
-    await store.addCashTransaction({
-      id: uuidv4(), date: now, amount, type: 'In',
-      category: 'Tarik Kantong Sourcing',
-      description: `Penerimaan kantong dari ${pool.name}`,
-      bankAccountId: pocketBankAccountId, counterpartName: pool.name,
-      referenceId: ref, referenceType: 'Transfer',
-    });
-    return true;
-  } finally {
-    store.endUndoableBatch();
-  }
-};
-
-// Daily close: return the pocket's entire remaining balance to the pool.
-// pocket → pool. Amount = current pocket balance (computed by caller). Returns
-// true on success so the caller can snapshot the TutupHariKantong marker.
 export const recordPocketReturn = async (
-  pocketBankAccountId: string,
-  poolBankAccountId: string,
-  amount: number,
-  sourcerName: string
-) => {
-  const store = useAppStore.getState();
-  const pool = store.bankAccounts.find(b => b.id === poolBankAccountId);
-  const pocket = store.bankAccounts.find(b => b.id === pocketBankAccountId);
-  if (!pool || !pocket || amount <= 0) return false;
-  if (poolBankAccountId === pocketBankAccountId) return false;
-
-  const poolCode = pool.accountCode || '1-1000';
-  const pocketCode = pocket.accountCode || '1-1500';
-  const ref = `POCKET-R-${Date.now().toString().slice(-8)}`;
-
-  store.beginUndoableBatch();
-  try {
-    const ok = await createAccountingEntry(
-      `Setor Sisa Kantong: ${sourcerName} - ${new Date().toLocaleDateString('id-ID')}`,
-      'Transfer',
-      ref,
-      [{ accountCode: poolCode, amount }],
-      [{ accountCode: pocketCode, amount }]
-    );
-    if (!ok) return false;
-    const now = new Date().toISOString();
-    await store.addCashTransaction({
-      id: uuidv4(), date: now, amount, type: 'Out',
-      category: 'Setor Sisa Kantong',
-      description: `Setor sisa kantong ${sourcerName} ke ${pool.name}`,
-      bankAccountId: pocketBankAccountId, counterpartName: pool.name,
-      referenceId: ref, referenceType: 'Transfer',
-    });
-    await store.addCashTransaction({
-      id: uuidv4(), date: now, amount, type: 'In',
-      category: 'Setor Sisa Kantong',
-      description: `Terima setoran kantong ${sourcerName}`,
-      bankAccountId: poolBankAccountId, counterpartName: pocket.name,
-      referenceId: ref, referenceType: 'Transfer',
-    });
-    return true;
-  } finally {
-    store.endUndoableBatch();
-  }
-};
+  pocketBankAccountId: string, poolBankAccountId: string, amount: number, sourcerName: string, eventId: string = uuidv4(),
+) => recordCashTransfer({eventId: `pocket-return:${eventId}`, date: financialDate(), bankAccountId: pocketBankAccountId,
+  targetBankAccountId: poolBankAccountId, amount, description: `Setor Sisa Kantong: ${sourcerName}`});
 
 // Book a sourcer's actual Cash/Pasar spend against their pocket: Dr HPP / Cr
 // pocket. Only for cash-paid items — Tempo (AP) and Online (BCA) are handled
@@ -1182,29 +617,9 @@ export const recordPocketPurchase = async (
   amount: number,
   sourcerName: string
 ) => {
-  const store = useAppStore.getState();
-  const pocket = store.bankAccounts.find(b => b.id === pocketBankAccountId);
-  if (!pocket || amount <= 0) return false;
-  const pocketCode = pocket.accountCode || '1-1500';
-  // Dr 2-1100 (GR/IR accrual), not HPP directly — HPP is recognized once, at
-  // delivery (recordDeliveryAndInvoice), same as every other payment method.
-  // QC's Cr 2-1100 (recordInboundQC) clears this back to zero once goods are
-  // verified. Debiting HPP_ACCOUNT_CODE here would double-book COGS on ship.
-  const ok = await createAccountingEntry(
-    `Belanja Tunai Sourcing (${sourcerName}) - Ref: ${purchaseId.slice(0, 8)}`,
-    'Purchase',
-    purchaseId,
-    [{ accountCode: '2-1100', amount }],
-    [{ accountCode: pocketCode, amount }]
-  );
-  if (!ok) return false;
-  await store.addCashTransaction({
-    id: `pocket-buy-${purchaseId}`, date: new Date().toISOString(), amount,
-    type: 'Out', category: 'Belanja Sourcing (HPP)',
-    description: `Belanja tunai - Ref: ${purchaseId.slice(0, 8)}`,
-    bankAccountId: pocketBankAccountId, referenceId: purchaseId, referenceType: 'Purchase',
-  });
-  return true;
+  return postFinancialEvent({eventId: `pocket-buy:${purchaseId}`, kind: 'cash-posting', date: financialDate(),
+    bankAccountId: pocketBankAccountId, amount, debitAccountCode: '2-1100', referenceType: 'Purchase', referenceId: purchaseId,
+    category: 'Belanja Sourcing (HPP)', description: `Belanja Tunai Sourcing (${sourcerName})`});
 };
 
 // Metode Bayar 'Transfer': paid immediately (no queue, no approval) by bank
@@ -1216,364 +631,87 @@ export const recordVendorTransferPurchase = async (
   amount: number,
   sourcerName: string
 ) => {
-  const store = useAppStore.getState();
-  const bank = store.bankAccounts.find(b => b.id === bankAccountId);
-  if (!bank || amount <= 0) return false;
-  const bankCode = bank.accountCode || '1-1200';
-  // Dr 2-1100, not HPP — same reasoning as recordPocketPurchase: HPP is
-  // recognized once, at delivery. QC's Cr 2-1100 clears this to zero.
-  const ok = await createAccountingEntry(
-    `Belanja Transfer Sourcing (${sourcerName}) - Ref: ${purchaseId.slice(0, 8)}`,
-    'Purchase',
-    purchaseId,
-    [{ accountCode: '2-1100', amount }],
-    [{ accountCode: bankCode, amount }]
-  );
-  if (!ok) return false;
-  await store.addCashTransaction({
-    id: `transfer-buy-${purchaseId}`, date: new Date().toISOString(), amount,
-    type: 'Out', category: 'Belanja Transfer Sourcing',
-    description: `Belanja transfer - Ref: ${purchaseId.slice(0, 8)}`,
-    bankAccountId, referenceId: purchaseId, referenceType: 'Purchase',
-  });
-  return true;
+  return postFinancialEvent({eventId: `transfer-buy:${purchaseId}`, kind: 'cash-posting', date: financialDate(),
+    bankAccountId, amount, debitAccountCode: '2-1100', referenceType: 'Purchase', referenceId: purchaseId,
+    category: 'Belanja Transfer Sourcing', description: `Belanja Transfer Sourcing (${sourcerName})`});
 };
 
+/**
+ * Legacy advance reconciliation is a verification of posted source events.
+ * Purchases post cash when transcribed, and QC creates each vendor payable.
+ * Never create a second payable or pretend the unreimbursed part left a wallet.
+ */
 export const recordReconciliationSettlement = async (
-  purchaseId: string, 
-  actualShopCost: number, 
-  actualOpsCost: number, 
-  advanceAmount: number,
-  _bankAccountId: string
-) => {
-  void _bankAccountId;
+  purchaseId: string, actualShopCost: number, actualOpsCost: number, _advanceAmount: number, _bankAccountId: string,
+): Promise<boolean> => {
   const store = useAppStore.getState();
-  const now = new Date().toISOString();
-  const purchaseRef = purchaseId.slice(0,8);
-  const purchase = store.purchases.find(p => p.id === purchaseId);
-  let targetBankId: string;
-  let advanceAccountCode: string;
-  if (purchase?.budgetDestBankAccountId) {
-    const destBank = store.bankAccounts.find(b => b.id === purchase.budgetDestBankAccountId);
-    targetBankId = purchase.budgetDestBankAccountId;
-    advanceAccountCode = destBank?.accountCode || '1-1500';
-  } else {
-    const wallet = getAdvanceWalletByUserId(purchase?.purchaserId);
-    targetBankId = wallet?.bankAccountId || 'bank-advance-sourcing';
-    advanceAccountCode = wallet?.accountCode || '1-1500';
-  }
-
-  const hasExistingShopSettlement = store.cashTransactions.some(tx =>
-    tx.referenceId === purchaseId &&
-    tx.type === 'Out' &&
-    tx.category === 'Sourcing (HPP)' &&
-    tx.bankAccountId === targetBankId
-  ) || store.journalEntries.some(entry =>
-    entry.referenceId === purchaseId &&
-    entry.referenceType === 'Purchase' &&
-    (entry.description || '').includes(`Penyelesaian Belanja Sourcing - Ref: ${purchaseRef}`)
-  );
-
-  const hasExistingOpsSettlement = store.cashTransactions.some(tx =>
-    tx.referenceId === purchaseId &&
-    tx.type === 'Out' &&
-    tx.category === 'Operasional' &&
-    tx.bankAccountId === targetBankId
-  ) || store.journalEntries.some(entry =>
-    entry.referenceId === purchaseId &&
-    entry.referenceType === 'Expense' &&
-    (entry.description || '').includes(`Penyelesaian Ops Sourcing - Ref: ${purchaseRef}`)
-  );
-
-  let totalTempo = 0;
-  let totalCash = actualShopCost;
-  const tempoTotals = new Map<string, number>();
-  const vendorBillsToSave: VendorBill[] = [];
-  const journalCredits: (PostingLineInput & { vendorId?: string; vendorBillId?: string })[] = [];
-
-  const pItems = store.purchaseItems.filter(
-    pi => pi.purchaseId === purchaseId && pi.isChecked && pi.purchaseMethod === 'Pasar'
-  );
-
-  if (actualShopCost > 0 && pItems.length > 0) {
-    // Validate all checked items have vendorId (with dynamic healing fallback)
-    const fallbackVendorId = store.vendors[0]?.id || 'v1';
-    for (const item of pItems) {
-      if (!item.vendorId) {
-        console.warn(`[Accounting] Item ${item.id} (produk ${item.productId}) is missing vendorId. Healing with fallback vendor ${fallbackVendorId}.`);
-        item.vendorId = fallbackVendorId;
-        await store.updatePurchaseItem(item.id, { vendorId: fallbackVendorId });
-      }
-    }
-
-    // Group and calculate tempo/cash totals
-    const vendorMap = new Map(store.vendors.map(v => [v.id, v]));
-    totalCash = 0;
-
-    for (const item of pItems) {
-      const vId = item.vendorId!;
-      const vendor = vendorMap.get(vId);
-      const isTempo = item.paymentMethod 
-        ? (item.paymentMethod === 'Tempo')
-        : (vendor ? (vendor.isTempo !== false) : true);
-      const cost = (item.actualUnitPrice || 0) * (item.qtyPurchased || 0);
-
-      if (isTempo) {
-        totalTempo += cost;
-        tempoTotals.set(vId, (tempoTotals.get(vId) || 0) + cost);
-      } else {
-        totalCash += cost;
-      }
-    }
-  }
-
-  // 1. Settle Advance for Shop Cost (HPP) — journal + CashTransaction Out dari Kas Sourcing
-  if (actualShopCost > 0 && !hasExistingShopSettlement) {
-    const todayStr = now.slice(0, 10);
-    
-    // Create Vendor Bills for tempo portions
-    for (const [vendorId, totalAmount] of tempoTotals.entries()) {
-      if (totalAmount <= 0) continue;
-      const vendor = store.vendors.find(v => v.id === vendorId);
-      const vendorName = vendor ? vendor.companyName : 'Vendor Unknown';
-      const termDays = vendor?.paymentTermDays ?? 14;
-      
-      let billNumber = '';
-      try {
-        const { data, error } = await supabase.rpc('generate_vendor_bill_number', {
-          p_vendor_id: vendorId,
-          p_bill_date: todayStr
-        });
-        if (error) throw error;
-        billNumber = data;
-      } catch (rpcErr) {
-        console.warn('[Accounting] generate_vendor_bill_number RPC failed, generating fallback:', rpcErr);
-        const randomSuffix = Math.floor(10 + Math.random() * 90);
-        billNumber = `VB-${todayStr.replace(/-/g, '').slice(0, 6)}-${vendorId.slice(0, 6).toUpperCase()}-${randomSuffix}`;
-      }
-
-      const billId = uuidv4();
-      const dueDate = dueDateFor(todayStr, termDays);
-
-      const bill: VendorBill = {
-        id: billId,
-        billNumber,
-        vendorId,
-        vendorName,
-        issueDate: now,
-        dueDate,
-        description: `Belanja Sourcing - Ref: ${purchaseRef}`,
-        category: 'Bahan Baku',
-        totalAmount,
-        amountPaid: 0,
-        status: 'Pending',
-        payments: [],
-        purchaseId,
-        createdAt: now,
-        createdBy: purchase?.purchaserId
-      };
-      vendorBillsToSave.push(bill);
-
-      // Cr 2-1000 Utang Vendor
-      journalCredits.push({
-        accountCode: '2-1000',
-        amount: totalAmount,
-        vendorId,
-        vendorBillId: billId
-      });
-    }
-
-    // If sourcing already reported this purchase via the pocket (Cash) or
-    // direct-transfer flow, the cash portion is already fully accounted for
-    // (Dr 2-1100 / Cr pocket-bank or bank), self-clearing against QC's Cr
-    // 2-1100. Settling it again here would double-count cash that already
-    // left the pocket/bank. Only Finance's "Direct Item Settlement" path
-    // (manual re-key, bypassing sourcing/pocket entirely) never creates that
-    // transaction — for that path the cash portion still needs settling here,
-    // same as before.
-    const cashAlreadyBookedByPocket = store.cashTransactions.some(tx =>
-      tx.referenceId === purchaseId &&
-      tx.type === 'Out' &&
-      (tx.category === 'Belanja Sourcing (HPP)' || tx.category === 'Belanja Transfer Sourcing')
-    );
-
-    let cashDebit = 0;
-    if (!cashAlreadyBookedByPocket) {
-      const settledAmount = Math.min(totalCash, Math.max(0, advanceAmount));
-      const defisitShop = totalCash > settledAmount ? totalCash - settledAmount : 0;
-
-      if (settledAmount > 0) {
-        journalCredits.push({ accountCode: advanceAccountCode, amount: settledAmount });
-      }
-      if (defisitShop > 0) {
-        journalCredits.push({ accountCode: '2-1500', amount: defisitShop });
-      }
-      cashDebit = totalCash;
-    }
-
-    // Save vendor bills to store first, so they exist in the database and avoid foreign key constraint violation
-    for (const bill of vendorBillsToSave) {
-      await store.addVendorBill(bill);
-    }
-
-    const shopDescription = `Penyelesaian Belanja Sourcing - Ref: ${purchaseRef}`;
-    const shopDebitAmount = totalTempo + cashDebit;
-    const shopJournalSuccess = shopDebitAmount > 0
-      ? await createAccountingEntry(
-          shopDescription,
-          'Purchase',
-          purchaseId,
-          [{ accountCode: '2-1100', amount: shopDebitAmount }], // Dr 2-1100 AP Accrual
-          journalCredits
-        )
-      : true;
-
-    if (!shopJournalSuccess) {
-      // Rollback saved vendor bills if journal entry failed
-      for (const bill of vendorBillsToSave) {
-        await store.deleteVendorBill(bill.id);
-      }
-      return false;
-    }
-
-    if (cashDebit > 0) {
-      const postedShopEntry = findPostedEntry('Purchase', purchaseId, shopDescription);
-      const createdCashIds: string[] = [];
-      try {
-        const txId = uuidv4();
-        await store.addCashTransaction({
-          id: txId,
-          date: now,
-          amount: cashDebit,
-          type: 'Out',
-          category: 'Sourcing (HPP)',
-          description: `Belanja Pasar disetujui (Cash portion) - Ref: ${purchaseRef}`,
-          bankAccountId: targetBankId,
-          referenceId: purchaseId
-        });
-        createdCashIds.push(txId);
-      } catch (err) {
-        console.error('[Accounting] Failed to persist shop settlement cash transaction, rolling back journal:', err);
-        await cleanupCashTransactions(createdCashIds);
-        if (postedShopEntry) await cleanupJournalEntry(postedShopEntry.id);
-        for (const bill of vendorBillsToSave) {
-          await store.deleteVendorBill(bill.id);
-        }
-        return false;
-      }
-    }
-  }
-
-  // 2. Settle Advance for Ops Cost (journal + CashTransaction Out)
-  if (actualOpsCost > 0 && !hasExistingOpsSettlement) {
-    const settleFromAdvance = Math.min(actualOpsCost, Math.max(0, advanceAmount - totalCash));
-    const defisitOps = actualOpsCost - settleFromAdvance;
-    const opsCredits: PostingLineInput[] = [];
-
-    if (settleFromAdvance > 0) {
-      opsCredits.push({ accountCode: advanceAccountCode, amount: settleFromAdvance });
-    }
-    if (defisitOps > 0) {
-      opsCredits.push({ accountCode: '2-1500', amount: defisitOps });
-    }
-
-    const opsDescription = `Penyelesaian Ops Sourcing - Ref: ${purchaseRef}`;
-    const opsJournalSuccess = await createAccountingEntry(
-      opsDescription,
-      'Expense',
-      purchaseId,
-      [{ accountCode: '6-1400', amount: actualOpsCost }],
-      opsCredits
-    );
-
-    if (!opsJournalSuccess) {
-      return false;
-    }
-
-    if (actualOpsCost > 0) {
-      const postedOpsEntry = findPostedEntry('Expense', purchaseId, opsDescription);
-      const txId = uuidv4();
-      try {
-        await store.addCashTransaction({
-          id: txId,
-          date: now,
-          amount: actualOpsCost,
-          type: 'Out',
-          category: 'Operasional',
-          description: `Biaya Ops disetujui - Ref: ${purchaseRef}`,
-          bankAccountId: targetBankId,
-          referenceId: purchaseId
-        });
-      } catch (err) {
-        console.error('[Accounting] Failed to persist ops settlement cash transaction, rolling back journal:', err);
-        if (postedOpsEntry) await cleanupJournalEntry(postedOpsEntry.id);
-        return false;
-      }
-    }
-  }
-
-  // 3. Auto-create Reimbursement row utk defisit (HPP + Ops) supaya finance bisa bayar via UI.
-  const defisitShop = totalCash > 0 ? Math.max(0, totalCash - Math.max(0, advanceAmount)) : 0;
-  const defisitOps = actualOpsCost > 0 ? Math.max(0, actualOpsCost - Math.max(0, advanceAmount - totalCash)) : 0;
-  const totalDefisit = defisitShop + defisitOps;
-
-  if (totalDefisit > 0 && purchase?.purchaserId) {
-    const alreadyHasDefisitReimb = store.reimbursements.some(r => {
-      if (r.purchaseId !== purchaseId) return false;
-      if (r.kind === 'Sourcing-Defisit') return true;
-      const t = (r.title || '').toLowerCase();
-      return t.includes('defisit sourcing') || t.includes('talangan sourcing');
-    });
-    if (!alreadyHasDefisitReimb) {
-      await store.addReimbursement({
-        id: uuidv4(),
-        date: now,
-        userId: purchase.purchaserId,
-        purchaseId,
-        title: `Talangan Defisit Sourcing - Ref: ${purchaseRef}`,
-        amount: totalDefisit,
-        description: `Defisit HPP ${defisitShop} + Ops ${defisitOps}. Utang sudah dijurnal (2-1000), tunggu pencairan kas ke sourcer.`,
-        status: 'Pending',
-        kind: 'Sourcing-Defisit',
-      });
-    }
-  }
-
-  return true;
+  if (![actualShopCost, actualOpsCost].every(n => Number.isFinite(n) && n >= 0) || actualOpsCost > 0) return false;
+  const rows = store.purchaseItems.filter(pi => pi.purchaseId === purchaseId && pi.isChecked && pi.purchaseMethod === 'Pasar');
+  const total = rows.reduce((sum, pi) => sum + pi.qtyPurchased * pi.actualUnitPrice, 0);
+  if (!rows.length || Math.abs(total - actualShopCost) > 0.01 || rows.some(pi => !pi.vendorId || !pi.paymentMethod)) return false;
+  const cashDue = rows.filter(pi => pi.paymentMethod !== 'Tempo').reduce((sum, pi) => sum + pi.qtyPurchased * pi.actualUnitPrice, 0);
+  const tempoDue = total - cashDue;
+  const cashPosted = store.cashTransactions.filter(tx => {
+    if (tx.type !== 'Out' || !(tx.referenceId === purchaseId || tx.referenceId?.startsWith(`${purchaseId}:report:`))) return false;
+    const sourceEntryId = tx.id.startsWith('financial:') && tx.id.endsWith(':out') ? tx.id.slice(0,-4) + ':journal' : null;
+    const candidates = store.journalEntries.filter(entry => entry.referenceType === 'Purchase' && entry.referenceId === tx.referenceId && (!sourceEntryId || entry.id === sourceEntryId));
+    if (!sourceEntryId && !tx.id.startsWith('pocket-buy-') && !tx.id.startsWith('transfer-buy-')) return false;
+    return candidates.some(entry => store.journalLines.some(line => line.journalEntryId === entry.id && line.debitAmount === tx.amount && store.coas.find(coa => coa.id === line.accountId)?.accountCode === '2-1100'));
+  }).reduce((sum, tx) => sum + tx.amount, 0);
+  const bills = store.vendorBills.filter(bill => bill.purchaseId === purchaseId && bill.status !== 'Cancelled');
+  const tempoPosted = bills.reduce((sum, bill) => sum + bill.totalAmount, 0);
+  const backedByJournal = bills.every(bill => store.journalLines.some(line => line.vendorBillId === bill.id && line.creditAmount > 0));
+  const matched = Math.abs(cashPosted - cashDue) <= 0.01 && Math.abs(tempoPosted - tempoDue) <= 0.01 && backedByJournal;
+  if (!matched) console.error('Uang muka lama belum cocok dengan transaksi sumber. Rekonsiliasi kas dan hutang per dokumen sebelum menyelesaikan berkas.');
+  return matched;
 };
 
-export const recordPaymentReceived = async (invoiceId: string, amount: number, date: string, bankAccountId: string = 'bank-1') => {
-  const store = useAppStore.getState();
-  const bankAccount = store.bankAccounts.find(b => b.id === bankAccountId);
-  const accountCode = bankAccount?.accountCode || '1-1000'; // Default if not found
-
-  const success = await createAccountingEntry(
-    `Pembayaran Invoice - Ref: ${invoiceId}`,
-    'Payment',
-    invoiceId,
-    [{ accountCode: accountCode, amount: amount }], // Debit Bank/Kas
-    [{ accountCode: '1-2000', amount: amount }], // Credit Piutang Usaha
-    date
-  );
-
-  if (success) {
-    await store.addCashTransaction({
-      id: uuidv4(),
-      date: date,
-      amount: amount,
-      type: 'In',
-      category: 'Sales',
-      description: 'Pembayaran faktur',
-      // Rujukannya disimpan di kolomnya sendiri, bukan diselipkan ke deskripsi.
-      // Selama cuma jadi teks, baris mutasi kas tidak bisa dibuka ke dokumennya dan
-      // yang mencocokkan rekening koran menatap id acak yang tidak berarti apa pun.
-      referenceType: 'Invoice',
-      referenceId: invoiceId,
-      bankAccountId: bankAccountId
-    });
-  }
-  return success;
+export type ClientReceiptInput = {
+  paymentId: string;
+  date: string;
+  bankAccountId: string;
+  amount: number;
+  allocations: Array<{ invoiceId: string; amount: number }>;
 };
+
+/** Committed server facts replace local rows; callers must not increment payments. */
+export const recordClientReceipt = async (input: ClientReceiptInput): Promise<boolean> => {
+  const stamp = useAppStore.getState()._lastLocalMutationAt;
+  try {
+    const response = await fetch('/api/accounting/client-receipts', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+    });
+    const data = await response.json();
+    if (!response.ok) return false;
+    const keys = ['invoices', 'bankAccounts', 'journalEntries', 'journalLines', 'cashTransactions'] as const;
+    if (!data.receipt || keys.some(key => !Array.isArray(data[key]) || data[key].length === 0)) return false;
+    if (useAppStore.getState()._lastLocalMutationAt !== stamp) return false;
+    useAppStore.setState(state => {
+      const updated: Record<string, unknown> = { _lastLocalMutationAt: Math.max(Date.now(), state._lastLocalMutationAt + 1) };
+      for (const key of keys) {
+        const rows = data[key] as Array<{ id: string }>;
+        const ids = new Set(rows.map(row => row.id));
+        updated[key] = [...state[key].filter(row => !ids.has(row.id)), ...rows];
+      }
+      if (Array.isArray(data.tukarFakturs)) {
+        const rows = data.tukarFakturs as Array<{id: string}>;
+        const ids = new Set(rows.map(row => row.id));
+        updated.tukarFakturs = [...state.tukarFakturs.filter(row => !ids.has(row.id)), ...rows];
+      }
+      return updated;
+    });
+    return true;
+  } catch (error) {
+    console.error('[Accounting] Client receipt failed:', error);
+    return false;
+  }
+};
+
+export const recordPaymentReceived = async (
+  invoiceId: string, amount: number, date: string, bankAccountId: string = 'bank-1', paymentId: string = uuidv4(),
+): Promise<boolean> => recordClientReceipt({
+  paymentId, date, bankAccountId, amount, allocations: [{ invoiceId, amount }],
+});
 
 export const recordShrinkage = async (
   referenceId: string, 
@@ -1633,32 +771,35 @@ export const recordInboundQC = async (
       // tersisa adalah tagihan ke vendor (barang pengganti atau uang kembali).
       // Ditaruh di 2-1100 nilainya tetap benar tapi nyangkut sebagai saldo debit di
       // akun hutang — tidak pernah kelihatan sebagai "vendor masih utang ke kita".
-      await createAccountingEntry(
+      const rejected = await createAccountingEntry(
         `QC Reject Retur Supplier - ${product.name} - Ref: ${purchaseItemId.slice(0,8)}`,
         'QC',
         purchaseItemId,
         [{ accountCode: VENDOR_RETURN_CLAIM_ACCOUNT, amount: rejectValue }],
         [{ accountCode: inventoryAccount, amount: rejectValue }]
       );
+      if (!rejected) return false;
     } else if (rejectAction === 'Disposal') {
       // Disposal: write-off by debiting Beban Kerusakan 5-2000 and crediting Persediaan
-      await createAccountingEntry(
+      const rejected = await createAccountingEntry(
         `QC Reject Disposal - ${product.name} - Ref: ${purchaseItemId.slice(0,8)}`,
         'QC',
         purchaseItemId,
         [{ accountCode: '5-2000', amount: rejectValue }],
         [{ accountCode: inventoryAccount, amount: rejectValue }]
       );
+      if (!rejected) return false;
     } else if (rejectAction === 'B2C') {
       // Move to B2C: transfer from Persediaan Utama 1-3000 to Persediaan B2C 1-3100
       if (inventoryAccount !== '1-3100') {
-        await createAccountingEntry(
+        const rejected = await createAccountingEntry(
           `QC Reject Peralihan B2C - ${product.name} - Ref: ${purchaseItemId.slice(0,8)}`,
           'QC',
           purchaseItemId,
           [{ accountCode: '1-3100', amount: rejectValue }],
           [{ accountCode: '1-3000', amount: rejectValue }]
         );
+        if (!rejected) return false;
       }
     }
   }
@@ -1671,7 +812,7 @@ export const recordInboundQC = async (
  * goods received now, paid later per vendor's agreed term. Converts the GR/IR accrual
  * (2-1100) booked by recordInboundQC into a formal vendor payable (2-1000) tracked in
  * AP Aging, instead of Finance prepaying the vendor before goods arrive. Only for
- * Vendor-delivered items — Pasar+Tempo settles separately via recordReconciliationSettlement.
+ * Vendor-delivered items. Current warehouse commands create Pasar Tempo bills per QC tranche too.
  */
 export const recordVendorBillFromInbound = async (
   purchaseItemId: string,
@@ -1685,8 +826,10 @@ export const recordVendorBillFromInbound = async (
   if (!vendor || amount <= 0) return false;
 
   const now = new Date();
-  const billId = uuidv4();
-  const billNumber = `VB-${format(now, 'yyyyMM')}-${billId.slice(0, 6).toUpperCase()}`;
+  const billId = `inbound:${purchaseItemId}:bill`;
+  const previousBill = store.vendorBills.find(b => b.id === billId);
+  if (previousBill && (previousBill.vendorId !== vendorId || previousBill.totalAmount !== amount)) return false;
+  const billNumber = previousBill?.billNumber || `VB-${format(now, 'yyyyMM')}-${purchaseItemId}`;
   const dueDate = dueDateFor(now, vendor.paymentTermDays || 14);
 
   const bill: VendorBill = {
@@ -1709,7 +852,7 @@ export const recordVendorBillFromInbound = async (
   // Tagihannya harus ada DULU: journal_lines.vendor_bill_id punya foreign key ke
   // vendor_bills, jadi memposting jurnal lebih dulu selalu ditolak database
   // ("violates foreign key constraint") dan hutang tempo tidak pernah terbentuk.
-  await store.addVendorBill(bill);
+  if (!previousBill) await store.addVendorBill(bill);
 
   const success = await createAccountingEntry(
     `Tempo QC: ${description} - Ref: ${purchaseItemId.slice(0, 8)}`,
@@ -1720,21 +863,16 @@ export const recordVendorBillFromInbound = async (
   );
   if (!success) {
     // Jurnalnya gagal — jangan tinggalkan tagihan yatim di AP Aging.
-    await store.deleteVendorBill(billId);
+    await store.deleteVendorBill(billId, { reason: 'failed-posting' });
     return false;
   }
 
   return true;
 };
 
-export const recordDepreciation = async (assetId: string, amount: number, assetName: string) => {
-  return await createAccountingEntry(
-    `Penyusutan Aset: ${assetName}`,
-    'Depreciation',
-    assetId,
-    [{ accountCode: '6-2000', amount: amount }],
-    [{ accountCode: '1-4999', amount: amount }]
-  );
+export const recordDepreciation = async (assetId: string, _amount: number, _assetName: string) => {
+  const date = financialDate().slice(0,7) + '-01';
+  return recordDepreciationCommand({eventId: `depreciation:${assetId}:${date.slice(0,7)}`, assetId, date});
 };
 
 export const generateDocumentNumber = (prefix: string) => {
@@ -1744,59 +882,12 @@ export const generateDocumentNumber = (prefix: string) => {
 };
 
 export const recordAdvanceReturn = async (
-  amount: number,
-  reporterId: string,
-  bankAccountId: string = 'bank-1', // Default to BCA
-  _proofUrl?: string
+  amount: number, reporterId: string, bankAccountId: string = 'bank-1', _proofUrl?: string, eventId: string = uuidv4(), sourceExpenseId?: string, date?: string,
 ) => {
-  void _proofUrl;
-  const store = useAppStore.getState();
-  const now = new Date().toISOString();
   const sourceWallet = getAdvanceWalletByUserId(reporterId);
-  const targetBank = store.bankAccounts.find(bank => bank.id === bankAccountId);
-
-  if (!sourceWallet || !targetBank) {
-    console.error(`Advance return failed. sourceWallet=${sourceWallet?.bankAccountId} targetBank=${bankAccountId}`);
-    return false;
-  }
-
-  // 1. Journal Entry
-  // Debit: Target Bank / wallet
-  // Credit: Reporter advance wallet
-  const success = await createAccountingEntry(
-    `Pengembalian ${sourceWallet.label} - Reporter ID: ${reporterId.slice(0,8)}`,
-    'Transfer',
-    reporterId, // Use reporter as ref
-    [{ accountCode: targetBank.accountCode || '1-1200', amount: amount }],
-    [{ accountCode: sourceWallet.accountCode, amount: amount }]
-  );
-
-  if (success) {
-    // 2. Out dari kas reporter — uang keluar dari pemegang advance
-    await store.addCashTransaction({
-      id: uuidv4(),
-      date: now,
-      amount: amount,
-      type: 'Out',
-      category: 'Pengembalian Kas',
-      description: `Setor sisa kas dari ${sourceWallet.label}`,
-      bankAccountId: sourceWallet.bankAccountId,
-      counterpartName: targetBank.name
-    });
-    // 3. In ke bank / wallet tujuan
-    await store.addCashTransaction({
-      id: uuidv4(),
-      date: now,
-      amount: amount,
-      type: 'In',
-      category: 'Pengembalian Kas',
-      description: `Setoran diterima dari ${sourceWallet.label}`,
-      bankAccountId: bankAccountId,
-      counterpartName: sourceWallet.label
-    });
-  }
-
-  return success;
+  if (!sourceWallet) return false;
+  return recordCashTransfer({eventId: `advance-return:${eventId}`, date: financialDate(date), bankAccountId: sourceWallet.bankAccountId,
+    targetBankAccountId: bankAccountId, amount, description: `Pengembalian ${sourceWallet.label}`, referenceId: eventId, sourceExpenseId});
 };
 
 export const recordStockOpnameAdjustment = async (
@@ -1838,37 +929,11 @@ export const recordStockOpnameAdjustment = async (
 
 /** Pay a contact/vendor from an approved PR with an explicit expense COA. Final. */
 export const recordPRExpensePayment = async (
-  prId: string,
-  amount: number,
-  sourceBankAccountId: string,
-  expenseAccountCode: string,
-  payeeName: string,
-  description: string,
-  date?: string
-) => {
-  const store = useAppStore.getState();
-  const bank = store.bankAccounts.find(b => b.id === sourceBankAccountId);
-  if (!bank) { console.error('[Accounting] PR expense payment: source bank not found.'); return false; }
-
-  const desc = description || `Pengeluaran ke ${payeeName} - PR ${prId.slice(0, 8)}`;
-  const success = await createAccountingEntry(
-    desc, 'Expense', prId,
-    [{ accountCode: expenseAccountCode, amount }],
-    [{ accountCode: bank.accountCode || '1-1200', amount }],
-    date
-  );
-
-  if (success && amount > 0) {
-    await store.addCashTransaction({
-      id: uuidv4(), date: date || new Date().toISOString(), amount, type: 'Out',
-      category: 'Pengeluaran / Pembayaran', description: desc,
-      bankAccountId: sourceBankAccountId, counterpartName: payeeName,
-      referenceType: 'Expense', referenceId: prId,
-    });
-  }
-  return success;
-};
-
+  prId: string, amount: number, sourceBankAccountId: string, expenseAccountCode: string,
+  payeeName: string, description: string, date?: string,
+) => postFinancialEvent({eventId: `pr-expense:${prId}`, kind: 'pr-expense', date: financialDate(date),
+  bankAccountId: sourceBankAccountId, amount, debitAccountCode: expenseAccountCode,
+  referenceId: prId, referenceType: 'Expense', description: description || `Pengeluaran ke ${payeeName}`, category: 'Pengeluaran / Pembayaran'});
 
 /**
  * Credit note: membalik sebagian pendapatan dan piutang atas invoice yang sudah

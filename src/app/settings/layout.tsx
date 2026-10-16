@@ -34,18 +34,6 @@ const SETTINGS_NAV = [
     icon: <LayoutGrid className="w-4 h-4" />
   },
   {
-    title: "Notifications",
-    description: "How you receive alerts",
-    href: "/settings/notifications",
-    icon: <Bell className="w-4 h-4" />
-  },
-  {
-    title: "Security",
-    description: "Password and access control",
-    href: "/settings/security",
-    icon: <Shield className="w-4 h-4" />
-  },
-  {
     title: "System & Maintenance",
     description: "Database and Admin Tools",
     href: "/admin/settings",
@@ -60,7 +48,7 @@ export default function SettingsLayout({ children }: SettingsLayoutProps) {
   const rolePermissions = useAppStore(state => state.rolePermissions) || {}
   const role = currentUser?.role || 'default'
   const permissions = rolePermissions[role] || []
-  const navItems = getNavItemsForUser(permissions as any)
+  const navItems = getNavItemsForUser(permissions as any, currentUser?.role)
   const isMinimized = useAppStore(state => state.isSidebarMinimized)
 
   return (
@@ -84,7 +72,7 @@ export default function SettingsLayout({ children }: SettingsLayoutProps) {
               <aside className="w-full md:w-64 shrink-0 space-y-1">
                 {SETTINGS_NAV.filter(item => {
                   if ((item as any).adminOnly) {
-                    return currentUser?.role === 'super_admin' || currentUser?.role === 'ceo'
+                    return currentUser?.role === 'super_admin'
                   }
                   return true
                 }).map((item) => {

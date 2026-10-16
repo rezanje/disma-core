@@ -7,7 +7,8 @@ import {
   Search, ScrollText, CheckCircle2, History, Archive,
   Receipt, Landmark as Bank, UserPlus, Cog, ListChecks, RefreshCw, TrendingDown, AlertTriangle, ClipboardList, MapPin, PackageCheck
 } from "lucide-react"
-import { AccessKey } from "@/types"
+import { AccessKey, Role } from "@/types"
+import { canAccessRoute } from './access-policy'
 
 export interface NavItemConfig {
   key: AccessKey;
@@ -222,6 +223,34 @@ export const APP_PAGES: NavItemConfig[] = [
   { key: 'settings_global', title: 'Setelan', href: '/settings/profile', icon: <Cog className="h-4 w-4" />, category: 'Sistem' },
 ];
 
-export const getNavItemsForUser = (permissions: AccessKey[]) => {
+const taskGroups: Partial<Record<Role, NavItemConfig[]>> = {
+  admin_po: [
+    {key:'admin_hari_ini',title:'Hari ini',href:'/admin/hari-ini',icon:<PackageCheck/>,category:'Harian'},
+    {key:'admin_sales_orders',title:'Pesanan klien',href:'/admin/sales-orders',icon:<ShoppingCart/>,category:'Harian'},
+    {key:'admin_shopping_list',title:'Kebutuhan dan kertas',href:'/admin/shopping-list',icon:<ClipboardList/>,category:'Harian',children:[{key:'admin_shopping_list',title:'Konsolidasi kebutuhan',href:'/admin/shopping-list'},{key:'admin_konsolidasi_belanja',title:'Kertas lapangan',href:'/admin/konsolidasi-belanja'}]},
+    {key:'admin_delivery_routes',title:'Barang dan pengiriman',href:'/admin/operasi',icon:<Truck/>,category:'Barang',children:[{key:'warehouse_qc',title:'Penerimaan dan QC',href:'/admin/operasi?workspace=qc'},{key:'warehouse_outbound',title:'Packing dan keluar',href:'/admin/operasi?workspace=packing'},{key:'courier_handover',title:'Serah terima',href:'/admin/operasi?workspace=handover'},{key:'admin_delivery_routes',title:'Rute dan kurir',href:'/admin/delivery-routes'},{key:'admin_dropship',title:'Kiriman vendor',href:'/admin/dropship'}]},
+    {key:'admin_clients',title:'Klien dan harga jual',href:'/admin/klien-harga',icon:<Users/>,category:'Sistem',children:[{key:'admin_clients',title:'Klien',href:'/admin/clients'},{key:'admin_price_lists',title:'Harga jual',href:'/admin/client-prices'},{key:'admin_products',title:'Katalog barang',href:'/admin/products'}]},
+  ],
+  finance: [
+    {key:'admin_hari_ini',title:'Hari ini',href:'/finance',icon:<PackageCheck/>,category:'Harian'},
+    {key:'finance_purchase_plan',title:'Rencana dan pesanan vendor',href:'/finance/rencana',icon:<ClipboardList/>,category:'Harian',children:[{key:'finance_purchase_plan',title:'Rencana belanja',href:'/finance/purchase-plan'},{key:'finance_online_purchase',title:'Pesanan vendor dan online',href:'/finance/online-purchase'},{key:'admin_vendors',title:'Vendor',href:'/admin/vendors'},{key:'admin_dropship',title:'Konfirmasi kiriman langsung vendor',href:'/admin/dropship'}]},
+    {key:'finance_salin_belanja',title:'Salin belanja dan biaya',href:'/finance/salin',icon:<ListChecks/>,category:'Harian',children:[{key:'finance_salin_belanja',title:'Kertas belanja',href:'/finance/salin-belanja'},{key:'finance_expenses',title:'Pengeluaran',href:'/finance/biaya'},{key:'finance_biaya_sourcing',title:'Biaya sourcing',href:'/sourcing/expenses'},{key:'finance_biaya_kurir',title:'Biaya kurir',href:'/courier/expenses'}]},
+    {key:'finance_cash_bank',title:'Kas bank dan dana petugas',href:'/finance/kas',icon:<Landmark/>,category:'Uang',children:[{key:'finance_cash_bank',title:'Kas dan bank',href:'/finance/cash-bank'},{key:'finance_disbursements',title:'Pindah kas dan dana',href:'/finance/disbursements'},{key:'finance_rekon',title:'Rekonsiliasi bank',href:'/finance/reconciliation'}]},
+    {key:'finance_ap_aging',title:'Utang vendor',href:'/finance/utang',icon:<ClipboardList/>,category:'Uang',children:[{key:'finance_ap_aging',title:'Tagihan dan pembayaran',href:'/finance/ap-aging'},{key:'finance_vendor_settlements',title:'Uang muka dan klaim',href:'/finance/vendor-settlements'}]},
+    {key:'finance_piutang',title:'Tagihan dan pembayaran klien',href:'/finance/tagihan',icon:<ScrollText/>,category:'Uang',children:[{key:'finance_invoices',title:'Invoice dan pembayaran',href:'/finance/piutang'},{key:'admin_tukar_faktur',title:'Tukar faktur',href:'/admin/tukar-faktur'},{key:'finance_collections',title:'Penagihan',href:'/finance/piutang?tab=penagihan'},{key:'admin_audit_pengiriman',title:'Bukti dan penerbitan invoice',href:'/admin/audit-pengiriman'}]},
+    {key:'finance_daily_close',title:'Tutup hari dan laporan',href:'/finance/penutupan',icon:<FileSpreadsheet/>,category:'Uang',children:[{key:'finance_daily_close',title:'Tutup hari',href:'/finance/daily-close'},{key:'finance_laporan',title:'Laporan keuangan',href:'/finance/laporan'},{key:'finance_approvals',title:'Pemeriksaan transaksi',href:'/finance/approvals'},{key:'finance_documents',title:'Arsip dokumen',href:'/finance/documents'}]},
+  ],
+  super_admin: [
+    {key:'admin_dashboard',title:'Kokpit dan pengecualian',href:'/admin',icon:<LayoutDashboard/>,category:'Harian',children:[{key:'admin_hari_ini',title:'Operasi hari ini',href:'/admin/hari-ini'},{key:'finance_piutang',title:'Piutang',href:'/finance/piutang'},{key:'finance_ap_aging',title:'Utang vendor',href:'/finance/ap-aging'},{key:'finance_laporan',title:'Laporan keuangan',href:'/finance/laporan'},{key:'admin_loss_analytics',title:'Barang dan selisih',href:'/admin/loss-analytics'}]},
+    {key:'admin_users',title:'Pengguna dan akses',href:'/admin/users',icon:<Users/>,category:'Sistem'},
+    {key:'admin_activity_log',title:'Koreksi dan riwayat',href:'/admin/koreksi',icon:<History/>,category:'Sistem',children:[{key:'warehouse_opname',title:'Pemeriksaan stok fisik',href:'/warehouse/opname'},{key:'finance_ledger',title:'Buku besar',href:'/finance/ledger'}]},
+    {key:'admin_settings',title:'Master dan aturan bisnis',href:'/admin/settings',icon:<Cog/>,category:'Sistem',children:[{key:'admin_products',title:'Barang',href:'/admin/products'},{key:'admin_clients',title:'Klien dan syarat',href:'/admin/clients'},{key:'admin_vendors',title:'Vendor',href:'/admin/vendors'},{key:'admin_price_lists',title:'Harga jual',href:'/admin/client-prices'},{key:'finance_cash_bank',title:'Rekening dan kas',href:'/finance/cash-bank'}]},
+    {key:'admin_maintenance',title:'Cadangan dan sistem',href:'/admin/settings/maintenance',icon:<Shield/>,category:'Sistem'},
+  ],
+};
+
+export const getNavItemsForUser = (permissions: AccessKey[], role?: Role): NavItemConfig[] => {
+  const groups = role ? taskGroups[role] : undefined;
+  if (groups) return groups.map(group=>({...group,children:group.children?.filter(child=>canAccessRoute(role,child.href))}));
   return APP_PAGES.filter(page => permissions.includes(page.access || page.key));
 };

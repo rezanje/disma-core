@@ -5,10 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ArrowUpFromLine, Package, Truck, CheckCircle2, Circle, ShieldCheck, AlertTriangle } from "lucide-react"
-import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
-import { releaseForDelivery } from "@/lib/dispatch"
 import { WorksheetPrintButton } from "@/components/worksheet-print-button"
 import { qty as qtyTeks } from "@/lib/worksheet-rows"
 
@@ -22,16 +20,8 @@ export default function OutboundPage() {
   const packingOrders = salesOrders.filter(so => so.status === 'Packing')
   const handoverOrders = salesOrders.filter(so => so.status === 'Siap Kirim')
 
-  const handleRelease = async (soId: string) => {
-    // Isinya pindah ke src/lib/dispatch.ts supaya layar harian gabungan melepas
-    // barang lewat alur yang sama, bukan salinannya.
-    await releaseForDelivery(useAppStore.getState, soId)
-    toast.success("Barang siap untuk serah terima (Handover) ke Kurir.")
-  }
-
-  const toggleItemPacked = (itemId: string, currentVal: boolean) => {
-    useAppStore.getState().updateSalesOrderItem(itemId, { isPacked: !currentVal })
-  }
+  const handleRelease = async (_soId: string) => { window.location.href='/admin/hari-ini' }
+  const toggleItemPacked = (_itemId: string, _currentVal: boolean) => { window.location.href='/admin/hari-ini' }
 
   return (
     <div className="space-y-6">
@@ -44,7 +34,7 @@ export default function OutboundPage() {
           kind="outbound"
           title="LEMBAR BARANG KELUAR"
           label="Print Lembar Keluar"
-          rows={packingOrders.flatMap(so => {
+          rows={salesOrders.filter(so=>!['Batal','Selesai'].includes(so.status)).flatMap(so => {
             const client = clients.find(c => c.id === so.clientId)
             return salesOrderItems
               .filter(i => i.salesOrderId === so.id)
@@ -56,7 +46,7 @@ export default function OutboundPage() {
                     so.poNumber,
                     client?.companyName || '—',
                     product?.name || i.productId,
-                    qtyTeks(i.qtyFinal ?? i.qty, product?.uom),
+                    qtyTeks(Math.max(0,i.qty-(i.qtyDelivered||0)), product?.uom),
                   ],
                 }
               })
@@ -152,12 +142,12 @@ export default function OutboundPage() {
                              )
                           })}
                        </ul>
-                      <Button 
+                      <Button
                          onClick={() => handleRelease(so.id)}
                          className="w-full bg-blue-600 hover:bg-blue-700 h-12 font-bold rounded-2xl shadow-sm"
-                         disabled={items.some(i => !i.isPacked)}
+
                       >
-                         Siap Serah Terima <ArrowUpFromLine className="w-4 h-4 ml-2" />
+                         Salin packing & barang keluar <ArrowUpFromLine className="w-4 h-4 ml-2" />
                       </Button>
                    </CardContent>
                  </Card>

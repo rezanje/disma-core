@@ -5,18 +5,18 @@ const BELUM = { id: 'a', totalAmount: 1_000_000, amountPaid: 0, status: 'Unpaid'
 const SEBAGIAN = { id: 'b', totalAmount: 1_000_000, amountPaid: 400_000, status: 'Partial' };
 const LUNAS = { id: 'c', totalAmount: 1_000_000, amountPaid: 1_000_000, status: 'Paid' };
 
-// --- batas koreksi = sisa tagihan, bukan nilai invoice ---
+// Corrections cover remaining invoice value; paid portion becomes refund liability.
 assert.equal(creditLimit(BELUM), 1_000_000);
-assert.equal(creditLimit(SEBAGIAN), 600_000);
-assert.equal(creditLimit(LUNAS), 0);
-assert.equal(creditLimit({ id: 'd', totalAmount: 100, amountPaid: 500 }), 0, 'lebih bayar tidak jadi batas negatif');
+assert.equal(creditLimit(SEBAGIAN), 1_000_000);
+assert.equal(creditLimit(LUNAS), 1_000_000);
+assert.equal(creditLimit({ id: 'd', totalAmount: 100, amountPaid: 500 }), 100, 'refund liability does not erase remaining creditable value');
 
 // --- penolakan ---
 assert.match(validateCreditNote(null, 1000, 'salah harga') as string, /tidak ditemukan/i);
 assert.match(validateCreditNote(BELUM, 0, 'salah harga') as string, /lebih dari nol/i);
 assert.match(validateCreditNote(BELUM, -5000, 'salah harga') as string, /lebih dari nol/i);
-assert.match(validateCreditNote(LUNAS, 1000, 'salah harga') as string, /sudah lunas/i);
-assert.match(validateCreditNote(SEBAGIAN, 700_000, 'salah harga') as string, /melebihi sisa tagihan/i);
+assert.equal(validateCreditNote(LUNAS, 1000, 'salah harga'), null);
+assert.match(validateCreditNote(SEBAGIAN, 1_000_001, 'salah harga') as string, /melebihi nilai invoice/i);
 assert.match(validateCreditNote(BELUM, 1000, '') as string, /alasan/i);
 assert.match(validateCreditNote(BELUM, 1000, '  -  ') as string, /alasan/i, 'tanda hubung bukan alasan');
 assert.equal(validateCreditNote(BELUM, 1000, 'salah harga'), null);

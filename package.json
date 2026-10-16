@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "test": "node test/run-checks.cjs",
+    "test:database": "python test/run-database-checks.py",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

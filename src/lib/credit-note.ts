@@ -19,9 +19,9 @@ export type CreditableInvoice = {
   status?: string | null;
 };
 
-/** Sisa tagihan yang masih bisa dikoreksi. Yang sudah dibayar tidak bisa dihapus begitu saja. */
+/** Remaining invoice value; paid corrections create a separate customer refund liability. */
 export function creditLimit(inv: CreditableInvoice): number {
-  return Math.max(0, Number(inv.totalAmount || 0) - Number(inv.amountPaid || 0));
+  return Number.isFinite(inv.totalAmount) && !['Cancelled','Draft'].includes(inv.status || '') ? Math.max(0, inv.totalAmount) : 0;
 }
 
 /**
@@ -36,10 +36,10 @@ export function validateCreditNote(
   reason: string,
 ): string | null {
   if (!inv) return 'Invoice tidak ditemukan.';
-  if (!(amount > 0)) return 'Nilai koreksi harus lebih dari nol.';
+  if (!Number.isFinite(amount) || !(amount > 0)) return 'Nilai koreksi harus lebih dari nol.';
   const limit = creditLimit(inv);
-  if (limit <= 0) return 'Invoice ini sudah lunas — tidak ada sisa tagihan yang bisa dikoreksi.';
-  if (amount > limit) return `Nilai koreksi melebihi sisa tagihan (${limit}).`;
+  if (limit <= 0) return 'Invoice ini tidak memiliki nilai yang masih bisa dikoreksi.';
+  if (amount > limit) return `Nilai koreksi melebihi nilai invoice (${limit}).`;
   if ((reason || '').trim().length < 5) return 'Tulis alasan koreksinya (minimal 5 huruf).';
   return null;
 }

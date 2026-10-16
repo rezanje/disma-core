@@ -4,6 +4,7 @@ import { use, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useAppStore } from "@/lib/store"
+import { tukarFakturAmounts } from "@/lib/billing-document"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -46,71 +47,10 @@ export default function TukarFakturDetailPage({ params }: { params: Promise<{ id
   }
 
   const client = clients.find(c => c.id === tf.clientId)
+  const amounts = tukarFakturAmounts(tf.totalAmount, linkedInvoices)
   const isLocked = tf.status === "Received" || tf.status === "Paid"
   const isDraftish = tf.status === "Draft" || tf.status === "Issued"
 
-  async function handleIssue() {
-    setBusy(true)
-    try {
-      const today = new Date().toISOString().slice(0, 10)
-      await issueTukarFaktur(id, linkedInvoices.map(i => i.id), today, currentUser?.id || "system")
-      toast.success("TF berhasil di-Issue. Jatuh tempo invoice ter-update.")
-    } catch (e) {
-      toast.error(`Issue gagal: ${e instanceof Error ? e.message : String(e)}`)
-    } finally { setBusy(false) }
-  }
-
-  async function handleMarkReceived() {
-    if (!receivedBy.trim()) { toast.error("Isi nama PIC penerima."); return }
-    setBusy(true)
-    try {
-      await updateTukarFaktur(id, {
-        status: "Received",
-        receivedAt: new Date().toISOString(),
-        receivedBy: receivedBy.trim(),
-      })
-      toast.success("Ditandai diterima klien.")
-      setReceivedBy("")
-    } catch (e) {
-      toast.error(`Update gagal: ${e instanceof Error ? e.message : String(e)}`)
-    } finally { setBusy(false) }
-  }
-
-  async function handleDelete() {
-    if (!confirm(`Hapus TF ${tf?.tfNumber}? Invoice akan di-unlink & jatuh tempo direvert.`)) return
-    setBusy(true)
-    try {
-      await deleteTukarFaktur(id)
-      toast.success("TF dihapus.")
-      router.push("/finance/tukar-faktur")
-    } catch (e) {
-      toast.error(`Delete gagal: ${e instanceof Error ? e.message : String(e)}`)
-    } finally { setBusy(false) }
-  }
-
-  async function handleEditDueDate(invoiceId: string, newDate: string) {
-    try {
-      await updateInvoice(invoiceId, { dueDate: newDate })
-    } catch (e) {
-      toast.error(`Update dueDate gagal: ${e instanceof Error ? e.message : String(e)}`)
-    }
-  }
-
-  async function handleBulkOverride() {
-    if (bulkDays === 0) { toast.error("Isi jumlah hari (boleh negatif)."); return }
-    setBusy(true)
-    try {
-      for (const inv of linkedInvoices) {
-        const newDate = new Date(inv.dueDate)
-        newDate.setDate(newDate.getDate() + bulkDays)
-        await updateInvoice(inv.id, { dueDate: newDate.toISOString().slice(0, 10) })
-      }
-      toast.success(`${linkedInvoices.length} dueDate digeser ${bulkDays} hari.`)
-      setBulkDays(0)
-    } catch (e) {
-      toast.error(`Bulk override gagal: ${e instanceof Error ? e.message : String(e)}`)
-    } finally { setBusy(false) }
-  }
 
   return (
     <div className="p-6 md:p-10 space-y-6">
@@ -159,17 +99,21 @@ export default function TukarFakturDetailPage({ params }: { params: Promise<{ id
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-slate-200">
-              <td className="py-3 font-bold">Total</td>
-              <td className="py-3 text-right font-bold">{formatRupiah(tf.totalAmount)}</td>
+              <td className="py-3 font-bold">Nilai terbit</td>
+              <td className="py-3 text-right font-bold">{formatRupiah(amounts.issued)}</td>
               <td colSpan={2} />
             </tr>
+            <tr><td className="py-2">Koreksi (credit note)</td><td className="py-2 text-right">{formatRupiah(-amounts.correction)}</td><td colSpan={2} /></tr>
+            <tr className="font-bold"><td className="py-2">Nilai bersih saat ini</td><td className="py-2 text-right">{formatRupiah(amounts.net)}</td><td colSpan={2} /></tr>
+            <tr><td className="py-2">Pembayaran diterima</td><td className="py-2 text-right">{formatRupiah(amounts.paid)}</td><td colSpan={2} /></tr>
+            <tr className="font-bold"><td className="py-3">Sisa piutang</td><td className="py-3 text-right">{formatRupiah(amounts.outstanding)}</td><td colSpan={2} /></tr>
           </tfoot>
         </table>
       </Card>
 
       {(tf.status === "Received" || tf.status === "Paid") && (
         <Card className="p-6 rounded-2xl border-slate-100 bg-blue-50">
-          <p className="text-sm">Diterima oleh <span className="font-bold">{tf.receivedBy}</span> pada {formatDate(tf.receivedAt)}.</p>
+          <p className="text-sm">Diterima oleh <span className="font-bold">{tf.receivedBy}</span> pada {formatDate(tf.receivedAt)}. {tf.receivedProofUrl ? <a className="underline" href={tf.receivedProofUrl} target="_blank" rel="noopener noreferrer">Lihat bukti</a> : "Bukti historis belum terunggah."}</p>
         </Card>
       )}
     </div>

@@ -1,9 +1,11 @@
+import { requireApiUser, apiAuthResponse } from '@/lib/api-auth';
 import { NextRequest, NextResponse } from "next/server"
 import { supabaseAdmin as supabase, UPLOAD_BUCKET } from "@/lib/supabase"
 import { v4 as uuidv4 } from "uuid"
 
 export async function POST(request: NextRequest) {
   try {
+    await requireApiUser(request);
     const data = await request.formData()
     const file: File | null = data.get("file") as unknown as File
 
@@ -45,6 +47,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, url: urlData.publicUrl })
 
   } catch (error: any) {
+    const authError = apiAuthResponse(error);
+    if (authError) return authError;
     console.error("Upload error:", error)
     return NextResponse.json({ success: false, message: error.message }, { status: 500 })
   }

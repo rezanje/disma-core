@@ -5,12 +5,13 @@
 type ItemFulfillment = {
   qty: number;              // ordered
   qtyFinal?: number | null; // current round's QC-committed qty (reset to null after each round's BAST)
+  qtyCancelled?: number;
   qtyDelivered?: number;    // cumulative accepted across rounds
 };
 
 /** Qty the client is still owed = ordered minus cumulative accepted. */
 export function qtyOwed(item: ItemFulfillment): number {
-  return Math.max(0, item.qty - (item.qtyDelivered ?? 0));
+  return Math.max(0, item.qty - (item.qtyDelivered ?? 0) - (item.qtyCancelled ?? 0));
 }
 
 /**

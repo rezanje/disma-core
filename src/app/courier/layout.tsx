@@ -13,7 +13,7 @@ export default function CourierLayout({ children }: { children: React.ReactNode 
   const permissions = useAppStore(state => state.rolePermissions) || {}
   
   const userKeys = permissions[currentUser?.role || ''] || [];
-  const navItems = getNavItemsForUser(userKeys as any);
+  const navItems = getNavItemsForUser(userKeys as any, currentUser?.role);
   const isMinimized = useAppStore(state => state.isSidebarMinimized)
 
   return (

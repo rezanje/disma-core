@@ -10,10 +10,11 @@ import { CalendarDays, Lock, CheckCircle2, Settings2 } from "lucide-react"
 import { toast } from "sonner"
 import { cn, formatRupiah, formatRupiahShort } from "@/lib/utils"
 import {
-  grossProfit, netProfit, variances, canClose,
+  grossProfit, netProfit, variances, canClose, postedDay, postedLedger,
   INVENTORY, ACCRUAL,
   type LedgerLine, type DayExpense, type PocketClose,
 } from "@/lib/daily-close"
+import { operatingInvoices, invoiceSkuFacts } from "@/lib/po-reconciliation"
 import { overdueIssues } from "@/lib/delivery-issue"
 import { ceilingByLine, isOverCeiling, overByPct } from "@/lib/price-ceiling"
 
@@ -43,6 +44,7 @@ export default function DailyClosePage() {
   const coas = useAppStore(s => s.coas)
   const expenses = useAppStore(s => s.expenses)
   const invoices = useAppStore(s => s.invoices)
+  const creditNotes = useAppStore(s=>s.creditNotes)
   const deliveries = useAppStore(s => s.deliveries)
   const tutupHariKantong = useAppStore(s => s.tutupHariKantong)
   const clients = useAppStore(s => s.clients)
@@ -59,7 +61,7 @@ export default function DailyClosePage() {
   const addDailyClose = useAppStore(s => s.addDailyClose)
   const saveDailyCostConfig = useAppStore(s => s.saveDailyCostConfig)
 
-  const [day, setDay] = useState(localDay(new Date()))
+  const [day, setDay] = useState(postedDay(new Date()))
   const [reasons, setReasons] = useState<Record<string, string>>({})
   const [showCostSetup, setShowCostSetup] = useState(false)
   const [monthlyTotal, setMonthlyTotal] = useState(dailyCostConfig?.monthlyTotal ?? 0)
@@ -71,31 +73,18 @@ export default function DailyClosePage() {
     return (id: string) => m.get(id) || ''
   }, [coas])
 
-  // Hari sebuah transaksi = TANGGAL KIRIM PO yang dilayaninya, bukan tanggal
-  // kalender saat jurnalnya dibuat.
-  //
-  // Sourcing belanja 23:00-09:00 dan admin baru mengetiknya siang hari, jadi tanggal
-  // kalender selalu memisahkan belanja dari kiriman yang dibelanjakannya — dan hari yang
-  // ditutup tidak pernah memuat biayanya sendiri. Aturannya di hari-operasi.ts.
   const petaKirim = useMemo(
-    () => petaHariKirim({ salesOrders, purchaseItems, deliveries, invoices }),
-    [salesOrders, purchaseItems, deliveries, invoices],
+    () => petaHariKirim({salesOrders,purchaseItems,deliveries,invoices}),
+    [salesOrders,purchaseItems,deliveries,invoices],
   )
-
-  const dayOfEntry = useMemo(() => {
-    const m = new Map(journalEntries.map(e => [e.id, hariOperasi(e, petaKirim)]))
-    return (entryId: string) => m.get(entryId) || ''
-  }, [journalEntries, petaKirim])
-
-  const ledger: LedgerLine[] = useMemo(() => journalLines.map(l => ({
-    day: dayOfEntry(l.journalEntryId),
-    accountCode: codeOf(l.accountId),
-    debit: Number(l.debitAmount || 0),
-    credit: Number(l.creditAmount || 0),
-  })), [journalLines, dayOfEntry, codeOf])
+  const ledger = useMemo(()=>postedLedger(journalEntries,journalLines,coas),[journalEntries,journalLines,coas])
+  const operationalLedger:LedgerLine[] = useMemo(()=>{
+    const entryDays=new Map(journalEntries.map(entry=>[entry.id,hariOperasi(entry,petaKirim)]))
+    return journalLines.map(line=>({day:entryDays.get(line.journalEntryId) || '',accountCode:codeOf(line.accountId),debit:Number(line.debitAmount || 0),credit:Number(line.creditAmount || 0)}))
+  },[journalEntries,journalLines,petaKirim,codeOf])
 
   const dayExpenses: DayExpense[] = useMemo(() => expenses.map(e => ({
-    day: localDay(e.date),
+    day: postedDay(e.date),
     amount: Number(e.amount || 0),
     // Hanya biaya yang sudah diaudit Finance yang mengurangi laba — yang masih
     // menunggu audit belum tentu diakui.
@@ -103,16 +92,18 @@ export default function DailyClosePage() {
   })), [expenses])
 
   const pockets: PocketClose[] = useMemo(() => tutupHariKantong.map(t => ({
-    day: localDay(t.date),
+    day: postedDay(t.date),
     ditarik: Number(t.ditarik || 0),
     belanja: Number(t.belanja || 0),
     disetor: Number(t.disetor || 0),
   })), [tutupHariKantong])
 
-  const auditedToday = deliveries.filter(d => d.status === 'Terkirim' && d.deliveryDate && localDay(d.deliveryDate) === day).length
-  const invoicesToday = invoices.filter(i => localDay(i.issueDate) === day).length
+  const sourceInvoices=operatingInvoices(invoices)
+  const auditedToday = deliveries.filter(d => d.status === 'Terkirim' && postedDay(d.occurredAt || d.deliveryDate || '') === day).length
+  const invoicesToday = sourceInvoices.filter(i => postedDay(i.issueDate) === day).length
 
   const angka = netProfit(ledger, day, dayExpenses, dailyCostConfig)
+  const operationalEstimate=netProfit(operationalLedger,day,[],dailyCostConfig)
   const kotor = grossProfit(ledger, day)
   const vs = variances(ledger, day, pockets, auditedToday, invoicesToday)
   const sudahDitutup = dailyCloses.find(d => d.day === day)
@@ -216,7 +207,7 @@ export default function DailyClosePage() {
   const alasanKurang = vs.filter(v => (reasons[v.key] || '').trim().length < 3).length
 
   // --- Bedah per klien dan per SKU ---
-  const invToday = invoices.filter(i => localDay(i.issueDate) === day)
+  const invToday = sourceInvoices.filter(i => postedDay(i.issueDate) === day)
   const perKlien = useMemo(() => {
     const m = new Map<string, { omzet: number; nama: string }>()
     invToday.forEach(i => {
@@ -228,21 +219,8 @@ export default function DailyClosePage() {
     return [...m.values()].sort((a, b) => b.omzet - a.omzet)
   }, [invToday, clients])
 
-  const perSku = useMemo(() => {
-    const soIds = new Set(invToday.map(i => i.salesOrderId).filter(Boolean))
-    const m = new Map<string, { nama: string; qty: number; omzet: number; hpp: number }>()
-    salesOrderItems.filter(i => soIds.has(i.salesOrderId)).forEach(item => {
-      const qty = item.qtyFinal ?? item.qty
-      const p = products.find(x => x.id === item.productId)
-      const beli = purchaseItems.find(pi => pi.salesOrderId === item.salesOrderId && pi.productId === item.productId && pi.actualUnitPrice > 0)
-      const cur = m.get(item.productId) || { nama: p?.name || item.productId, qty: 0, omzet: 0, hpp: 0 }
-      cur.qty += qty
-      cur.omzet += qty * Number(item.unitPrice || 0)
-      cur.hpp += qty * Number(beli?.actualUnitPrice || p?.basePrice || 0)
-      m.set(item.productId, cur)
-    })
-    return [...m.values()].sort((a, b) => (b.omzet - b.hpp) - (a.omzet - a.hpp))
-  }, [invToday, salesOrderItems, products, purchaseItems])
+  const snapshotFacts=invoiceSkuFacts(invToday,{creditNotes,pendingReturns})
+  const perSku=snapshotFacts.rows.map(row=>({nama:row.name,qty:row.qty,omzet:row.revenue,hpp:row.cost}))
 
   const marginKotor = angka.revenue > 0 ? (kotor.gross / angka.revenue) * 100 : 0
 
@@ -276,15 +254,15 @@ export default function DailyClosePage() {
     <div className="-m-4 md:-m-6 lg:-m-8">
       <PageHeader
         title="Tutup hari"
-        context="Satu hari kirim: belanja malamnya, QC subuhnya, kiriman siangnya — dihitung jadi satu."
+        context="Laba resmi mengikuti jurnal pada tanggal kejadian yang dibukukan dalam WIB. Estimasi operasional ditampilkan terpisah."
         actions={
           <>
             <label
               className="flex h-[34px] items-center gap-1.5 rounded-md border border-input px-3 text-[12.5px] font-medium text-slate-700"
-              title="Tanggal KIRIM, bukan tanggal kalender jurnalnya. Belanja malam sebelumnya ikut masuk ke sini."
+              title="Tanggal transaksi jurnal dalam WIB."
             >
               <CalendarDays className="h-3.5 w-3.5 text-slate-400" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Hari kirim</span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tanggal buku</span>
               <input
                 type="date"
                 value={day}
@@ -292,7 +270,7 @@ export default function DailyClosePage() {
                 className="bg-transparent text-[12.5px] font-medium outline-none"
               />
             </label>
-            <Button variant="outline" size="sm" onClick={() => setShowCostSetup(v => !v)}>
+            <Button variant="outline" size="sm" disabled={currentUser?.role!=='super_admin'} onClick={() => setShowCostSetup(v => !v)}>
               <Settings2 className="h-3.5 w-3.5" /> Biaya tetap
             </Button>
           </>
@@ -311,25 +289,29 @@ export default function DailyClosePage() {
 
         <StatBand
           leader={{
-            label: 'Laba bersih hari kirim ini',
-            value: angka.net === null ? 'Belum bisa dihitung' : formatRupiahShort(angka.net),
-            tone: angka.net === null ? 'warning' : angka.net >= 0 ? 'ink' : 'risk',
-            note: angka.net === null
-              ? 'Isi dulu biaya tetap bulanan lewat tombol "Biaya tetap" di atas.'
-              : `sudah termasuk jatah biaya tetap harian ${formatRupiahShort(angka.fixedDaily || 0)}`,
+            label: 'Laba bersih dibukukan',
+            value: formatRupiahShort(angka.net),
+            tone: angka.net >= 0 ? 'ink' : 'risk',
+            note: 'Pendapatan dikurangi seluruh beban di buku besar; estimasi biaya tetap terpisah.',
           }}
           items={[
             { label: 'Omzet', value: formatRupiahShort(angka.revenue), note: `${invoicesToday} tagihan terbit` },
-            { label: 'HPP', value: formatRupiahShort(angka.cogs), note: 'belanja untuk kiriman ini' },
+            { label: 'HPP', value: formatRupiahShort(angka.cogs), note: 'HPP yang dibukukan' },
             {
               label: 'Laba kotor',
               value: formatRupiahShort(kotor.gross),
               tone: kotor.gross >= 0 ? 'ok' : 'risk',
               note: angka.revenue > 0 ? `margin ${marginKotor.toFixed(1)}%` : 'belum ada omzet',
             },
-            { label: 'Biaya jalan', value: formatRupiahShort(angka.ops), note: 'bensin, parkir, kuli' },
+            { label: 'Beban lainnya', value: formatRupiahShort(angka.ops), note: 'Seluruh beban GL selain HPP' },
           ]}
         />
+
+        <div className="rounded-lg border border-border bg-card p-4 text-sm text-slate-600">
+          Estimasi operasional hari kirim: {formatRupiah(operationalEstimate.estimatedNetAfterFixed ?? operationalEstimate.net)}.
+          {angka.fixedDaily===null ? ' Alokasi biaya tetap belum dikonfigurasi.' : ` Termasuk estimasi biaya tetap ${formatRupiah(angka.fixedDaily)} per hari kerja; belum merupakan tambahan beban GL.`}
+          <p className="mt-1 text-xs">Laba per SKU di bawah menggunakan rincian invoice beku. {snapshotFacts.missingSnapshotCount} invoice belum memiliki rincian beku; {snapshotFacts.snapshotMismatchCount} nilai rincian berbeda dari header; {snapshotFacts.missingCostCount} rincian belum memiliki biaya beku. Koreksi tanpa tautan retur dibagi proporsional ke SKU ({snapshotFacts.estimatedCreditAllocationCount} invoice); ini estimasi rincian dokumen. Lengkapi bukti untuk alokasi tepat.</p>
+        </div>
 
         {showCostSetup && (
           <div className="flex flex-wrap items-end gap-4 rounded-lg border border-border bg-card p-5">
@@ -406,7 +388,7 @@ export default function DailyClosePage() {
 
           <div className="flex flex-wrap items-center justify-between gap-3 bg-row-head px-6 py-4">
             <p className="max-w-[52ch] text-[12.5px] leading-relaxed text-slate-500">
-              Setelah ditutup, angka hari kirim ini terkunci. Kalau ada koreksi, catat sebagai jurnal susulan.
+              Penutupan menyimpan rekap pada saat ini. Jurnal susulan dapat mengubah saldo; simpan koreksi melalui transaksi sumber.
             </p>
             <div className="flex items-center gap-2.5">
               {/* Tombol mati harus menyebutkan sebabnya — bukan cuma diredupkan. */}
@@ -421,7 +403,7 @@ export default function DailyClosePage() {
                 className="h-[42px] px-[22px] text-[13.5px]"
               >
                 <Lock className="h-4 w-4" />
-                {sudahDitutup ? "Sudah ditutup" : "Tutup hari kirim ini"}
+                {sudahDitutup ? "Sudah ditutup" : "Simpan penutupan tanggal ini"}
               </Button>
             </div>
           </div>
@@ -434,7 +416,7 @@ export default function DailyClosePage() {
               Omzet per klien
             </div>
             {perKlien.length === 0 ? (
-              <p className="px-5 py-4 text-[13px] text-slate-400">Belum ada tagihan untuk hari kirim ini.</p>
+              <p className="px-5 py-4 text-[13px] text-slate-400">Belum ada invoice sumber pada tanggal ini.</p>
             ) : perKlien.map(k => (
               <div key={k.nama} className="flex justify-between gap-4 border-b border-hairline-row px-5 py-2.5 text-[12.5px] leading-snug text-slate-900 last:border-b-0">
                 <span className="min-w-0 truncate">{k.nama}</span>
@@ -445,8 +427,8 @@ export default function DailyClosePage() {
 
           <div className="rounded-lg border border-border bg-card">
             <div className="flex items-baseline justify-between border-b border-hairline px-5 py-4">
-              <span className="text-[13.5px] font-semibold text-slate-900">Laba per barang</span>
-              <span className="text-[11.5px] text-slate-400">urut dari penyumbang terbesar</span>
+              <span className="text-[13.5px] font-semibold text-slate-900">Margin bersih rincian invoice</span>
+              <span className="text-[11.5px] text-slate-400">snapshot beku + koreksi nilai; belum laba bersih GL per SKU</span>
             </div>
             <div className="grid grid-cols-[1.6fr_.5fr_.9fr] border-b border-hairline bg-row-head px-5 py-2 text-[11.5px] font-medium text-slate-500">
               <span>Barang</span>
@@ -454,15 +436,15 @@ export default function DailyClosePage() {
               <span className="text-right">Laba</span>
             </div>
             {perSku.length === 0 ? (
-              <p className="px-5 py-4 text-[13px] text-slate-400">Belum ada barang terkirim untuk hari kirim ini.</p>
+              <p className="px-5 py-4 text-[13px] text-slate-400">Belum ada rincian invoice beku pada tanggal ini.</p>
             ) : perSku.map(s => {
-              const laba = s.omzet - s.hpp
+              const laba = s.hpp===null ? null : s.omzet - s.hpp
               return (
                 <div key={s.nama} className="grid grid-cols-[1.6fr_.5fr_.9fr] border-b border-hairline-row px-5 py-2.5 text-[12.5px] leading-snug text-slate-900 last:border-b-0">
                   <span className="min-w-0 truncate">{s.nama}</span>
                   <span className="tabular text-right">{s.qty}</span>
-                  <span className={cn("tabular text-right font-medium", laba >= 0 ? "text-emerald-600" : "text-rose-500")}>
-                    {formatRupiah(laba)}
+                  <span className={cn("tabular text-right font-medium", laba!==null && laba >= 0 ? "text-emerald-600" : "text-rose-500")}>
+                    {laba===null ? "Perlu biaya beku" : formatRupiah(laba)}
                   </span>
                 </div>
               )

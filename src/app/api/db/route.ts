@@ -1,7 +1,8 @@
+import { validateProtectedWrite, PROTECTED_COLUMNS } from '@/lib/db-write-policy';
+import { assertTableWrite, publicUser } from '@/lib/server-session';
+import { requireApiUser, apiAuthResponse } from '@/lib/api-auth';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as supabase } from '@/lib/supabase';
-import { MOCK_USERS } from '@/lib/constants';
-import { findActiveUserByPin } from '@/lib/auth-pin';
 import { canManageClientDeletion, describeBlockers, type DeletionBlocker } from '@/lib/client-delete';
 
 export const dynamic = 'force-dynamic';
@@ -57,6 +58,7 @@ const toCamel = (obj: any): any => {
 // Groups: 1=core, 2=orders, 3=finance, 4=warehouse, 5=misc
 export async function GET(request: Request) {
   try {
+    await requireApiUser(request);
     if (!supabase) return NextResponse.json({ error: 'Supabase not initialized' }, { status: 500 });
 
     const { searchParams } = new URL(request.url);
@@ -75,7 +77,7 @@ export async function GET(request: Request) {
             );
 
             if (error) {
-              if (isMissingTableError(error)) return [];
+              if (isMissingTableError(error)) throw new Error(`Tabel ${table} belum tersedia`);
               throw new Error(`Error fetching ${table}: ${error.message}`);
             }
             
@@ -136,7 +138,7 @@ export async function GET(request: Request) {
       ]);
       const globalSettings = appSettings.find((s: any) => s.id === 'global-settings') || appSettings[0];
       return NextResponse.json({
-        users: toCamel(users),
+        users: users.map(user => publicUser(toCamel(user))),
         clients: toCamel(clients),
         products: toCamel(products),
         navConfigs: globalSettings?.nav_configs || {},
@@ -240,6 +242,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Use ?group=1 through ?group=6' }, { status: 400 });
 
   } catch (error) {
+    const authError = apiAuthResponse(error);
+    if (authError) return authError;
     console.error('API GET Error:', error);
     return NextResponse.json({ error: 'Failed to aggregate data' }, { status: 500 });
   }
@@ -248,7 +252,9 @@ export async function GET(request: Request) {
 // POST: Intelligent Sync (Updates only what is provided)
 export async function POST(request: Request) {
   try {
+    const user = await requireApiUser(request);
     const { table, data } = await request.json();
+    assertTableWrite(user.role, table, 'POST');
 
     if (!supabase) return NextResponse.json({ error: 'Supabase not initialized' }, { status: 500 });
     if (!table) return NextResponse.json({ error: 'Table name required' }, { status: 400 });
@@ -287,17 +293,82 @@ export async function POST(request: Request) {
 
 
 
-    if (table === 'stock_movements') {
-       const sanitize = (item: Record<string, unknown>) => {
-          const { created_by_user_id, ...rest } = item;
-          return rest;
-       };
-       snakeData = Array.isArray(snakeData) ? snakeData.map(sanitize) : sanitize(snakeData);
-    }
-
     // Handle single item or array upsert
     const items = Array.isArray(snakeData) ? snakeData : [snakeData];
     
+    // Never grant raw generic writes to posted financial state or credentials.
+    let protectedExisting: any[] = [];
+    if(PROTECTED_COLUMNS[table] || ['users','record_history','pending_returns','rejected_items','vendor_returns'].includes(table)) {
+      const ids=items.map((row:any)=>row?.id).filter((id:unknown)=>typeof id==='string');
+      const {data:existingRows,error:readError}=await supabase.from(table).select('*').in('id',ids);
+      if(readError) throw readError;
+      protectedExisting=existingRows || [];
+      for(const row of items) {
+        const existing=(existingRows || []).find((existing:any)=>existing.id===row?.id) || null;
+        const context:any={};
+        if(table==='sales_order_items') {
+          const {data:parent,error}=await supabase.from('sales_orders').select('*').eq('id',existing?.sales_order_id || row.sales_order_id).maybeSingle();
+          if(error) throw error; context.salesOrder=parent;
+        }
+        if(table==='purchase_items') {
+          const {data:parent,error}=await supabase.from('purchases').select('*').eq('id',existing?.purchase_id || row.purchase_id).maybeSingle();
+          if(error) throw error; context.purchase=parent;
+        }
+        if(table==='bank_accounts' && existing && row.account_code!==undefined && row.account_code!==existing.account_code) {
+          const {count:cashCount,error:cashError}=await supabase.from('cash_transactions').select('id',{head:true,count:'exact'}).eq('bank_account_id',row.id);
+          if(cashError) throw cashError;
+          const {data:accounts,error:accountError}=await supabase.from('coas').select('id').eq('account_code',existing.account_code);
+          if(accountError) throw accountError;
+          const {count:journalCount,error:journalError}=await supabase.from('journal_lines').select('id',{head:true,count:'exact'}).in('account_id',(accounts || []).map((account:any)=>account.id));
+          if(journalError) throw journalError;
+          context.bankHasActivity=!!cashCount || !!journalCount;
+        }
+        if(table==='purchase_requests' && user.role==='super_admin') {
+          if(row.status==='Approved' && existing?.status!=='Approved') row.approved_by_cfo=user.id;
+          if(row.approved_by_cfo && row.approved_by_cfo!==existing?.approved_by_cfo) {
+            row.approved_by_cfo=user.id;
+            if(existing?.approved_by_cfo) {
+              const {data:approver,error}=await supabase.from('users').select('id,role,is_active').eq('id',existing.approved_by_cfo).maybeSingle();
+              if(error) throw error;
+              context.cfoApprovalVerified=!!approver && approver.role==='super_admin' && approver.is_active!==false;
+            }
+          }
+        }
+        validateProtectedWrite(table,row,existing,user.role,context);
+      }
+    }
+    if(table==='record_history') {
+      for(const row of items) { row.user_id=user.id; row.user_name=user.name; row.user_role=user.role; row.created_at=new Date().toISOString(); }
+      const {error:historyError}=await supabase.from(table).insert(items);
+      if(historyError) return NextResponse.json({error:historyError.message},{status:409});
+      return NextResponse.json({success:true,count:items.length});
+    }
+
+    if(PROTECTED_COLUMNS[table] || ['pending_returns','rejected_items','vendor_returns'].includes(table)) {
+      // Insert and update separately: raw upsert can overwrite a concurrent receipt
+      // between validation and persistence, even when its original snapshot was valid.
+      for(const row of items) {
+        const existing=protectedExisting.find(existing=>existing.id===row.id);
+        let result;
+        if(!existing) result=await supabase.from(table).insert(row);
+        else {
+          const patch={...row}; delete patch.id;
+          for(const key of PROTECTED_COLUMNS[table] || []) {
+            if(table==='bank_accounts' && user.role==='super_admin' && ['cfo_approval_required','owner_user_id','purpose'].includes(key)) continue;
+            delete patch[key];
+          }
+          if(['pending_returns','rejected_items','vendor_returns'].includes(table)) for(const key of Object.keys(patch)) if(key!=='notes') delete patch[key];
+          if(table==='purchase_requests') {
+            if(user.role!=='super_admin' || !patch.approved_by_cfo) { delete patch.approved_by_cfo; delete patch.cfo_note; }
+          }
+          if(table==='tukar_faktur' && !(existing.status==='Issued' && patch.status==='Received')) delete patch.status;
+          result=Object.keys(patch).length ? await supabase.from(table).update(patch).eq('id',row.id) : {error:null};
+        }
+        if(result.error) return NextResponse.json({error:result.error.message},{status:409});
+      }
+      return NextResponse.json({success:true,count:items.length});
+    }
+
     // Chunk items to avoid Supabase/Postgrest limits (max ~1000 parameters/payload size)
     const CHUNK_SIZE = 500;
     for (let i = 0; i < items.length; i += CHUNK_SIZE) {
@@ -309,7 +380,7 @@ export async function POST(request: Request) {
 
       if (error) {
         if (isMissingTableError(error)) {
-          return NextResponse.json({ success: true, count: 0, skipped: true, missingTable: true });
+          return NextResponse.json({ error: `Tabel ${table} belum tersedia` }, { status: 503 });
         }
         console.error(`Supabase POST Error (${table} chunk ${i}):`, error);
         return NextResponse.json({ error: error.message }, { status: 500 });
@@ -319,6 +390,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, count: items.length });
 
   } catch (error) {
+    const authError = apiAuthResponse(error);
+    if (authError) return authError;
     console.error('API POST Error:', error);
     return NextResponse.json({ error: 'Failed to sync data' }, { status: 500 });
   }
@@ -327,16 +400,16 @@ export async function POST(request: Request) {
 // DELETE: Remove record(s) from a table
 export async function DELETE(request: Request) {
   try {
-    const { table, id, actor } = await request.json();
+    const user = await requireApiUser(request);
+    const { table, id } = await request.json();
+    assertTableWrite(user.role, table, 'DELETE');
 
     if (!supabase) return NextResponse.json({ error: 'Supabase not initialized' }, { status: 500 });
     if (!table || !id) return NextResponse.json({ error: 'Table and ID required' }, { status: 400 });
 
     const ids = Array.isArray(id) ? id : [id];
     if (table === 'clients') {
-      // Match the same PIN authority as login; never trust a role sent by the browser.
-      const user = typeof actor?.pin === 'string' ? findActiveUserByPin(MOCK_USERS, actor.pin) : null;
-      if (!user || user.id !== actor?.id || !canManageClientDeletion(user.role)) {
+      if (!canManageClientDeletion(user.role)) {
         return NextResponse.json({ error: 'Hanya Super Admin atau Owner yang boleh menghapus klien.' }, { status: 403 });
       }
       if (typeof id !== 'string' || !id.trim()) {
@@ -396,7 +469,7 @@ export async function DELETE(request: Request) {
 
     if (error) {
       if (isMissingTableError(error)) {
-        return NextResponse.json({ success: true, count: 0 });
+        return NextResponse.json({ error: `Tabel ${table} belum tersedia` }, { status: 503 });
       }
       console.error(`Supabase DELETE Error (${table}):`, error);
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -405,6 +478,8 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ success: true, count: ids.length });
 
   } catch (error) {
+    const authError = apiAuthResponse(error);
+    if (authError) return authError;
     console.error('API DELETE Error:', error);
     return NextResponse.json({ error: 'Failed to delete data' }, { status: 500 });
   }

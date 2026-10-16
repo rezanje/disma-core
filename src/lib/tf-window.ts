@@ -1,15 +1,8 @@
-// The Tukar Faktur eligibility window. Pure — no store/React imports — so it
-// stays trivially testable (tf-window.check.ts).
-//
-// GenerateTfModal only offers invoices issued within this many days. Anything
-// older drops out of the picker with no message: the goods shipped, the invoice
-// exists, and there is no way to bill it from that screen. These helpers are
-// shared with the picker so the warning panel and the picker cannot disagree
-// about which invoices are still reachable.
+// Administrative follow-up target only. Invoice age never blocks a receipt or TF.
 
 export const TF_WINDOW_DAYS = 14;
 
-/** Days before this invoice falls out of the picker. Negative = already out. */
+/** Days before the administrative target. Negative = overdue follow-up. */
 export function daysLeftInTfWindow(issueDate: string, today: Date): number {
   const issued = new Date(issueDate);
   if (Number.isNaN(issued.getTime())) return -Infinity;
@@ -21,9 +14,8 @@ export function daysLeftInTfWindow(issueDate: string, today: Date): number {
 export type TfWindowBucket = 'ok' | 'urgent' | 'expired';
 
 /**
- * 'urgent' starts four days out — a week's worth of deliveries can be lost in
- * that gap, so it needs to be visible before the last day rather than on it.
- * An undateable invoice counts as 'expired': we cannot promise it is billable.
+ * 'urgent' starts four days before the target. 'expired' denotes overdue follow-up,
+ * never a restriction on billing or receiving payment.
  */
 export function tfWindowBucket(issueDate: string, today: Date): TfWindowBucket {
   const left = daysLeftInTfWindow(issueDate, today);
@@ -55,4 +47,17 @@ function startOfDay(d: Date): Date {
   const c = new Date(d);
   c.setHours(0, 0, 0, 0);
   return c;
+}
+
+/** Age is a follow-up warning only. A TF groups real outstanding invoices. */
+export function isInvoiceEligibleForTf(
+  inv: { salesOrderId?: string; salesOrderIds?: string[]; status?: string; totalAmount: number; amountPaid?: number; isConsolidated?: boolean; supersededByInvoiceId?: string; tukarFakturId?: string },
+  salesOrders: { id: string; status: string }[],
+  invoices: { isConsolidated?: boolean; salesOrderIds?: string[] }[] = [],
+): boolean {
+  const legacySummary = !!inv.salesOrderId && invoices.some(parent => parent.isConsolidated && parent.salesOrderIds?.includes(inv.salesOrderId!))
+  return !legacySummary && !inv.tukarFakturId && !inv.isConsolidated && !inv.supersededByInvoiceId &&
+    (inv.status === 'Unpaid' || inv.status === 'Partial') &&
+    Number.isFinite(inv.totalAmount) && inv.totalAmount > (inv.amountPaid || 0) &&
+    isInvoiceIssued(inv, salesOrders);
 }

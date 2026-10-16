@@ -10,6 +10,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { PaperEvidenceFields } from "@/components/paper-evidence-fields"
+import type { PaperEvidence } from "@/lib/goods-command"
 import ReceiptUpload from "@/components/ui/receipt-upload"
 import { cn, formatRupiah } from "@/lib/utils"
 import { isDropship, groupDropship } from "@/lib/dropship"
@@ -30,9 +32,12 @@ export default function DropshipPage() {
   const deliveries = useAppStore(state => state.deliveries) || []
   const currentUser = useAppStore(state => state.currentUser)
 
+  const canConfirm=['finance','super_admin'].includes(currentUser?.role||'')
+
   const [activeKey, setActiveKey] = useState<string | null>(null)
   const [received, setReceived] = useState<Record<string, number>>({})
   const [confirmNote, setConfirmNote] = useState("")
+  const [paperEvidence,setPaperEvidence] = useState<PaperEvidence>({})
   const [proofUrl, setProofUrl] = useState("")
   const [transferBankId, setTransferBankId] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -71,6 +76,7 @@ export default function DropshipPage() {
     if (!group) return
     setActiveKey(key)
     setReceived(Object.fromEntries(group.items.map(pi => [pi.id, pi.qtyTarget])))
+    setPaperEvidence({})
     setConfirmNote("")
     setProofUrl("")
     setTransferBankId(bankAccounts.find(b => b.accountCode === '1-1200')?.id || "")
@@ -103,6 +109,7 @@ export default function DropshipPage() {
   }
 
   const handleConfirm = async () => {
+    if(!canConfirm){toast.error('Finalisasi dan pembayaran dropship dilakukan Finance.');return}
     const group = activeGroup
     if (!group || !group.salesOrderId || !group.vendorId) return
 
@@ -139,6 +146,7 @@ export default function DropshipPage() {
         transferBankId || undefined,
         confirmNote || undefined,
         proofUrl,
+        paperEvidence,
       )
       if (ok) {
         toast.success("Kiriman dikonfirmasi. Tagihan klien terbit dan kewajiban vendor tercatat.")
@@ -329,6 +337,7 @@ export default function DropshipPage() {
       </Dialog>
 
       {/* Confirm dialog */}
+      {!canConfirm&&<p className="text-sm text-amber-700">Admin PO dapat memeriksa antrean dan berkas. Finalisasi tagihan serta pembayaran dropship dilakukan Finance.</p>}
       <Dialog open={!!activeGroup} onOpenChange={(open) => { if (!open) setActiveKey(null) }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
@@ -374,6 +383,7 @@ export default function DropshipPage() {
                 )}
               </div>
 
+              <PaperEvidenceFields value={paperEvidence} onChange={setPaperEvidence}/>
               <ReceiptUpload
                 label="Foto / tanda terima dari klien"
                 currentFile={proofUrl}
@@ -412,7 +422,7 @@ export default function DropshipPage() {
 
               <Button
                 onClick={handleConfirm}
-                disabled={isSubmitting}
+                disabled={isSubmitting || !canConfirm}
                 className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[11px]  h-12 rounded-xl"
               >
                 {isSubmitting ? 'Memproses...' : 'Konfirmasi & Terbitkan Tagihan'}

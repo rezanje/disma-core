@@ -11,6 +11,8 @@ export type QueueItem = {
   inboundStatus?: 'pra_inbound' | 'verified' | 'rejected' | 'partial';
   purchaseMethod?: string | null;
   isOnlineOrdered?: boolean;
+  qtyPurchased?: number;
+  reportEventIds?: string[];
 };
 
 export type QueueParent = { id: string; status: string };
@@ -20,7 +22,7 @@ export function awaitingArrival<T extends QueueItem>(items: T[], purchases: Queu
   return items.filter(item =>
     (item.purchaseMethod === 'Vendor' || item.purchaseMethod === 'Online') &&
     item.isOnlineOrdered && !item.isQCed && !item.inboundStatus &&
-    purchases.some(p => p.id === item.purchaseId && p.status !== 'Batal'),
+    purchases.some(p => p.id === item.purchaseId && ['Pending','Belanja','Selesai'].includes(p.status)),
   );
 }
 
@@ -29,14 +31,16 @@ export function awaitingQc<T extends QueueItem>(items: T[], purchases: QueuePare
   return (items || []).filter(pi => {
     if (pi.isQCed) return false;
     if (pi.inboundStatus === 'verified' || pi.inboundStatus === 'rejected') return false;
-    // Barang kiriman vendor sudah diketuk "sudah datang" di Inbound.
-    if (pi.inboundStatus === 'pra_inbound') return true;
-
     const parent = (purchases || []).find(p => p.id === pi.purchaseId);
-    if (!parent) return false;
-    // Belanja pasar baru boleh diperiksa setelah laporan belanjanya masuk.
-    if ((pi.purchaseMethod === 'Pasar' || !pi.purchaseMethod) && parent.status === 'Selesai') return true;
-    if (pi.purchaseMethod === 'Online' && pi.isOnlineOrdered) return true;
+    if (!parent || !['Pending','Belanja','Selesai'].includes(parent.status)) return false;
+    if (pi.purchaseMethod === 'Vendor' || pi.purchaseMethod === 'Online') {
+      return !!pi.isOnlineOrdered && (pi.inboundStatus === 'pra_inbound' || pi.inboundStatus === 'partial');
+    }
+    if (pi.inboundStatus === 'partial' || pi.inboundStatus === 'pra_inbound') return true;
+    // A measured partial market report is enough; other lines may still be bought.
+    if (pi.purchaseMethod === 'Pasar' || !pi.purchaseMethod) {
+      return parent.status === 'Selesai' || ((pi.qtyPurchased || 0) > 0 && !!pi.reportEventIds?.length);
+    }
     return false;
   });
 }
@@ -50,11 +54,12 @@ export type OrderLine = {
   qty: number;
   qtyFinal?: number | null;
   qtyDelivered?: number;
+  qtyCancelled?: number;
 };
 
 /** Sisa yang masih dijanjikan ke klien untuk satu baris pesanan. */
 export function stillOwed(line: OrderLine): number {
-  return Math.max(0, line.qty - (line.qtyDelivered ?? 0) - (line.qtyFinal ?? 0));
+  return Math.max(0, line.qty - (line.qtyDelivered ?? 0) - (line.qtyCancelled ?? 0) - (line.qtyFinal ?? 0));
 }
 
 const CLOSED_STATUSES = ['Batal', 'Selesai', 'Terkirim', 'Packing', 'Siap Kirim', 'Dikirim', 'Awaiting Audit'];

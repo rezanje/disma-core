@@ -4,7 +4,7 @@ import { format } from "date-fns"
 import { useAppStore } from "./store"
 import { formatRupiah, formatRupiahValue, getEffectiveBasePrice } from "./utils"
 import { DISMA_LOGO_BASE64 } from "./logo"
-import { printedQty } from "./delivery-qty"
+import { invoiceDocumentLines, paymentStateLabel } from "./billing-document"
 import { clientUnitPrice } from "./client-price"
 import { Product } from "@/types"
 
@@ -152,6 +152,7 @@ function drawSuratJalanOnDoc(
   onlyProductIds?: string[],
   subtitle?: string,
   adjustments?: Record<string, number>,
+  deliveryId?: string,
 ) {
   const store = useAppStore.getState()
   const so = store.salesOrders.find(s => s.poNumber === poNumber)
@@ -159,15 +160,12 @@ function drawSuratJalanOnDoc(
 
   if (!isFirstPage) doc.addPage()
 
-  const client = store.clients.find(c => c.id === so.clientId)
-  const allItems = store.salesOrderItems.filter(i => i.salesOrderId === so.id)
-  // Kiriman vendor cuma membawa sebagian isi PO; sisanya dikirim terpisah dari
-  // gudang, jadi mencetak seluruh PO akan menjanjikan barang yang tidak ikut.
-  const items = onlyProductIds
-    ? allItems.filter(i => onlyProductIds.includes(i.productId))
-    : allItems
+  const rounds = store.deliveries.filter(d => d.salesOrderId === so.id)
+  const delivery = deliveryId ? rounds.find(d => d.id === deliveryId) : rounds.length === 1 ? rounds[0] : undefined
+  const client = delivery?.clientSnapshot || store.clients.find(c => c.id === so.clientId)
+  const items = (delivery?.lineSnapshots || []).filter(line => !onlyProductIds || onlyProductIds.includes(line.productId))
 
-  drawHeader(doc, "SURAT JALAN (DELIVERY NOTE)", `SJ-${poNumber}`, new Date(so.orderDate))
+  drawHeader(doc, "SURAT JALAN (DELIVERY NOTE)", delivery?.paperNumber || `SJ-${poNumber}${delivery ? `-${delivery.id.slice(0, 8)}` : ""}`, new Date(delivery?.deliveryDate || delivery?.occurredAt || so.orderDate))
 
   // Client Info
   doc.setFontSize(11)
@@ -201,16 +199,16 @@ function drawSuratJalanOnDoc(
 
   doc.setFont("helvetica", "normal")
   y += 18
+  if (!items.length) { doc.text("Rincian historis belum terverifikasi. Cocokkan surat jalan asli / pilih ronde pengiriman.", 14, y, { maxWidth: 180 }); y += 15 }
   items.forEach((item, index) => {
-    const product = store.products.find(p => p.id === item.productId)
-    const finalQty = printedQty(item, adjustments)
     doc.text(`${index + 1}`, 16, y)
-    doc.text(product?.skuCode || '-', 30, y)
-    doc.text(product?.name || '-', 70, y)
-    doc.text(`${finalQty} ${product?.uom}`, 170, y)
+    doc.text(item.productId.slice(0, 10), 30, y)
+    doc.text(item.productName, 70, y)
+    doc.text(`${item.qty} ${item.uom}`, 170, y)
     y += 10
   })
 
+  if(!delivery?.clientSnapshot) {doc.setFontSize(8);doc.text("Identitas klien historis belum terverifikasi; cocokkan dokumen asli.",14,y);y+=10}
   y += 20
   doc.setFontSize(9)
   doc.text("Catatan: Harap periksa kembali barang yang diterima. Barang yang sudah dibeli tidak dapat diretur.", 14, y)
@@ -239,9 +237,10 @@ export function generateSuratJalan(
   signatures?: { courier?: string, client?: string },
   outputType: 'save' | 'dataurl' = 'save',
   adjustments?: Record<string, number>,
+  deliveryId?: string,
 ) {
   const doc = new jsPDF({ compress: true })
-  drawSuratJalanOnDoc(doc, poNumber, true, signatures, undefined, undefined, adjustments)
+  drawSuratJalanOnDoc(doc, poNumber, true, signatures, undefined, undefined, adjustments, deliveryId)
 
   if (outputType === 'dataurl') {
     return doc.output('datauristring')
@@ -270,17 +269,19 @@ export function generateDropshipSuratJalan(
   doc.save(`Surat_Jalan_${so.poNumber}_${vendorName.replace(/\s+/g, '_')}.pdf`)
 }
 
-function drawBAOnDoc(doc: jsPDF, poNumber: string, signatures?: { courier?: string, client?: string }, adjustments?: Record<string, number>) {
+function drawBAOnDoc(doc: jsPDF, poNumber: string, signatures?: { courier?: string, client?: string }, adjustments?: Record<string, number>, deliveryId?: string) {
   const store = useAppStore.getState()
   const so = store.salesOrders.find(s => s.poNumber === poNumber)
   if (!so) return
 
   doc.addPage()
   
-  const client = store.clients.find(c => c.id === so.clientId)
-  const items = store.salesOrderItems.filter(i => i.salesOrderId === so.id)
-  
-  drawHeader(doc, "BERITA ACARA SERAH TERIMA", `BA-${poNumber}`, new Date())
+  const rounds = store.deliveries.filter(d => d.salesOrderId === so.id)
+  const delivery = deliveryId ? rounds.find(d => d.id === deliveryId) : rounds.length === 1 ? rounds[0] : undefined
+  const client = delivery?.clientSnapshot || store.clients.find(c => c.id === so.clientId)
+  const items = delivery?.acceptedLineSnapshots || []
+
+  drawHeader(doc, "BERITA ACARA SERAH TERIMA", `BA-${poNumber}${delivery ? `-${delivery.id.slice(0, 8)}` : ""}`, new Date(delivery?.occurredAt || delivery?.deliveryDate || so.orderDate))
 
   // Client Info
   doc.setFontSize(11)
@@ -291,7 +292,7 @@ function drawBAOnDoc(doc: jsPDF, poNumber: string, signatures?: { courier?: stri
   doc.text(client?.address || '', 130, 59, { maxWidth: 60 })
 
   doc.setFontSize(10)
-  doc.text("Dengan ini menyatakan bahwa barang-barang berikut telah diterima dalam kondisi baik dan lengkap sesuai pesanan.", 14, 72, { maxWidth: 180 })
+  doc.text("Catatan penerimaan ronde pengiriman berikut. Cocokkan dengan berita acara asli untuk bukti tanda tangan.", 14, 72, { maxWidth: 180 })
 
   let y = 85
   doc.setFillColor(240, 240, 240)
@@ -304,16 +305,16 @@ function drawBAOnDoc(doc: jsPDF, poNumber: string, signatures?: { courier?: stri
 
   doc.setFont("helvetica", "normal")
   y += 18
+  if (!items.length) { doc.text("Rincian historis belum terverifikasi. Cocokkan berita acara asli / pilih ronde pengiriman.", 14, y, { maxWidth: 180 }); y += 15 }
   items.forEach((item, index) => {
-    const product = store.products.find(p => p.id === item.productId)
-    const finalQty = printedQty(item, adjustments)
     doc.text(`${index + 1}`, 16, y)
-    doc.text(product?.skuCode || '-', 30, y)
-    doc.text(product?.name || '-', 70, y)
-    doc.text(`${finalQty} ${product?.uom}`, 170, y)
+    doc.text(item.productId.slice(0, 10), 30, y)
+    doc.text(item.productName, 70, y)
+    doc.text(`${item.qty} ${item.uom}`, 170, y)
     y += 10
   })
 
+  if(!delivery?.clientSnapshot) {doc.setFontSize(8);doc.text("Identitas klien historis belum terverifikasi; cocokkan dokumen asli.",14,y);y+=10}
   y += 20
   doc.setFontSize(9)
   doc.text("Demikian berita acara ini dibuat untuk dapat dipergunakan sebagaimana mestinya.", 14, y)
@@ -321,7 +322,7 @@ function drawBAOnDoc(doc: jsPDF, poNumber: string, signatures?: { courier?: stri
   drawSignatures(doc, "Kurir Pengirim", "Penerima (Klien)", y + 20, signatures?.courier, signatures?.client)
 }
 
-export function generateBA(poNumber: string, signatures?: { courier?: string, client?: string }, outputType: 'save' | 'dataurl' | 'blob' = 'save', adjustments?: Record<string, number>) {
+export function generateBA(poNumber: string, signatures?: { courier?: string, client?: string }, outputType: 'save' | 'dataurl' | 'blob' = 'save', adjustments?: Record<string, number>, deliveryId?: string) {
   try {
     const doc = new jsPDF({ compress: true })
     
@@ -336,8 +337,8 @@ export function generateBA(poNumber: string, signatures?: { courier?: string, cl
     // DRAW BA Directly on current page
     // We'll modify drawBAOnDoc slightly to avoid double addPage if needed
     // But for now, let's just draw manually here or fix drawBAOnDoc
-    drawSuratJalanOnDoc(doc, poNumber, true, signatures) // Page 1: SJ
-    drawBAOnDoc(doc, poNumber, signatures, adjustments) // Page 2: BA
+    drawSuratJalanOnDoc(doc, poNumber, true, signatures, undefined, undefined, undefined, deliveryId) // Page 1: SJ
+    drawBAOnDoc(doc, poNumber, signatures, adjustments, deliveryId) // Page 2: BA
 
     if (outputType === 'dataurl') {
       return doc.output('datauristring')
@@ -359,12 +360,11 @@ function drawInvoiceOnDoc(doc: jsPDF, invoiceId: string) {
   if (!inv) return
 
   doc.addPage()
-  const client = store.clients.find(c => c.id === inv.clientId)
-  const targetSoIds = inv.isConsolidated ? (inv.salesOrderIds || []) : (inv.salesOrderId ? [inv.salesOrderId] : [])
-  const items = store.salesOrderItems.filter(i => targetSoIds.includes(i.salesOrderId))
+  const client = inv.clientSnapshot || store.clients.find(c => c.id === inv.clientId)
+  const items = invoiceDocumentLines(inv)
 
   const isManualInvoice = !inv.isConsolidated && !inv.salesOrderId && !(inv.salesOrderIds?.length)
-  drawHeader(doc, inv.isConsolidated ? "CONSOLIDATED INVOICE (TUKAR FAKTUR)" : isManualInvoice ? "INVOICE (PIUTANG MANUAL)" : "INVOICE (FAKTUR PENJUALAN)", `INV-${inv.id.substring(0,8)}`, new Date(inv.issueDate))
+  drawHeader(doc, inv.status === 'Draft' ? "DRAFT INVOICE (MENUNGGU AUDIT)" : inv.isConsolidated ? "CONSOLIDATED INVOICE (TUKAR FAKTUR)" : isManualInvoice ? "INVOICE (PIUTANG MANUAL)" : "INVOICE (FAKTUR PENJUALAN)", `INV-${inv.id.substring(0,8)}`, new Date(inv.issueDate))
 
   doc.setFontSize(10)
   if (inv.isConsolidated) {
@@ -391,32 +391,38 @@ function drawInvoiceOnDoc(doc: jsPDF, invoiceId: string) {
   doc.setFont("helvetica", "normal")
   y += 18
   if (items.length === 0) {
-    doc.text("Piutang manual", 16, y)
-    doc.text("1", 100, y)
-    doc.text(formatRupiah(inv.totalAmount), 130, y)
+    doc.text(isManualInvoice ? "Piutang manual (nilai tersimpan)" : "Rincian historis belum terverifikasi; lihat dokumen asli.", 16, y, { maxWidth: 80 })
+    doc.text("-", 100, y)
+    doc.text("-", 130, y)
     doc.text(formatRupiah(inv.totalAmount), 170, y)
     y += 10
   } else {
     items.forEach(item => {
-      const product = store.products.find(p => p.id === item.productId)
-      const finalQty = item.qtyFinal ?? item.qty
-      const finalSubtotal = item.subtotalFinal ?? item.subtotal
-      doc.text(product?.name || '-', 16, y)
-      doc.text(`${finalQty} ${product?.uom}`, 100, y)
+      doc.text(item.productName, 16, y)
+      doc.text(`${item.qty} ${item.uom}`, 100, y)
       doc.text(formatRupiah(item.unitPrice), 130, y)
-      doc.text(formatRupiah(finalSubtotal), 170, y)
+      doc.text(formatRupiah(item.subtotal), 170, y)
       y += 10
     })
   }
 
+  if(!inv.clientSnapshot) {doc.setFontSize(8);doc.text("Identitas klien historis belum terverifikasi; cocokkan dokumen asli.",14,y);y+=10;doc.setFontSize(10)}
+  const snapshotTotal = items.reduce((sum, item) => sum + item.subtotal, 0)
+  if (items.length && Math.abs(snapshotTotal - inv.totalAmount) > 0.01) {
+    doc.text("Koreksi nilai (lihat credit note):", 100, y + 4)
+    doc.text(formatRupiah(inv.totalAmount - snapshotTotal), 170, y + 4)
+    y += 12
+  }
   doc.setDrawColor(200, 200, 200); doc.line(130, y + 5, 196, y + 5)
   y += 15
   doc.setFont("helvetica", "bold")
-  doc.text("Total Tagihan:", 130, y)
+  doc.text(inv.status === 'Draft' ? "Nilai Draft:" : "Total Tagihan:", 130, y)
   doc.text(formatRupiah(inv.totalAmount), 170, y)
+  y += 8
+  doc.text(`Diterima: ${formatRupiah(inv.amountPaid || 0)}; Sisa: ${formatRupiah(Math.max(0,inv.totalAmount-(inv.amountPaid || 0)))}`, 100, y, {maxWidth:95})
 
   y += 30; doc.setFontSize(10); doc.text("Instruksi Pembayaran:", 14, y)
-  doc.setFont("helvetica", "normal"); doc.text(`Bank BCA: 1234567890 a/n ${BRANDING.companyName}`, 14, y + 6)
+  doc.setFont("helvetica", "normal"); doc.text(inv.status === 'Draft' ? "Draft belum menjadi piutang. Tunggu audit dan penerbitan Finance sebelum pembayaran." : "Gunakan rekening resmi yang dikonfirmasi Finance pada dokumen penagihan.", 14, y + 6, {maxWidth:180})
   
   // Finance signature with a simulated stamp
   y += 30
@@ -427,7 +433,7 @@ function drawInvoiceOnDoc(doc: jsPDF, invoiceId: string) {
   doc.setDrawColor(50, 50, 200)
   doc.rect(145, y + 2, 35, 12)
   doc.text(BRANDING.companyName, 148, y + 7)
-  doc.text("PAID & VERIFIED", 152, y + 12)
+  doc.text(paymentStateLabel(inv), 146, y + 12)
   doc.setTextColor(0, 0, 0)
   doc.setFontSize(10)
   doc.text("( Finance Manager )", 140, y + 25)
@@ -481,37 +487,20 @@ export function generateTukarFakturBundle(invoiceId: string, outputType: 'save' 
   if (!inv) return
 
   const doc = new jsPDF({ compress: true })
-  const soIds = inv.salesOrderIds || []
-  
-  soIds.forEach((soId, index) => {
-    const so = store.salesOrders.find(s => s.id === soId)
-    if (so) {
-      // Pass stored signatures if they exist
-      const signatures = {
-        courier: so.courierSignature,
-        client: so.clientSignature
-      }
-      
-      // Order: 1. PO Ref -> 2. Surat Jalan -> 3. Berita Acara
-      drawSalesOrderOnDoc(doc, so.poNumber)
-
-      // Kertas bertanda tangan menang atas lembar cetakan sistem. Kurir kita tidak
-      // memakai aplikasi, jadi tanda tangan aslinya ada di foto yang diunggah Admin PO —
-      // dan itulah yang dipegang klien kalau tagihannya dipertanyakan.
-      if (so.archivedSuratJalanUrl) {
-        drawScannedPage(doc, so.archivedSuratJalanUrl, `SURAT JALAN (SCAN) — ${so.poNumber}`)
-      } else {
-        drawSuratJalanOnDoc(doc, so.poNumber, false, signatures)
-      }
-
-      if (so.archivedBaUrl) {
-        drawScannedPage(doc, so.archivedBaUrl, `BERITA ACARA (SCAN) — ${so.poNumber}`)
-      } else {
-        drawBAOnDoc(doc, so.poNumber, signatures)
-      }
+  const sourceInvoices = inv.isConsolidated
+    ? store.invoices.filter(child => child.supersededByInvoiceId === inv.id)
+    : [inv]
+  for (const child of sourceInvoices) {
+    const delivery = store.deliveries.find(d => d.id === child.deliveryId)
+    const so = store.salesOrders.find(s => s.id === child.salesOrderId)
+    if (delivery?.paperProof) drawScannedPage(doc, delivery.paperProof, `BUKTI PENGIRIMAN — ${delivery.id}`)
+    if (delivery?.baUrl) drawScannedPage(doc, delivery.baUrl, `BERITA ACARA — ${delivery.id}`)
+    if (so && delivery) {
+      drawSuratJalanOnDoc(doc, so.poNumber, false, undefined, undefined, undefined, undefined, delivery.id)
+      drawBAOnDoc(doc, so.poNumber, undefined, undefined, delivery.id)
     }
-  })
-  
+    if (child.id !== inv.id) drawInvoiceOnDoc(doc, child.id)
+  }
   drawInvoiceOnDoc(doc, invoiceId)
   
   // Delete the very first blank page if we started with addPage inside

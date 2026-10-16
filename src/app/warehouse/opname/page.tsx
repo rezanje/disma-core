@@ -10,7 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { formatRupiah, formatNumber, parseNumber } from "@/lib/utils"
-import { recordStockMovement, recordStockOpnameAdjustment } from "@/lib/accounting"
+import { executeGoodsCommand, type PaperEvidence } from "@/lib/goods-command"
+import { PaperEvidenceFields } from "@/components/paper-evidence-fields"
+import AuthGuard from "@/components/auth/auth-guard"
 import { RefreshCw, Package, ArrowRight, ShieldAlert, CheckCircle2, TrendingUp, TrendingDown, ClipboardList } from "lucide-react"
 import { toast } from "sonner"
 
@@ -23,6 +25,8 @@ export default function StockOpnamePage() {
   const [warehouseId, setWarehouseId] = useState<string>("main")
   const [physicalCountRaw, setPhysicalCountRaw] = useState<string>("")
   const [unitCostRaw, setUnitCostRaw] = useState<string>("")
+  const [paperEvidence,setPaperEvidence]=useState<PaperEvidence>({})
+  const [posting,setPosting]=useState(false)
   const [reason, setReason] = useState<string>("")
 
   // Search filter for products
@@ -33,7 +37,7 @@ export default function StockOpnamePage() {
     ? (warehouseId === 'b2c' ? (activeProduct.b2cStock || 0) : activeProduct.currentStock)
     : 0
 
-  const physicalCount = physicalCountRaw !== "" ? parseFloat(physicalCountRaw) || 0 : 0
+  const physicalCount = physicalCountRaw !== "" ? Number(physicalCountRaw) : 0
   const delta = physicalCount - systemStock
   const unitCost = unitCostRaw !== "" ? parseNumber(unitCostRaw) : (activeProduct?.basePrice || 0)
   const valuationDelta = Math.abs(delta) * unitCost
@@ -76,50 +80,17 @@ export default function StockOpnamePage() {
 
     toast.loading("Memproses posting stock opname...", { id: "post-opname" })
 
-    // 1. Posting Accounting Entry
-    const accountingSuccess = await recordStockOpnameAdjustment(
-      activeProduct.id,
-      delta,
-      unitCost,
-      warehouseId,
-      `Stock Opname: ${reason}`
-    )
-
-    if (!accountingSuccess) {
-      toast.error("Gagal mencatat jurnal akuntansi penyesuaian.", { id: "post-opname" })
-      return
-    }
-
-    // 2. Posting Stock Movement
-    const movementSuccess = await recordStockMovement({
-      productId: activeProduct.id,
-      quantity: Math.abs(delta),
-      stockDelta: delta,
-      direction: delta > 0 ? 'In' : 'Out',
-      kind: 'ADJUSTMENT',
-      source: 'Stock Opname',
-      destination: warehouseId === 'b2c' ? 'B2C Warehouse' : 'Inventory',
-      note: `Stock Opname: ${reason} (Fisik: ${physicalCount}, Sistem: ${systemStock})`,
-      createdByUserId: currentUser?.id || 'system',
-      warehouseId: warehouseId,
-      unitCost: unitCost
-    })
-
-    if (movementSuccess) {
-      toast.success("Stock Opname berhasil diposting dan jurnal akuntansi telah dicatat!", { id: "post-opname" })
-      
-      // Reset Form
-      setSelectedProductId("")
-      setPhysicalCountRaw("")
-      setUnitCostRaw("")
-      setReason("")
-    } else {
-      toast.error("Gagal mencatat pergerakan stok fisik.", { id: "post-opname" })
-    }
+    if(posting)return
+    setPosting(true)
+    try {
+      await executeGoodsCommand(useAppStore.getState,{eventId:`opname:${activeProduct.id}:${warehouseId}:${paperEvidence.paperNumber||'initial'}`,stage:'opname',sourceId:activeProduct.id,payload:{physicalQty:Number(physicalCountRaw),expectedStock:systemStock,unitCost,warehouseId,reason,...paperEvidence}})
+      toast.success('Opname dan jurnal tersimpan.',{id:'post-opname'})
+      setSelectedProductId('');setPhysicalCountRaw('');setUnitCostRaw('');setReason('');setPaperEvidence({})
+    } catch(error) {toast.error(error instanceof Error?error.message:'Opname gagal.',{id:'post-opname'})} finally {setPosting(false)}
   }
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto pb-20">
+    <AuthGuard allowedRoles={['super_admin']}><div className="space-y-6 max-w-6xl mx-auto pb-20">
       
       <div className="rounded-lg border border-border bg-card px-6 py-4">
         <h2 className="text-[19px] leading-tight font-semibold text-slate-900">Opname stok</h2>
@@ -309,8 +280,9 @@ export default function StockOpnamePage() {
                     />
                   </div>
 
+                  <PaperEvidenceFields value={paperEvidence} onChange={setPaperEvidence}/>
                   <Button 
-                    onClick={handlePostOpname}
+                    disabled={posting} onClick={handlePostOpname}
                     className="w-full h-16 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold  text-sm shadow-sm transition-all active:scale-95"
                   >
                     Posting Stock Opname
@@ -328,6 +300,6 @@ export default function StockOpnamePage() {
         </div>
 
       </div>
-    </div>
+    </div></AuthGuard>
   )
 }

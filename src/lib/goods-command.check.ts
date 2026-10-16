@@ -1,0 +1,32 @@
+import assert from 'node:assert/strict';
+import {executeGoodsCommand} from './goods-command';
+import {useAppStore} from './store';
+async function main(){
+ const keys=['stockMovements','products','salesOrders','salesOrderItems','purchaseItems','deliveries','invoices','pendingReturns','vendorReturns','rejectedItems','vendorBills','bankAccounts','cashTransactions','journalEntries','journalLines'];
+ const updates=()=>Object.fromEntries(keys.map(k=>[k,[]]));
+ const good=()=>({ok:true,eventId:'paper1',updates:{...updates(),products:[{id:'gp',currentStock:6}],purchaseItems:[{id:'pi',qcProcessedQty:6}],stockMovements:[{id:'paper1:in',productId:'gp',quantity:6,stockDelta:6}]}});
+ const command={eventId:'paper1',stage:'arrival' as const,sourceId:'pi',payload:{}};
+ let reloads=0;const state={init:async()=>{reloads++}};
+ useAppStore.setState({products:[],purchaseItems:[],stockMovements:[],_lastLocalMutationAt:0});
+ globalThis.fetch=async()=>Response.json(good());
+ await executeGoodsCommand(()=>state,command);
+ assert.equal(useAppStore.getState().products.find(p=>p.id==='gp')?.currentStock,6);
+ assert.equal(useAppStore.getState().stockMovements.filter(m=>m.id==='paper1:in').length,1);
+ await executeGoodsCommand(()=>state,command);
+ assert.equal(useAppStore.getState().stockMovements.filter(m=>m.id==='paper1:in').length,1,'replay merges rather than duplicates');
+ assert.equal(reloads,0,'do not rely on a swallowed init error');
+ globalThis.fetch=async()=>Response.json({ok:true,eventId:'paper1'});
+ await assert.rejects(()=>executeGoodsCommand(()=>state,command),/rincian server/);
+ globalThis.fetch=async()=>Response.json({...good(),updates:updates()});
+ await assert.rejects(()=>executeGoodsCommand(()=>state,command),/baris sumber/);
+ globalThis.fetch=async()=>{useAppStore.setState(s=>({_lastLocalMutationAt:s._lastLocalMutationAt+1}));return Response.json(good());};
+ await assert.rejects(()=>executeGoodsCommand(()=>state,command),/ada perubahan lain/);
+ let transmittedId='';
+ globalThis.fetch=async(_url,init)=>{const body=JSON.parse(String(init?.body));transmittedId=body.eventId;return Response.json({...good(),eventId:body.eventId});};
+ await executeGoodsCommand(()=>state,{...command,eventId:'dropship:'+('many-source-ids:'.repeat(40))});
+ assert.ok(transmittedId.length<100,'round and merged-source identities must stay bounded for nested money commands');
+ globalThis.fetch=async()=>{throw new Error('offline')};
+ await assert.rejects(()=>executeGoodsCommand(()=>state,command),/offline/);
+ console.log('goods command authoritative rows, retry, malformed/overlap/offline checks: OK');
+}
+main().catch(error=>{console.error(error);process.exitCode=1});

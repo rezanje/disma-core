@@ -27,7 +27,6 @@ import { cn, formatRupiah } from "@/lib/utils"
 export default function FixedAssetsPage() {
   const fixedAssets = useAppStore(state => state.fixedAssets)
   const addFixedAsset = useAppStore(state => state.addFixedAsset)
-  const updateFixedAsset = useAppStore(state => state.updateFixedAsset)
   const deleteFixedAsset = useAppStore(state => state.deleteFixedAsset)
   
   const [isAddOpen, setIsAddOpen] = useState(false)
@@ -92,10 +91,6 @@ export default function FixedAssetsPage() {
 
     const success = await recordDepreciation(id, gap, `${analytic.name} (Sync to ${new Date().toLocaleDateString()})`)
     if (success) {
-      updateFixedAsset(id, {
-        accumulatedDepreciation: analytic.autoAccumulated,
-        currentValue: analytic.autoCurrentValue
-      })
       toast.success(`Jurnal penyusutan disingkronkan. Nilai terkini: ${formatRupiah(analytic.autoCurrentValue)}`)
     }
   }

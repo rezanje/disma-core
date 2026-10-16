@@ -26,7 +26,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const permissions = useAppStore(state => state.rolePermissions) || {}
 
   const userKeys = permissions[currentUser?.role || ''] || [];
-  const navItems = getNavItemsForUser(userKeys as any);
+  const navItems = getNavItemsForUser(userKeys as any, currentUser?.role);
   const activeTitle = navItems.find(n => n.href === pathname)?.title || "Admin Dashboard"
 
   const isMinimized = useAppStore(state => state.isSidebarMinimized)
