@@ -53,6 +53,7 @@ export type PlannableLine = {
   paymentMethod?: string | null;
   plannedVendorId?: string | null;
   estimatedUnitPrice?: number | null;
+  qtyTarget?: number | null;
 };
 
 /**
@@ -62,6 +63,11 @@ export type PlannableLine = {
  */
 export function lineIsPlanned(line: PlannableLine): boolean {
   if (!line.purchaseMethod || !line.paymentMethod) return false;
+  if (line.qtyTarget != null && (!Number.isFinite(line.qtyTarget) || line.qtyTarget <= 0)) return false;
+  if (line.estimatedUnitPrice != null && (!Number.isFinite(line.estimatedUnitPrice) || line.estimatedUnitPrice < 0)) return false;
+  if (!['Pasar', 'Vendor', 'Online', 'Dropship'].includes(line.purchaseMethod) || !['Cash', 'Tempo', 'Transfer'].includes(line.paymentMethod)) return false;
+  if (line.purchaseMethod === 'Dropship' && line.paymentMethod === 'Cash') return false;
+  if (line.purchaseMethod === 'Online' && line.paymentMethod !== 'Transfer') return false;
   // Barang tunai tanpa harga membuat uang yang diserahkan ke kantong jadi nol untuk
   // baris itu — orangnya berangkat ke pasar dengan uang kurang, dan tidak ada yang
   // memberi tahu. Harga adalah bagian dari rencana, bukan pelengkap.
@@ -88,4 +94,38 @@ export function cashNeeded(
     if (l.purchaseMethod === 'Online' || l.purchaseMethod === 'Dropship') return sum;
     return sum + Number(l.qtyTarget || 0) * Number(l.estimatedUnitPrice || 0);
   }, 0);
+}
+
+/** Remove binary subtraction noise while retaining fractional purchase quantities. */
+export const purchasingQuantity = (value:number):number => Number(value.toPrecision(12));
+
+/** Allocate each product's free stock once; existing sourcing belongs to its PO row. */
+export function allocateShoppingDemand<T extends { id: string; productId: string; quantity: number }>(
+  rows: T[], onHand: Record<string, number>, reserved: Record<string, number> = {}, sourcedByRow: Record<string, number> = {},
+): Array<T & { allocatedStock: number; toBuy: number }> {
+  const free: Record<string, number> = {};
+  return rows.map(row => {
+    if (!(row.productId in free)) free[row.productId] = purchasingQuantity(Math.max(0, (onHand[row.productId] || 0) - (reserved[row.productId] || 0)));
+    const demand = purchasingQuantity(Math.max(0, row.quantity - (sourcedByRow[row.id] || 0)));
+    const fromStock = Math.min(demand, free[row.productId]);
+    free[row.productId] = purchasingQuantity(free[row.productId] - fromStock);
+    return { ...row, allocatedStock: fromStock, toBuy: purchasingQuantity(demand - fromStock) };
+  });
+}
+
+/** Packing is a plan. Only an active released delivery has actually removed stock. */
+export function warehouseReservations(
+  rows: Array<{id:string;salesOrderId:string;productId:string;qtyFinal?:number|null}>,
+  orders: Array<{id:string;status:string}>,
+  deliveries: Array<{salesOrderId:string;status:string;lineSnapshots?:Array<{salesOrderItemId:string;qty:number}>}>,
+): Record<string,number> {
+  const active = new Set(orders.filter(o=>!['Selesai','Batal','Cancelled'].includes(o.status)).map(o=>o.id));
+  const owned: Record<string,number> = {};
+  for (const row of rows) {
+    if (!active.has(row.salesOrderId)) continue;
+    const released = deliveries.filter(d=>d.salesOrderId===row.salesOrderId && ['Dikirim','Tunggu Konfirmasi','Awaiting Audit'].includes(d.status))
+      .reduce((sum,d)=>sum+(d.lineSnapshots || []).filter(l=>l.salesOrderItemId===row.id).reduce((s,l)=>s+l.qty,0),0);
+    owned[row.productId] = (owned[row.productId] || 0) + Math.max(0, Number(row.qtyFinal || 0) - released);
+  }
+  return owned;
 }

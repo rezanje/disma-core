@@ -46,19 +46,7 @@ export default function LedgerPage({ embedded }: { embedded?: boolean } = {}) {
   }
 
   const handleSaveEdit = () => {
-    const totalDebit = editLines.reduce((sum, l) => sum + Number(l.debitAmount), 0)
-    const totalCredit = editLines.reduce((sum, l) => sum + Number(l.creditAmount), 0)
-
-    if (totalDebit !== totalCredit) {
-      toast.error(`Jurnal tidak balance! Selisih: ${formatRupiah(Math.abs(totalDebit - totalCredit))}`)
-      return
-    }
-
-    if (editingEntry) {
-      updateJournalEntry(editingEntry.id, { description: editDesc }, editLines)
-      setEditingEntry(null)
-      toast.success("Catatan Jurnal berhasil dikoreksi.")
-    }
+    toast.error("Jurnal terposting tidak dapat diedit. Gunakan pembalikan yang terhubung ke transaksi asal; alur ini belum tersedia.")
   }
 
   const getBalance = (accountId: string, type: string) => {
@@ -272,7 +260,7 @@ export default function LedgerPage({ embedded }: { embedded?: boolean } = {}) {
                          <Button 
                            variant="ghost" 
                            size="icon" 
-                           onClick={() => openEdit(entry)}
+                           disabled title="Jurnal terposting tidak dapat diedit"
                            className="text-slate-200 hover:text-emerald-500 hover:bg-emerald-50 rounded-full h-10 w-10 transition-all group-"
                          >
                            <Pencil className="w-5 h-5" />

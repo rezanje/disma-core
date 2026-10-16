@@ -43,3 +43,4 @@ assert.deepEqual(linkedPurchaseLines('SO1', 'MANGGA', LINES, DOCS), []);
 assert.deepEqual(linkedPurchaseLines('SO1', 'APEL', [], DOCS), []);
 
 console.log('order-edit-window: OK');
+assert.equal(orderEditable({status:'Draft',shoppingListDocumentId:'released'},[{id:'released',status:'Pending'}]),false,'stale Draft cannot reopen released purchase');

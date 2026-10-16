@@ -1,3 +1,4 @@
+import { requireApiUser, apiAuthResponse } from '@/lib/api-auth';
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
@@ -15,6 +16,7 @@ let lastCallAt = 0;
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 export async function GET(request: Request) {
+  try { await requireApiUser(request); } catch(error) { return apiAuthResponse(error) || NextResponse.json({error:"Authentication unavailable"},{status:503}); }
   const q = new URL(request.url).searchParams.get('q')?.trim();
   if (!q || q.length < 3) return NextResponse.json({ results: [] });
 

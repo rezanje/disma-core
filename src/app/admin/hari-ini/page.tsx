@@ -1,476 +1,53 @@
 "use client"
+import { useState } from 'react';
+import Link from 'next/link';
+import { useAppStore } from '@/lib/store';
+import AuthGuard from '@/components/auth/auth-guard';
+import LateReturnIntake from '@/components/late-return-intake';
+import PoReconciliationSummary from '@/components/po-reconciliation-summary';
+import { PaperEvidenceFields } from '@/components/paper-evidence-fields';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { PageHeader } from '@/components/ui/page-header';
+import { awaitingArrival,awaitingQc,buildFifoAllocations } from '@/lib/daily-flow';
+import { processInboundQC,type RejectAction } from '@/lib/qc-process';
+import { recordGoodsArrival,recordPacking,releaseForDelivery,recordCourierHandover,applyClientReceipt,finalizeDeliveryAndInvoice } from '@/lib/dispatch';
+import type { PaperEvidence } from '@/lib/goods-command';
+import { toast } from 'sonner';
 
-// Satu layar untuk satu hari kerja.
-//
-// Kejadian fisiknya cuma dua: barang datang pagi, barang dikirim siang. Aplikasinya
-// dulu memecah itu jadi enam layar (Inbound, QC, Outbound, Serah Terima, Daftar Kurir,
-// Audit Kiriman) karena dulu dipegang enam orang berbeda. Sekarang dipegang dua orang,
-// jadi enam layar itu cuma memindahkan orang yang sama dari tab ke tab.
-//
-// Tidak ada logika baru di sini. Semua tombol memanggil fungsi yang sama dengan layar
-// lamanya (qc-process.ts, dispatch.ts) — layar lama tetap ada untuk kasus aneh, dan
-// dua jalur yang diam-diam berbeda adalah cara aplikasi ini pernah kehilangan stok.
-
-import { useMemo, useState } from "react"
-import { useAppStore } from "@/lib/store"
-import AuthGuard from "@/components/auth/auth-guard"
-import { Card, CardContent } from "@/components/ui/card"
-import { PageHeader } from "@/components/ui/page-header"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { PackageCheck, Truck, Receipt, AlertTriangle, CheckCircle2 } from "lucide-react"
-import { toast } from "sonner"
-import { cn, formatRupiah } from "@/lib/utils"
-import { awaitingQc, buildFifoAllocations, stillOwed } from "@/lib/daily-flow"
-import { processInboundQC, type RejectAction } from "@/lib/qc-process"
-import { releaseForDelivery, applyClientReceipt, finalizeDeliveryAndInvoice } from "@/lib/dispatch"
-import { roundQtyToBook } from "@/lib/backorder"
-
+/** Office transcription has explicit physical stages; field staff do not log in. */
 export default function HariIniPage() {
-  const purchaseItems = useAppStore(s => s.purchaseItems)
-  const purchases = useAppStore(s => s.purchases)
-  const products = useAppStore(s => s.products)
-  const salesOrders = useAppStore(s => s.salesOrders)
-  const salesOrderItems = useAppStore(s => s.salesOrderItems)
-  const clients = useAppStore(s => s.clients)
-  const deliveries = useAppStore(s => s.deliveries)
-  const users = useAppStore(s => s.users)
-
-  const [busy, setBusy] = useState<string | null>(null)
-  const [openItem, setOpenItem] = useState<string | null>(null)
-
-  // --- Bagian 1: barang datang ---
-  const [vendorPrice, setVendorPrice] = useState<Record<string, string>>({})
-  const [rejectQty, setRejectQty] = useState<Record<string, number>>({})
-  const [rejectAction, setRejectAction] = useState<Record<string, RejectAction>>({})
-  const [rejectReason, setRejectReason] = useState<Record<string, string>>({})
-  const [checkedBy, setCheckedBy] = useState<Record<string, string>>({})
-
-  const masuk = useMemo(
-    () => awaitingQc(purchaseItems, purchases).map(i => ({ ...i, product: products.find(p => p.id === i.productId) })).filter(i => i.product),
-    [purchaseItems, purchases, products],
-  )
-
-  const namaKlien = (soId: string) => {
-    const so = salesOrders.find(s => s.id === soId)
-    return clients.find(c => c.id === so?.clientId)?.companyName || so?.poNumber || soId.slice(0, 8)
-  }
-
-  const pembagian = (productId: string, qty: number) =>
-    buildFifoAllocations(productId, qty, salesOrders, salesOrderItems)
-
-  const prosesBarang = async (itemId: string) => {
-    const item = masuk.find(i => i.id === itemId)
-    if (!item) return
-    const ditolak = Math.max(0, rejectQty[itemId] || 0)
-    const lolos = Math.max(0, item.qtyPurchased - ditolak)
-    const { allocations, inventoryRemainder } = pembagian(item.productId, lolos)
-
-    setBusy(itemId)
-    const res = await processInboundQC(useAppStore.getState, {
-      purchaseItemId: item.id,
-      qtyPassToInventory: inventoryRemainder,
-      allocations: allocations.filter(a => a.qty > 0),
-      qtyReject: ditolak,
-      rejectAction: rejectAction[itemId] || 'Disposal',
-      rejectReason: rejectReason[itemId],
-      vendorUnitPrice: Number(vendorPrice[itemId]) || 0,
-      qcPerformedByUserId: checkedBy[itemId],
-    })
-    setBusy(null)
-
-    if (!res.ok) { toast.error(res.error); return }
-    res.warnings.forEach(w => toast.warning(w))
-    res.infos.forEach(i => toast.info(i))
-    toast.success(`${item.product?.name} beres — stok dan pembukuannya sudah jalan.`)
-    setOpenItem(null)
-  }
-
-  // --- Barang kurang: yang harus dikabarin ke klien SEBELUM dikirim ---
-  //
-  // Selama ini yang dikabarkan cuma barang yang DITOLAK QC. Kalau barangnya sekadar
-  // kurang — di pasar cuma dapat 8 dari 10 kg, atau kebagi ke pesanan yang lebih tua —
-  // tidak ada yang memberi tahu siapa pun, dan status "Kurang Kirim" baru muncul setelah
-  // barangnya terlanjur berangkat. Terlambat untuk menelepon klien.
-  const kurang = useMemo(() => {
-    return salesOrders
-      .filter(so => ['Packing', 'Siap Kirim'].includes(so.status))
-      .map(so => ({
-        so,
-        lines: salesOrderItems
-          .filter(i => i.salesOrderId === so.id && stillOwed(i) > 0)
-          .map(i => ({
-            id: i.id,
-            nama: products.find(p => p.id === i.productId)?.name || i.productId,
-            uom: products.find(p => p.id === i.productId)?.uom || '',
-            kurang: stillOwed(i),
-            dipesan: i.qty,
-          })),
-      }))
-      .filter(x => x.lines.length > 0)
-  }, [salesOrders, salesOrderItems, products])
-
-  // --- Bagian 2: siap dikirim ---
-  const siapDilepas = salesOrders.filter(so => so.status === 'Packing')
-
-  const lepasKiriman = async (soId: string) => {
-    setBusy(soId)
-    try {
-      await releaseForDelivery(useAppStore.getState, soId)
-      toast.success(`Kiriman untuk ${namaKlien(soId)} sudah disiapkan.`)
-    } finally {
-      setBusy(null)
-    }
-  }
-
-  // --- Bagian 3: hasil kirim ---
-  const [diterima, setDiterima] = useState<Record<string, number>>({})
-
-  const sedangJalan = deliveries.filter(d => ['Menunggu', 'Dikirim', 'Tunggu Konfirmasi'].includes(d.status))
-
-  const qtyBerangkat = (soId: string) =>
-    salesOrderItems.filter(i => i.salesOrderId === soId).map(i => ({ item: i, shipped: roundQtyToBook(i) })).filter(x => x.shipped > 0)
-
-  const catatSampai = async (deliveryId: string, soId: string) => {
-    const baris = qtyBerangkat(soId)
-    setBusy(deliveryId)
-    try {
-      await applyClientReceipt(useAppStore.getState, soId, baris.map(({ item, shipped }) => ({
-        salesOrderItemId: item.id,
-        qtyReceived: diterima[item.id] ?? shipped,
-      })))
-      const res = await finalizeDeliveryAndInvoice(useAppStore.getState, deliveryId, soId)
-      if (!res.ok) { toast.error(res.error); return }
-      toast.success(`Tagihan ${formatRupiah(res.total)} untuk ${namaKlien(soId)} sudah terbit.`)
-    } finally {
-      setBusy(null)
-    }
-  }
-
-  const kosong = masuk.length === 0 && siapDilepas.length === 0 && sedangJalan.length === 0 && kurang.length === 0
-
-  return (
-    <AuthGuard allowedRoles={['admin_po', 'finance', 'super_admin', 'coo', 'ceo']}>
-      <div className="-m-4 pb-24 md:-m-6 lg:-m-8">
-        <PageHeader
-          title="Hari ini"
-          context="Barang datang, barang dikirim, tagihan terbit — satu halaman, urut dari atas ke bawah."
-        />
-
-        {/* Strip tahap — empat sel lebar sama, angka di depan */}
-        <div className="grid grid-cols-2 border-b border-border bg-card md:grid-cols-4">
-          {[
-            { n: '1', label: 'Datang & diperiksa', value: masuk.length, satuan: 'barang', aktif: masuk.length > 0 },
-            { n: '', label: 'Kabari klien dulu', value: kurang.length, satuan: 'pesanan', aktif: false },
-            { n: '2', label: 'Siap dikirim', value: siapDilepas.length, satuan: 'pesanan', aktif: false },
-            { n: '3', label: 'Sudah sampai?', value: sedangJalan.length, satuan: 'kiriman', aktif: false },
-          ].map((t, i) => (
-            <div
-              key={i}
-              className={cn(
-                "border-hairline px-6 py-3.5",
-                i < 3 && "border-r",
-                i < 2 && "border-b md:border-b-0",
-                t.aktif && "border-b-2 border-b-primary"
-              )}
-            >
-              <div className="text-xs font-medium text-slate-500">
-                {t.n ? `${t.n} · ` : ''}{t.label}
-              </div>
-              <div className="tabular mt-1 text-[20px] leading-tight font-semibold text-slate-900">
-                {t.value} <span className="text-xs font-normal text-slate-400">{t.satuan}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="space-y-[18px] px-6 py-6 md:px-7">
-
-        {kosong && (
-          <Card className="border-none shadow-sm rounded-lg">
-            <CardContent className="p-10 text-center">
-              <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto mb-3" />
-              <p className="font-bold text-slate-700 dark:text-slate-200">Tidak ada yang menunggu.</p>
-              <p className="text-sm text-slate-500 mt-1">Belum ada barang datang, dan tidak ada kiriman yang jalan.</p>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* ---------- 1. BARANG DATANG ---------- */}
-        {masuk.length > 0 && (
-          <section className="space-y-3">
-            <div className="flex items-center gap-2">
-              <PackageCheck className="w-5 h-5 text-emerald-600" />
-              <h2 className="text-sm font-semibold text-slate-900">1 · Datang &amp; diperiksa</h2>
-              <span className="tabular text-xs text-slate-400">{masuk.length}</span>
-            </div>
-
-            {masuk.map(item => {
-              const ditolak = Math.max(0, rejectQty[item.id] || 0)
-              const lolos = Math.max(0, item.qtyPurchased - ditolak)
-              const { allocations, inventoryRemainder } = pembagian(item.productId, lolos)
-              const terpakai = allocations.filter(a => a.qty > 0)
-              const isOpen = openItem === item.id
-
-              return (
-                <Card key={item.id} className="border-none shadow-sm rounded-2xl overflow-hidden">
-                  <CardContent className="p-4 space-y-3">
-                    <button
-                      type="button"
-                      className="w-full text-left"
-                      onClick={() => setOpenItem(isOpen ? null : item.id)}
-                    >
-                      <div className="flex justify-between items-start gap-3">
-                        <div>
-                          <p className="font-bold text-slate-800 dark:text-slate-100">{item.product?.name}</p>
-                          <p className="text-xs text-slate-500 font-bold">
-                            Datang {item.qtyPurchased} {item.product?.uom} · {item.purchaseMethod || 'Pasar'}
-                          </p>
-                        </div>
-                        <Badge variant="outline" className="shrink-0 text-[11px] font-bold uppercase">
-                          {isOpen ? 'Tutup' : 'Buka'}
-                        </Badge>
-                      </div>
-                    </button>
-
-                    <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3 text-xs space-y-1">
-                      {terpakai.length > 0 ? terpakai.map(a => (
-                        <div key={a.soId} className="flex justify-between">
-                          <span className="text-slate-600 dark:text-slate-300 font-bold">{namaKlien(a.soId)}</span>
-                          <span className="font-bold text-slate-800 dark:text-slate-100">{a.qty} {item.product?.uom}</span>
-                        </div>
-                      )) : (
-                        <p className="text-slate-500 font-bold">Tidak ada pesanan yang menunggu barang ini.</p>
-                      )}
-                      {inventoryRemainder > 0 && (
-                        <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 pt-1 mt-1">
-                          <span className="text-slate-500 font-bold">Sisa masuk gudang</span>
-                          <span className="font-bold text-slate-700 dark:text-slate-200">{inventoryRemainder} {item.product?.uom}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {isOpen && (
-                      <div className="space-y-3 pt-1">
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                            <Label className="text-[11px] font-bold uppercase text-slate-500">Ada yang ditolak? ({item.product?.uom})</Label>
-                            <Input
-                              type="number" min="0" step="any"
-                              onWheel={(e) => e.currentTarget.blur()}
-                              className="h-11 font-bold"
-                              placeholder="0"
-                              value={rejectQty[item.id] || ''}
-                              onChange={e => setRejectQty(p => ({ ...p, [item.id]: parseFloat(e.target.value) || 0 }))}
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-[11px] font-bold uppercase text-slate-500">Harga vendor (kalau beda)</Label>
-                            <Input
-                              type="number" min="0" step="any"
-                              onWheel={(e) => e.currentTarget.blur()}
-                              className="h-11 font-bold"
-                              placeholder={String(item.actualUnitPrice || item.estimatedUnitPrice || 0)}
-                              value={vendorPrice[item.id] || ''}
-                              onChange={e => setVendorPrice(p => ({ ...p, [item.id]: e.target.value }))}
-                            />
-                          </div>
-                        </div>
-
-                        {ditolak > 0 && (
-                          <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50/60 dark:bg-amber-950/20 p-3">
-                            <Label className="text-[11px] font-bold uppercase text-amber-800">Yang ditolak diapain?</Label>
-                            <Select
-                              value={rejectAction[item.id] || 'Disposal'}
-                              onValueChange={v => setRejectAction(p => ({ ...p, [item.id]: (v as RejectAction) || 'Disposal' }))}
-                            >
-                              <SelectTrigger className="h-11 bg-white dark:bg-slate-900 rounded-xl font-bold"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="Return">Retur ke vendor (minta ganti)</SelectItem>
-                                <SelectItem value="B2C">Masuk stok jual eceran</SelectItem>
-                                <SelectItem value="Disposal">Buang</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <Input
-                              className="h-11 bg-white dark:bg-slate-900 font-bold"
-                              placeholder="Kenapa ditolak? (busuk, ukuran beda, dll)"
-                              value={rejectReason[item.id] || ''}
-                              onChange={e => setRejectReason(p => ({ ...p, [item.id]: e.target.value }))}
-                            />
-                          </div>
-                        )}
-
-                        <div className="space-y-1">
-                          <Label className="text-[11px] font-bold uppercase text-slate-500">Yang memeriksa di gudang</Label>
-                          <Select
-                            value={checkedBy[item.id] || ''}
-                            onValueChange={v => setCheckedBy(p => ({ ...p, [item.id]: v || '' }))}
-                          >
-                            <SelectTrigger className="h-11 rounded-xl font-bold"><SelectValue placeholder="— Saya sendiri —" /></SelectTrigger>
-                            <SelectContent>
-                              {users.filter(u => ['gudang', 'sourcing', 'admin_po', 'finance'].includes(u.role)).map(u => (
-                                <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <Button
-                          className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 font-bold"
-                          disabled={busy === item.id}
-                          onClick={() => prosesBarang(item.id)}
-                        >
-                          {busy === item.id ? 'Memproses…' : 'Beres — catat barangnya'}
-                        </Button>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )
-            })}
-          </section>
-        )}
-
-        {/* ---------- KURANG BARANG: KABARIN KLIEN ---------- */}
-        {kurang.length > 0 && (
-          <section className="space-y-3">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-amber-600" />
-              <h2 className="text-sm font-semibold text-slate-900">Kabari klien sebelum barang jalan</h2>
-              <Badge className="bg-amber-100 text-amber-700 border-none">{kurang.length}</Badge>
-            </div>
-            <p className="text-xs text-slate-500 font-bold -mt-1">
-              Pesanan ini bakal dikirim kurang. Telepon kliennya sekarang, sebelum barangnya jalan.
-            </p>
-
-            {kurang.map(({ so, lines }) => (
-              <Card key={so.id} className="border-none shadow-sm rounded-2xl border-l-4 border-l-amber-400">
-                <CardContent className="p-4 space-y-2">
-                  <div>
-                    <p className="font-bold text-slate-800 dark:text-slate-100">{namaKlien(so.id)}</p>
-                    <p className="text-xs text-slate-500 font-bold">{so.poNumber}</p>
-                  </div>
-                  {lines.map(l => (
-                    <div key={l.id} className="flex justify-between text-sm">
-                      <span className="font-bold text-slate-600 dark:text-slate-300">{l.nama}</span>
-                      <span className="font-bold text-amber-700">
-                        kurang {l.kurang} {l.uom} <span className="text-slate-400 font-bold">dari {l.dipesan}</span>
-                      </span>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            ))}
-          </section>
-        )}
-
-        {/* ---------- 2. SIAP DIKIRIM ---------- */}
-        {siapDilepas.length > 0 && (
-          <section className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Truck className="w-5 h-5" />
-              <h2 className="text-sm font-semibold text-slate-900">2 · Siap dikirim</h2>
-              <span className="tabular text-xs text-slate-400">{siapDilepas.length}</span>
-            </div>
-
-            {siapDilepas.map(so => {
-              const baris = salesOrderItems.filter(i => i.salesOrderId === so.id)
-              return (
-                <Card key={so.id} className="border-none shadow-sm rounded-2xl">
-                  <CardContent className="p-4 space-y-3">
-                    <div className="flex justify-between items-start gap-3">
-                      <div>
-                        <p className="font-bold text-slate-800 dark:text-slate-100">{namaKlien(so.id)}</p>
-                        <p className="text-xs text-slate-500 font-bold">{so.poNumber} · {baris.length} jenis barang</p>
-                      </div>
-                      {baris.some(i => stillOwed(i) > 0) && (
-                        <Badge className="bg-amber-100 text-amber-700 border-none text-[11px] font-bold shrink-0">
-                          <AlertTriangle className="w-3 h-3 mr-1" /> Belum lengkap
-                        </Badge>
-                      )}
-                    </div>
-                    <Button
-                      className="w-full h-12 bg-blue-600 hover:bg-blue-700 font-bold"
-                      disabled={busy === so.id}
-                      onClick={() => lepasKiriman(so.id)}
-                    >
-                      {busy === so.id ? 'Menyiapkan…' : 'Keluarkan barang & siapkan kiriman'}
-                    </Button>
-                  </CardContent>
-                </Card>
-              )
-            })}
-          </section>
-        )}
-
-        {/* ---------- 3. HASIL KIRIM ---------- */}
-        {sedangJalan.length > 0 && (
-          <section className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Receipt className="w-5 h-5" />
-              <h2 className="text-sm font-semibold text-slate-900">3 · Sudah sampai?</h2>
-              <span className="tabular text-xs text-slate-400">{sedangJalan.length}</span>
-            </div>
-
-            {sedangJalan.map(d => {
-              const baris = qtyBerangkat(d.salesOrderId)
-              const total = baris.reduce((sum, { item, shipped }) => sum + ((diterima[item.id] ?? shipped) * item.unitPrice), 0)
-              return (
-                <Card key={d.id} className="border-none shadow-sm rounded-2xl">
-                  <CardContent className="p-4 space-y-3">
-                    <div>
-                      <p className="font-bold text-slate-800 dark:text-slate-100">{namaKlien(d.salesOrderId)}</p>
-                      <p className="text-xs text-slate-500 font-bold">
-                        Isi berapa yang benar-benar diterima klien. Kalau pas semua, biarkan saja.
-                      </p>
-                    </div>
-
-                    <div className="space-y-2">
-                      {baris.map(({ item, shipped }) => {
-                        const product = products.find(p => p.id === item.productId)
-                        const nilai = diterima[item.id] ?? shipped
-                        const kurang = nilai < shipped
-                        return (
-                          <div key={item.id} className="flex items-center gap-3">
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate">{product?.name}</p>
-                              <p className="text-[11px] text-slate-400 font-bold uppercase">Berangkat {shipped} {product?.uom}</p>
-                            </div>
-                            <Input
-                              type="number" min="0" step="any"
-                              onWheel={(e) => e.currentTarget.blur()}
-                              className={cn("h-11 w-28 font-bold text-right", kurang && "border-rose-300 text-rose-600")}
-                              value={nilai}
-                              onChange={e => setDiterima(p => ({ ...p, [item.id]: parseFloat(e.target.value) || 0 }))}
-                            />
-                          </div>
-                        )
-                      })}
-                    </div>
-
-                    <div className="flex justify-between items-center rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3">
-                      <span className="text-xs font-bold uppercase text-slate-500">Tagihan terbit</span>
-                      <span className="font-bold text-slate-800 dark:text-slate-100">{formatRupiah(total)}</span>
-                    </div>
-
-                    <Button
-                      className="w-full h-12 bg-violet-600 hover:bg-violet-700 font-bold"
-                      disabled={busy === d.id}
-                      onClick={() => catatSampai(d.id, d.salesOrderId)}
-                    >
-                      {busy === d.id ? 'Menyimpan…' : 'Sudah sampai — terbitkan tagihan'}
-                    </Button>
-                  </CardContent>
-                </Card>
-              )
-            })}
-          </section>
-        )}
-        </div>
-      </div>
-    </AuthGuard>
-  )
+ const s=useAppStore();
+ const [busy,setBusy]=useState('');
+ const [papers,setPapers]=useState<Record<string,PaperEvidence>>({});
+ const [quantities,setQuantities]=useState<Record<string,number>>({});
+ const [reasons,setReasons]=useState<Record<string,string>>({});
+ const [actions,setActions]=useState<Record<string,RejectAction>>({});
+ const [banks,setBanks]=useState<Record<string,string>>({});
+ const evidence=(key:string)=>papers[key]||{};
+ const fields=(key:string,recipient=false)=><PaperEvidenceFields value={evidence(key)} onChange={v=>setPapers(p=>({...p,[key]:v}))} recipient={recipient}/>;
+ const number=(key:string,fallback:number,label:string,max?:number)=><div><Label htmlFor={key}>{label}</Label><Input id={key} type="number" min="0" max={max} step="any" value={quantities[key]??fallback} onChange={e=>setQuantities(p=>({...p,[key]:Number(e.target.value)}))}/></div>;
+ const run=async(key:string,fn:()=>Promise<unknown>)=>{if(busy)return;setBusy(key);try{await fn();toast.success('Berkas berhasil dicatat.');setPapers(p=>Object.fromEntries(Object.entries(p).filter(([k])=>k!==key)));setQuantities(p=>Object.fromEntries(Object.entries(p).filter(([k])=>k!==key&&!k.startsWith(key+':'))));}catch(e){toast.error(e instanceof Error?e.message:'Pencatatan gagal. Isian tetap disimpan.');}finally{setBusy('');}};
+ const arrival=s.purchaseItems.filter(i=>['Vendor','Online'].includes(i.purchaseMethod||'')&&!i.isQCed&&i.isOnlineOrdered&&i.qtyPurchased>(i.qcProcessedQty||0)&&s.purchases.some(p=>p.id===i.purchaseId&&['Pending','Belanja','Selesai'].includes(p.status)));
+ const qc=awaitingQc(s.purchaseItems,s.purchases);
+ const packing=s.salesOrders.filter(so=>so.status==='Packing');
+ const handover=s.deliveries.filter(d=>d.status==='Menunggu');
+ const receipts=s.deliveries.filter(d=>['Dikirim','Tunggu Konfirmasi'].includes(d.status));
+ const title=(soId:string)=>s.salesOrders.find(so=>so.id===soId)?.poNumber||soId;
+ const product=(id:string)=>s.products.find(p=>p.id===id)?.name||id;
+ const button=(key:string,label:string,fn:()=>Promise<unknown>)=><Button disabled={!!busy} onClick={()=>run(key,fn)}>{busy===key?'Menyimpan…':label}</Button>;
+ return <AuthGuard allowedRoles={['admin_po','finance','super_admin']}><div className="space-y-6">
+  <PageHeader title="Hari ini" context="Salin berkas fisik sesuai urutan. Pelaksana lapangan dipilih namanya; pengetik dicatat terpisah."/>
+  <p className="text-sm text-muted-foreground">Penerimaan → QC → packing → barang keluar → serah terima kurir → hasil klien → audit Finance. Setiap tahap menyimpan nomor berkas dan waktu kejadian sebenarnya.</p>
+  <div className="flex flex-wrap gap-4 text-sm"><Link href="/warehouse/inbound">Cetak lembar penerimaan</Link><Link href="/warehouse/qc">QC / retur / persiapan</Link><Link href="/warehouse/outbound">Cetak lembar keluar</Link><Link href="/courier/handover">Cetak serah terima</Link><Link href="/admin/audit-pengiriman">Audit Finance</Link></div>
+  <PoReconciliationSummary/>
+  <section className="space-y-3"><h2 className="font-semibold">1 · Penerimaan barang / tranche susulan ({arrival.length})</h2>{arrival.map(i=>{const key='arrival:'+i.id;return <Card key={key}><CardContent className="space-y-3 p-4"><h3>{product(i.productId)}</h3>{number(key,i.qtyPurchased-(i.qcProcessedQty||0),'Jumlah benar-benar datang',i.qtyPurchased)}<Label>Kondisi / catatan</Label><Input value={reasons[key]||''} onChange={e=>setReasons(p=>({...p,[key]:e.target.value}))}/>{fields(key)}{button(key,'Catat penerimaan',()=>recordGoodsArrival(useAppStore.getState,i.id,quantities[key]??(i.qtyPurchased-(i.qcProcessedQty||0)),{...evidence(key),condition:reasons[key]}))}</CardContent></Card>})}</section>
+  <section className="space-y-3"><h2 className="font-semibold">2 · Pemeriksaan QC ({qc.length})</h2>{qc.map(i=>{const key='qc:'+i.id;const remaining=i.qtyPurchased-(i.qcProcessedQty||0);const actual=quantities[key]??remaining;const reject=quantities[key+':reject']??0;const {allocations,inventoryRemainder}=buildFifoAllocations(i.productId,Math.max(0,actual-reject),s.salesOrders,s.salesOrderItems);return <Card key={key}><CardContent className="space-y-3 p-4"><h3>{product(i.productId)} · sisa pembelian {remaining}</h3>{number(key,remaining,'Jumlah diperiksa pada berkas ini',remaining)}{number(key+':reject',0,'Ditolak QC',actual)}{number(key+':price',i.actualUnitPrice||i.estimatedUnitPrice,'Harga vendor per satuan')}<Label>Tindakan reject</Label><select className="w-full rounded-md border p-2" value={actions[key]||'Disposal'} onChange={e=>setActions(p=>({...p,[key]:e.target.value as RejectAction}))}><option>Disposal</option><option>Return</option><option>B2C</option></select><Label>Alasan reject / sisa belum datang</Label><Input value={reasons[key]||''} onChange={e=>setReasons(p=>({...p,[key]:e.target.value}))}/><p className="text-sm">{allocations.map(a=>`${title(a.soId)}: ${a.qty}`).join(' · ')} · Stok umum: {inventoryRemainder}</p>{i.purchaseMethod==='Vendor'&&i.paymentMethod==='Transfer'&&['finance','super_admin'].includes(s.currentUser?.role||'')&&<div><Label>Rekening sumber pembayaran</Label><select className="w-full rounded-md border p-2" value={banks[key]||''} onChange={e=>setBanks(p=>({...p,[key]:e.target.value}))}><option value="">Pilih rekening</option>{s.bankAccounts.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></div>}{fields(key)}{button(key,'Simpan keputusan QC',async()=>{const r=await processInboundQC(useAppStore.getState,{purchaseItemId:i.id,eventId:`qc:${i.id}:${evidence(key).paperNumber||'initial'}`,qtyPassToInventory:inventoryRemainder,allocations,qtyReject:reject,rejectAction:actions[key]||'Disposal',rejectReason:reasons[key],unbalanceReason:reasons[key],vendorUnitPrice:quantities[key+':price']??i.actualUnitPrice??i.estimatedUnitPrice,bankAccountId:banks[key],...evidence(key)});if(!r.ok)throw new Error(r.error);r.warnings.forEach(w=>toast.warning(w));})}</CardContent></Card>})}</section>
+  <section className="space-y-3"><h2 className="font-semibold">3 · Packing dan barang keluar ({packing.length})</h2>{packing.map(so=>{const key='packing:'+so.id;const lines=s.salesOrderItems.filter(i=>i.salesOrderId===so.id&&(i.qtyFinal||0)>0);const releaseKey='release:'+so.id;return <Card key={key}><CardContent className="space-y-3 p-4"><h3>{so.poNumber}</h3>{lines.map(i=><div key={i.id}>{number(key+':'+i.id,i.qtyDispatched??i.qtyFinal??0,`${product(i.productId)} · lolos QC ${i.qtyFinal}`,i.qtyFinal??0)}</div>)}{fields(key)}{button(key,'Catat packing sesuai berkas',()=>recordPacking(useAppStore.getState,so.id,lines.map(i=>({salesOrderItemId:i.id,qty:quantities[key+':'+i.id]??i.qtyDispatched??i.qtyFinal??0})),evidence(key)))}{lines.every(i=>i.isPacked)&&<div className="space-y-3 border-t pt-3"><p>Barang telah dipacking. Salin kejadian barang benar-benar keluar gudang.</p>{fields(releaseKey)}{button(releaseKey,'Catat barang keluar gudang',()=>releaseForDelivery(useAppStore.getState,so.id,evidence(releaseKey)))}</div>}</CardContent></Card>})}</section>
+  <section className="space-y-3"><h2 className="font-semibold">4 · Serah terima kurir ({handover.length})</h2>{handover.map(d=>{const key='handover:'+d.id;return <Card key={key}><CardContent className="space-y-3 p-4"><h3>{title(d.salesOrderId)}</h3><p className="text-sm">Pilih kurir yang benar-benar menerima barang sebagai pelaksana.</p>{fields(key)}{button(key,'Catat serah terima kepada kurir',()=>recordCourierHandover(useAppStore.getState,d.id,evidence(key)))}</CardContent></Card>})}</section>
+  <section className="space-y-3"><h2 className="font-semibold">5 · Hasil penerimaan klien ({receipts.length})</h2>{receipts.map(d=>{const key='receipt:'+d.id;return <Card key={key}><CardContent className="space-y-3 p-4"><h3>{title(d.salesOrderId)}</h3>{!d.lineSnapshots?<p>Dokumen lama tanpa rincian tetap: rekonsiliasi berkas oleh Super Admin diperlukan.</p>:d.acceptedLineSnapshots?<p>Hasil klien sudah tersimpan. Lanjut buat draft tagihan untuk audit Finance.</p>:<>{d.lineSnapshots.map(i=><div key={i.salesOrderItemId}>{number(key+':'+i.salesOrderItemId,i.qty,`${i.productName} · berangkat ${i.qty}`,i.qty)}</div>)}{fields(key,true)}</>}{d.lineSnapshots&&button(key,d.acceptedLineSnapshots?'Buat draft tagihan dari hasil tersimpan':'Catat hasil klien & buat draft tagihan',async()=>{if(!d.acceptedLineSnapshots)await applyClientReceipt(useAppStore.getState,d.salesOrderId,d.lineSnapshots!.map(i=>({salesOrderItemId:i.salesOrderItemId,qtyReceived:quantities[key+':'+i.salesOrderItemId]??i.qty})),evidence(key));const r=await finalizeDeliveryAndInvoice(useAppStore.getState,d.id,d.salesOrderId);if(!r.ok)throw new Error(r.error);})}</CardContent></Card>})}</section>
+  <LateReturnIntake/>
+ </div></AuthGuard>;
 }

@@ -10,14 +10,14 @@ const queue = awaitingQc([
   { id: 'a', purchaseId: 'P-selesai', purchaseMethod: 'Pasar' },                       // laporan sudah masuk
   { id: 'b', purchaseId: 'P-jalan', purchaseMethod: 'Pasar' },                         // masih belanja
   { id: 'c', purchaseId: 'P-selesai', purchaseMethod: 'Pasar', isQCed: true },         // sudah diperiksa
-  { id: 'd', purchaseId: 'P-jalan', purchaseMethod: 'Vendor', inboundStatus: 'pra_inbound' }, // vendor sudah antar
+  { id: 'd', purchaseId: 'P-jalan', purchaseMethod: 'Vendor', isOnlineOrdered:true, inboundStatus: 'pra_inbound' }, // vendor sudah antar
   { id: 'e', purchaseId: 'P-selesai', purchaseMethod: 'Vendor' },                      // vendor belum datang
   { id: 'f', purchaseId: 'P-jalan', purchaseMethod: 'Online', isOnlineOrdered: true },
   { id: 'g', purchaseId: 'P-jalan', purchaseMethod: 'Online' },                        // belum dipesan
   { id: 'h', purchaseId: 'P-selesai', purchaseMethod: 'Pasar', inboundStatus: 'verified' },
   { id: 'i', purchaseId: 'hilang', purchaseMethod: 'Pasar' },                          // induknya tidak ada
 ], purchases);
-assert.deepEqual(queue.map(q => q.id), ['a', 'd', 'f']);
+assert.deepEqual(queue.map(q => q.id), ['a', 'd']);
 
 // sebagian sudah diperiksa tapi belum tuntas -> masih antre
 assert.deepEqual(

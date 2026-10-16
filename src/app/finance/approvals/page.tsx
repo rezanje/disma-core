@@ -22,6 +22,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { v4 as uuidv4 } from "uuid"
+import {executePurchaseCommand} from "@/lib/purchase-command"
 import { recordReimbursementPayment, recordOperationalExpense, recordReconciliationSettlement, recordDeliveryAndInvoice, recordAdvanceReturn, updateProductPriceHistory, recordAdvanceExpense, getAdvanceWalletByRole, getAdvanceWalletByUserId, recordOnlinePurchase } from "@/lib/accounting"
 import { isLegacyAdvance } from "@/lib/settlement-model"
 import AuthGuard from "@/components/auth/auth-guard"
@@ -172,7 +173,7 @@ export default function FinanceHubPage() {
     setSettlementOps([])
     setSettlementProofUrl("")
     setSettlementReturnedCustom(null)
-    setIsDirectSettleOpen(true)
+    window.location.assign('/finance/salin-belanja')
   }
 
   
@@ -197,11 +198,11 @@ export default function FinanceHubPage() {
   // --- ACTIONS ---
   const handleAuditExpense = async (expenseId: string, status: 'Approved' | 'Rejected') => {
     const lockKey = `auditExpense_${expenseId}`
-    if (!acquireLock(lockKey)) return
+    if (!acquireLock(lockKey)) return false
     try {
     const freshExpenses = useAppStore.getState().expenses
     const exp = freshExpenses.find(e => e.id === expenseId)
-    if (!exp) return
+    if (!exp) return false
 
     if (status === 'Approved') {
        // If tied to a purchase, the wallet owner is the purchaser, not necessarily the reporter (e.g., if Finance direct-settles)
@@ -218,15 +219,15 @@ export default function FinanceHubPage() {
 
        if (exp.category === 'Setoran Pengembalian') {
           const effectiveBank = returnBankOverrides[expenseId] ?? exp.targetBankAccountId ?? selectedBank
-          const success = await recordAdvanceReturn(exp.amount, walletUserId, effectiveBank)
+          const success = await recordAdvanceReturn(exp.amount, walletUserId, effectiveBank, exp.receiptUrl, exp.id, exp.id, exp.date)
           if (!success) {
              toast.error("Gagal mencatat pengembalian dana.", { id: "audit-exp" })
-             return
+             return false
           }
        } else if (exp.category === 'Belanja Online' || exp.category === 'Sourcing (HPP)') {
           if (!exp.referenceId) {
              toast.error("Gagal: Reference ID (Purchase Item) tidak ditemukan.", { id: "audit-exp" })
-             return
+             return false
           }
 
           const productName = exp.description.split(':').pop()?.split('(')[0]?.trim() || 'Online Item'
@@ -245,7 +246,7 @@ export default function FinanceHubPage() {
 
           if (!success) {
              toast.error("Gagal memproses tutup buku belanja online.", { id: "audit-exp" })
-             return
+             return false
           }
        } else if (advanceWallet) {
           // Field staff expense (Sourcing/Kurir) -> debit the wallet owner (purchaser), not reporter
@@ -259,7 +260,7 @@ export default function FinanceHubPage() {
           )
           if (!success) {
             toast.error(`Gagal mencatat pengeluaran ${advanceWallet.label}.`, { id: "audit-exp" })
-            return
+            return false
           }
        } else {
           // Normal office/admin expense -> Use the bank selected in finance dashboard
@@ -274,14 +275,15 @@ export default function FinanceHubPage() {
           )
           if (!success) {
              toast.error("Gagal mencatat transaksi pengeluaran.", { id: "audit-exp" })
-             return
+             return false
           }
        }
        toast.success("Audit disetujui & transaksi tercatat.", { id: "audit-exp" })
     }
 
-    await updateExpense(expenseId, { status })
-    if (status === 'Rejected') toast.success("Audit ditolak.")
+    if (status === 'Rejected') { await updateExpense(expenseId, { status }); toast.success("Audit ditolak.") }
+    return true
+    } catch(error) { toast.error(error instanceof Error?error.message:'Audit biaya gagal', {id:'audit-exp'}); return false
     } finally { releaseLock(lockKey) }
   }
 
@@ -310,17 +312,17 @@ export default function FinanceHubPage() {
 
       // 1. Process Operational Expenses
       for (const op of pOps) {
-         await handleAuditExpense(op.id, 'Approved')
+         if(!await handleAuditExpense(op.id, 'Approved')) throw new Error('Biaya belum terkonfirmasi; sesi tetap terbuka.')
       }
 
       // 2. Process Reimbursements
       for (const reimb of pReimbs) {
-         await handlePayReimbursement(reimb.id)
+         if(!await handlePayReimbursement(reimb.id)) throw new Error('Pembayaran talangan belum terkonfirmasi; sesi tetap terbuka.')
       }
 
       // 3. Process Returns
       if (pReturn) {
-         await handleAuditExpense(pReturn.id, 'Approved')
+         if(!await handleAuditExpense(pReturn.id, 'Approved')) throw new Error('Pengembalian uang belum terkonfirmasi; sesi tetap terbuka.')
       }
 
       // 4. Process HPP Settlement (Rekon Utama)
@@ -359,25 +361,8 @@ export default function FinanceHubPage() {
              return
            }
          }
-         await updatePurchase(purchaseId, { reconciliationStatus: 'Terverifikasi', status: 'Selesai' })
+         await executePurchaseCommand(useAppStore.getState,{eventId:`verify:${purchaseId}`,stage:'verify',sourceId:purchaseId,payload:{}})
 
-         // Update price history (inboundStatus already set by warehouse inbound accept)
-         for (const item of pItems) {
-           if (item.actualUnitPrice > 0 && item.productId) {
-             updateProductPriceHistory(item.productId, item.actualUnitPrice, 'Pasar (Verified)')
-           }
-         }
-
-         // Advance linked Sales Orders to QC so warehouse/qc → packing → shipping can proceed
-         const linkedSoIds = new Set(
-           pItems.map(pi => pi.salesOrderId).filter((id): id is string => !!id)
-         )
-         for (const soId of linkedSoIds) {
-           const so = useAppStore.getState().salesOrders.find(s => s.id === soId)
-           if (so && (so.status === 'Belanja' || so.status === 'Draft')) {
-             await updateSalesOrder(soId, { status: 'QC' })
-           }
-         }
       }
 
       toast.success("Sesi Sourcing berhasil disetujui & disettle!", { id: "rekon" })
@@ -387,164 +372,7 @@ export default function FinanceHubPage() {
     } finally { releaseLock(lockKey) }
   }
 
-  const handleItemSettlement = async () => {
-    if (!directSettleId) return
-    const lockKey = `itemSettle_${directSettleId}`
-    if (!acquireLock(lockKey)) return
-    try {
-    const purchase = purchases.find(p => p.id === directSettleId)
-    if (!purchase) return
-
-    // Validation: all checked items must have vendorId
-    const itemsWithoutVendor = Object.entries(settlementItems).filter(([itemId, data]) => {
-      const item = purchaseItems.find(pi => pi.id === itemId)
-      if (!item || item.isOnlineAudited || item.purchaseMethod !== 'Pasar') return false
-      return !data.vendorId
-    })
-
-    if (itemsWithoutVendor.length > 0) {
-      const names = itemsWithoutVendor.map(([itemId]) => {
-        const item = purchaseItems.find(pi => pi.id === itemId)
-        const prod = products.find(p => p.id === item?.productId)
-        return prod ? prod.name : `Item ID ${itemId}`
-      })
-      toast.error(`Semua item belanja wajib memiliki Vendor. Item berikut belum ada vendor: ${names.join(', ')}`)
-      return
-    }
-
-    // Guard: confirm bila defisit (HPP + Ops > Advance). Legacy: sourcer fronted cash
-    // from their own pocket and must be talangin-reimbursed. Pool-funded: the money
-    // already came out of the Bank Jago pool at buy time — nobody fronted anything,
-    // this only means realisasi > budget yang disetujui.
-    if (netBalance < 0) {
-      const msg = isLegacyAdvance(purchase)
-        ? `⚠ DEFISIT ${formatRupiah(Math.abs(netBalance))}\n\n` +
-          `Budget: ${formatRupiah(directSettleBudget)}\n` +
-          `HPP: ${formatRupiah(currentTotalHPP)}\n` +
-          `Ops: ${formatRupiah(currentTotalOps)}\n` +
-          `Selisih: -${formatRupiah(Math.abs(netBalance))}\n\n` +
-          `Sourcer harus talangin ${formatRupiah(Math.abs(netBalance))}. Yakin lanjut?`
-        : `⚠ REALISASI MELEBIHI BUDGET ${formatRupiah(Math.abs(netBalance))}\n\n` +
-          `Budget Disetujui: ${formatRupiah(directSettleBudget)}\n` +
-          `HPP: ${formatRupiah(currentTotalHPP)}\n` +
-          `Ops: ${formatRupiah(currentTotalOps)}\n` +
-          `Selisih: -${formatRupiah(Math.abs(netBalance))}\n\n` +
-          `Dana belanja ini sudah keluar dari pool Bank Jago saat sourcer belanja, jadi tidak ada yang perlu ditalangin. Realisasi belanja lebih besar dari budget yang disetujui — yakin mau tutup buku sesi ini?`
-      if (!window.confirm(msg)) {
-        return
-      }
-    }
-
-    const toastId = toast.loading("Memproses settlement per item...")
-    
-    try {
-      const now = new Date().toISOString()
-      const addExpense = useAppStore.getState().addExpense
-      
-      let totalHPP = 0      // ALL items (for actualSpent tracking)
-      let totalCashHPP = 0  // Only Cash items (these actually use the advance money)
-
-      // 1. Process items (skip online-audited items — already handled via Audit Online flow)
-      for (const [itemId, data] of Object.entries(settlementItems)) {
-        const item = purchaseItems.find(pi => pi.id === itemId)
-        if (!item || item.isOnlineAudited || item.purchaseMethod !== 'Pasar') continue
-        
-        await useAppStore.getState().updatePurchaseItem(itemId, { 
-          actualUnitPrice: data.actualPrice, 
-          qtyPurchased: data.qtyPurchased, 
-          vendorId: data.vendorId,
-          paymentMethod: data.paymentMethod,
-          isChecked: true,
-          inboundStatus: 'pra_inbound'
-        })
-        
-        if (data.actualPrice > 0 && item.productId) {
-          updateProductPriceHistory(item.productId, data.actualPrice, 'Pasar (Finance Input)')
-        }
-        
-        const lineTotal = data.actualPrice * data.qtyPurchased
-        totalHPP += lineTotal
-
-        // Tempo items don't consume the advance cash — only Cash items do
-        const vendor = vendors.find(v => v.id === data.vendorId)
-        const isTempo = data.paymentMethod
-          ? (data.paymentMethod === 'Tempo')
-          : (vendor ? (vendor.isTempo !== false) : true)
-        if (!isTempo) {
-          totalCashHPP += lineTotal
-        }
-      }
-
-      // 2. Process Ops
-      let totalOps = 0
-      for (const op of settlementOps) {
-        if (op.amount <= 0) continue
-        await addExpense({
-          id: `ops-${Date.now()}-${uuidv4().slice(0, 4)}`,
-          purchaseId: directSettleId,
-          amount: op.amount,
-          category: op.category as any,
-          description: op.note || `Biaya Operasional Sourcing (${op.category})`,
-          date: now,
-          status: 'Pending Audit',
-          reporterId: currentUser?.id || 'system',
-          receiptUrl: settlementProofUrl
-        })
-        totalOps += op.amount
-      }
-
-      // 3. (Removed HPP Expense creation to prevent double-counting and lingering items. HPP is handled by recordReconciliationSettlement)
-
-      // Only Cash HPP + Ops reduce the advance budget. Tempo items are credit — no cash used.
-      const finalNetBalance = directSettleBudget - totalCashHPP - totalOps
-      const returned = settlementReturnedCustom !== null ? settlementReturnedCustom : Math.max(0, finalNetBalance)
-
-      // 4. Create Return Record — legacy advance only. Under the pool model
-      // directSettleBudget is the approved plan, not money handed over, so any
-      // "remainder" here is not cash that ever moved. Posting a return would
-      // debit the bank and credit the pocket for money neither ever touched
-      // (recordAdvanceReturn), double-booking on top of recordPocketPurchase.
-      if (returned > 0 && isLegacyAdvance(purchase)) {
-        await addExpense({
-          id: `ret-${Date.now()}`,
-          purchaseId: directSettleId,
-          amount: returned,
-          category: 'Setoran Pengembalian',
-          description: `Sisa Dana Dikembalikan (Input Manual Finance)`,
-          date: now,
-          status: 'Pending Audit',
-          reporterId: currentUser?.id || 'system',
-          targetBankAccountId: selectedBank,
-          receiptUrl: settlementProofUrl
-        })
-      }
-
-      // 4.1 Defisit reimburse row sekarang dibuat otomatis di recordReconciliationSettlement
-      //     (lewat handleVerifyReconciliation di langkah 6). Block ini sengaja dikosongkan
-      //     supaya gak duplikat dengan kanonik creator di accounting.ts.
-
-      // 5. Update purchase actual spent
-      await updatePurchase(directSettleId, { 
-        actualSpent: totalHPP,
-        changeReturned: returned,
-        reconciliationStatus: 'Laporan Masuk'
-      })
-
-      // 6. Run the standard verification logic
-      await handleVerifyReconciliation(directSettleId)
-      
-      toast.success("Settlement per item selesai!", { id: toastId })
-      setIsDirectSettleOpen(false)
-      setDirectSettleId(null)
-      setSettlementItems({})
-      setSettlementOps([])
-      setSettlementProofUrl("")
-      setSettlementReturnedCustom(null)
-    } catch (err) {
-      toast.error("Gagal memproses settlement per item.", { id: toastId })
-    }
-    } finally { releaseLock(lockKey) }
-  }
+  const handleItemSettlement = async () => {window.location.assign('/finance/salin-belanja')}
 
   const handleCreateVendor = async () => {
     if (!newVendorForm.companyName) {
@@ -618,45 +446,22 @@ export default function FinanceHubPage() {
 
   const handlePayReimbursement = async (reimbId: string) => {
     const lockKey = `payReimburse_${reimbId}`
-    if (!acquireLock(lockKey)) return
+    if (!acquireLock(lockKey)) return false
     try {
     const freshReimbursements = useAppStore.getState().reimbursements
     const reimb = freshReimbursements.find(r => r.id === reimbId)
-    if (!reimb) return
+    if (!reimb) return false
     const freshUsers = useAppStore.getState().users
     const user = freshUsers.find(u => u.id === reimb.userId)
 
     toast.loading("Memproses pembayaran talangan...", { id: "reimb" })
     const success = await recordReimbursementPayment(reimb.id, reimb.amount, reimb.title || 'Reimburse', selectedBank, user?.name || 'Karyawan')
     if (success) {
-      await updateReimbursement(reimbId, { status: 'Paid' })
-
-      // Sourcing/courier deficit reimb: replenish advance wallet balance so it doesn't stay negative
-      const isDeficit = (reimb.description || '').toLowerCase().includes('talangan sourcing') ||
-                        (reimb.description || '').toLowerCase().includes('defisit') ||
-                        (reimb.title || '').toLowerCase().includes('defisit sourcing')
-      if (isDeficit && user) {
-        const advanceWallet = getAdvanceWalletByUserId(user.id)
-        if (advanceWallet) {
-          await useAppStore.getState().addCashTransaction({
-            id: uuidv4(),
-            date: new Date().toISOString(),
-            amount: reimb.amount,
-            type: 'In',
-            category: 'Pelunasan Defisit Sourcing',
-            description: `Dana reimburse masuk ke ${advanceWallet.label} (${user.name || 'Sourcing'})`,
-            bankAccountId: advanceWallet.bankAccountId,
-            referenceType: 'Reimbursement',
-            referenceId: reimbId,
-            counterpartName: user.name
-          })
-        }
-      }
-
-      toast.success("Pembayaran reimbursement berhasil dicatat.", { id: "reimb" })
+      toast.success("Pembayaran reimbursement berhasil dicatat.", { id: "reimb" }); return true
     } else {
-      toast.error("Gagal mencatat transaksi reimbursement.", { id: "reimb" })
+      toast.error("Gagal mencatat transaksi reimbursement.", { id: "reimb" }); return false
     }
+    } catch(error) {toast.error(error instanceof Error?error.message:"Pembayaran gagal",{id:"reimb"});return false
     } finally { releaseLock(lockKey) }
   }
 

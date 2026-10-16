@@ -1,6 +1,7 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useRef } from "react"
+import { recordManualBillCommand } from "@/lib/finance-commands"
 import { useAppStore } from "@/lib/store"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -15,7 +16,6 @@ import { toast } from "sonner"
 import { format, differenceInDays, parseISO } from "date-fns"
 import { id as localeId } from "date-fns/locale"
 import { formatRupiah, formatNumber, parseNumber } from "@/lib/utils"
-import { createAccountingEntry } from "@/lib/accounting"
 import { agingBucket } from "@/lib/vendor-payable"
 import { computeBankBalances } from "@/lib/bank-balance"
 import { v4 as uuidv4 } from "uuid"
@@ -60,8 +60,6 @@ export default function APAgingPage() {
     () => computeBankBalances(rawBankAccounts, cashTransactions),
     [rawBankAccounts, cashTransactions]
   )
-  const addVendorBill = useAppStore(s => s.addVendorBill)
-  const deleteVendorBill = useAppStore(s => s.deleteVendorBill)
   const payVendorBill = useAppStore(s => s.payVendorBill)
   const currentUser = useAppStore(s => s.currentUser)
   const isSyncing = useAppStore(s => s.isSyncing)
@@ -183,67 +181,35 @@ export default function APAgingPage() {
     }
   }
 
+  const billAttempt=useRef<{id:string;payload:string;date:string}|null>(null)
+  const billBusy=useRef(false)
+  const [isAddingBill,setIsAddingBill]=useState(false)
   const handleAddBill = async () => {
-    if (!fVendorId || !fDueDate || !fDescription || fAmount <= 0) {
-      toast.error("Lengkapi semua field yang wajib."); return
-    }
-    const vendor = vendors.find(v => v.id === fVendorId)
-    if (!vendor) { toast.error("Vendor tidak ditemukan"); return }
-    const billId = uuidv4()
-    const now = new Date().toISOString()
-    const issueIso = new Date(fIssueDate).toISOString()
-    const dueIso = new Date(fDueDate).toISOString()
-    const billNumber = `VB-${format(new Date(), 'yyyyMM')}-${billId.slice(0, 6).toUpperCase()}`
-    const loadingToast = toast.loading("Mencatat hutang vendor...")
-
+    if(billBusy.current) return
+    if(!fVendorId || !fIssueDate || !fDueDate || !fDescription.trim() || !Number.isFinite(fAmount) || fAmount<=0) {toast.error('Lengkapi vendor, tanggal, keterangan dan nominal positif.');return}
+    const vendor=vendors.find(v=>v.id===fVendorId)
+    if(!vendor) return
+    const payload=JSON.stringify({vendorId:fVendorId,issueDate:fIssueDate,dueDate:fDueDate,description:fDescription,category:fCategory,amount:fAmount})
+    if(billAttempt.current && billAttempt.current.payload!==payload) {toast.error('Ulangi hutang sebelumnya dengan data yang sama untuk memastikan hasil.');return}
+    if(!billAttempt.current) billAttempt.current={id:uuidv4(),payload,date:new Date().toISOString()}
+    billBusy.current=true;setIsAddingBill(true)
     try {
-      // 1. Add bill record first so it exists in the database to prevent foreign key constraint violation
-      const bill: VendorBill = {
-        id: billId,
-        billNumber,
-        vendorId: fVendorId,
-        vendorName: vendor.companyName,
-        issueDate: issueIso,
-        dueDate: dueIso,
-        description: fDescription,
-        category: fCategory,
-        totalAmount: fAmount,
-        amountPaid: 0,
-        status: 'Pending',
-        payments: [],
-        createdAt: now,
-        createdBy: currentUser?.id,
-      }
-      await addVendorBill(bill)
-
-      // 2. JE: Debit category account, Credit Utang Usaha (2-1000)
-      const debitCOA = categoryDebitCOA(fCategory)
-      const ok = await createAccountingEntry(
-        `Hutang Vendor ${vendor.companyName}: ${fDescription}`,
-        'Purchase',
-        billId,
-        [{ accountCode: debitCOA, amount: fAmount }] as any,
-        [{ accountCode: '2-1000', amount: fAmount, vendorId: fVendorId, vendorBillId: billId }] as any,
-        issueIso
-      )
-      if (!ok) {
-        await deleteVendorBill(billId)
-        toast.error("Gagal mencatat jurnal AP.", { id: loadingToast })
-        return
-      }
-
-      toast.success("Hutang vendor dicatat!", { id: loadingToast })
-      setIsAddOpen(false)
-      resetAddForm()
-    } catch (e: any) {
-      toast.error("Gagal: " + e.message, { id: loadingToast })
-    }
+      const {id:eventId,date}=billAttempt.current
+      const bill:VendorBill={id:eventId,billNumber:`VB-${format(new Date(date),'yyyyMM')}-${eventId.slice(0,6).toUpperCase()}`,vendorId:fVendorId,vendorName:vendor.companyName,issueDate:new Date(fIssueDate).toISOString(),dueDate:new Date(fDueDate).toISOString(),description:fDescription,category:fCategory,totalAmount:fAmount,amountPaid:0,status:'Pending',payments:[],createdAt:date,createdBy:currentUser?.id}
+      const ok=await recordManualBillCommand({eventId,bill,debitAccountCode:categoryDebitCOA(fCategory)})
+      if(!ok) throw new Error('Hutang belum terkonfirmasi. Ulangi data yang sama.')
+      billAttempt.current=null;setIsAddOpen(false);resetAddForm();toast.success('Hutang dan jurnal dicatat bersama.')
+    } catch(e) {toast.error((e as Error).message)}
+    finally {billBusy.current=false;setIsAddingBill(false)}
   }
 
+  const vendorPaymentAttempt = useRef<{ id: string; payload: string } | null>(null)
+  const vendorPaymentInFlight = useRef(false)
+
   const handlePay = async () => {
-    if (!payingBill || isPaying) return
-    if (!pBankId || pAmount <= 0) { toast.error("Pilih bank dan isi nominal."); return }
-    if (pAmount > payingBill.outstanding + 1) {
+    if (!payingBill || isPaying || vendorPaymentInFlight.current) return
+    if (!pBankId || !pDate || Number.isNaN(new Date(pDate).getTime()) || !Number.isFinite(pAmount) || pAmount <= 0) { toast.error("Pilih bank dan isi nominal."); return }
+    if (pAmount > payingBill.outstanding) {
       toast.error(`Pembayaran melebihi outstanding (${formatRupiah(payingBill.outstanding)})`); return
     }
     const bank = bankAccounts.find(b => b.id === pBankId)
@@ -252,8 +218,12 @@ export default function APAgingPage() {
       toast.error(`Saldo ${bank.name} tidak cukup. Saldo: ${formatRupiah(bank.balance)}`); return
     }
     
+    const payload = JSON.stringify({ billId: payingBill.id, amount: pAmount, bankAccountId: pBankId, date: pDate, note: pNote })
+    if (vendorPaymentAttempt.current && vendorPaymentAttempt.current.payload !== payload) { toast.error('Ulangi pembayaran sebelumnya dengan data yang sama untuk memastikan hasilnya.'); return }
+    if (!vendorPaymentAttempt.current) vendorPaymentAttempt.current = { id: uuidv4(), payload }
+    vendorPaymentInFlight.current = true
     setIsPaying(true)
-    const payId = uuidv4()
+    const payId = vendorPaymentAttempt.current.id
     const payIso = new Date(pDate).toISOString()
     const loadingToast = toast.loading("Mencatat pembayaran...")
 
@@ -267,38 +237,20 @@ export default function APAgingPage() {
       }
       await payVendorBill(payingBill.id, payment)
 
+      vendorPaymentAttempt.current = null
       toast.success("Pembayaran dicatat!", { id: loadingToast })
       setPayingBill(null)
       resetPayForm()
     } catch (e: any) {
       toast.error("Gagal: " + e.message, { id: loadingToast })
     } finally {
+      vendorPaymentInFlight.current = false
       setIsPaying(false)
     }
   }
 
   const handleDelete = async (bill: VendorBill) => {
-    if ((bill.amountPaid || 0) > 0) {
-      toast.error("Hutang yang sudah ada pembayaran tidak dapat dihapus. Refund manual dulu."); return
-    }
-    if (!confirm(`Hapus hutang ${bill.vendorName} ${bill.billNumber}? Jurnal AP juga akan dihapus.`)) return
-    const loadingToast = toast.loading("Menghapus hutang vendor...")
-    try {
-      // Reverse JE: Debit 2-1000, Credit category COA
-      const debitCOA = categoryDebitCOA(bill.category || 'Operasional')
-      await createAccountingEntry(
-        `[REVERSAL] Hutang Vendor ${bill.vendorName}: ${bill.description}`,
-        'Adjustment',
-        `${bill.id}-reversal`,
-        [{ accountCode: '2-1000', amount: bill.totalAmount, vendorId: bill.vendorId, vendorBillId: bill.id }] as any,
-        [{ accountCode: debitCOA, amount: bill.totalAmount }] as any,
-        new Date().toISOString()
-      )
-      await deleteVendorBill(bill.id)
-      toast.success("Dihapus.", { id: loadingToast })
-    } catch (e: any) {
-      toast.error("Gagal: " + e.message, { id: loadingToast })
-    }
+    toast.error("Hutang terposting tidak dapat dihapus. Pembatalan harus membalik jurnal asal beserta pembayaran terkait; alur ini belum tersedia.")
   }
 
   return (
@@ -539,8 +491,8 @@ export default function APAgingPage() {
                           <Button
                             size="icon" variant="ghost"
                             className="w-7 h-7 rounded-lg hover:bg-rose-50 text-rose-500"
-                            onClick={() => handleDelete(b)}
-                            title="Hapus"
+                            disabled
+                            title="Pembalikan hutang terhubung belum tersedia"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </Button>
@@ -618,7 +570,7 @@ export default function APAgingPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button className="w-full h-11 font-bold rounded-xl bg-purple-600 hover:bg-purple-700" onClick={handleAddBill}>
+            <Button className="w-full h-11 font-bold rounded-xl bg-purple-600 hover:bg-purple-700" onClick={handleAddBill} disabled={isAddingBill}>
               Simpan Hutang Vendor
             </Button>
           </DialogFooter>

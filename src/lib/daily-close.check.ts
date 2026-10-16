@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { grossProfit, netProfit, variances, canClose, type LedgerLine } from './daily-close';
+import { grossProfit, netProfit, variances, canClose, postedDay, postedLedger, type LedgerLine } from './daily-close';
 
 const D = '2026-08-16';
 const LAIN = '2026-08-15';
@@ -29,15 +29,16 @@ const EXP = [
   { day: LAIN, amount: 900_000, approved: true }, // hari lain
 ];
 const tanpaSetelan = netProfit(L, D, EXP, null);
-assert.equal(tanpaSetelan.ops, 200_000);
+assert.equal(tanpaSetelan.ops, 0, 'approved expense paper is not an additional posted expense');
 assert.equal(tanpaSetelan.fixedDaily, null);
-assert.equal(tanpaSetelan.net, null, 'tanpa setelan biaya tetap, laba bersih harus null — bukan nol');
+assert.equal(tanpaSetelan.net, 3_000_000, 'official net comes from posted GL without a fixed-cost estimate');
 
 const denganSetelan = netProfit(L, D, EXP, { monthlyTotal: 26_000_000, workingDays: 26 });
 assert.equal(denganSetelan.fixedDaily, 1_000_000);
-assert.equal(denganSetelan.net, 3_000_000 - 200_000 - 1_000_000);
+assert.equal(denganSetelan.net, 3_000_000);
+assert.equal(denganSetelan.estimatedNetAfterFixed, 2_000_000);
 // pembagi nol tidak bikin Infinity
-assert.equal(netProfit(L, D, EXP, { monthlyTotal: 26_000_000, workingDays: 0 }).net, null);
+assert.equal(netProfit(L, D, EXP, { monthlyTotal: 26_000_000, workingDays: 0 }).estimatedNetAfterFixed, null);
 
 // --- Selisih ---
 const POCKETS = [{ day: D, ditarik: 5_000_000, belanja: 4_000_000, disetor: 1_000_000 }];
@@ -83,3 +84,12 @@ assert.equal(canClose(VS, { 'kirim-vs-tagih': 'PO Anthem belum diaudit' }), true
 assert.equal(canClose([], {}), true);
 
 console.log('daily-close: OK');
+
+const general = netProfit([...L,{day:D,accountCode:'6-9000',debit:300_000,credit:0},{day:D,accountCode:'5-2000',debit:100_000,credit:0}],D,EXP,null);
+assert.equal(general.net,2_600_000,'all posted general expenses and shrinkage count once');
+assert.equal(general.ops,400_000);
+
+assert.equal(postedDay('2026-10-15T18:00:00Z'),'2026-10-16','posting day uses WIB');
+const late = postedLedger([{id:'late',transactionDate:'2026-10-16T00:30:00+07:00'}],[{journalEntryId:'late',accountId:'revenue',debitAmount:0,creditAmount:100}],[{id:'revenue',accountCode:'4-1000',accountType:'Revenue'}]);
+assert.equal(grossProfit(late,'2026-10-16').revenue,100,'late transcription uses actual posting date, regardless target delivery date');
+assert.equal(grossProfit(late,'2026-10-15').revenue,0);

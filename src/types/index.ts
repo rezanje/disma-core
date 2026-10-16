@@ -4,7 +4,8 @@ export interface User {
   id: string;
   name: string;
   role: Role;
-  pin: string;
+  pin?: string;
+  isActive?: boolean;
 }
 
 export type AccessKey = 
@@ -199,6 +200,7 @@ export interface SalesOrderItem {
   productId: string;
   qty: number;              // Original PO quantity
   qtyFinal?: number | null; // Actual quantity after QC (may differ due to reject/shortage). null = reset for a new backorder round.
+  qtyCancelled?: number;    // Quantity cancelled through an explicit return decision
   qtyDelivered?: number;    // Cumulative qty ACCEPTED by client across all delivery rounds. owed = qty - qtyDelivered
   unitPrice: number;
   subtotal: number;         // Original subtotal (qty * unitPrice)
@@ -248,6 +250,13 @@ export interface Purchase {
   operationalSpareAmount?: number; // Extra money for fuel, parking, etc.
   actualSpent?: number;         // Actual total spent by Sourcer
   changeReturned?: number;      // Kembalian from Sourcer
+  /** Expected cash still held; never evidence that money has been returned. */
+  expectedRemainder?: number;
+  paperSessionId?: string;
+  paperOccurredAt?: string;
+  paperPerformerId?: string;
+  paperRecordedAt?: string;
+  occurredAt?: string;
   reconciliationNote?: string;  // Sourcer's explanation for discrepancy
   reconciliationStatus?: ReconciliationStatus;
   reconciliationProofUrl?: string; // Optional: Image/Photo proof of return
@@ -311,11 +320,37 @@ export interface PurchaseItem {
   expiryDate?: string;
   /** Kenapa harga belinya di atas batas. Wajib diisi kalau lewat, tidak pernah memblokir belanja. */
   overCeilingReason?: string;
+  qcProcessedQty?: number;
+  qcEventIds?: string[];
+  qcOccurredAt?: string;
+  qcRecordedAt?: string;
+  qcRecordedBy?: string;
+  qcPaperNumber?: string;
+  qcPaperProof?: string;
+  reportEventId?: string;
+  reportEventIds?: string[];
+  reportComplete?: boolean;
 }
 
 export type DeliveryStatus = 'Menunggu' | 'Dikirim' | 'Tunggu Konfirmasi' | 'Awaiting Audit' | 'Terkirim';
 
+/** Frozen facts for one delivery round; legacy records can have no snapshot. */
+export interface DeliveryLineSnapshot {
+  lineTotal?: number;
+  costTotal?: number;
+  salesOrderItemId: string;
+  productId: string;
+  productName: string;
+  uom: string;
+  qty: number;
+  unitPrice: number;
+  unitCost: number;
+}
+
+export interface DocumentClientSnapshot { companyName: string; picName: string; address: string; phone?: string; email?: string }
+
 export interface Delivery {
+  clientSnapshot?: DocumentClientSnapshot;
   id: string;
   salesOrderId: string;
   courierId: string;
@@ -324,11 +359,21 @@ export interface Delivery {
   baUrl?: string;
   invoiceId?: string;
   notes?: string; // Additional documentation for the delivery
+  lineSnapshots?: DeliveryLineSnapshot[];
+  acceptedLineSnapshots?: DeliveryLineSnapshot[];
+  occurredAt?: string;
+  performedBy?: string;
+  recordedAt?: string;
+  recordedBy?: string;
+  paperNumber?: string;
+  paperProof?: string;
+  recipientName?: string;
+  rejectionReason?: string;
 }
 
 // 'Cancelled': tagihan dikoreksi habis lewat credit note. Bukan 'Paid' — tidak ada
 // uang yang masuk, dan menyebutnya lunas membuat laporan penerimaan berbohong.
-export type InvoiceStatus = 'Unpaid' | 'Partial' | 'Paid' | 'Cancelled';
+export type InvoiceStatus = 'Draft' | 'Unpaid' | 'Partial' | 'Paid' | 'Cancelled';
 
 export interface PaymentRecord {
   id: string;
@@ -339,6 +384,7 @@ export interface PaymentRecord {
 }
 
 export interface Invoice {
+  clientSnapshot?: DocumentClientSnapshot;
   id: string;
   salesOrderId?: string; // Kept for backward compatibility
   salesOrderIds?: string[]; // For consolidated Invoices (Tukar Faktur)
@@ -356,11 +402,14 @@ export interface Invoice {
   lastRemindedAt?: string;
   /** If set, this invoice was absorbed into a consolidated (Tukar Faktur) invoice and should be treated as superseded. */
   supersededByInvoiceId?: string;
+  deliveryId?: string;
+  lineSnapshots?: DeliveryLineSnapshot[];
 }
 
 export type TukarFakturStatus = 'Draft' | 'Issued' | 'Received' | 'Paid';
 
 export interface TukarFaktur {
+  receivedProofUrl?: string;
   id: string;
   tfNumber: string;
   clientId: string;
@@ -450,6 +499,10 @@ export interface JournalLine {
 export type ExpenseStatus = 'Pending Audit' | 'Approved' | 'Rejected';
 
 export interface OperationalExpense {
+  channel?: 'sourcing' | 'kurir';
+  performedBy?: string;
+  recordedBy?: string;
+  recordedAt?: string;
   id: string;
   date: string;
   reporterId: string;
@@ -475,6 +528,10 @@ export type ReimbursementStatus = 'Pending' | 'Approved' | 'Paid' | 'Rejected';
 export type ReimbursementKind = 'Manual' | 'Auto-Talangan' | 'Sourcing-Defisit';
 
 export interface Reimbursement {
+  channel?: 'sourcing' | 'kurir';
+  performedBy?: string;
+  recordedBy?: string;
+  recordedAt?: string;
   id: string;
   date: string;
   userId: string;
@@ -527,7 +584,7 @@ export interface CashTransaction {
   bankAccountId: string;
   category: string;
   description: string;
-  referenceType?: 'Invoice' | 'Purchase' | 'Expense' | 'Reimbursement' | 'Transfer' | 'Manual';
+  referenceType?: 'Invoice' | 'Purchase' | 'Payment' | 'Expense' | 'Reimbursement' | 'Transfer' | 'Manual';
   referenceId?: string;
   counterpartName?: string; // e.g., 'Diterima dari: Vendor A'
   receiptUrl?: string;
@@ -589,6 +646,15 @@ export interface AppNotification {
 }
 
 export interface PendingReturn {
+  creditAmount?: number;
+  costAmount?: number;
+  deliveryId?: string;
+  salesOrderItemId?: string;
+  invoiceId?: string;
+  unitCost?: number;
+  unitPrice?: number;
+  returnDecision?: 'Replace' | 'Cancel';
+  financialAdjustmentStatus?: 'Pending Finance' | 'Credited';
   id: string;
   productId: string;
   originalSoId: string;
@@ -613,7 +679,7 @@ export interface VendorReturn {
   reason: string;
   date: string;                  // ISO timestamp, created
   originalReturnId: string;      // the PendingReturn this came from
-  status: 'Menunggu Vendor' | 'Selesai-Ditukar' | 'Selesai-Ditolak';
+  status: 'Menunggu Vendor' | 'Selesai-Ditukar' | 'Selesai-Ditolak' | 'Selesai-Dibayar' | 'Selesai-PotongHutang';
   resolvedDate?: string;         // ISO timestamp, set on resolution
   replacementPassQty?: number;   // set on Ditukar
   replacementRejectQty?: number; // set on Ditukar
@@ -730,6 +796,9 @@ export interface DailyCostConfig {
 
 /** Koreksi resmi atas invoice yang sudah diposting. */
 export interface CreditNote {
+  sourceReturnId?: string;
+  refundableAmount?: number;
+  refundedAmount?: number;
   id: string;
   cnNumber: string;
   invoiceId: string;

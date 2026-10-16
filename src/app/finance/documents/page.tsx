@@ -20,6 +20,7 @@ import {
   Eye,
   ArrowUpRight
 } from "lucide-react"
+import { generateInvoicePDF, generateTukarFakturBundle } from "@/lib/pdf"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { 
@@ -43,11 +44,12 @@ export default function FinanceDocumentsPage() {
   const [search, setSearch] = useState("")
 
   // Categorized Documents
-  const receipts = expenses.filter(e => e.receiptUrl).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-  const paymentProofs = cashTransactions.filter(tx => tx.receiptUrl).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+  const matches = (value: string) => value.toLowerCase().includes(search.toLowerCase())
+  const receipts = expenses.filter(e => e.receiptUrl && matches(`${e.id} ${e.description}`)).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+  const paymentProofs = cashTransactions.filter(tx => tx.receiptUrl && matches(`${tx.id} ${tx.description}`)).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())
   
   // Recent Invoices
-  const recentInvoices = [...invoices].sort((a,b) => new Date(b.issueDate).getTime() - new Date(a.issueDate).getTime())
+  const recentInvoices = invoices.filter(inv => matches(`${inv.id} ${clients.find(c => c.id === inv.clientId)?.companyName || ""}`)).sort((a,b) => new Date(b.issueDate).getTime() - new Date(a.issueDate).getTime())
 
   const drawers = [
     { id: 'Expenses', label: 'Laci Pengeluaran', icon: <Receipt className="w-5 h-5" />, sub: 'Nota Sourcing & Ops' },
@@ -59,8 +61,14 @@ export default function FinanceDocumentsPage() {
     setPreviewImage(url)
   }
 
-  const handleDownload = (id: string) => {
-    toast.success(`Mengunduh dokumen ${id.slice(0,8)}...`)
+  const handleDownload = (url: string) => {
+    if (!url || (!url.startsWith('data:') && !url.startsWith('https://') && !url.startsWith('/'))) { toast.error('Bukti tidak tersedia.'); return }
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'bukti-keuangan'
+    link.target = '_blank'
+    link.rel = 'noopener noreferrer'
+    link.click()
   }
 
   return (
@@ -171,7 +179,7 @@ export default function FinanceDocumentsPage() {
                                  <Button variant="ghost" size="sm" onClick={() => handlePreview(exp.receiptUrl!)} className="rounded-xl hover:bg-emerald-50 text-emerald-600 font-bold text-[11px] px-4">
                                     LIHAT <Eye className="w-3 h-3 ml-2" />
                                  </Button>
-                                 <Button variant="ghost" size="sm" onClick={() => handleDownload(exp.id)} className="w-10 h-10 rounded-xl hover:bg-slate-100 text-slate-400">
+                                 <Button variant="ghost" size="sm" onClick={() => handleDownload(exp.receiptUrl!)} className="w-10 h-10 rounded-xl hover:bg-slate-100 text-slate-400">
                                     <Download className="w-4 h-4" />
                                  </Button>
                               </div>
@@ -212,7 +220,7 @@ export default function FinanceDocumentsPage() {
                                  <Button variant="ghost" size="sm" onClick={() => handlePreview(tx.receiptUrl!)} className="rounded-xl hover:bg-emerald-50 text-emerald-600 font-bold text-[11px] px-4">
                                     LIHAT <Eye className="w-3 h-3 ml-2" />
                                  </Button>
-                                 <Button variant="ghost" size="sm" onClick={() => handleDownload(tx.id)} className="w-10 h-10 rounded-xl hover:bg-slate-100 text-slate-400">
+                                 <Button variant="ghost" size="sm" onClick={() => handleDownload(tx.receiptUrl!)} className="w-10 h-10 rounded-xl hover:bg-slate-100 text-slate-400">
                                     <Download className="w-4 h-4" />
                                  </Button>
                               </div>
@@ -244,10 +252,10 @@ export default function FinanceDocumentsPage() {
                                     <p className="text-[11px] font-bold text-slate-400  mt-2">{client?.companyName}</p>
                                     
                                     <div className="mt-6 flex gap-2">
-                                       <Button className="flex-1 rounded-xl bg-slate-900 hover:bg-black text-white text-[11px] font-bold uppercase h-10">
+                                       <Button onClick={() => inv.isConsolidated ? generateTukarFakturBundle(inv.id) : generateInvoicePDF(inv.id)} className="flex-1 rounded-xl bg-slate-900 hover:bg-black text-white text-[11px] font-bold uppercase h-10">
                                           Download PDF <ArrowUpRight className="w-3 h-3 ml-1" />
                                        </Button>
-                                       <Button variant="outline" className="w-10 h-10 rounded-xl border-slate-200">
+                                       <Button disabled title="Unduh PDF untuk mencetak" variant="outline" className="w-10 h-10 rounded-xl border-slate-200">
                                           <Printer className="w-4 h-4 text-slate-400" />
                                        </Button>
                                     </div>

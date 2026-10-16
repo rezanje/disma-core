@@ -38,6 +38,7 @@ import Image from "next/image"
 import jsPDF from "jspdf"
 import * as htmlToImage from "html-to-image"
 import { toast } from "sonner"
+import { postedDay } from "@/lib/daily-close"
 
 export default function FinancialReportsPage({ embedded }: { embedded?: boolean } = {}) {
   const coas = useAppStore(state => state.coas)
@@ -130,7 +131,8 @@ export default function FinancialReportsPage({ embedded }: { embedded?: boolean 
     // Create mapping of line to entry date
     const linesWithDate = journalLines.map(line => {
       const entry = journalEntries.find(e => e.id === line.journalEntryId)
-      const entryDate = entry ? new Date(entry.transactionDate) : null
+      const posted=entry ? postedDay(entry.transactionDate) : '';
+      const entryDate = posted ? new Date(`${posted}T12:00:00`) : null
       return { line, entryDate }
     }).filter(x => x.entryDate !== null) as { line: typeof journalLines[0], entryDate: Date }[]
 
@@ -273,7 +275,7 @@ export default function FinancialReportsPage({ embedded }: { embedded?: boolean 
         {!embedded && (
           <div>
             <h2 className="text-3xl font-bold text-slate-900 ">Financial Statements</h2>
-            <p className="text-xs font-bold text-slate-400  mt-2">Visibilitas Profitabilitas & Kesehatan Bisnis DISMA</p>
+            <p className="text-xs font-bold text-slate-400  mt-2">Buku besar diposting · tanggal transaksi dalam WIB · seluruh beban GL</p>
           </div>
         )}
         <div className="flex gap-3">

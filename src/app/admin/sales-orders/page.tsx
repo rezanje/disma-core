@@ -57,15 +57,14 @@ import {
 import { addDays, format } from "date-fns"
 import { Printer } from "lucide-react"
 import { toast } from "sonner"
-import { generateDocumentNumber, updateProductPriceHistory, finalizeSalesOrderDelivery } from "@/lib/accounting"
+import { generateDocumentNumber, updateProductPriceHistory } from "@/lib/accounting"
 import ReceiptUpload from "@/components/ui/receipt-upload"
 import { PdfCanvasPreview } from "@/components/pdf-canvas-preview"
 import { generateSuratJalan, generateBA, generateSalesOrderPDF } from "@/lib/pdf"
 import { perjalanan, ringkasan, persen, layarSekarang } from "@/lib/po-progress"
-import { roundQtyToBook, nextSoStatus } from "@/lib/backorder"
 import { pendingEdits } from "@/lib/order-edits"
+import { executePurchaseCommand, type PurchaseCommand } from "@/lib/purchase-command"
 import { orderEditable, editLockReason, linkedPurchaseLines } from "@/lib/order-edit-window"
-import { appendRevisions, revisionSummary, type Revision } from "@/lib/revision-note"
 import {
   Popover,
   PopoverContent,
@@ -199,10 +198,10 @@ const besokISO = () => format(addDays(new Date(), 1), 'yyyy-MM-dd')
 
 export default function SalesOrdersPage() {
   const salesOrders = useAppStore(state => state.salesOrders)
+  const deliveries = useAppStore(state => state.deliveries)
   const salesOrderItems = useAppStore(state => state.salesOrderItems)
   const purchases = useAppStore(state => state.purchases)
   const purchaseItems = useAppStore(state => state.purchaseItems)
-  const updatePurchaseItem = useAppStore(state => state.updatePurchaseItem)
   const updatePurchase = useAppStore(state => state.updatePurchase)
   const users = useAppStore(state => state.users)
   const addNotification = useAppStore(state => state.addNotification)
@@ -265,63 +264,12 @@ export default function SalesOrdersPage() {
   const [panelSoId, setPanelSoId] = useState<string | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
 
+  const [pendingRevision,setPendingRevision] = useState<PurchaseCommand | null>(null)
+
   // BAST Confirmation states
 
   const handleConfirmBAST = async () => {
-    if (!selectedSO) return
-    toast.loading("Memproses konfirmasi penerimaan...", { id: "confirm-bast" })
-    try {
-      // Snapshot updated items so we can recompute SO status afterwards.
-      const updatedItems: { qty: number; qtyDelivered: number }[] = []
-
-      // Penolakan klien dicatat SEKALI, oleh kurir di lokasi — angkanya sudah masuk
-      // qtyFinal dan sudah menjadi dasar tagihan, dan barangnya sudah masuk antrean
-      // Inspeksi Retur Customer di QC. BAST dahulu menanyakannya lagi (Accepted /
-      // Partial / Return) dan itulah kebocorannya: unit yang ditolak dicatat sebagai
-      // retur TAPI qtyDelivered tetap maju sebesar yang dikirim, sehingga barang yang
-      // sama ditagihkan, tidak pernah kembali ke stok, dan tidak pernah terutang lagi.
-      // BAST sekarang murni konfirmasi atas apa yang sudah dicatat kurir.
-      for (const item of selectedItems) {
-        // Qty actually shipped THIS round (before this BAST folds into qtyDelivered).
-        const shippedThisRound = roundQtyToBook(item)
-
-        // roundQtyToBook resolves to qtyFinal, which the courier already reduced to what
-        // the client accepted. So this advances by the ACCEPTED quantity, the unaccepted
-        // remainder stays owed, and nextSoStatus below turns the order into Kurang Kirim
-        // for a follow-up round. The rejected goods themselves are handled separately, as
-        // a pending return the warehouse inspects in QC.
-        const newQtyDelivered = (item.qtyDelivered ?? 0) + shippedThisRound
-        // Reset qtyFinal (explicit null so the reset persists to the DB — undefined would
-        // be dropped by JSON.stringify and the upsert would keep the stale value) so any
-        // remaining owed qty re-enters the QC queue as the next round.
-        await updateSalesOrderItem(item.id, {
-          qtyDelivered: newQtyDelivered,
-          qtyFinal: null,
-          subtotalFinal: newQtyDelivered * item.unitPrice
-        })
-        updatedItems.push({ qty: item.qty, qtyDelivered: newQtyDelivered })
-      }
-
-      // `deliveredAt` used to ride along here. It is not a SalesOrder field and there is
-      // no delivered_at column, so Postgres rejected the whole row ("Could not find the
-      // 'delivered_at' column") and the status never moved: an order short by 15 Kg stayed
-      // "Terkirim" instead of becoming "Kurang Kirim", and the shortfall was never queued
-      // for a follow-up round. The BAST date is already on the delivery record.
-      const soStatus = nextSoStatus(updatedItems)
-      await updateSalesOrder(selectedSO.id, { status: soStatus })
-
-      setIsDetailOpen(false)
-      toast.success(
-        soStatus === 'Kurang Kirim'
-          ? `BAST dikonfirmasi! Sisa kurang kirim masuk antrean susulan (QC).`
-          : "BAST dikonfirmasi! Pesanan selesai.",
-        { id: "confirm-bast" }
-      )
-
-    } catch (e) {
-      console.error(e)
-      toast.error("Gagal memproses BAST", { id: "confirm-bast" })
-    }
+    if (selectedSO) window.location.assign(`/admin/operasi?soId=${encodeURIComponent(selectedSO.id)}`)
   }
 
   // Listen to URL search param detailId to auto-open details
@@ -439,6 +387,12 @@ export default function SalesOrdersPage() {
   }
 
   const handleEditSO = (so: SalesOrder) => {
+    if (!orderEditable(so, purchases)) return toast.error(editLockReason(so, purchases))
+    if (so.shoppingListDocumentId) {
+      setDetailSOId(so.id); setIsDetailOpen(true)
+      toast.info('Gunakan revisi qty/harga pada rincian agar daftar belanja dan catatan revisi ikut diperbarui.')
+      return
+    }
     setEditingSO(so)
     setClientId(so.clientId)
     setTargetDate(toDateInputValue(so.targetDeliveryDate))
@@ -574,6 +528,7 @@ export default function SalesOrdersPage() {
   const handleAddItemToOrder = () => {
     const so = salesOrders.find(s => s.id === detailSOId)
     if (!so) return
+    if (!orderEditable(so, purchases) || so.shoppingListDocumentId) return toast.error('Penambahan baris hanya sebelum dokumen belanja dibuat. Gunakan PO susulan setelahnya.')
     if (!addItemProductId) { toast.error("Pilih produk dulu"); return }
     if (addItemQty <= 0) { toast.error("Qty harus lebih dari 0"); return }
 
@@ -601,6 +556,9 @@ export default function SalesOrdersPage() {
   }
 
   const handleRemoveItemFromOrder = (itemId: string) => {
+    const row = salesOrderItems.find(i=>i.id===itemId)
+    const so = salesOrders.find(s=>s.id===row?.salesOrderId)
+    if (!orderEditable(so, purchases) || so?.shoppingListDocumentId) return toast.error('Baris sudah terhubung dokumen. Revisi qty/harga melalui rincian; jangan hapus riwayat.')
     deleteSalesOrderItem(itemId)
     setEditingItems(prev => {
       const next = { ...prev }
@@ -874,6 +832,7 @@ export default function SalesOrdersPage() {
 
 
   const handleSaveSO = async () => {
+    if (editingSO && (!orderEditable(salesOrders.find(s=>s.id===editingSO.id), purchases) || editingSO.shoppingListDocumentId)) { toast.error('PO ini harus direvisi melalui rincian pesanan sebelum rencana dilepas.'); return }
     if (!clientId) {
       toast.error("Please select a client")
       return
@@ -990,42 +949,8 @@ export default function SalesOrdersPage() {
   }
 
   const advanceStatus = async (soId: string, currentStatus: string) => {
-    const nextStatus =
-      currentStatus === 'Draft' ? 'Belanja' :
-      currentStatus === 'Belanja' ? 'Packing' :
-      currentStatus === 'Packing' ? 'Dikirim' :
-      currentStatus === 'Siap Kirim' ? 'Dikirim' :
-      currentStatus === 'Dikirim' ? 'Terkirim' : currentStatus;
-
-    // Reaching Terkirim must finalize like the finance delivery audit: create the
-    // invoice, book omzet + HPP, and deduct stock. Otherwise this manual shortcut
-    // leaves a delivered order with no invoice (Tukar Faktur stays empty).
-    if (nextStatus === 'Terkirim' && currentStatus !== 'Terkirim') {
-      toast.loading("Finalisasi pengiriman & invoice...", { id: `ship-${soId}` })
-      const ok = await finalizeSalesOrderDelivery(soId)
-      if (!ok) {
-        toast.error("Gagal finalisasi pengiriman ke jurnal.", { id: `ship-${soId}` })
-        return
-      }
-      await updateSalesOrder(soId, { status: 'Terkirim' })
-      toast.success("Terkirim! Invoice, omzet, HPP & stok tercatat.", { id: `ship-${soId}` })
-      return
-    }
-
-    updateSalesOrder(soId, { status: nextStatus as SalesOrderStatus })
-
-    // Manual ship from PO page bypasses courier handover. If warehouse outbound
-    // auto-created a courier pickup mission that no courier has picked up yet
-    // (status 'Menunggu'), delete it so it doesn't linger as a phantom task in
-    // the courier list. If a courier already picked it up ('Dikirim'+), leave it.
-    if (currentStatus === 'Siap Kirim') {
-      const phantom = useAppStore.getState().deliveries.find(
-        d => d.salesOrderId === soId && d.status === 'Menunggu'
-      )
-      if (phantom) await useAppStore.getState().deleteDelivery(phantom.id)
-    }
-
-    toast.success(`Status updated to ${nextStatus}`)
+    if (currentStatus === 'Draft') { await updateSalesOrder(soId,{status:'Belanja'}); return }
+    window.location.assign(`/admin/operasi?soId=${encodeURIComponent(soId)}`)
   }
 
 
@@ -1102,6 +1027,7 @@ export default function SalesOrdersPage() {
       return
     }
 
+    if (!orderEditable(so, purchases) || so.shoppingListDocumentId) return toast.error('PO terhubung dokumen tidak boleh dihapus. Gunakan revisi atau PO susulan.')
     if (!window.confirm(`Apakah Anda yakin ingin menghapus PO ${so.poNumber} beserta seluruh itemnya? Tindakan ini tidak dapat dibatalkan.`)) {
       return
     }
@@ -1124,6 +1050,7 @@ export default function SalesOrdersPage() {
       return
     }
 
+    if (salesOrders.some(so=>selectedSoIds.includes(so.id) && (!orderEditable(so,purchases) || so.shoppingListDocumentId))) return toast.error('Pilihan memuat PO terkunci atau terhubung dokumen; penghapusan dibatalkan.')
     if (!window.confirm(`Apakah Anda yakin ingin menghapus ${selectedSoIds.length} PO terpilih? Tindakan ini tidak dapat dibatalkan.`)) {
       return
     }
@@ -1149,76 +1076,30 @@ export default function SalesOrdersPage() {
   // simpannya tidak bisa membedakan keduanya dan terlihat sama terus.
   const dirtyItemIds = pendingEdits(selectedItems, editingItems)
 
-  const saveOrderEdits = () => {
+  const saveOrderEdits = async () => {
+    if (pendingRevision) {
+      try { await executePurchaseCommand(useAppStore.getState,pendingRevision);setPendingRevision(null);toast.success('Revisi terdahulu sudah terkonfirmasi.') }
+      catch(e){toast.error(e instanceof Error ? e.message : 'Revisi belum terkonfirmasi.')}
+      return
+    }
+    const fresh = useAppStore.getState()
+    if (!orderEditable(fresh.salesOrders.find(s=>s.id===detailSOId), fresh.purchases)) return toast.error(editLockReason(selectedSO,purchases))
+    if (dirtyItemIds.some(id=>!Number.isFinite(editingItems[id].qty) || editingItems[id].qty <= 0 || !Number.isFinite(editingItems[id].price) || editingItems[id].price <= 0)) return toast.error('Qty dan harga harus lebih dari nol.')
+    if (dirtyItemIds.some(id=>{const row=selectedItems.find(i=>i.id===id);return row && editingItems[id].qty < Number(row.qtyDelivered || 0)+Number(row.qtyFinal || 0)+Number(row.qtyCancelled || 0)})) return toast.error('Qty revisi tidak boleh kurang dari barang yang sudah dikirim atau direservasi.')
+    if (selectedSO?.shoppingListDocumentId && dirtyItemIds.some(id=>{const row=selectedItems.find(i=>i.id===id);return row && editingItems[id].qty > row.qty && linkedPurchaseLines(selectedSO.id,row.productId,purchaseItems,purchases).length===0})) return toast.error('Penambahan kebutuhan stok yang sudah direservasi harus melalui PO susulan agar tidak hilang dari daftar beli.')
     if (dirtyItemIds.length === 0) {
       toast.info("Tidak ada perubahan untuk disimpan.")
       return
     }
-    // Hanya baris yang berubah yang ditulis ulang — sebelumnya seluruh baris ditulis
-    // setiap kali, jadi riwayat perubahan penuh baris yang sebenarnya sama.
-    // Perubahan yang menyentuh dokumen belanja dikumpulkan dulu, supaya catatannya
-    // ditulis sekali per dokumen — bukan satu notifikasi per baris.
-    const revisiPerDokumen = new Map<string, Revision[]>()
-
-    dirtyItemIds.forEach(itemId => {
-      const data = editingItems[itemId]
-      const item = selectedItems.find(i => i.id === itemId)
-      updateSalesOrderItem(itemId, {
-        qty: data.qty,
-        unitPrice: data.price,
-        subtotal: data.qty * data.price
-      })
-
-      // Daftar belanjanya ikut. Tanpa ini pesanan bilang 15 kg sementara daftar
-      // belanjanya masih 10 — dan yang dibawa ke pasar adalah yang 10.
-      if (item && detailSOId) {
-        for (const lineId of linkedPurchaseLines(detailSOId, item.productId, purchaseItems, purchases)) {
-          const baris = purchaseItems.find(pi => pi.id === lineId)
-          if (!baris || baris.qtyTarget === data.qty) continue
-          updatePurchaseItem(lineId, { qtyTarget: data.qty })
-          const produk = products.find(p => p.id === item.productId)
-          const daftar = revisiPerDokumen.get(baris.purchaseId) || []
-          daftar.push({
-            produk: produk?.name || item.productId,
-            dari: baris.qtyTarget,
-            jadi: data.qty,
-            satuan: produk?.uom,
-          })
-          revisiPerDokumen.set(baris.purchaseId, daftar)
-        }
-      }
-    })
-
-    // Finance harus tahu. Dokumennya ditandai berubah, dan orangnya diberi tahu —
-    // tanpa ini dia merencanakan vendor dan uang dari angka yang sudah tidak berlaku.
-    let ikut = 0
-    for (const [purchaseId, revisi] of revisiPerDokumen) {
-      ikut += revisi.length
-      const doc = purchases.find(p => p.id === purchaseId)
-      const kode = doc?.advanceCode || purchaseId.slice(0, 8)
-      updatePurchase(purchaseId, {
-        revisedAt: new Date().toISOString(),
-        revisedBy: currentUser?.name || currentUser?.id,
-        revisionNote: appendRevisions(doc?.revisionNote, revisi),
-      })
-      const financeUsers = users.filter(u => u.role === 'finance')
-      for (const fu of financeUsers) {
-        addNotification({
-          id: uuidv4(),
-          userId: fu.id,
-          title: 'Daftar belanja berubah',
-          message: revisionSummary(kode, revisi),
-          type: 'system',
-          link: '/finance/purchase-plan',
-          read: false,
-          createdAt: new Date().toISOString(),
-        })
-      }
-    }
-
-    toast.success(ikut > 0
-      ? `${dirtyItemIds.length} baris pesanan disimpan — ${ikut} baris daftar belanja ikut berubah, Finance sudah diberi tahu`
-      : `${dirtyItemIds.length} baris pesanan berhasil disimpan`)
+    try {
+      const command:PurchaseCommand = pendingRevision || {eventId:uuidv4(),stage:'revise',sourceId:detailSOId!,payload:{
+        occurredAt:new Date().toISOString(),lines:dirtyItemIds.map(id=>({id,qty:editingItems[id].qty,unitPrice:editingItems[id].price,expectedQty:selectedItems.find(i=>i.id===id)!.qty,expectedUnitPrice:selectedItems.find(i=>i.id===id)!.unitPrice})),
+      }}
+      setPendingRevision(command)
+      await executePurchaseCommand(useAppStore.getState,command)
+      setPendingRevision(null)
+      toast.success('Revisi PO dan seluruh kebutuhan belanja tersimpan bersama.')
+    } catch(e) { toast.error(e instanceof Error ? e.message : 'Revisi gagal; coba simpan ulang dengan data yang sama.') }
   }
 
   // Menutup modal dengan perubahan yang belum disimpan dulu membuangnya tanpa suara.
@@ -1996,7 +1877,8 @@ export default function SalesOrdersPage() {
                             size="sm" 
                             variant="ghost" 
                             className="h-8 w-8 p-0 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                            title="Edit PO"
+                            disabled={!orderEditable(so, purchases)}
+                            title={editLockReason(so, purchases) || "Edit PO"}
                             onClick={() => handleEditSO(so)}
                           >
                             <Pencil className="h-4 w-4" />
@@ -2005,6 +1887,7 @@ export default function SalesOrdersPage() {
                             size="sm" 
                             variant="ghost" 
                             className="h-8 w-8 p-0 text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                            disabled={!orderEditable(so, purchases) || !!so.shoppingListDocumentId}
                             title="Hapus PO"
                             onClick={() => handleDeleteSO(so.id)}
                           >
@@ -2261,7 +2144,8 @@ export default function SalesOrdersPage() {
                             size="sm" 
                             variant="ghost" 
                             className="h-8 w-8 p-0 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                            title="Edit PO"
+                            disabled={!orderEditable(so, purchases)}
+                            title={editLockReason(so, purchases) || "Edit PO"}
                             onClick={() => handleEditSO(so)}
                           >
                             <Pencil className="h-4 w-4" />
@@ -2270,6 +2154,7 @@ export default function SalesOrdersPage() {
                             size="sm" 
                             variant="ghost" 
                             className="h-8 w-8 p-0 text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                            disabled={!orderEditable(so, purchases) || !!so.shoppingListDocumentId}
                             title="Hapus PO"
                             onClick={() => handleDeleteSO(so.id)}
                           >
@@ -2667,7 +2552,7 @@ export default function SalesOrdersPage() {
                       Konfirmasi Penerimaan BAST
                     </h4>
                     <p className="text-[11px] text-slate-500 font-bold mt-0.5">
-                      Review barang yang diterima klien. Tentukan status penerimaan per item.
+                      Konfirmasi berdasarkan penerimaan yang telah dibukukan. Jumlah barang tidak ditambahkan lagi.
                     </p>
                   </div>
                   <Button
@@ -2692,15 +2577,16 @@ export default function SalesOrdersPage() {
                       {selectedItems.map(item => {
                         const product = products.find(p => p.id === item.productId)
                         // Sudah dicatat kurir di lokasi. BAST hanya mengkonfirmasi.
-                        const accepted = roundQtyToBook(item)
-                        const owedAfter = Math.max(0, item.qty - ((item.qtyDelivered ?? 0) + accepted))
+                        const lastRound = deliveries.filter(d=>d.salesOrderId===selectedSO?.id && d.status==='Terkirim').slice(-1)[0]
+                        const accepted = lastRound?.acceptedLineSnapshots?.find(l=>l.salesOrderItemId===item.id)?.qty
+                        const owedAfter = Math.max(0, item.qty - Number(item.qtyDelivered || 0))
                         return (
                           <tr key={item.id} className="border-t hover:bg-slate-50/50">
                             <td className="px-4 py-3 font-bold text-slate-800">
                               {product?.name}
                               <p className="text-[11px] text-slate-400 font-bold  mt-0.5">{product?.skuCode}</p>
                             </td>
-                            <td className="px-4 py-3 text-center font-bold text-slate-700">{accepted} {product?.uom}</td>
+                            <td className="px-4 py-3 text-center font-bold text-slate-700">{accepted === undefined ? 'Snapshot belum tersedia' : `${accepted} ${product?.uom || ''}`}</td>
                             <td className={cn("px-4 py-3 text-center font-bold", owedAfter > 0 ? "text-amber-600" : "text-slate-300")}>
                               {owedAfter > 0 ? `${owedAfter} ${product?.uom ?? ''}` : '—'}
                             </td>
@@ -3069,21 +2955,15 @@ export default function SalesOrdersPage() {
                   {selectedSO?.status === 'Pending Approval' && (
                     <Button 
                       className="bg-emerald-500 hover:bg-emerald-600 transition-all text-white font-bold h-12 px-8 rounded-xl shadow-sm"
-                      onClick={() => {
-                        // Batch save and approve
-                        Object.entries(editingItems).forEach(([itemId, data]) => {
-                          updateSalesOrderItem(itemId, { 
-                            qty: data.qty, 
-                            unitPrice: data.price,
-                            subtotal: data.qty * data.price
-                          })
-                        })
-                        updateSalesOrder(selectedSO.id, { 
-                          status: 'Draft',
-                          poNumber: poNumberDraft || generateDocumentNumber('PO')
-                        })
-                        setIsDetailOpen(false)
-                        toast.success("Pesanan Disetujui & PO Diterbitkan!")
+                      onClick={async () => {
+                        if (!orderEditable(selectedSO,purchases) || selectedSO.shoppingListDocumentId) return toast.error('PO sudah terhubung dokumen; gunakan jalur revisi.')
+                        if (Object.values(editingItems).some(data=>!(data.qty > 0) || !(data.price > 0))) return toast.error('Qty dan harga harus lebih dari nol.')
+                        try {
+                          for (const [itemId, data] of Object.entries(editingItems)) await updateSalesOrderItem(itemId, {qty:data.qty,unitPrice:data.price,subtotal:data.qty*data.price})
+                          await updateSalesOrder(selectedSO.id, {status:'Draft',poNumber:poNumberDraft || generateDocumentNumber('PO')})
+                          setIsDetailOpen(false)
+                          toast.success('Pesanan disetujui dan PO diterbitkan.')
+                        } catch (e) { toast.error(e instanceof Error ? e.message : 'Persetujuan PO gagal disimpan.') }
                       }}
                     >
                       Setuju & Buat PO

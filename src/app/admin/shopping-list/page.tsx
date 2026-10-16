@@ -17,6 +17,8 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn, formatRupiah } from "@/lib/utils"
+import { executePurchaseCommand, type PurchaseCommand } from "@/lib/purchase-command"
+import { allocateShoppingDemand, warehouseReservations } from "@/lib/purchase-plan"
 import { qtyOwed } from "@/lib/backorder"
 import GlobalUndoButton from "@/components/global-undo-button"
 import { PdfCanvasPreview } from "@/components/pdf-canvas-preview"
@@ -62,15 +64,11 @@ export default function ShoppingListPage() {
   const currentUser = useAppStore(state => state.currentUser)
   const purchases = useAppStore(state => state.purchases)
   const purchaseItems = useAppStore(state => state.purchaseItems)
-  const addPurchase = useAppStore(state => state.addPurchase)
-  const addPurchaseItems = useAppStore(state => state.addPurchaseItems)
   const deletePurchase = useAppStore(state => state.deletePurchase)
-  const updateSalesOrder = useAppStore(state => state.updateSalesOrder)
   const purchaseRequests = useAppStore(state => state.purchaseRequests) || []
+  const deliveries = useAppStore(state=>state.deliveries)
   const stockMovements = useAppStore(state => state.stockMovements)
-  const addStockMovement = useAppStore(state => state.addStockMovement)
   const rejectedItems = useAppStore(state => state.rejectedItems) || []
-  const updateRejectedItem = useAppStore(state => state.updateRejectedItem)
 
   const [isLoading, setIsLoading] = useState(false)
   const [isDeletingPurchase, setIsDeletingPurchase] = useState<string | null>(null)
@@ -129,6 +127,7 @@ export default function ShoppingListPage() {
     try { return JSON.parse(localStorage.getItem('shopping_paymentByProduct_v2') || '{}') } catch { return {} }
   })
   // Rows fulfilled from warehouse stock (booking) — excluded from the buy list
+  const [pendingCompile, setPendingCompile] = useState<PurchaseCommand | null>(null)
   const [stockBookedProductIds, setStockBookedProductIds] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') return new Set()
     try { return new Set(JSON.parse(localStorage.getItem('shopping_stockBookedProductIds_v2') || '[]')) } catch { return new Set() }
@@ -343,13 +342,10 @@ export default function ShoppingListPage() {
 
   // Quantity already reserved (booked) against warehouse stock from prior bookings.
   // Used to compute available-to-promise stock = currentStock - alreadyBooked.
-  const bookedQtyByProduct = useMemo(() => {
-    const map: Record<string, number> = {}
-    ;(stockMovements || []).forEach(m => {
-      if (m.kind === 'BOOKING') map[m.productId] = (map[m.productId] || 0) + Number(m.quantity || 0)
-    })
-    return map
-  }, [stockMovements])
+  const bookedQtyByProduct = useMemo(
+    () => warehouseReservations(salesOrderItems, salesOrders, deliveries),
+    [salesOrderItems, salesOrders, deliveries],
+  )
 
   const pendingRejects = useMemo(() => {
     return rejectedItems
@@ -474,29 +470,27 @@ export default function ShoppingListPage() {
   }, [] as Array<{productId: string, productName: string, skuCode: string, uom?: string, kebutuhan: number, totalQty: number, estimatedPrice: number, sellPrice: number, purchaseMethod: 'Pasar' | 'Online' | 'Vendor' | 'Dropship', paymentMethod: 'Cash' | 'Tempo' | 'Transfer', salesOrderId?: string, vendorId?: string, vendorName?: string, fromStock?: boolean}>)
 
   const consolidatedList = useMemo(() => {
-    return rawConsolidatedList.map(item => {
-      const product = products.find(p => p.id === item.productId)
-      // Stok minus tidak bisa dipakai memenuhi pesanan — kalau catatannya minus,
-      // anggap kosong di sini (angka minusnya tetap kelihatan di layar gudang).
-      const currentStock = Math.max(0, product?.currentStock || 0)
-      const alreadyBought = rekapPOByProduct[item.productId] || 0
-      const kebutuhan = item.kebutuhan
-
-      const defaultQty = item.fromStock 
-        ? 0 
-        : Math.max(0, kebutuhan - currentStock - alreadyBought)
-
-      const uniqueKey = `${item.productId}_${item.salesOrderId || 'manual'}`
-      const qtyToBuy = customQtys[uniqueKey] !== undefined 
-        ? customQtys[uniqueKey] 
-        : defaultQty
-
-      return {
-        ...item,
-        totalQty: qtyToBuy
-      }
-    })
-  }, [rawConsolidatedList, products, rekapPOByProduct, customQtys])
+    const onHand = Object.fromEntries(products.map(p => [p.id, Math.max(0, p.currentStock || 0)]))
+    // Current-round QC allocations and warehouse reservations are both owned by the PO.
+    const reserved = bookedQtyByProduct
+    const sourced: Record<string, number> = {}
+    for (const row of purchaseItems) {
+      if (row.isQCed) continue
+      const key = `${row.productId}_${row.salesOrderId || 'manual'}`
+      sourced[key] = (sourced[key] || 0) + Number(row.qtyTarget || 0)
+    }
+    for (const row of salesOrderItems) {
+      const key = `${row.productId}_${row.salesOrderId}`
+      sourced[key] = (sourced[key] || 0) + Math.max(0, Number(row.qtyFinal || 0))
+    }
+    const demand = rawConsolidatedList.map(item => ({ ...item, stockOnly: item.fromStock, id: `${item.productId}_${item.salesOrderId || 'manual'}`, quantity: item.kebutuhan }))
+    return allocateShoppingDemand(demand, onHand, reserved, sourced).map(item => ({
+      ...item,
+      allocatedStock: item.allocatedStock,
+      fromStock: item.stockOnly,
+      totalQty: item.stockOnly ? 0 : (customQtys[item.id] ?? item.toBuy),
+    }))
+  }, [rawConsolidatedList, products, bookedQtyByProduct, purchaseItems, salesOrders, salesOrderItems, customQtys])
 
 
   const handleAddManualItem = () => {
@@ -559,7 +553,8 @@ export default function ShoppingListPage() {
 
   const handleGenerateDocument = async () => {
     if (isLoading) return
-    if (consolidatedList.length === 0) {
+    if (!pendingCompile && consolidatedList.some(row=>!Number.isFinite(row.totalQty) || row.totalQty < 0)) return toast.error('Jumlah beli harus angka valid dan tidak negatif.')
+    if (!pendingCompile && consolidatedList.length === 0) {
       toast.error("Pilih minimal 1 PO atau tambahkan item stok dulu.")
       return
     }
@@ -569,7 +564,7 @@ export default function ShoppingListPage() {
     // bisa dicek — dokumennya memang belum punya rencana.
 
     let linkedPR = null
-    if (selectedPRId) {
+    if (selectedPRId && !pendingCompile) {
       linkedPR = purchaseRequests.find(pr => pr.id === selectedPRId)
       if (!linkedPR || linkedPR.status !== 'Approved') {
         toast.error('PR yang dipilih belum berstatus Approved.')
@@ -578,8 +573,10 @@ export default function ShoppingListPage() {
     }
 
     // Items fulfilled from warehouse stock are booked (reserved), NOT bought.
-    const buyItems = consolidatedList.filter(item => !item.fromStock)
-    const stockItems = consolidatedList.filter(item => item.fromStock)
+    const buyItems = consolidatedList.filter(item => !item.fromStock && item.totalQty > 0)
+    const stockItems = consolidatedList.filter(item => item.fromStock || item.allocatedStock > 0)
+    if (!pendingCompile && stockItems.some(item=>item.fromStock && !item.salesOrderId)) return toast.error('Ambil stok gudang harus terhubung ke PO, bukan pembelian stok manual.')
+    if (!pendingCompile && stockItems.some(item=>item.fromStock && item.allocatedStock < item.kebutuhan)) return toast.error('Stok bebas tidak mencukupi untuk baris Gudang. Gunakan qty beli untuk sisanya.')
     const documentItems = buyItems.map(item => ({ ...item }))
     const documentId = uuidv4()
     const generatedAt = new Date().toISOString()
@@ -587,93 +584,18 @@ export default function ShoppingListPage() {
     setIsLoading(true)
     const loadingId = toast.loading("Membuat dokumen list belanja...")
     try {
-      useAppStore.getState().takeDevSnapshot()
-      await addPurchase({
-        id: documentId,
-        date: generatedAt,
-        purchaserId: 'pending',
-        // Dokumen belum bisa dibelanjakan sampai Finance memutuskan vendor, jalur beli
-        // dan cara bayarnya (playbook §3.2: memilih supplier bukan wewenang Admin PO).
-        // Layar sourcing hanya menampilkan 'Pending' dan 'Belanja', jadi status ini
-        // sudah cukup jadi gerbangnya — tidak perlu penjaga tambahan.
-        status: 'Menunggu Rencana',
-        advanceCode,
-        shoppingListDocumentId: documentId,
-        shoppingListCompiledBy: currentUser?.id,
-        purchaseRequestId: selectedPRId || '',
-      })
-      await addPurchaseItems(documentItems.map(item => ({
-        id: uuidv4(),
-        purchaseId: documentId,
-        productId: item.productId,
-        salesOrderId: item.salesOrderId,
-        qtyTarget: item.totalQty,
-        // qtyPurchased untuk kiriman vendor/dropship dulu diisi di sini karena jalur itu
-        // melewati checklist sourcing. Sekarang jalurnya baru diputuskan Finance, jadi
-        // pengisiannya ikut pindah ke sana — di titik ini belum diketahui.
-        qtyPurchased: 0,
-        estimatedUnitPrice: item.estimatedPrice,
-        actualUnitPrice: 0,
-        isChecked: false,
-        // Vendor, jalur beli dan cara bayar SENGAJA dikosongkan. Playbook §3.2:
-        // memilih supplier bukan wewenang Admin PO. Finance mengisinya di layar
-        // Rencana Pembelian, dan sampai itu terjadi dokumennya tidak terlihat sourcing.
-      })))
-
-      // Reserve (book) warehouse stock for items fulfilled from inventory. These were
-      // excluded from the buy list above so Sourcing won't purchase them. The movement
-      // uses stockDelta 0 — on-hand stock is NOT reduced yet; this is a reservation
-      // until the warehouse actually pulls it for delivery.
-      for (const item of stockItems) {
-        const product = products.find(p => p.id === item.productId)
-        // Yang direservasi adalah kebutuhan PO-nya, bukan `totalQty`: untuk baris yang
-        // diambil dari gudang `totalQty` sengaja 0 (itu jumlah yang harus DIBELI), jadi
-        // memakainya bikin booking tercatat 0 — stok tidak pernah benar-benar dipesan dan
-        // bisa dijanjikan dua kali ke PO lain.
-        const bookedQty = item.kebutuhan
-        await addStockMovement({
-          id: uuidv4(),
-          date: generatedAt,
-          productId: item.productId,
-          productName: product?.name,
-          skuCode: product?.skuCode,
-          quantity: bookedQty,
-          stockDelta: 0,
-          resultingStock: product?.currentStock ?? 0,
-          direction: 'Info',
-          kind: 'BOOKING',
-          source: 'Booking Gudang (Shopping List)',
-          referenceType: 'Delivery',
-          referenceId: documentId,
-          salesOrderId: item.salesOrderId,
-          createdByUserId: currentUser?.id,
-          note: `Booking ${bookedQty} ${product?.uom || ''} dari stok gudang`,
-        })
+      const command:PurchaseCommand = pendingCompile || {
+        eventId:documentId,stage:'compile',sourceId:documentId,payload:{
+          occurredAt:generatedAt,advanceCode,purchaseRequestId:selectedPRId || '',salesOrderIds:selectedSOs.map(s=>s.id),
+          items:documentItems.map(item=>({id:uuidv4(),productId:item.productId,salesOrderId:item.salesOrderId,qtyTarget:item.totalQty,estimatedUnitPrice:item.estimatedPrice})),
+          reservations:stockItems.map(item=>({salesOrderItemId:salesOrderItems.find(r=>r.salesOrderId===item.salesOrderId && r.productId===item.productId)?.id,qty:item.fromStock ? item.kebutuhan : item.allocatedStock})),
+          rejectedIds:[...compiledRejectIds],
+        },
       }
-      setLastGeneratedDoc({
-        purchaseId: documentId,
-        generatedAt,
-        items: documentItems
-      })
-      for (const so of selectedSOs) {
-        await updateSalesOrder(so.id, {
-          status: 'Belanja',
-          shoppingListCompiledAt: generatedAt,
-          shoppingListDocumentId: documentId,
-          shoppingListCompiledBy: currentUser?.id
-        })
-      }
-
-      // Update DB for all compiled rejected items
-      for (const rejectId of compiledRejectIds) {
-        const originalReject = rejectedItems.find(ri => ri.id === rejectId)
-        if (originalReject) {
-          await updateRejectedItem({
-            ...originalReject,
-            shoppingCompiledAt: generatedAt
-          })
-        }
-      }
+      setPendingCompile(command)
+      await executePurchaseCommand(useAppStore.getState,command)
+      setPendingCompile(null)
+      setLastGeneratedDoc({purchaseId:command.sourceId,generatedAt,items:documentItems})
 
       // Reset local compiledRejectIds state
       setCompiledRejectIds(new Set())
@@ -704,7 +626,9 @@ export default function ShoppingListPage() {
         })
       }
       toast.success(
-        stockItems.length > 0
+        documentItems.length === 0
+          ? 'Stok sudah direservasi. PO siap untuk packing; buka Operasi barang.'
+          : stockItems.length > 0
           ? `Dokumen dibuat. ${buyItems.length} item dibeli, ${stockItems.length} item dibooking dari gudang. Kirim ke Finance dulu — daftar belanjanya bisa dicetak setelah vendornya ditentukan.`
           : "Dokumen dibuat. Kirim ke Finance dulu — daftar belanjanya bisa dicetak setelah vendornya ditentukan.",
         { id: loadingId }
@@ -720,6 +644,7 @@ export default function ShoppingListPage() {
     if (isDeletingPurchase) return
     const purchase = purchases.find(p => p.id === purchaseId)
     if (!purchase) return toast.error("Dokumen tidak ditemukan.")
+    if (purchase.status !== 'Menunggu Rencana') return toast.error('Rencana sudah dilepas; dokumen harus dipertahankan.')
     if (purchase.reconciliationStatus === 'Terverifikasi') {
       return toast.error("Dokumen sudah Selesai, tidak bisa dihapus.")
     }
@@ -851,7 +776,8 @@ export default function ShoppingListPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Shopping Master List</h2>
+          {pendingCompile && <div role="alert" className="p-3 border border-amber-300 rounded">Kompilasi belum selesai. <Button disabled={isLoading} onClick={handleGenerateDocument}>Coba transaksi yang sama</Button></div>}
+        <h2 className="text-2xl font-bold tracking-tight">Shopping Master List</h2>
           <p className="text-muted-foreground">Pilih PO mana saja, lalu compile jadi satu dokumen daftar belanja.</p>
         </div>
       </div>

@@ -10,24 +10,13 @@ import { toast } from "sonner"
 
 // Map table name → store action keys.
 type StoreActions = ReturnType<typeof useAppStore.getState>
+// Only master metadata and task records support ordinary rollback. Business
+// events and credentials require their dedicated correction/reversal command.
 const TABLE_ACTIONS: Record<string, { update?: keyof StoreActions; create?: keyof StoreActions }> = {
-  sales_orders: { update: 'updateSalesOrder', create: 'addSalesOrder' },
-  sales_order_items: { update: 'updateSalesOrderItem', create: 'addSalesOrderItem' },
-  purchases: { update: 'updatePurchase', create: 'addPurchase' },
-  purchase_items: { update: 'updatePurchaseItem', create: 'addPurchaseItem' },
-  expenses: { update: 'updateExpense', create: 'addExpense' },
-  invoices: { update: 'updateInvoice', create: 'addInvoice' },
-  reimbursements: { update: 'updateReimbursement', create: 'addReimbursement' },
-  deliveries: { update: 'updateDelivery', create: 'addDelivery' },
-  cash_transactions: { update: 'updateCashTransaction', create: 'addCashTransaction' },
-  journal_entries: { update: 'updateJournalEntry', create: 'addJournalEntry' },
   clients: { update: 'updateClient', create: 'addClient' },
   vendors: { update: 'updateVendor', create: 'addVendor' },
   products: { update: 'updateProduct', create: 'addProduct' },
-  bank_accounts: { update: 'updateBankAccount', create: 'addBankAccount' },
-  users: { update: 'updateUser', create: 'addUser' },
   client_prices: { update: 'updateClientPrice', create: 'addClientPrice' },
-  fixed_assets: { update: 'updateFixedAsset', create: 'addFixedAsset' },
   leads: { update: 'updateLead', create: 'addLead' },
   disma_tasks: { update: 'updateTask', create: 'addTask' },
 }
@@ -137,10 +126,9 @@ export default function RollbackDialog({
 
         <div className="space-y-4 text-sm">
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-amber-900 text-xs leading-relaxed">
-            <strong>Peringatan:</strong> Rollback ini hanya mengembalikan record sumber. Jurnal/kas/transaksi yang sudah dibuat sebelumnya <strong>TIDAK akan otomatis dibalikin</strong>. Lo yang bertanggung jawab nge-adjust downstream record secara manual kalau perlu.
-            {entry.action === 'delete' && (
-              <div className="mt-2">Untuk delete dgn cascade (mis. <code>deletePurchase</code> hapus <code>purchase_items</code> juga), tiap child harus di-rollback satu-satu.</div>
-            )}
+            {mapping
+              ? 'Perubahan ini mengembalikan data master yang dipilih. Periksa nilai dan referensinya sebelum melanjutkan.'
+              : 'Riwayat transaksi dan akun hanya dapat dikoreksi melalui dokumen sumber. Gunakan perintah pembatalan atau reversal yang mencatat seluruh dampaknya.'}
           </div>
 
           {missingFKs.length > 0 && (
@@ -154,7 +142,7 @@ export default function RollbackDialog({
 
           {!mapping && (
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-slate-700 text-xs">
-              Tabel <code>{entry.tableName}</code> belum di-mapping ke aksi store. Rollback tidak tersedia.
+              Tabel <code>{entry.tableName}</code> tidak mendukung rollback langsung. Gunakan koreksi pada dokumen sumber.
             </div>
           )}
         </div>

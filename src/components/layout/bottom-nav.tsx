@@ -14,6 +14,7 @@ interface NavItem {
   title: string
   href: string
   icon: React.ReactNode
+  children?: {key: string; title: string; href: string}[]
 }
 
 interface BottomNavProps {
@@ -58,7 +59,11 @@ export default function BottomNav({ items }: BottomNavProps) {
   // Slot "More" selalu ada — selain menampung kelebihan menu, di situlah tombol
   // Panduan tinggal (sidebar tidak tampil di layar HP). Jadi 4 slot utama + More.
   const primaryItems = sortedNavItems.slice(0, MAX_SLOTS - 1)
-  const overflowItems = sortedNavItems.slice(MAX_SLOTS - 1)
+  // Every child remains reachable on mobile, including children of primary slots.
+  const overflowItems = [...sortedNavItems.slice(MAX_SLOTS - 1),
+    ...sortedNavItems.flatMap(parent => (parent.children || []).map(child => ({
+      ...child, key: `${parent.key}-${child.key}`, title: `${parent.title}: ${child.title}`, icon: parent.icon,
+    })))].filter((item,index,all)=>all.findIndex(other=>other.href===item.href)===index)
   const overflowActive = overflowItems.some(item => isItemActive(item.href))
 
   return (
@@ -95,7 +100,7 @@ export default function BottomNav({ items }: BottomNavProps) {
             </div>
             <span className={cn("text-[11.5px] leading-none", overflowActive ? "font-medium text-primary" : "text-slate-500")}>More</span>
           </SheetTrigger>
-          <SheetContent side="bottom" className="rounded-t-2xl pb-safe px-4 pt-4">
+          <SheetContent side="bottom" className="rounded-t-2xl pb-safe px-4 pt-4 max-h-[85dvh] overflow-y-auto">
             <SheetTitle className="text-sm font-bold  text-slate-800 dark:text-slate-200 mb-4">Menu</SheetTitle>
             <div className="grid grid-cols-3 gap-3 pb-4">
               {overflowItems.map((item) => {

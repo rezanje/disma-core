@@ -1,0 +1,26 @@
+import assert from 'node:assert/strict';
+import Module from 'node:module';
+const originalLoad=(Module as any)._load;
+const originalFetch=globalThis.fetch;
+const keys=['purchases','purchaseItems','salesOrders','salesOrderItems','products','stockMovements','notifications','purchaseRequests','rejectedItems','bankAccounts','cashTransactions','journalEntries','journalLines','expenses'];
+let state:any={_lastLocalMutationAt:0,...Object.fromEntries(keys.map(k=>[k,[]]))};
+let applied=0;
+const store={getState:()=>state,setState:(fn:any)=>{state={...state,...fn(state)};applied++}};
+(Module as any)._load=function(id:string,...args:unknown[]){if(id==='./store')return {useAppStore:store};return originalLoad.call(this,id,...args)};
+const {executePurchaseCommand}=require('./purchase-command');
+const command={eventId:'stable',stage:'compile',sourceId:'doc',payload:{items:[],reservations:[],salesOrderIds:[]}};
+const updates=()=>({...Object.fromEntries(keys.map(k=>[k,[]])),purchases:[{id:'doc',status:'Menunggu Rencana'}]});
+(async()=>{
+ const getState=()=>({init:async()=>{throw new Error('Hydration must never use init')}});
+ globalThis.fetch=(async()=>({ok:false,json:async()=>({error:'reservation conflict'})} as Response)) as typeof fetch;
+ await assert.rejects(()=>executePurchaseCommand(getState,command),/reservation conflict/);assert.equal(applied,0);
+ globalThis.fetch=(async()=>({ok:true,json:async()=>({ok:true,eventId:'stable'})} as Response)) as typeof fetch;
+ await assert.rejects(()=>executePurchaseCommand(getState,command),/belum lengkap/);assert.equal(applied,0);
+ globalThis.fetch=(async()=>({ok:true,json:async()=>({ok:true,eventId:'stable',updates:{...updates(),purchases:[]}})} as Response)) as typeof fetch;
+ await assert.rejects(()=>executePurchaseCommand(getState,command),/mengonfirmasi/);assert.equal(applied,0);
+ globalThis.fetch=(async()=>{state._lastLocalMutationAt++;return {ok:true,json:async()=>({ok:true,eventId:'stable',updates:updates()})} as Response}) as typeof fetch;
+ await assert.rejects(()=>executePurchaseCommand(getState,command),/perubahan lain/);assert.equal(applied,0);
+ globalThis.fetch=(async(_url:any,request:any)=>{assert.deepEqual(JSON.parse(request.body),command);return {ok:true,json:async()=>({ok:true,eventId:'stable',updates:updates()})} as Response}) as typeof fetch;
+ await executePurchaseCommand(getState,command);assert.equal(applied,1);assert.equal(state.purchases[0].status,'Menunggu Rencana');
+ console.log('purchase command: OK');
+})().finally(()=>{globalThis.fetch=originalFetch;(Module as any)._load=originalLoad});

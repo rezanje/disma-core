@@ -7,10 +7,11 @@ import { WorksheetPrintButton } from "@/components/worksheet-print-button"
 import { qty as qtyTeks } from "@/lib/worksheet-rows"
 import { barisSiap, kesiapan, labelKesiapan } from "@/lib/kesiapan-po"
 import { useAppStore } from "@/lib/store"
+import { PaperEvidenceFields } from "@/components/paper-evidence-fields"
+import { executeGoodsCommand, type PaperEvidence } from "@/lib/goods-command"
+import { recordPacking } from "@/lib/dispatch"
 import { processInboundQC } from "@/lib/qc-process"
-import { costBasisFor } from "@/lib/cogs-source"
 import { awaitingArrival, awaitingQc, buildFifoAllocations } from "@/lib/daily-flow"
-import { recordShrinkage, recordStockMovement, createAccountingEntry, VENDOR_RETURN_CLAIM_ACCOUNT } from "@/lib/accounting"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -18,11 +19,9 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ShieldAlert, ShieldCheck, Tag, RefreshCcw, PackageSearch, AlertTriangle, Warehouse, Truck, ClipboardCheck, ChevronDown, Store } from "lucide-react"
 import { toast } from "sonner"
-import { v4 as uuidv4 } from "uuid"
 import { cn } from "@/lib/utils"
 import { qtyOwed } from "@/lib/backorder"
 import { isReturnSplitValid, isSwapSplitValid } from "@/lib/vendor-return"
-import { PelakuPicker } from "@/components/pelaku-picker"
 
 type PoAllocation = { soId: string; qty: number }
 
@@ -42,8 +41,6 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
   const vendorReturns = useAppStore(state => state.vendorReturns)
 
 
-  const updatePurchaseItem = useAppStore(state => state.updatePurchaseItem)
-  const updatePendingReturn = useAppStore(state => state.updatePendingReturn)
   const updateSalesOrder = useAppStore(state => state.updateSalesOrder)
   const users = useAppStore(state => state.users)
   const kurirs = users.filter(u => u.role === 'kurir')
@@ -56,20 +53,6 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
     .filter(item => item.product)
 
   const waitingArrivals = transcription ? awaitingArrival(purchaseItems, purchases) : []
-  const [acceptingArrival, setAcceptingArrival] = useState<string | null>(null)
-  const acceptArrival = async (itemId: string) => {
-    if (acceptingArrival) return
-    setAcceptingArrival(itemId)
-    try {
-      await updatePurchaseItem(itemId, { inboundStatus: 'pra_inbound' })
-      toast.success("Barang datang dicatat. Lanjutkan Salin Hasil QC di bawah.")
-    } catch {
-      toast.error("Barang datang belum berhasil dicatat. Coba lagi.")
-    } finally {
-      setAcceptingArrival(null)
-    }
-  }
-
   const [selectedPurchaseItemId, setSelectedPurchaseItemId] = useState("")
   const [qtyPassToInventory, setQtyPassToInventory] = useState(0)
   const [poAllocations, setPoAllocations] = useState<PoAllocation[]>([])
@@ -83,6 +66,13 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
   // Mode Salin: siapa yang benar-benar memeriksa barangnya di gudang, terpisah dari
   // siapa yang mengetikkan hasilnya.
   const [qcPerformedBy, setQcPerformedBy] = useState("")
+  const [paperEvidence, setPaperEvidence] = useState<PaperEvidence>({})
+  const [returnEvidence,setReturnEvidence] = useState<PaperEvidence>({})
+  const [packingEvidence,setPackingEvidence] = useState<PaperEvidence>({})
+  const [qcSaving,setQcSaving] = useState(false)
+  const [operationBusy,setOperationBusy] = useState(false)
+  const [vendorUnitPrice,setVendorUnitPrice] = useState('')
+  const [qcBankId,setQcBankId] = useState('')
   const [rejectAction, setRejectAction] = useState<'Return' | 'Disposal' | 'B2C'>('Disposal')
 
   // Usulan pembagian ke pesanan: pesanan tertua dapat duluan (src/lib/daily-flow.ts).
@@ -94,17 +84,14 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
   const activeProduct = products.find(p => p.id === activePurchaseItem?.productId)
 
   const handleProcessQC = async () => {
-    if (!activeProduct || !activePurchaseItem) return
-
-    if (transcription && !users.some(u => u.id === qcPerformedBy && u.role === 'gudang')) {
-      toast.error("Pilih nama pemeriksa sesuai berkas QC.")
-      return
-    }
+    if (!activeProduct || !activePurchaseItem || qcSaving) return
 
     toast.loading("Memproses verifikasi inbound & pencatatan jurnal...", { id: "qc-process" })
     // Isinya pindah ke src/lib/qc-process.ts supaya layar harian gabungan memanggil
     // alur yang sama persis, bukan salinannya.
-    const res = await processInboundQC(useAppStore.getState, {
+    setQcSaving(true)
+    let res
+    try { res = await processInboundQC(useAppStore.getState, {
       purchaseItemId: activePurchaseItem.id,
       qtyPassToInventory,
       allocations: poAllocations.map(a => ({ soId: a.soId, qty: a.qty })),
@@ -115,8 +102,12 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
       batchNumber,
       expiryDate,
       qcPhoto,
-      qcPerformedByUserId: qcPerformedBy,
-    })
+      qcPerformedByUserId: paperEvidence.performedBy || qcPerformedBy,
+      eventId: `qc:${activePurchaseItem.id}:${paperEvidence.paperNumber || 'initial'}`,
+      vendorUnitPrice: vendorUnitPrice ? Number(vendorUnitPrice) : undefined,
+      bankAccountId: qcBankId,
+      ...paperEvidence,
+    }) } finally { setQcSaving(false) }
 
     if (!res.ok) {
       toast.error(res.error, { id: "qc-process" })
@@ -157,203 +148,21 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
   const activeVendorReturnProduct = products.find(p => p.id === activeVendorReturn?.productId)
 
   const handleProcessReturnQC = async () => {
-    if (!activeReturn || !activeReturnProduct) return
-    const currentUser = useAppStore.getState().currentUser
-
-    // Barangnya masuk Persediaan dengan harga beli, jadi harus keluar dengan harga
-    // beli juga. Dulu dinilai pakai harga master produk: selisihnya mengendap di
-    // nilai persediaan dan tidak pernah bisa dikeluarkan lagi. Jalur retur vendor di
-    // bawah sudah benar sejak lama — jalur ini yang terlewat.
-    const retBasis = costBasisFor(
-      activeReturn.originalSoId, activeReturnProduct.id, purchaseItems, purchases,
-    )
-    const retUnitCost = retBasis?.actualUnitPrice || activeReturnProduct.basePrice || 0
-
-    if (!isReturnSplitValid({ pass: retQtyPass, buang: retQtyReject, vendor: retQtyVendor }, activeReturn.qty)) {
-      toast.error(`Total QC harus match dengan jumlah retur (${activeReturn.qty})`)
-      return
-    }
-    if (retQtyVendor > 0 && !retVendorId) {
-      toast.error("Pilih vendor tujuan retur dulu.")
-      return
-    }
-
-    if (retQtyPass > 0) {
-      await recordStockMovement({
-        productId: activeReturnProduct.id,
-        quantity: retQtyPass,
-        stockDelta: retQtyPass,
-        direction: 'In',
-        kind: 'RETURN_RESTOCK',
-        source: 'Return QC',
-        destination: 'Inventory',
-        referenceType: 'QC',
-        referenceId: activeReturn.id,
-        note: `Retur customer lolos QC dan kembali ke inventory`,
-        createdByUserId: currentUser?.id || 'system',
-        unitCost: retUnitCost,
-      })
-      toast.success(`${retQtyPass} unit dikembalikan ke stok layak jual.`)
-    }
-
-    if (retQtyReject > 0) {
-      const rejectId = uuidv4()
-      await recordShrinkage(rejectId, retQtyReject * retUnitCost, `Return Reject - ${activeReturnProduct.name}: ${retReason || activeReturn.reason}`)
-      await recordStockMovement({
-        productId: activeReturnProduct.id,
-        quantity: retQtyReject,
-        stockDelta: 0,
-        direction: 'Info',
-        kind: 'RETURN_REJECT',
-        source: 'Return QC',
-        destination: 'Reject/Write-off',
-        referenceType: 'QC',
-        referenceId: activeReturn.id,
-        note: `Retur customer reject: ${retReason || activeReturn.reason}`,
-        createdByUserId: currentUser?.id || 'system',
-      })
-      await useAppStore.getState().addRejectedItem({
-        id: rejectId,
-        date: new Date().toISOString(),
-        productId: activeReturnProduct.id,
-        qty: retQtyReject,
-        reason: retReason || activeReturn.reason,
-        source: 'Return',
-        referenceId: activeReturn.id,
-        reportedBy: currentUser?.id || 'system'
-      })
-      toast.error(`${retQtyReject} unit rusak/dibuang.`)
-    }
-
-    if (retQtyVendor > 0) {
-      const vrId = uuidv4()
-      await useAppStore.getState().addVendorReturn({
-        id: vrId,
-        productId: activeReturnProduct.id,
-        vendorId: retVendorId,
-        qty: retQtyVendor,
-        reason: retReason || activeReturn.reason,
-        date: new Date().toISOString(),
-        originalReturnId: activeReturn.id,
-        status: 'Menunggu Vendor',
-      })
-      // Notify Admin PO — they coordinate the swap with the vendor.
-      const vendorName = vendors.find(v => v.id === retVendorId)?.companyName || 'vendor'
-      const adminUsers = useAppStore.getState().users.filter(u => u.role === 'admin_po')
-      for (const adminUser of adminUsers) {
-        await useAppStore.getState().addNotification({
-          id: uuidv4(),
-          userId: adminUser.id,
-          title: `Retur ke Vendor: ${activeReturnProduct.name}`,
-          message: `${retQtyVendor} ${activeReturnProduct.uom} diretur ke ${vendorName} untuk ditukar.`,
-          type: 'system',
-          link: '/warehouse/qc',
-          read: false,
-          createdAt: new Date().toISOString()
-        })
-      }
-      toast.success(`${retQtyVendor} unit diretur ke vendor untuk ditukar.`)
-    }
-
-    // Persist completion — a state-only mutation reappears on next sync.
-    await updatePendingReturn(activeReturn.id, { status: 'Processed' })
-    setSelectedReturnId("")
-    setRetQtyPass(0)
-    setRetQtyReject(0)
-    setRetQtyVendor(0)
-    setRetVendorId("")
-    setRetReason("")
+    if (!activeReturn || operationBusy) return
+    setOperationBusy(true)
+    try {
+      await executeGoodsCommand(useAppStore.getState,{eventId:`return:${activeReturn.id}`,stage:'return',sourceId:activeReturn.id,payload:{pass:retQtyPass,reject:retQtyReject,vendor:retQtyVendor,vendorId:retVendorId,reason:retReason,...returnEvidence}})
+      toast.success('QC retur tersimpan.');setSelectedReturnId('');setReturnEvidence({})
+    } catch(error) {toast.error(error instanceof Error ? error.message : 'QC retur gagal.')} finally {setOperationBusy(false)}
   }
 
   const handleResolveVendorReturn = async (mode: 'swap' | 'reject') => {
-    if (!activeVendorReturn || !activeVendorReturnProduct) return
-    const currentUser = useAppStore.getState().currentUser
-    const prod = activeVendorReturnProduct
-
-    // Dua asal retur vendor, dua tempat nilainya sekarang berada:
-    //  - dari QC barang masuk  → nilainya sudah pindah ke 1-2100 (tagihan ke vendor)
-    //  - dari retur customer   → barangnya masih tercatat di Persediaan
-    // Salah pilih lawan jurnal bikin salah satu akun itu nyangkut selamanya.
-    const originPurchaseItem = purchaseItems.find(pi => pi.id === activeVendorReturn.originalReturnId)
-    const claimAccount = originPurchaseItem ? VENDOR_RETURN_CLAIM_ACCOUNT : '1-3000'
-    const unitCost = originPurchaseItem?.actualUnitPrice || originPurchaseItem?.estimatedUnitPrice || prod.basePrice || 0
-
-    if (mode === 'swap') {
-      if (!isSwapSplitValid({ pass: swapPassQty, reject: swapRejectQty }, activeVendorReturn.qty)) {
-        toast.error(`Total QC pengganti harus match dengan jumlah retur (${activeVendorReturn.qty})`)
-        return
-      }
-      if (swapPassQty > 0) {
-        // Barang pengganti datang: nilainya balik ke Persediaan dan tagihan ke vendor lunas.
-        // Dulu cuma stoknya yang nambah — nilainya tidak pernah ikut kembali.
-        if (claimAccount !== '1-3000' && swapPassQty * unitCost > 0) {
-          await createAccountingEntry(
-            `Pengganti Retur Vendor - ${prod.name}`,
-            'QC',
-            activeVendorReturn.id,
-            [{ accountCode: '1-3000', amount: swapPassQty * unitCost }],
-            [{ accountCode: claimAccount, amount: swapPassQty * unitCost }]
-          )
-        }
-        await recordStockMovement({
-          productId: prod.id,
-          quantity: swapPassQty,
-          stockDelta: swapPassQty,
-          direction: 'In',
-          kind: 'RETURN_RESTOCK',
-          source: 'Vendor Swap',
-          destination: 'Inventory',
-          referenceType: 'QC',
-          referenceId: activeVendorReturn.id,
-          note: `Barang pengganti dari vendor lolos QC, masuk stok`,
-          createdByUserId: currentUser?.id || 'system',
-        })
-      }
-      if (swapRejectQty > 0) {
-        const rejectId = uuidv4()
-        await recordShrinkage(rejectId, swapRejectQty * unitCost, `Vendor Swap Reject - ${prod.name}`, claimAccount)
-        await useAppStore.getState().addRejectedItem({
-          id: rejectId,
-          date: new Date().toISOString(),
-          productId: prod.id,
-          qty: swapRejectQty,
-          reason: `Pengganti vendor gagal QC: ${activeVendorReturn.reason}`,
-          source: 'Return',
-          referenceId: activeVendorReturn.id,
-          reportedBy: currentUser?.id || 'system'
-        })
-      }
-      await useAppStore.getState().updateVendorReturn(activeVendorReturn.id, {
-        status: 'Selesai-Ditukar',
-        resolvedDate: new Date().toISOString(),
-        replacementPassQty: swapPassQty,
-        replacementRejectQty: swapRejectQty,
-      })
-      toast.success(`Tukar selesai: ${swapPassQty} masuk stok, ${swapRejectQty} dibuang.`)
-    } else {
-      // Vendor refused — the full quantity becomes a loss now.
-      const rejectId = uuidv4()
-      await recordShrinkage(rejectId, activeVendorReturn.qty * unitCost, `Vendor Tolak Retur - ${prod.name}`, claimAccount)
-      await useAppStore.getState().addRejectedItem({
-        id: rejectId,
-        date: new Date().toISOString(),
-        productId: prod.id,
-        qty: activeVendorReturn.qty,
-        reason: `Vendor tolak tukar: ${activeVendorReturn.reason}`,
-        source: 'Return',
-        referenceId: activeVendorReturn.id,
-        reportedBy: currentUser?.id || 'system'
-      })
-      await useAppStore.getState().updateVendorReturn(activeVendorReturn.id, {
-        status: 'Selesai-Ditolak',
-        resolvedDate: new Date().toISOString(),
-      })
-      toast.error(`${activeVendorReturn.qty} unit ditolak vendor, dibuang.`)
-    }
-
-    setSelectedVendorReturnId("")
-    setSwapPassQty(0)
-    setSwapRejectQty(0)
+    if (!activeVendorReturn || operationBusy) return
+    setOperationBusy(true)
+    try {
+      await executeGoodsCommand(useAppStore.getState,{eventId:`vendor-return:${activeVendorReturn.id}`,stage:'vendor-return',sourceId:activeVendorReturn.id,payload:{mode,pass:swapPassQty,reject:swapRejectQty,...returnEvidence}})
+      toast.success('Penyelesaian retur vendor tersimpan.');setSelectedVendorReturnId('');setReturnEvidence({})
+    } catch(error) {toast.error(error instanceof Error ? error.message : 'Retur vendor gagal.')} finally {setOperationBusy(false)}
   }
 
   // --- TAB 3: PERSIAPAN PENGIRIMAN ---
@@ -389,15 +198,14 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
 
     toast.loading("Memproses serah terima...", { id: "dispatch" })
 
-    for (const soItemId of Object.keys(dispatchQty)) {
-      const qty = dispatchQty[soItemId]
-      const note = dispatchNote[soItemId] || ''
-      await useAppStore.getState().updateSalesOrderItem(soItemId, {
-        isPacked: true,
-        qtyDispatched: qty || undefined,
-        dispatchNote: note || undefined,
-      })
-    }
+    if(operationBusy)return
+    setOperationBusy(true)
+    try {
+      for(const soId of selectedDispatchSoIds) {
+        const lines=salesOrderItems.filter(i=>i.salesOrderId===soId && (i.qtyFinal||0)>0).map(i=>({salesOrderItemId:i.id,qty:dispatchQty[i.id]??i.qtyFinal??0,note:dispatchNote[i.id]}))
+        await recordPacking(useAppStore.getState,soId,lines,packingEvidence)
+      }
+    } catch(error) {toast.error(error instanceof Error?error.message:'Packing gagal.',{id:'dispatch'});return} finally {setOperationBusy(false)}
 
     // Sengaja TIDAK memajukan status ke 'Siap Kirim'. Rilis barang hanya boleh
     // lewat Goods Outbound, karena di sanalah stok dikurangi dan misi pengiriman
@@ -531,49 +339,38 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
                         />
                       </div>
                     </div>
- 
+
                      <div className="space-y-4">
                         <div className="flex justify-between items-center px-4">
                            {(() => {
                              const totalAllocPos = poAllocations.reduce((s, a) => s + a.qty, 0)
                              const totalDone = qtyPassToInventory + totalAllocPos + qtyReject
-                             const balanced = totalDone === activePurchaseItem.qtyPurchased
+                             const balanced = totalDone === (activePurchaseItem.qtyPurchased-(activePurchaseItem.qcProcessedQty||0))
                              return <>
                                <span className={cn("text-xs font-bold ", balanced ? "text-emerald-600" : "text-rose-600")}>
                                  Status: {balanced ? "Balance ✓" : "Tidak Balance !"}
                                </span>
-                               <span className="text-[11px] font-bold text-slate-400">Processed: {totalDone} / {activePurchaseItem.qtyPurchased}</span>
+                               <span className="text-[11px] font-bold text-slate-400">Processed: {totalDone} / {(activePurchaseItem.qtyPurchased-(activePurchaseItem.qcProcessedQty||0))}</span>
                              </>
                            })()}
                         </div>
 
                         {(() => {
                           const totalAllocPos = poAllocations.reduce((s, a) => s + a.qty, 0)
-                          return (qtyPassToInventory + totalAllocPos + qtyReject !== activePurchaseItem.qtyPurchased)
+                          return (qtyPassToInventory + totalAllocPos + qtyReject !== (activePurchaseItem.qtyPurchased-(activePurchaseItem.qcProcessedQty||0)))
                         })() && (
                            <div className="space-y-2 p-3 bg-rose-50 rounded-xl border border-rose-100">
                               <Label className="text-rose-700 font-bold uppercase text-[11px] tracking-widest">Alasan Selisih / Tidak Balance (Wajib)</Label>
-                              <Input 
+                              <Input
                                 placeholder="Kenapa jumlah fisik beda?"
                                 className="h-9 rounded-lg border-rose-200 bg-white text-xs"
                                 value={unbalanceReason}
                                 onChange={(e) => setUnbalanceReason(e.target.value)}
                               />
-                              <div className="flex items-center gap-3 mt-4">
-                                <div 
-                                  className="h-10 flex-1 border-2 border-dashed border-rose-200 rounded-lg flex items-center justify-center bg-white cursor-pointer hover:border-rose-400 transition-all text-slate-400"
-                                  onClick={() => {
-                                    setQcPhoto("https://images.unsplash.com/photo-1582285273767-42f01eb0a316?auto=format&fit=crop&q=80&w=400")
-                                    toast.success("Foto bukti selisih ditambahkan!")
-                                  }}
-                                >
-                                   {qcPhoto ? <img src={qcPhoto} className="w-full h-full object-cover rounded-lg" /> : <div className="flex items-center gap-2"><ShieldAlert className="w-4 h-4" /><span className="text-[11px] font-bold uppercase">Foto Bukti (Opsional)</span></div>}
-                                </div>
-                                {qcPhoto && <Button variant="outline" size="icon" className="h-10 w-10 rounded-lg" onClick={() => setQcPhoto(null)}>✕</Button>}
-                              </div>
+                              <p className="text-xs text-muted-foreground">Unggah foto asli melalui lampiran berkas di bawah.</p>
                            </div>
                         )}
- 
+
                         {qtyReject > 0 && (
                           <div className="space-y-2 p-3 bg-slate-50 rounded-xl border border-slate-100">
                              <Label className="text-slate-500 font-bold uppercase text-[11px] tracking-widest">Tindakan Barang Reject</Label>
@@ -609,10 +406,10 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
                                  Peralihan B2C
                                </button>
                              </div>
-                             
+
                              <div className="space-y-2 mt-2">
                                <Label className="text-slate-500 font-bold uppercase text-[11px] tracking-widest">Alasan Reject</Label>
-                               <Input 
+                               <Input
                                  placeholder="Kondisi barang reject (pecah, busuk, dll)"
                                  className="h-9 rounded-lg border border-slate-200 bg-white text-xs"
                                  value={rejectReason}
@@ -622,26 +419,13 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
                           </div>
                         )}
 
-                    {transcription ? (
-                      <div className="space-y-2">
-                        <Label htmlFor="paper-qc-inspector">Diperiksa oleh (sesuai berkas QC)</Label>
-                        <select id="paper-qc-inspector" className="w-full h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm" value={qcPerformedBy} onChange={e => setQcPerformedBy(e.target.value)} required>
-                          <option value="">— Pilih pemeriksa —</option>
-                          {users.filter(u => u.role === 'gudang').map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                        </select>
-                      </div>
-                    ) : (
-                    <PelakuPicker
-                      value={qcPerformedBy}
-                      onChange={setQcPerformedBy}
-                      roles={['gudang']}
-                      label="Diperiksa oleh"
-                    />
-                    )}
+                    <PaperEvidenceFields value={paperEvidence} onChange={setPaperEvidence}/>
+                    <div><Label>Harga vendor per satuan</Label><Input type="number" min="0" value={vendorUnitPrice} placeholder={String(activePurchaseItem.actualUnitPrice||activePurchaseItem.estimatedUnitPrice||0)} onChange={e=>setVendorUnitPrice(e.target.value)}/></div>
+                    {activePurchaseItem.purchaseMethod==='Vendor'&&activePurchaseItem.paymentMethod==='Transfer'&&['finance','super_admin'].includes(useAppStore.getState().currentUser?.role||'')&&<div><Label>Rekening sumber</Label><select value={qcBankId} onChange={e=>setQcBankId(e.target.value)}><option value="">Pilih rekening</option>{useAppStore.getState().bankAccounts.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></div>}
 
                     <Button
                       className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold  shadow active:scale-[0.99] transition-all text-xs"
-                      onClick={handleProcessQC}
+                      disabled={qcSaving} onClick={handleProcessQC}
                     >
                       {transcription ? "Simpan Hasil QC" : "Konfirmasi QC Sourcing"}
                     </Button>
@@ -673,7 +457,7 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
               return (
                 <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3">
                   <div><p className="font-semibold">{product?.name || item.productId}</p><p className="text-sm text-slate-500">{item.qtyPurchased || item.qtyTarget} {product?.uom} · {vendor?.companyName || 'Vendor belum diisi'} · {purchase?.advanceCode || item.purchaseId}</p></div>
-                  <Button disabled={acceptingArrival !== null} onClick={() => acceptArrival(item.id)}>{acceptingArrival === item.id ? 'Menyimpan…' : 'Barang sudah datang'}</Button>
+                  <Button onClick={() => { window.location.href="/admin/hari-ini" }}>Salin berkas penerimaan</Button>
                 </div>
               )
             })}
@@ -722,16 +506,10 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
                   kind="qc"
                   title="LEMBAR QC BARANG MASUK"
                   label="Print Lembar QC"
-                  rows={Object.entries(groupedQCItems).flatMap(([poName, items]) =>
-                    items.map(item => ({
-                      group: poName,
-                      cells: [
-                        item.product?.skuCode || '',
-                        item.product?.name || item.productId,
-                        qtyTeks(item.qtyPurchased, item.product?.uom),
-                      ],
-                    })),
-                  )}
+                  rows={purchaseItems.filter(i=>!i.isQCed && i.purchaseMethod!=='Dropship').map(item=>{
+                    const product=products.find(p=>p.id===item.productId)
+                    return {group:salesOrders.find(so=>so.id===item.salesOrderId)?.poNumber||item.purchaseId,cells:[product?.skuCode||'',product?.name||item.productId,qtyTeks(Math.max(0,(item.qtyPurchased||item.qtyTarget)-(item.qcProcessedQty||0)),product?.uom)]}
+                  })}
                 />
               </CardTitle>
             </CardHeader>
@@ -768,8 +546,9 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
                              const dipilih = selectedPurchaseItemId === item.id
                              const pilihBaris = () => {
                                setSelectedPurchaseItemId(item.id)
+                               setPaperEvidence({});setVendorUnitPrice('');setQcBankId('')
                                setQtyReject(0)
-                               const { allocations, inventoryRemainder } = buildFifo(item.productId, item.qtyPurchased)
+                               const { allocations, inventoryRemainder } = buildFifo(item.productId, item.qtyPurchased-(item.qcProcessedQty||0))
                                setPoAllocations(allocations)
                                setQtyPassToInventory(inventoryRemainder)
                              }
@@ -846,8 +625,8 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
                         const p = products.find(prod => prod.id === ret.productId)
                         const so = salesOrders.find(s => s.id === ret.originalSoId)
                         return (
-                          <button 
-                            key={ret.id} 
+                          <button
+                            key={ret.id}
                             onClick={() => {
                               setSelectedReturnId(ret.id)
                               setRetQtyPass(ret.qty)
@@ -937,10 +716,10 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
                       </div>
                     )}
 
-                    <Button 
+                    <PaperEvidenceFields value={returnEvidence} onChange={setReturnEvidence}/>
+                        <Button
                       className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold  shadow-sm active:scale-95 transition-all"
-                      disabled={!isReturnSplitValid({ pass: retQtyPass, buang: retQtyReject, vendor: retQtyVendor }, activeReturn.qty)}
-                      onClick={handleProcessReturnQC}
+                      disabled={operationBusy || !isReturnSplitValid({ pass: retQtyPass, buang: retQtyReject, vendor: retQtyVendor }, activeReturn.qty)} onClick={handleProcessReturnQC}
                     >
                       Input Hasil QC Retur
                     </Button>
@@ -1020,17 +799,18 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <PaperEvidenceFields value={returnEvidence} onChange={setReturnEvidence}/>
+<div className="grid grid-cols-2 gap-4">
                     <Button
                       className="h-16 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold  shadow-sm active:scale-95 transition-all"
-                      disabled={!isSwapSplitValid({ pass: swapPassQty, reject: swapRejectQty }, activeVendorReturn.qty)}
+                      disabled={operationBusy || !isSwapSplitValid({ pass: swapPassQty, reject: swapRejectQty }, activeVendorReturn.qty)}
                       onClick={() => handleResolveVendorReturn('swap')}
                     >
                       Ditukar (Pengganti Masuk)
                     </Button>
                     <Button
                       className="h-16 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold  shadow-sm active:scale-95 transition-all"
-                      onClick={() => handleResolveVendorReturn('reject')}
+                      disabled={operationBusy} onClick={() => handleResolveVendorReturn('reject')}
                     >
                       Ditolak Vendor (Buang)
                     </Button>
@@ -1242,8 +1022,9 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
                         )
                       })}
 
+                      <PaperEvidenceFields value={packingEvidence} onChange={setPackingEvidence}/>
                       <button
-                        onClick={handleConfirmDispatch}
+                        disabled={operationBusy} onClick={handleConfirmDispatch}
                         className="w-full py-4 bg-violet-600 hover:bg-violet-700 text-white font-bold text-sm  rounded-2xl flex items-center justify-center gap-2 transition-colors"
                       >
                         <ClipboardCheck className="w-4 h-4" />

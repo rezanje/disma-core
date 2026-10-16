@@ -18,8 +18,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useAppStore } from "@/lib/store"
-import { MOCK_USERS } from "@/lib/constants"
-import { findActiveUserByPin } from "@/lib/auth-pin"
 import { PENDING_WELCOME_KEY } from "@/lib/onboarding/state"
 import { toast } from "sonner"
 
@@ -39,60 +37,22 @@ export default function LoginForm() {
     },
   })
 
-  // Self-Healing Cache Mechanism: Force overwrite old users from localStorage with the latest MOCK_USERS when they visit the login page.
-  React.useEffect(() => {
-    useAppStore.setState({ users: MOCK_USERS })
-  }, [])
-
   async function onSubmit(values: zodSchema.infer<typeof formSchema>) {
     setIsLoading(true)
-
-    // Simulate network latency for realism
-    await new Promise((resolve) => setTimeout(resolve, 800))
-    
-    // Authenticate based on the latest MOCK_USERS, not the cached ones.
-    const matchedUser = findActiveUserByPin(MOCK_USERS, values.pin)
-    
-    if (matchedUser) {
-      // Force update the users list in store to the latest one so storage syncs back to normal
-      useAppStore.setState({ users: MOCK_USERS })
-      
-      setCurrentUser(matchedUser)
-      // Menandai login baru, dibaca sekali oleh OnboardingProvider untuk
-      // memunculkan popup "Mau dibimbing dulu?".
+    try {
+      const response = await fetch('/api/auth/session', {
+        method: 'POST', headers: { 'Content-Type':'application/json' },
+        body: JSON.stringify({pin:values.pin}), credentials:'same-origin',
+      })
+      const result = await response.json()
+      if (!response.ok || !result.user) throw new Error(result.error || 'Gagal masuk')
+      setCurrentUser(result.user)
       try { sessionStorage.setItem(PENDING_WELCOME_KEY, "1") } catch {}
-      toast.success(`Welcome back, ${matchedUser.name}!`)
-      
-      // Role-based redirect
-      switch(matchedUser.role) {
-        case 'admin_po':
-          router.push('/admin/hari-ini')
-          break
-        case 'sourcing':
-          router.push('/sourcing')
-          break
-        case 'gudang':
-          router.push('/warehouse')
-          break
-        case 'kurir':
-          router.push('/courier')
-          break
-        case 'finance':
-          router.push('/finance')
-          break
-        case 'ceo':
-        case 'super_admin':
-        case 'cmo':
-        case 'coo':
-          router.push('/admin')
-          break
-        default:
-          router.push('/dashboard')
-      }
-    } else {
-      toast.error("PIN salah. Coba lagi.")
-      setIsLoading(false)
-    }
+      toast.success(`Welcome back, ${result.user.name}!`)
+      router.push(result.user.role === 'admin_po' ? '/admin/hari-ini' : result.user.role === 'finance' ? '/finance' : '/admin')
+    } catch(error) {
+      toast.error(error instanceof Error ? error.message : 'Gagal masuk')
+    } finally { setIsLoading(false) }
   }
 
   return (

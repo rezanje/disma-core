@@ -17,6 +17,7 @@
 
 import { Suspense } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import {tabHref} from "@/lib/navigation-tabs"
 import { PageHeader } from "@/components/ui/page-header"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
@@ -31,14 +32,15 @@ type Props = {
   title: string
   context?: React.ReactNode
   tabs: LayarTab[]
+  queryKey?: string
 }
 
-function TabHostInner({ title, context, tabs }: Props) {
+function TabHostInner({ title, context, tabs, queryKey = "tab" }: Props) {
   const router = useRouter()
   const pathname = usePathname()
   const params = useSearchParams()
 
-  const diminta = params.get("tab")
+  const diminta = params.get(queryKey)
   // Tab yang tidak dikenal jatuh ke tab pertama, bukan layar kosong: tautan lama
   // dan salah ketik tetap mendarat di sesuatu yang bisa dibaca.
   const aktif = tabs.some((t) => t.key === diminta) ? (diminta as string) : tabs[0].key
@@ -53,7 +55,7 @@ function TabHostInner({ title, context, tabs }: Props) {
           <Tabs
             value={aktif}
             onValueChange={(nilai) =>
-              router.replace(`${pathname}?tab=${nilai}`, { scroll: false })
+              nilai && router.replace(tabHref(pathname,params.toString(),queryKey,nilai), { scroll: false })
             }
           >
             <TabsList variant="line">

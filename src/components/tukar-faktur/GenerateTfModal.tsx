@@ -5,7 +5,7 @@ import { useRouter, usePathname } from "next/navigation"
 import { useAppStore } from "@/lib/store"
 import type { Invoice, TukarFaktur } from "@/types"
 import { tfPeriodFor, generateTfNumber, periodKey, isoLocalDate, type TfPeriod } from "@/lib/tukar-faktur"
-import { daysLeftInTfWindow, isInvoiceIssued as isInvoiceIssuedShared } from "@/lib/tf-window"
+import { isInvoiceEligibleForTf } from "@/lib/tf-window"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -58,14 +58,14 @@ export function GenerateTfModal({ open, onOpenChange }: Props) {
   // Aturannya dipakai bersama panel peringatan di halaman daftar — kalau dua-duanya
   // punya salinan sendiri, panel bisa menjanjikan invoice yang di sini ditolak.
   const isInvoiceIssued = useCallback(
-    (inv: Invoice) => isInvoiceIssuedShared(inv, salesOrders),
-    [salesOrders]
+    (inv: Invoice) => isInvoiceEligibleForTf(inv, salesOrders, invoices),
+    [salesOrders, invoices]
   )
 
   const eligibleClients = useMemo(() => {
     const idsWithEligibleInv = new Set(
       invoices
-        .filter(inv => !inv.tukarFakturId && daysLeftInTfWindow(inv.issueDate, today) >= 0 && isInvoiceIssued(inv))
+        .filter(inv => isInvoiceIssued(inv))
         .map(inv => inv.clientId)
     )
     return clients
@@ -77,8 +77,6 @@ export function GenerateTfModal({ open, onOpenChange }: Props) {
     if (!clientId) return []
     const eligible = invoices.filter(inv =>
       inv.clientId === clientId &&
-      !inv.tukarFakturId &&
-      daysLeftInTfWindow(inv.issueDate, today) >= 0 &&
       isInvoiceIssued(inv)
     )
     const byKey = new Map<string, PeriodGroup>()
@@ -111,7 +109,7 @@ export function GenerateTfModal({ open, onOpenChange }: Props) {
    */
   const perKlien = useMemo(() => {
     const layak = invoices.filter(inv =>
-      !inv.tukarFakturId && daysLeftInTfWindow(inv.issueDate, today) >= 0 && isInvoiceIssued(inv)
+      isInvoiceIssued(inv)
     )
     const map = new Map<string, { nama: string; baris: Array<{ inv: Invoice; po: string; kirim: string }>; total: number }>()
     for (const inv of layak) {
@@ -221,7 +219,7 @@ export function GenerateTfModal({ open, onOpenChange }: Props) {
           console.error("[GenerateTfModal] cleanup delete failed", cleanupErr)
         }
       }
-      toast.error(`Gagal membuat tukar faktur: ${msg}`, { duration: 10000 })
+      toast.error(`Penerbitan belum terkonfirmasi${currentTfId ? ` (TF ${currentTfId})` : ""}. Periksa daftar TF sebelum mengulang: ${msg}`, { duration: 10000 })
     } finally {
       setBusy(false)
     }

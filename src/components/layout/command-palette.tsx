@@ -17,7 +17,8 @@ import {
   ArrowUp,
   ArrowDown
 } from "lucide-react"
-import { APP_PAGES } from "@/lib/navigation"
+import { getNavItemsForUser } from "@/lib/navigation"
+import { canAccessRoute } from "@/lib/access-policy"
 
 interface CommandPaletteProps {
   isOpen: boolean
@@ -81,9 +82,10 @@ export default function CommandPalette({ isOpen, onClose, onOpen }: CommandPalet
   }, [isOpen, onOpen, onClose])
 
   // Dynamic role-based permissions filtering
-  const isPOAllowed = ["admin_po", "sourcing", "gudang", "kurir", "finance", "ceo", "super_admin", "cmo"].includes(userRole)
-  const isClientsAllowed = ["admin_po", "sourcing", "finance", "ceo", "super_admin", "cmo"].includes(userRole)
-  const isInvoicesAllowed = ["finance", "ceo", "super_admin"].includes(userRole)
+  const isPOAllowed = !!currentUser && canAccessRoute(currentUser.role, "/admin/sales-orders")
+  const isClientsAllowed = !!currentUser && canAccessRoute(currentUser.role, "/admin/clients")
+  const isInvoicesAllowed = !!currentUser && canAccessRoute(currentUser.role, "/finance/invoices")
+  const isProductsAllowed = !!currentUser && canAccessRoute(currentUser.role, "/admin/products")
 
   // Map clients for O(1) resolution
   const clientMap = React.useMemo(() => {
@@ -98,8 +100,8 @@ export default function CommandPalette({ isOpen, onClose, onOpen }: CommandPalet
     if (!userRole) return []
     const matched: { title: string; href: string; category: string; icon: React.ReactNode }[] = []
     
-    APP_PAGES.forEach(page => {
-      if (userPermissions.includes(page.key)) {
+    getNavItemsForUser(userPermissions, currentUser?.role).forEach(page => {
+      if (currentUser && canAccessRoute(currentUser.role,page.href)) {
         if (queryLower === "" || page.title.toLowerCase().includes(queryLower)) {
           matched.push({
             title: page.title,
@@ -150,7 +152,7 @@ export default function CommandPalette({ isOpen, onClose, onOpen }: CommandPalet
 
   // 3. Products search
   const filteredProducts = React.useMemo(() => {
-    if (queryLower === "") return []
+    if (!isProductsAllowed || queryLower === "") return []
     return products
       .filter(p => 
         p.name.toLowerCase().includes(queryLower) ||
@@ -158,11 +160,11 @@ export default function CommandPalette({ isOpen, onClose, onOpen }: CommandPalet
       )
       .map(p => ({
         title: `${p.name} [SKU: ${p.skuCode}]`,
-        href: `/warehouse/catalog?detailId=${p.id}`,
+        href: `/admin/products?detailId=${p.id}`,
         category: "Produk (SKU)",
         icon: <Boxes className="w-4 h-4" />
       }))
-  }, [queryLower, products])
+  }, [isProductsAllowed, queryLower, products])
 
   // 4. Clients search
   const filteredClients = React.useMemo(() => {
@@ -223,6 +225,7 @@ export default function CommandPalette({ isOpen, onClose, onOpen }: CommandPalet
 
   // Handle keyboard events inside dialog popup
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (allResults.length === 0) return
     if (e.key === "ArrowDown") {
       e.preventDefault()
       setActiveIndex(prev => (prev + 1) % allResults.length)

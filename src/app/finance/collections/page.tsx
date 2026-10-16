@@ -37,7 +37,7 @@ export default function ARCollectionsPage({ embedded }: { embedded?: boolean } =
     return invoices.filter((inv: any) => {
       if (inv.supersededByInvoiceId) return false
       if (inv.salesOrderId && consolidatedSOIds.has(inv.salesOrderId) && !inv.isConsolidated) return false
-      return inv.status !== 'Paid' && inv.totalAmount > inv.amountPaid
+      return !['Draft','Cancelled','Paid'].includes(inv.status) && inv.totalAmount > inv.amountPaid
     })
   }, [invoices])
 
@@ -127,8 +127,7 @@ export default function ARCollectionsPage({ embedded }: { embedded?: boolean } =
   }, [enrichedInvoices, search])
 
   const handleRemind = async (invId: string) => {
-    toast.success("Reminder request sent to system queue")
-    await updateInvoice(invId, { lastRemindedAt: new Date().toISOString() })
+    toast.info("Pengiriman reminder otomatis belum tersedia. Gunakan tombol WhatsApp klien untuk menyiapkan pesan dan kirim secara manual.")
   }
 
   return (
@@ -283,7 +282,7 @@ export default function ARCollectionsPage({ embedded }: { embedded?: boolean } =
                             size="icon" 
                             variant="ghost" 
                             className="h-10 w-10 rounded-full text-emerald-600 hover:bg-emerald-50"
-                            onClick={() => handleRemind(inv.id)}
+                            disabled title="Reminder otomatis belum tersedia; gunakan WhatsApp klien"
                            >
                              <MessageSquare className="w-5 h-5" />
                            </Button>
@@ -433,7 +432,7 @@ export default function ARCollectionsPage({ embedded }: { embedded?: boolean } =
                             size="icon" 
                             variant="ghost" 
                             className="h-10 w-10 rounded-full text-emerald-600 hover:bg-emerald-50"
-                            onClick={() => handleRemind(inv.id)}
+                            disabled title="Reminder otomatis belum tersedia; gunakan WhatsApp klien"
                           >
                             <MessageSquare className="w-5 h-5" />
                           </Button>

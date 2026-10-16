@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useState, useMemo } from "react"
+import { useState, useMemo, useRef } from "react"
 import { useAppStore } from "@/lib/store"
 import { tujuanTransaksi, tanpaRef } from "@/lib/tx-rujukan"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -18,7 +18,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { v4 as uuidv4 } from "uuid"
-import { createAccountingEntry, bankRequiresCfoApproval } from "@/lib/accounting"
+import { recordCashTransfer, bankRequiresCfoApproval } from "@/lib/accounting"
+import { recordManualCashCommand, recordBankOpeningCommand } from "@/lib/finance-commands"
 import type { BankAccountPurpose } from "@/types"
 import { computeBankBalances } from "@/lib/bank-balance"
 import ReceiptUpload from "@/components/ui/receipt-upload"
@@ -46,7 +47,6 @@ const formatCategory = (cat: string) => {
 
 export default function CashAndBankPage() {
   const rawBankAccounts = useAppStore(state => state.bankAccounts)
-  const addBankAccount = useAppStore(state => state.addBankAccount)
   const updateBankAccount = useAppStore(state => state.updateBankAccount)
   const deleteBankAccount = useAppStore(state => state.deleteBankAccount)
   const cashTransactions = useAppStore(state => state.cashTransactions)
@@ -55,10 +55,6 @@ export default function CashAndBankPage() {
     () => computeBankBalances(rawBankAccounts, cashTransactions),
     [rawBankAccounts, cashTransactions]
   )
-  const addCashTransaction = useAppStore(state => state.addCashTransaction)
-  const updateCashTransaction = useAppStore(state => state.updateCashTransaction)
-  const deleteCashTransaction = useAppStore(state => state.deleteCashTransaction)
-  const bulkDeleteCashTransactions = useAppStore(state => state.bulkDeleteCashTransactions)
   const coas = useAppStore(state => state.coas)
   const invoices = useAppStore(state => state.invoices)
   const salesOrders = useAppStore(state => state.salesOrders)
@@ -141,401 +137,90 @@ export default function CashAndBankPage() {
     }
   })
 
+  const pendingCash = useRef<{id:string;payload:string;date?:string}|null>(null)
+  const pendingOpening = useRef<{id:string;payload:string;date?:string}|null>(null)
+  const pendingAdjustment = useRef<{id:string;payload:string;date?:string}|null>(null)
+  const cashBusy = useRef(false)
+  const stableId = (attempt: {current:{id:string;payload:string;date?:string}|null}, payload: unknown) => {
+    const encoded = JSON.stringify(payload)
+    if (attempt.current && attempt.current.payload !== encoded) throw new Error('Percobaan sebelumnya belum terkonfirmasi. Ulangi data yang sama terlebih dahulu.')
+    if (!attempt.current) attempt.current = {id:uuidv4(),payload:encoded,date:new Date().toISOString().slice(0,10)}
+    return attempt.current.id
+  }
+
   const handleCreateBank = async () => {
-    if (!bankForm.name) return toast.error("Nama bank harus diisi!")
-    setIsSubmitting(true)
-    const loadingToast = toast.loading("Mendaftarkan akun bank baru...")
+    if (cashBusy.current || !bankForm.name || !Number.isFinite(bankForm.balance) || bankForm.balance < 0) return toast.error('Isi nama dan saldo awal nol atau positif.')
+    cashBusy.current = true; setIsSubmitting(true)
     try {
-      const bankId = `bank-${Date.now()}`
-      await addBankAccount({
-        id: bankId,
-        name: bankForm.name,
-        accountNumber: bankForm.number,
-        accountCode: bankForm.accountCode,
-        balance: bankForm.balance,
-        purpose: bankForm.purpose,
-        ownerUserId: bankForm.purpose === 'sourcing_pocket' ? bankForm.ownerUserId : undefined,
-        cfoApprovalRequired: bankForm.cfoApprovalRequired,
-      })
-
-      if (Number(bankForm.balance) > 0) {
-        const txId = `opb-${Date.now()}`
-        const now = new Date().toISOString()
-
-        // 1. Record Cash Transaction
-        await addCashTransaction({
-          id: txId,
-          date: now,
-          type: 'In',
-          amount: bankForm.balance,
-          bankAccountId: bankId,
-          category: 'Investasi',
-          description: `Saldo Awal: ${bankForm.name}`,
-          counterpartName: 'Owner Capital',
-          referenceType: 'Adjustment' as any
-        })
-
-        // 2. Create Journal Entry (Accounting Ledger)
-        await createAccountingEntry(
-          `Saldo Awal: ${bankForm.name}`,
-          'Adjustment',
-          txId,
-          [{ accountCode: bankForm.accountCode || '1-1000', amount: bankForm.balance }],
-          [{ accountCode: '3-1000', amount: bankForm.balance }], // Credit Owner Capital
-          now
-        )
-      }
-
-      setIsAddBankOpen(false)
-      setBankForm({ name: '', number: '', balance: 0, accountCode: '1-1000', purpose: 'umum', ownerUserId: '', cfoApprovalRequired: false })
-      toast.success(`${bankForm.name} berhasil didaftarkan!`, { id: loadingToast })
-    } catch (e: any) {
-      toast.error("Gagal mendaftarkan bank: " + e.message, { id: loadingToast })
-    } finally {
-      setIsSubmitting(false)
-    }
+      const eventId = stableId(pendingOpening, bankForm)
+      const ok = await recordBankOpeningCommand({eventId, bank:{id:`bank-${eventId}`,name:bankForm.name,accountNumber:bankForm.number,accountCode:bankForm.accountCode,purpose:bankForm.purpose,ownerUserId:bankForm.purpose==='sourcing_pocket'?bankForm.ownerUserId:undefined,cfoApprovalRequired:bankForm.cfoApprovalRequired,balance:0},amount:bankForm.balance,date:pendingOpening.current!.date!})
+      if (!ok) throw new Error('Pembukaan bank belum terkonfirmasi; ulangi data yang sama.')
+      pendingOpening.current=null; setIsAddBankOpen(false)
+      setBankForm({name:'',number:'',balance:0,accountCode:'1-1000',purpose:'umum',ownerUserId:'',cfoApprovalRequired:false})
+      toast.success('Bank dan saldo awal dicatat bersama.')
+    } catch(e) { toast.error((e as Error).message) }
+    finally {cashBusy.current=false;setIsSubmitting(false)}
   }
 
   const handleUpdateBank = async () => {
-    if (!editingBank) return
-    const original = bankAccounts.find(b => b.id === editingBank.id)
+    if (cashBusy.current || !editingBank) return
+    const original=bankAccounts.find(b=>b.id===editingBank.id)
     if (!original) return
-
-    setIsSubmitting(true)
-    const loadingToast = toast.loading("Memperbarui info bank & menyesuaikan saldo...")
-    const diff = Number(editingBank.balance) - original.balance
-    
+    if (editingBank.accountCode!==original.accountCode && cashTransactions.some(tx=>tx.bankAccountId===original.id)) {toast.error('Kode akun bank yang sudah memiliki transaksi tidak dapat diganti.');return}
+    const diff=Number(editingBank.balance)-original.balance
+    if (!Number.isFinite(diff)) {toast.error('Saldo tidak valid.');return}
+    cashBusy.current=true;setIsSubmitting(true)
     try {
-      // Create adjustment transaction & journal if balance changed
-      if (diff !== 0) {
-        if (!editingBank.adjCategory) {
-          return toast.error("Pilih kategori penyesuaian untuk selisih saldo!", { id: loadingToast })
-        }
-
-        const absDiff = Math.abs(diff)
-        const now = new Date().toISOString()
-        const txId = `adj-${Date.now()}`
-
-        // 1. Record in History (Cash Transaction)
-        await addCashTransaction({
-          id: txId,
-          date: now,
-          type: diff > 0 ? 'In' : 'Out',
-          amount: absDiff,
-          bankAccountId: editingBank.id,
-          category: `Penyesuaian: ${editingBank.adjCategory}`,
-          description: `Koreksi Saldo Manual (${editingBank.adjCategory})`,
-          counterpartName: 'Adjustment System',
-          referenceType: 'Adjustment' as any
-        })
-
-        // 2. Journal Entry (Accounting Ledger)
-        let adjAccountCode = '6-9000'
-        if (diff > 0) {
-          switch(editingBank.adjCategory) {
-            case 'Investasi': adjAccountCode = '3-1000'; break;
-            case 'Pendapatan': adjAccountCode = '4-2000'; break;
-            case 'Pinjaman': adjAccountCode = '2-4000'; break;
-            default: adjAccountCode = '3-1000';
-          }
-          await createAccountingEntry(
-            `Penyesuaian Saldo (Kenaikan): ${editingBank.name}`,
-            'Adjustment',
-            txId,
-            [{ accountCode: editingBank.accountCode || '1-1000', amount: diff }],
-            [{ accountCode: adjAccountCode, amount: diff }],
-            now
-          )
-        } else {
-          switch(editingBank.adjCategory) {
-            case 'Beban': adjAccountCode = '6-9000'; break;
-            case 'Prive': adjAccountCode = '3-2000'; break;
-            case 'Pajak': adjAccountCode = '6-9000'; break;
-            default: adjAccountCode = '6-9000';
-          }
-          await createAccountingEntry(
-            `Penyesuaian Saldo (Penurunan): ${editingBank.name}`,
-            'Adjustment',
-            txId,
-            [{ accountCode: adjAccountCode, amount: absDiff }],
-            [{ accountCode: editingBank.accountCode || '1-1000', amount: absDiff }],
-            now
-          )
-        }
+      if(diff!==0) {
+        if(!editingBank.adjCategory) throw new Error('Pilih kategori penyesuaian.')
+        const eventId=stableId(pendingAdjustment,{id:original.id,balance:editingBank.balance,category:editingBank.adjCategory})
+        const counterAccountCode=diff>0?({Investasi:'3-1000',Pendapatan:'4-2000',Pinjaman:'2-4000'} as Record<string,string>)[editingBank.adjCategory]:({Beban:'6-9000',Prive:'3-2000',Pajak:'6-9000'} as Record<string,string>)[editingBank.adjCategory]
+        if(!counterAccountCode) throw new Error('Kategori penyesuaian tidak didukung.')
+        const ok=await recordManualCashCommand({eventId,transaction:{id:eventId,date:pendingAdjustment.current!.date!,type:diff>0?'In':'Out',bankAccountId:original.id,amount:Math.abs(diff),category:`Penyesuaian: ${editingBank.adjCategory}`,description:`Penyesuaian saldo ${original.name}: ${editingBank.adjCategory}`,counterpartName:'Penyesuaian',referenceType:'Manual'},counterAccountCode})
+        if(!ok) throw new Error('Penyesuaian belum terkonfirmasi; ulangi data yang sama.')
+        pendingAdjustment.current=null
       }
-
-      await updateBankAccount(editingBank.id, {
-        name: editingBank.name,
-        accountNumber: editingBank.accountNumber,
-        accountCode: editingBank.accountCode,
-        purpose: editingBank.purpose || 'umum',
-        ownerUserId: editingBank.purpose === 'sourcing_pocket' ? editingBank.ownerUserId : undefined,
-        cfoApprovalRequired: !!editingBank.cfoApprovalRequired,
-        // Balance is NOT updated here because addCashTransaction already updated it
-      })
-      setEditingBank(null)
-      toast.success("Info bank & Jurnal penyesuaian berhasil diperbarui!", { id: loadingToast })
-    } catch (e: any) {
-      toast.error("Gagal memperbarui bank: " + e.message, { id: loadingToast })
-    } finally {
-      setIsSubmitting(false)
-    }
+      await updateBankAccount(original.id,{name:editingBank.name,accountNumber:editingBank.accountNumber,purpose:editingBank.purpose||'umum',ownerUserId:editingBank.purpose==='sourcing_pocket'?editingBank.ownerUserId:undefined,cfoApprovalRequired:!!editingBank.cfoApprovalRequired,accountCode:editingBank.accountCode})
+      setEditingBank(null);toast.success('Informasi bank diperbarui.')
+    } catch(e) {toast.error((e as Error).message)}
+    finally {cashBusy.current=false;setIsSubmitting(false)}
   }
 
   const handleSaveEditTx = async () => {
-    if (!editingTx) return
-    setIsSubmitting(true)
-    const loadingToast = toast.loading("Menyimpan perubahan transaksi...")
-    try {
-      await updateCashTransaction(editingTx.id, {
-        bankAccountId: editingTx.bankAccountId,
-        description: editingTx.description,
-        amount: editingTx.amount,
-        category: editingTx.category,
-        counterpartName: editingTx.counterpartName,
-      })
-      setEditingTx(null)
-      toast.success("Transaksi berhasil diperbarui!", { id: loadingToast })
-    } catch (e: any) {
-      toast.error("Gagal memperbarui: " + e.message, { id: loadingToast })
-    } finally {
-      setIsSubmitting(false)
-    }
+    toast.error("Transaksi terposting harus dikoreksi dari sumbernya. Super Admin dapat memakai Koreksi Sumber untuk jenis penerimaan dan pembayaran yang didukung.")
   }
 
   const handleConfirmDelete = async () => {
-    if (!txToDelete) return
-    setIsSubmitting(true)
-    const loadingToast = toast.loading("Menghapus transaksi...")
-    try {
-      await deleteCashTransaction(txToDelete)
-      setTxToDelete(null)
-      toast.success("Transaksi berhasil dihapus!", { id: loadingToast })
-    } catch (e: any) {
-      toast.error("Gagal menghapus: " + e.message, { id: loadingToast })
-    } finally {
-      setIsSubmitting(false)
-    }
+    toast.error("Transaksi terposting harus dikoreksi dari sumbernya. Super Admin dapat memakai Koreksi Sumber untuk jenis penerimaan dan pembayaran yang didukung.")
   }
 
   const handleBulkDelete = async () => {
-    setIsSubmitting(true)
-    const loadingToast = toast.loading(`Menghapus ${selectedTxIds.length} transaksi...`)
-    try {
-       await bulkDeleteCashTransactions(selectedTxIds)
-       setSelectedTxIds([])
-       setIsBulkDeleteConfirmOpen(false)
-       toast.success("Transaksi berhasil dihapus massal!", { id: loadingToast })
-    } catch (e: any) {
-       toast.error("Gagal menghapus massal: " + e.message, { id: loadingToast })
-    } finally {
-       setIsSubmitting(false)
-    }
+    toast.error("Transaksi terposting harus dikoreksi dari sumbernya. Super Admin dapat memakai Koreksi Sumber untuk jenis penerimaan dan pembayaran yang didukung.")
   }
 
   const handleSaveTx = async () => {
-    if (isSubmitting) return
-    if (txType === 'Transfer') {
-      if (!bankId || !targetBankId || amount <= 0 || !description) {
-        toast.error("Mohon lengkapi data transfer internal.")
-        return
-      }
-      if (bankId === targetBankId) {
-        toast.error("Akun sumber dan tujuan tidak boleh sama.")
-        return
-      }
-      // Rekening yang ditandai "butuh approval CFO" (Mandiri, BRI) hanya boleh
-      // dikeluarkan lewat alur Disbursement yang ada persetujuannya. Halaman ini
-      // sebelumnya tidak memeriksanya sama sekali, jadi Pindah Buku jadi pintu
-      // belakang untuk memindahkan berapa pun tanpa satu pun persetujuan.
-      if (bankRequiresCfoApproval(bankId)) {
-        const src = bankAccounts.find(b => b.id === bankId)
-        toast.error(`${src?.name || 'Rekening ini'} butuh persetujuan CFO. Ajukan lewat Finance › Disbursement (Kas Pindah), bukan Pindah Buku.`)
-        return
-      }
-
-      setIsSubmitting(true)
-      const loadingToast = toast.loading("Memproses transfer internal...")
-      
-      try {
-        const txId = uuidv4()
-        const now = new Date(txDate).toISOString()
-        const sourceBank = bankAccounts.find(b => b.id === bankId)
-        const targetBank = bankAccounts.find(b => b.id === targetBankId)
-        
-        // 1. Journal Entry (Debit Target, Credit Source)
-        const sourceBankCode = sourceBank?.accountCode || '1-1000'
-        const targetBankCode = targetBank?.accountCode || '1-1000'
-        const success = await createAccountingEntry(
-          `Pindah Buku: ${description}`,
-          'Transfer',
-          txId,
-          [{ accountCode: targetBankCode, amount }],
-          [{ accountCode: sourceBankCode, amount }],
-          now
-        )
-
-        if (success) {
-          // Add OUT tx for source - AWAIT to ensure sequential update
-          await addCashTransaction({
-            id: txId,
-            date: now,
-            type: 'Out',
-            amount,
-            bankAccountId: bankId,
-            category: 'Pindah Saldo Kas',
-            description,
-            counterpartName: targetBank?.name,
-            receiptUrl,
-            referenceType: 'Transfer'
-          })
-          
-          // Add IN tx for target - AWAIT to ensure sequential update
-          await addCashTransaction({
-            id: uuidv4(),
-            date: now,
-            type: 'In',
-            amount,
-            bankAccountId: targetBankId,
-            category: 'Pindah Saldo Kas',
-            description,
-            counterpartName: sourceBank?.name,
-            receiptUrl,
-            referenceType: 'Transfer'
-          })
-          
-          toast.success("Transfer Internal Berhasil Dicatat!", { id: loadingToast })
-          setIsAddTxOpen(false)
-          setAmount(0)
-          setTxDate(new Date().toISOString().split('T')[0])
-          setDescription('')
-          setCounterpart('')
-          setTargetBankId('')
-        } else {
-          toast.error("Gagal mencatat jurnal transfer.", { id: loadingToast })
-        }
-      } catch (e: any) {
-        toast.error("Gagal memproses transaksi: " + e.message, { id: loadingToast })
-      } finally {
-        setIsSubmitting(false)
-      }
-      return;
-    }
-
-    if (!bankId || amount <= 0 || !category || !description) {
-      toast.error("Mohon lengkapi semua data transaksi.")
-      return
-    }
-
-    let savedDescription = description
-    if (txType === 'In' && category === 'Pinjaman') {
-      try { savedDescription = `${description.trim()}\n${describeLoanInterest(amount, loanTerms)}` }
-      catch (error) { toast.error((error as Error).message); return }
-    }
-
-    setIsSubmitting(true)
-    const loadingToast = toast.loading(`Mencatat transaksi kas ${txType === 'In' ? 'Masuk' : 'Keluar'}...`)
-    
+    if (cashBusy.current || isSubmitting) return
+    if(!bankId || !Number.isFinite(amount) || amount<=0 || !description.trim() || !txDate) {toast.error('Lengkapi rekening, tanggal, nominal positif dan keterangan.');return}
+    if(txType==='In' && category==='Pelunasan Piutang') {toast.error('Penerimaan piutang memerlukan alokasi invoice. Buka Piutang → Tagihan → Catat Bayar.');return}
+    if((txType==='In' && ['Refund Vendor','Penjualan Tunai'].includes(category)) || (txType==='Out' && category==='Belanja Barang (HPP)')) {toast.error('Transaksi ini memerlukan sumber penjualan / pembelian / klaim retur. Gunakan alur sumber terkait agar tidak membukukan dua kali.');return}
+    if(txType==='Transfer' && (!targetBankId || bankId===targetBankId)) {toast.error('Pilih rekening tujuan yang berbeda.');return}
+    if(txType!=='In' && bankRequiresCfoApproval(bankId)) {toast.error('Rekening ini memerlukan persetujuan; gunakan alur Pindah Kas.');return}
+    const counterAccounts:Record<string,string>={Investasi:'3-1000',Pinjaman:'2-4000','Pendapatan Lainnya':'4-2000','Beban Gaji':'6-1000','Sewa Gedung':'6-1100','Listrik/Air':'6-1200',Marketing:'6-1300','Bensin/Transport':'6-1400','ATK/Kantor':'6-1500','Inventaris Kantor':'1-4100',Perbaikan:'6-9000',Konsumsi:'6-9000','Biaya Admin':'6-1600',Pajak:'2-3000','Cicilan Pinjaman':'2-4000','Lainnya':'6-9000'}
+    if(txType!=='Transfer' && !counterAccounts[category]) {toast.error('Pilih kategori yang didukung.');return}
+    cashBusy.current=true;setIsSubmitting(true)
     try {
-      const txId = uuidv4()
-      const now = new Date(txDate).toISOString()
-      const bank = bankAccounts.find(b => b.id === bankId)
-
-      // Map Category to COA Account Code
-      let targetAccountCode = '4-1000' // Default Revenue
-      if (txType === 'In') {
-        switch (category) {
-          case 'Pelunasan Piutang': targetAccountCode = '1-2000'; break;
-          case 'Penjualan Tunai': targetAccountCode = '4-1000'; break;
-          case 'Investasi': targetAccountCode = '3-1000'; break;
-          case 'Pinjaman': targetAccountCode = '2-4000'; break;
-          case 'Refund Vendor': targetAccountCode = '1-3000'; break;
-          case 'Pendapatan Lainnya': targetAccountCode = '4-2000'; break;
-        }
-      } else {
-        switch (category) {
-          case 'Belanja Barang (HPP)': targetAccountCode = '5-1000'; break;
-          case 'Beban Gaji': targetAccountCode = '6-1000'; break;
-          case 'Sewa Gedung': targetAccountCode = '6-1100'; break;
-          case 'Listrik/Air': targetAccountCode = '6-1200'; break;
-          case 'Marketing': targetAccountCode = '6-1300'; break;
-          case 'Bensin/Transport': targetAccountCode = '6-1400'; break;
-          case 'ATK/Kantor': targetAccountCode = '6-1500'; break;
-          case 'Inventaris Kantor': targetAccountCode = '1-4100'; break;
-          case 'Perbaikan': targetAccountCode = '6-9000'; break;
-          case 'Konsumsi': targetAccountCode = '6-9000'; break;
-          case 'Biaya Admin': targetAccountCode = '6-1600'; break;
-          case 'Pajak': targetAccountCode = '2-3000'; break;
-          default: targetAccountCode = '6-9000'; break;
-        }
-      }
-
-      // Special case: Cicilan Pinjaman (split JE: pokok → liability, bunga → expense)
-      const bankAccountCode = bank?.accountCode || '1-1000'
-      if (txType === 'Out' && category === 'Cicilan Pinjaman') {
-        // JE first — if it fails, no cash tx created (data integrity)
-        const debits = loanPaymentDebits(amount, cicilanPokok)
-        const success = await createAccountingEntry(
-          `Cicilan Pinjaman: ${description}`, 'Adjustment', txId,
-          debits, [{ accountCode: bankAccountCode, amount }], now
-        )
-        if (!success) { toast.error("Gagal mencatat jurnal cicilan.", { id: loadingToast }); return }
-        await addCashTransaction({
-          id: txId, date: now, type: 'Out', amount, bankAccountId: bankId,
-          category: 'Cicilan Pinjaman', description, counterpartName: counterpart,
-          receiptUrl, referenceType: 'Manual'
-        })
-        toast.success("Cicilan Pinjaman Dicatat!", { id: loadingToast })
-        setIsAddTxOpen(false); setAmount(0); setDescription(''); setCounterpart(''); setCategory(''); setCicilanPokok(0)
-        return
-      }
-
-      // 1. Add to store and AWAIT
-      await addCashTransaction({
-        id: txId,
-        date: now,
-        type: txType,
-        amount,
-        bankAccountId: bankId,
-        category,
-        description: savedDescription,
-        counterpartName: counterpart,
-        receiptUrl,
-        referenceType: 'Manual'
-      })
-
-      // 2. Journal Entry (Corrected Mapping)
-      // In: Debit Bank, Credit Target Account
-      // Out: Debit Target Account, Credit Bank
-      const success = await createAccountingEntry(
-        `${txType === 'In' ? 'Penerimaan' : 'Pengiriman'} Kas: ${savedDescription}`,
-        'Adjustment',
-        txId,
-        txType === 'In' ? [{ accountCode: bankAccountCode, amount }] : [{ accountCode: targetAccountCode, amount }],
-        txType === 'In' ? [{ accountCode: targetAccountCode, amount }] : [{ accountCode: bankAccountCode, amount }],
-        now
-      )
-
-      if (success) {
-        toast.success("Transaksi Kas Berhasil Dicatat!", { id: loadingToast })
-        setIsAddTxOpen(false)
-        // Reset
-        setAmount(0)
-        setTxDate(new Date().toISOString().split('T')[0])
-        setDescription('')
-        setCounterpart('')
-        setCategory('')
-        setCicilanPokok(0)
-        setLoanValue('')
-        setLoanMonths('')
-      } else {
-        toast.error("Gagal mencatat jurnal kas.", { id: loadingToast })
-      }
-    } catch (e: any) {
-      toast.error("Gagal mencatat transaksi: " + e.message, { id: loadingToast })
-    } finally {
-      setIsSubmitting(false)
-    }
+      let savedDescription=description
+      if(txType==='In' && category==='Pinjaman') savedDescription+=`\n${describeLoanInterest(amount,loanTerms)}`
+      const eventId=stableId(pendingCash,{txType,bankId,targetBankId,amount,txDate,category,description:savedDescription,counterpart,receiptUrl,cicilanPokok})
+      const date=new Date(txDate).toISOString()
+      const ok=txType==='Transfer'
+        ? await recordCashTransfer({eventId,date,bankAccountId:bankId,targetBankAccountId:targetBankId,amount,description})
+        : await recordManualCashCommand({eventId,transaction:{id:eventId,date,type:txType,amount,bankAccountId:bankId,category,description:savedDescription,counterpartName:counterpart,receiptUrl,referenceType:'Manual'},counterAccountCode:counterAccounts[category],...(txType==='Out' && category==='Cicilan Pinjaman'?{debits:loanPaymentDebits(amount,cicilanPokok),credits:[{accountCode:bankAccounts.find(b=>b.id===bankId)?.accountCode||'1-1000',amount}]}:{})})
+      if(!ok) throw new Error('Transaksi belum terkonfirmasi. Ulangi data yang sama untuk memeriksa hasil tanpa menggandakan transaksi.')
+      pendingCash.current=null;toast.success('Transaksi dicatat bersama jurnal dan saldo.')
+      setIsAddTxOpen(false);setAmount(0);setDescription('');setCounterpart('');setCategory('');setTargetBankId('');setReceiptUrl('');setCicilanPokok(0);setLoanValue('');setLoanMonths('')
+    } catch(e) {toast.error((e as Error).message)}
+    finally {cashBusy.current=false;setIsSubmitting(false)}
   }
 
   return (
@@ -717,16 +402,16 @@ export default function CashAndBankPage() {
                                     <SelectContent>
                                        {txType === 'In' ? (
                                           <>
-                                             <SelectItem value="Pelunasan Piutang">💰 Pelunasan Piutang (AR)</SelectItem>
-                                             <SelectItem value="Penjualan Tunai">🛒 Penjualan Tunai</SelectItem>
+                                             <SelectItem disabled value="Pelunasan Piutang">💰 Pelunasan Piutang (AR)</SelectItem>
+                                             <SelectItem disabled value="Penjualan Tunai">🛒 Penjualan Tunai</SelectItem>
                                              <SelectItem value="Investasi">📈 Investasi Masuk</SelectItem>
                                              <SelectItem value="Pinjaman">🏦 Pinjaman Bank</SelectItem>
-                                             <SelectItem value="Refund Vendor">🔄 Refund Vendor</SelectItem>
+                                             <SelectItem disabled value="Refund Vendor">🔄 Refund Vendor</SelectItem>
                                              <SelectItem value="Pendapatan Lainnya">➕ Pendapatan Lain-lain</SelectItem>
                                           </>
                                        ) : (
                                           <>
-                                             <SelectItem value="Belanja Barang (HPP)">🛒 Belanja Barang (HPP)</SelectItem>
+                                             <SelectItem disabled value="Belanja Barang (HPP)">🛒 Belanja Barang (HPP)</SelectItem>
                                              <SelectItem value="Beban Gaji">👥 Beban Gaji Karyawan</SelectItem>
                                              <SelectItem value="Sewa Gedung">🏢 Sewa Gedung/Gudang</SelectItem>
                                              <SelectItem value="Listrik/Air">🔌 Listrik, Air & Internet</SelectItem>
@@ -749,6 +434,7 @@ export default function CashAndBankPage() {
                         </div>
                      </div>
 
+                     <p className="text-xs text-slate-500">Penerimaan tagihan dicatat lewat <Link className="underline text-blue-600" href="/finance/invoices">Piutang → Catat Bayar</Link>. Penjualan, belanja barang dan refund vendor mengikuti dokumen sumber masing-masing.</p>
                      <div className="space-y-2">
                         <Label>Tanggal Transaksi</Label>
                         <Input
@@ -924,7 +610,7 @@ export default function CashAndBankPage() {
                              className="w-8 h-8 rounded-full text-slate-300 hover:text-rose-600 hover:bg-rose-50"
                              onClick={(e) => {
                                e.stopPropagation();
-                               if (confirm(`Hapus akun ${b.name}? Data transaksi tidak akan hilang tapi link ke bank ini akan terputus.`)) {
+                               if (confirm(`Hapus akun ${b.name}? Hanya akun bersaldo nol tanpa riwayat transaksi yang dapat dihapus.`)) {
                                  deleteBankAccount(b.id);
                                }
                              }}
@@ -1120,7 +806,7 @@ export default function CashAndBankPage() {
                            variant="destructive" 
                            size="sm" 
                            className="h-8 rounded-lg px-3 font-bold text-[11px] "
-                           onClick={() => setIsBulkDeleteConfirmOpen(true)}
+                           disabled title="Gunakan Koreksi Sumber untuk pembalikan yang didukung"
                         >
                            <Trash2 className="w-3 h-3 mr-1" /> Hapus Massal
                         </Button>
@@ -1304,14 +990,14 @@ export default function CashAndBankPage() {
                                        <Button
                                           variant="ghost" size="icon"
                                           className="h-7 w-7 text-slate-300 hover:text-rose-600 hover:bg-rose-50 transition-all"
-                                          onClick={() => setTxToDelete(tx.id)}
+                                          disabled title="Gunakan Koreksi Sumber untuk pembalikan yang didukung"
                                        >
                                           <Trash2 className="h-3.5 w-3.5" />
                                        </Button>
                                        <Button
                                           variant="ghost" size="icon"
                                           className="h-7 w-7 text-slate-400 hover:text-slate-700 shrink-0"
-                                          onClick={() => setEditingTx({ ...tx })}
+                                          disabled title="Transaksi terposting tidak dapat diedit"
                                        >
                                           <Pencil className="h-3.5 w-3.5" />
                                        </Button>
@@ -1399,11 +1085,11 @@ export default function CashAndBankPage() {
                   <SelectContent>
                     {editingTx.type === 'In' ? (
                       <>
-                        <SelectItem value="Pelunasan Piutang">Pelunasan Piutang (AR)</SelectItem>
-                        <SelectItem value="Penjualan Tunai">Penjualan Tunai</SelectItem>
+                        <SelectItem disabled value="Pelunasan Piutang">Pelunasan Piutang (AR)</SelectItem>
+                        <SelectItem disabled value="Penjualan Tunai">Penjualan Tunai</SelectItem>
                         <SelectItem value="Investasi">Investasi Masuk</SelectItem>
                         <SelectItem value="Pinjaman">Pinjaman Bank</SelectItem>
-                        <SelectItem value="Refund Vendor">Refund Vendor</SelectItem>
+                        <SelectItem disabled value="Refund Vendor">Refund Vendor</SelectItem>
                         <SelectItem value="Pendapatan Lainnya">Pendapatan Lain-lain</SelectItem>
                       </>
                     ) : (

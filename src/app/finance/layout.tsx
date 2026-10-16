@@ -17,7 +17,7 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
   
   const userKeys = permissions[currentUser?.role || ''] || [];
   
-  const navItems = getNavItemsForUser(userKeys as any);
+  const navItems = getNavItemsForUser(userKeys as any, currentUser?.role);
 
   const activeTitle = navItems.find(n => n.href === pathname)?.title || "Finance Dashboard"
 

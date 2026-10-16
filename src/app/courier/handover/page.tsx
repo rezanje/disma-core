@@ -6,7 +6,6 @@ import { Package, ClipboardCheck, Circle, CheckCircle, Truck } from "lucide-reac
 import { useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { toast } from "sonner"
 import { WorksheetPrintButton } from "@/components/worksheet-print-button"
 import { qty as qtyTeks } from "@/lib/worksheet-rows"
 
@@ -15,10 +14,6 @@ export default function HandoverPage() {
   const salesOrders = useAppStore(state => state.salesOrders)
   const salesOrderItems = useAppStore(state => state.salesOrderItems)
   const products = useAppStore(state => state.products)
-  const currentUser = useAppStore(state => state.currentUser)
-  const updateSalesOrder = useAppStore(state => state.updateSalesOrder)
-  const updateSalesOrderItem = useAppStore(state => state.updateSalesOrderItem)
-  const updateDelivery = useAppStore(state => state.updateDelivery)
   const users = useAppStore(state => state.users)
 
   /**
@@ -35,52 +30,7 @@ export default function HandoverPage() {
   const [activeHandoverId, setActiveHandoverId] = useState<string | null>(null)
   const pendingPickup = salesOrders.filter(so => so.status === 'Siap Kirim')
 
-  const handleHandoverSubmit = (soId: string) => {
-    // Cari misi pengirimannya DULU. Tanpa ini kurir tidak punya rute sama sekali,
-    // dan kalau status SO tetap dimajukan, PO nyangkut di 'Dikirim' selamanya —
-    // tidak pernah sampai 'Terkirim', tidak pernah jadi tagihan. Sebelumnya blok
-    // ini diam saja saat misinya tidak ada, lalu tetap melaporkan "berhasil".
-    // Pilih misi yang masih berjalan, bukan yang sudah 'Terkirim' dari ronde
-    // backorder sebelumnya — kalau tidak, handover membalik pengiriman yang sudah
-    // selesai dan menelantarkan ronde baru di 'Menunggu'.
-    const delivery = deliveries.find(d => d.salesOrderId === soId && d.status !== 'Terkirim')
-    if (!delivery) {
-      toast.error("Belum ada misi pengiriman untuk PO ini. Rilis dulu barangnya di Gudang › Goods Outbound.")
-      return
-    }
-
-    const so = salesOrders.find(s => s.id === soId)
-    const kurirId = kurirPO(so)
-    // Serah terima tetap boleh jalan tanpa kurir yang ditunjuk — barangnya sudah di
-    // depan mata — tapi jangan diam-diam, karena tanpa itu pengirimannya tidak punya
-    // pemilik dan tidak muncul di riwayat siapa pun.
-    if (!kurirId) {
-      toast.warning("PO ini belum ditentukan kurirnya. Pilih dulu di Persiapan Pengiriman kalau mau tercatat.")
-    }
-
-    // Sync all checks to store before finalizing
-    const items = salesOrderItems.filter(i => i.salesOrderId === soId)
-    items.forEach(item => {
-      if (checkedItems.has(item.id)) {
-        updateSalesOrderItem(item.id, { isHandoverChecked: true })
-      }
-    })
-
-    // 1. Update SO Status
-    updateSalesOrder(soId, { 
-      status: 'Dikirim',
-      receivedBy: kurirId || currentUser?.id || 'system'
-    })
-
-    // 2. Update Delivery (sudah dipastikan ada di awal fungsi)
-    updateDelivery(delivery.id, {
-      status: 'Dikirim',
-      courierId: kurirId || currentUser?.id || 'system'
-    })
-
-    toast.success("Serah terima berhasil! Silakan mulai perjalanan.")
-    setActiveHandoverId(null)
-  }
+  const handleHandoverSubmit = (_soId: string) => { window.location.href='/admin/hari-ini' }
 
   const toggleHandoverCheck = (itemId: string) => {
     const next = new Set(checkedItems)
@@ -102,7 +52,7 @@ export default function HandoverPage() {
           kind="serah-terima"
           title="LEMBAR SERAH TERIMA KURIR"
           label="Print Lembar Serah Terima"
-          rows={pendingPickup.flatMap(so =>
+          rows={salesOrders.filter(so=>!['Batal','Selesai'].includes(so.status)).flatMap(so =>
             salesOrderItems
               .filter(i => i.salesOrderId === so.id)
               .map(i => {
@@ -112,7 +62,7 @@ export default function HandoverPage() {
                   cells: [
                     so.poNumber,
                     product?.name || i.productId,
-                    qtyTeks(i.qtyFinal ?? i.qty, product?.uom),
+                    qtyTeks(Math.max(0,i.qty-(i.qtyDelivered||0)), product?.uom),
                   ],
                 }
               }),
@@ -194,7 +144,7 @@ export default function HandoverPage() {
                       disabled={salesOrderItems.filter(i => i.salesOrderId === so.id).some(i => !checkedItems.has(i.id))}
                       onClick={() => handleHandoverSubmit(so.id)}
                     >
-                       Konfirmasi & Mulai Pengantaran <Truck className="w-5 h-5 ml-2" />
+                       Salin berkas serah terima <Truck className="w-5 h-5 ml-2" />
                     </Button>
                   </div>
                 </div>

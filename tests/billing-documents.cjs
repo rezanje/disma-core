@@ -1,0 +1,43 @@
+// Offline acceptance checks. No application transport is permitted.
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const ts = require('typescript');
+require.extensions['.ts'] = (module, filename) => module._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, filename);
+global.fetch = async () => { throw new Error('Unexpected network in billing test'); };
+const tf = require('../src/lib/tf-window.ts');
+assert.equal(typeof tf.isInvoiceEligibleForTf, 'function', 'TF eligibility must be independent of invoice age and exclude financial representations');
+const invoice = { id:'a', salesOrderId:'so', issueDate:'2020-01-01', status:'Unpaid', totalAmount:100, amountPaid:0 };
+const orders = [{id:'so', status:'Terkirim'}];
+assert.equal(tf.isInvoiceEligibleForTf(invoice, orders, [invoice,{id:'old-parent',isConsolidated:true,salesOrderIds:['so']}]),false,'Legacy SO summary membership excludes duplicate child even before explicit supersede flag existed');
+assert.equal(tf.isInvoiceEligibleForTf(invoice, orders), true);
+for (const patch of [{status:'Paid'}, {status:'Cancelled'}, {status:'Draft'}, {amountPaid:100}, {isConsolidated:true}, {supersededByInvoiceId:'old'}, {tukarFakturId:'batch'}]) {
+  assert.equal(tf.isInvoiceEligibleForTf({...invoice,...patch}, orders), false, JSON.stringify(patch));
+}
+assert.equal(tf.isInvoiceEligibleForTf(invoice, [{id:'so',status:'Awaiting Audit'}]), false);
+const { invoiceDocumentLines, paymentStateLabel, validateReceiptAllocations, batchPaymentHistory, sourceReturnCredit, tukarFakturAmounts } = require('../src/lib/billing-document.ts');
+const first = { ...invoice, lineSnapshots:[{salesOrderItemId:'item',productId:'p',productName:'Frozen name',uom:'kg',qty:6,unitPrice:10,unitCost:5}] };
+const second = {...first, lineSnapshots:[{...first.lineSnapshots[0], qty:4,unitPrice:12}]};
+assert.deepEqual(invoiceDocumentLines(first).map(x=>[x.qty,x.subtotal]), [[6,60]]);
+assert.deepEqual(invoiceDocumentLines(second).map(x=>[x.qty,x.subtotal]), [[4,48]]);
+const fractional={...first,totalAmount:0.15,lineSnapshots:[{...first.lineSnapshots[0],qty:0.125,unitPrice:1.23,unitCost:0.61,lineTotal:0.15,costTotal:0.08}]};
+assert.equal(invoiceDocumentLines(fractional)[0].subtotal,0.15,'Document subtotal uses the persisted rounded amount');
+assert.deepEqual(invoiceDocumentLines(invoice), [], 'Legacy invoice may not fabricate historical lines from current order');
+assert.equal(paymentStateLabel(invoice), 'BELUM LUNAS');
+assert.equal(paymentStateLabel({...invoice,status:'Draft'}),'MENUNGGU AUDIT');
+assert.equal(paymentStateLabel({...invoice,amountPaid:40,status:'Partial'}), 'DIBAYAR SEBAGIAN');
+assert.equal(paymentStateLabel({...invoice,amountPaid:100,status:'Paid'}), 'LUNAS');
+const children = [invoice, {...invoice,id:'b'}];
+assert.equal(validateReceiptAllocations(children, {a:100,b:50}, 150), null);
+for (const allocations of [{a:150}, {a:100,foreign:50}, {a:-1,b:151}, {a:NaN,b:150}, {a:100,b:40}]) assert.ok(validateReceiptAllocations(children, allocations,150));
+assert.deepEqual(batchPaymentHistory([{payments:[{id:'receipt',date:'2026-10-01',amount:100}]},{payments:[{id:'receipt',date:'2026-10-01',amount:50}]}]),[{id:'receipt',date:'2026-10-01',amount:150}]);
+const returned={id:'return',invoiceId:'a',salesOrderItemId:'item',productId:'p',qty:2,unitPrice:10,financialAdjustmentStatus:'Pending Finance'};
+assert.equal(sourceReturnCredit(first,returned),20);
+const fractionalReturn={...returned,qty:0.0625,unitPrice:1.23,creditAmount:0.08};
+assert.equal(sourceReturnCredit(fractional,fractionalReturn),0.08,'First fractional return uses its authoritative allocation');
+assert.equal(sourceReturnCredit({...fractional,totalAmount:0.07},{...fractionalReturn,creditAmount:0.07}),0.07,'Final return consumes the stored rounding remainder');
+for(const creditAmount of [NaN,Infinity,-1,0,0.16]) assert.equal(sourceReturnCredit(fractional,{...fractionalReturn,creditAmount}),null);
+assert.deepEqual(tukarFakturAmounts(150,[{totalAmount:100,amountPaid:40}]),{issued:150,correction:50,net:100,paid:40,outstanding:60});
+assert.deepEqual(tukarFakturAmounts(150,[{totalAmount:0,amountPaid:100},{totalAmount:50,amountPaid:0}]),{issued:150,correction:100,net:50,paid:100,outstanding:50},'Refundable excess on one invoice cannot erase another invoice receivable');
+assert.equal(tukarFakturAmounts(0.3,[{totalAmount:0.1},{totalAmount:0.2}]).correction,0);
+for(const patch of [{invoiceId:'other'},{financialAdjustmentStatus:'Credited'},{qty:7},{unitPrice:999},{qty:NaN}]) assert.equal(sourceReturnCredit(first,{...returned,...patch}),null);
+console.log('billing documents and allocation checks passed');

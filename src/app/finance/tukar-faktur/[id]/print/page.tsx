@@ -2,10 +2,11 @@
 
 import { use, useEffect, useMemo } from "react"
 import Link from "next/link"
+import { invoiceDocumentLines, paymentStateLabel, tukarFakturAmounts } from "@/lib/billing-document"
 import { useAppStore } from "@/lib/store"
 import { Button } from "@/components/ui/button"
 import { Printer, ArrowLeft } from "lucide-react"
-import type { SalesOrder, SalesOrderItem, Product } from "@/types"
+import type { SalesOrder, DeliveryLineSnapshot } from "@/types"
 
 function formatRupiah(n: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(n || 0)
@@ -22,7 +23,7 @@ function formatDayName(iso?: string) {
 interface InvoiceWithOrders {
   invoice: ReturnType<typeof useAppStore.getState>["invoices"][number]
   orders: SalesOrder[]
-  items: Array<SalesOrderItem & { product?: Product }>
+  items: Array<DeliveryLineSnapshot & { subtotal: number }>
 }
 
 export default function TukarFakturPrintPage({ params }: { params: Promise<{ id: string }> }) {
@@ -46,10 +47,7 @@ export default function TukarFakturPrintPage({ params }: { params: Promise<{ id:
       const orders = orderIds
         .map(oid => salesOrders.find(o => o.id === oid))
         .filter((o): o is SalesOrder => !!o)
-      const orderIdSet = new Set(orders.map(o => o.id))
-      const items = salesOrderItems
-        .filter(it => orderIdSet.has(it.salesOrderId))
-        .map(it => ({ ...it, product: products.find(p => p.id === it.productId) }))
+      const items = invoiceDocumentLines(inv)
       return { invoice: inv, orders, items }
     })
   }, [invoices, id, salesOrders, salesOrderItems, products])
@@ -65,7 +63,8 @@ export default function TukarFakturPrintPage({ params }: { params: Promise<{ id:
     return <div className="p-10 text-slate-500">TF tidak ditemukan. <Link href="/finance/tukar-faktur" className="underline">Kembali</Link></div>
   }
 
-  const client = clients.find(c => c.id === tf.clientId)
+  const client = enriched[0]?.invoice.clientSnapshot || clients.find(c => c.id === tf.clientId)
+  const amounts = tukarFakturAmounts(tf.totalAmount, enriched.map(entry => entry.invoice))
   const earliestDue = enriched.reduce<string | null>((min, e) => {
     if (!e.invoice.dueDate) return min
     if (!min) return e.invoice.dueDate
@@ -142,6 +141,7 @@ export default function TukarFakturPrintPage({ params }: { params: Promise<{ id:
             </div>
           </div>
 
+          {!enriched[0]?.invoice.clientSnapshot && <p className="text-xs text-amber-700 mb-4">Identitas klien historis belum terverifikasi; cocokkan dokumen asli.</p>}
           {/* CLIENT INFO */}
           <div className="grid grid-cols-2 gap-8 mb-6">
             <div>
@@ -198,9 +198,13 @@ export default function TukarFakturPrintPage({ params }: { params: Promise<{ id:
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-[#0f172a]">
-                  <td colSpan={6} className="py-3 font-black uppercase tracking-widest text-[11px]">Total Tagihan</td>
-                  <td className="py-3 text-right font-black text-base">{formatRupiah(tf.totalAmount)}</td>
+                  <td colSpan={6} className="py-3 font-black uppercase tracking-widest text-[11px]">Nilai terbit</td>
+                  <td className="py-3 text-right font-black text-base">{formatRupiah(amounts.issued)}</td>
                 </tr>
+                <tr><td colSpan={6} className="py-2 text-right">Koreksi (credit note)</td><td className="py-2 text-right">{formatRupiah(-amounts.correction)}</td></tr>
+                <tr><td colSpan={6} className="py-2 font-bold text-right">Nilai bersih saat ini</td><td className="py-2 font-bold text-right">{formatRupiah(amounts.net)}</td></tr>
+                <tr><td colSpan={6} className="py-2 text-right">Pembayaran diterima</td><td className="py-2 text-right">{formatRupiah(amounts.paid)}</td></tr>
+                <tr><td colSpan={6} className="py-2 font-bold text-right">Sisa piutang</td><td className="py-2 font-bold text-right">{formatRupiah(amounts.outstanding)}</td></tr>
               </tfoot>
             </table>
           </div>
@@ -238,7 +242,7 @@ export default function TukarFakturPrintPage({ params }: { params: Promise<{ id:
 
         {/* PAGES 2..N: PER-INVOICE DETAIL */}
         {enriched.map((e, idx) => {
-          const lineTotal = e.items.reduce((s, it) => s + (it.subtotalFinal ?? it.subtotal ?? 0), 0)
+          const lineTotal = e.items.reduce((s, it) => s + it.subtotal, 0)
           return (
             <div key={e.invoice.id} className="print-page bg-white mx-auto max-w-[820px] p-12 shadow-2xl text-[#1e293b]">
               {/* KOP */}
@@ -255,6 +259,7 @@ export default function TukarFakturPrintPage({ params }: { params: Promise<{ id:
                 </div>
               </div>
 
+              <p className="mb-4 text-xs">Klien: {e.invoice.clientSnapshot?.companyName || client?.companyName || e.invoice.clientId} · {e.invoice.clientSnapshot?.address || ''}</p>
               {/* INVOICE META */}
               <div className="grid grid-cols-3 gap-4 mb-6 text-xs">
                 <div>
@@ -283,13 +288,14 @@ export default function TukarFakturPrintPage({ params }: { params: Promise<{ id:
                 </div>
               </div>
 
+              <p className="mb-4 text-xs font-bold">{paymentStateLabel(e.invoice)} · Diterima {formatRupiah(e.invoice.amountPaid || 0)} · Sisa {formatRupiah(Math.max(0,e.invoice.totalAmount-(e.invoice.amountPaid || 0)))}</p>
               {/* LINE ITEMS */}
               <div className="mb-6">
                 <div className="bg-[#0f172a] text-white px-3 py-1.5 inline-block mb-3">
                   <h3 className="text-[10px] font-black uppercase tracking-[0.2em]">Rincian Barang</h3>
                 </div>
                 {e.items.length === 0 ? (
-                  <p className="text-xs text-slate-400 italic">Tidak ada rincian barang.</p>
+                  <p className="text-xs text-slate-400 italic">Rincian historis belum terverifikasi. Cocokkan dokumen asli; jumlah tagihan tersimpan tetap berlaku.</p>
                 ) : (
                   <table className="w-full text-[11px]">
                     <thead className="text-[9px] uppercase tracking-wider text-slate-500 border-b-2 border-slate-300">
@@ -303,12 +309,12 @@ export default function TukarFakturPrintPage({ params }: { params: Promise<{ id:
                     </thead>
                     <tbody>
                       {e.items.map((it, i) => {
-                        const qty = it.qtyFinal ?? it.qty
-                        const sub = it.subtotalFinal ?? it.subtotal ?? (qty * (it.unitPrice || 0))
+                        const qty = it.qty
+                        const sub = it.subtotal
                         return (
-                          <tr key={it.id} className="border-b border-slate-100">
+                          <tr key={it.salesOrderItemId} className="border-b border-slate-100">
                             <td className="py-2 text-slate-400">{i + 1}</td>
-                            <td className="py-2">{it.product?.name || it.productId}</td>
+                            <td className="py-2">{it.productName}</td>
                             <td className="py-2 text-right">{qty}</td>
                             <td className="py-2 text-right">{formatRupiah(it.unitPrice || 0)}</td>
                             <td className="py-2 text-right font-bold">{formatRupiah(sub)}</td>
@@ -319,11 +325,11 @@ export default function TukarFakturPrintPage({ params }: { params: Promise<{ id:
                     <tfoot>
                       <tr className="border-t-2 border-[#0f172a]">
                         <td colSpan={4} className="py-3 font-black uppercase tracking-widest text-[10px] text-right pr-2">Subtotal Faktur</td>
-                        <td className="py-3 text-right font-black text-sm">{formatRupiah(lineTotal || e.invoice.totalAmount)}</td>
+                        <td className="py-3 text-right font-black text-sm">{formatRupiah(lineTotal)}</td>
                       </tr>
                       {Math.abs(lineTotal - e.invoice.totalAmount) > 1 && lineTotal > 0 && (
                         <tr>
-                          <td colSpan={4} className="py-1 text-right pr-2 text-[9px] text-slate-500">Total Invoice (final)</td>
+                          <td colSpan={4} className="py-1 text-right pr-2 text-[9px] text-slate-500">Nilai setelah koreksi (lihat credit note)</td>
                           <td className="py-1 text-right font-black text-sm">{formatRupiah(e.invoice.totalAmount)}</td>
                         </tr>
                       )}

@@ -21,7 +21,7 @@ export type ShoppingDocStatus = { id: string; status: string };
 /** Pesanan yang belum pernah dirangkum selalu boleh diubah. */
 export function orderEditable(so: EditableOrder | null | undefined, docs: ShoppingDocStatus[]): boolean {
   if (!so) return false;
-  if (so.status === 'Draft' || so.status === 'Pending Approval') return true;
+  if (!so.shoppingListDocumentId && (so.status === 'Draft' || so.status === 'Pending Approval')) return true;
   if (!so.shoppingListDocumentId) return false;
   const doc = (docs || []).find(d => d.id === so.shoppingListDocumentId);
   // Dokumen yang hilang tidak boleh diam-diam membuka kunci.

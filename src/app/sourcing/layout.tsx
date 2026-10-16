@@ -13,7 +13,7 @@ export default function SourcingLayout({ children }: { children: React.ReactNode
   const isMinimized = useAppStore(state => state.isSidebarMinimized)
   
   const userKeys = permissions[currentUser?.role || ''] || [];
-  const navItems = getNavItemsForUser(userKeys as any);
+  const navItems = getNavItemsForUser(userKeys as any, currentUser?.role);
 
   return (
     <AuthGuard allowedRoles={['sourcing', 'ceo', 'super_admin', 'cmo', 'admin_po']}>

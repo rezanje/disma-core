@@ -1,0 +1,44 @@
+// Exercise real PDF drawing with an in-memory renderer and immutable store fixture.
+const assert=require('node:assert/strict'), fs=require('node:fs'), path=require('node:path'), Module=require('node:module'), ts=require('typescript');
+const originalLoad=Module._load, root=path.resolve(__dirname,'..');
+let output=[];
+const lines=[{salesOrderItemId:'item',productId:'p',productName:'ROUND ONE NAME',uom:'kg',qty:6,unitPrice:10,unitCost:4}];
+const state={invoices:[{id:'invoice-one',clientId:'client',salesOrderId:'so',deliveryId:'d1',issueDate:'2026-10-01',dueDate:'2026-10-30',totalAmount:60,amountPaid:0,status:'Unpaid',clientSnapshot:{companyName:'FROZEN CLIENT',address:'OLD ADDRESS',picName:'Original PIC'},lineSnapshots:lines}],salesOrders:[{id:'so',clientId:'client',poNumber:'PO1',orderDate:'2026-10-01'}],salesOrderItems:[{id:'item',salesOrderId:'so',productId:'p',qty:100,qtyFinal:100,unitPrice:999,subtotalFinal:99900}],clients:[{id:'client',companyName:'Client'}],products:[{id:'p',name:'MUTATED NAME',uom:'kg'}],deliveries:[{id:'d1',salesOrderId:'so',lineSnapshots:lines,acceptedLineSnapshots:lines},{id:'d2',salesOrderId:'so',deliveryDate:'2026-10-02T08:00:00Z',lineSnapshots:[{...lines[0],qty:4}],acceptedLineSnapshots:[{...lines[0],qty:4}]}]};
+class Doc {constructor(){return new Proxy(this,{get:(target,key)=>key==='internal'?{pageSize:{getWidth:()=>210,getHeight:()=>297}}:key==='text'?(text)=>output.push(String(text)):key==='output'?()=>output.join('\n'):()=>{}})}}
+Module._load=function(id,parent,main){
+ if(id==='jspdf')return {jsPDF:Doc};
+ if(id==='./store')return {useAppStore:{getState:()=>state}};
+ if(id==='./logo')return {DISMA_LOGO_BASE64:''};
+ if(id==='./utils')return {formatRupiah:n=>`Rp${n}`,formatRupiahValue:n=>String(n)};
+ if(id.startsWith('@/'))id=path.join(root,'src',id.slice(2));
+ return originalLoad.call(this,id,parent,main);
+};
+require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText,filename);
+global.fetch=async()=>{throw Error('Unexpected network')};
+const {generateInvoicePDF,generateSuratJalan,generateBA}=require('../src/lib/pdf.ts');
+generateInvoicePDF('invoice-one','dataurl');
+assert.ok(output.includes('6 kg'));
+assert.ok(output.includes('ROUND ONE NAME'));
+assert.ok(output.includes('FROZEN CLIENT'),'Invoice customer header must use immutable client snapshot');
+assert.ok(output.includes('BELUM LUNAS'));
+assert.ok(!output.includes('PAID & VERIFIED'));
+assert.ok(!output.includes('MUTATED NAME'));
+state.salesOrderItems[0].qtyFinal=4;
+state.products[0].name='LATER ROUND NAME';
+output=[];generateInvoicePDF('invoice-one','dataurl');
+assert.ok(output.includes('6 kg'),'First invoice must remain round1 after mutable SO round2 update');
+output=[];generateSuratJalan('PO1',undefined,'dataurl',undefined,'d1');
+assert.ok(output.includes('6 kg'));assert.ok(!output.includes('4 kg'));
+output=[];generateBA('PO1',undefined,'dataurl',undefined,'d2');
+assert.ok(output.includes('4 kg'));assert.ok(!output.includes('6 kg'));
+assert.ok(output.some(text=>text.includes('Tanggal: 02 Oct 2026')), 'BA reprint keeps the event date, not today');
+state.invoices[0].lineSnapshots=[{...lines[0],qty:0.125,unitPrice:1.23,lineTotal:0.15,costTotal:0.08}];
+state.invoices[0].totalAmount=0.15;
+output=[];generateInvoicePDF('invoice-one','dataurl');
+assert.ok(output.includes('Rp0.15'),'Invoice prints the frozen rounded line amount');
+assert.ok(!output.includes('Rp0.15375'),'Invoice must not recompute an unrounded subtotal');
+delete state.invoices[0].lineSnapshots;
+output=[];generateInvoicePDF('invoice-one','dataurl');
+assert.ok(output.some(text=>text.includes('historis belum terverifikasi')));
+assert.ok(!output.includes('4 kg'));
+console.log('PDF immutable invoice/SJ/BA rendering checks passed');

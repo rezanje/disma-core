@@ -1,8 +1,8 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { checkedDbMutation, withOptimisticRollback } from './store-durability';
 import { 
   Client, Product, SalesOrder, SalesOrderItem, Purchase, 
-  PurchaseItem, Delivery, Invoice, InvoiceStatus, ChartOfAccount, JournalEntry, 
+  PurchaseItem, Delivery, Invoice, ChartOfAccount, JournalEntry,
   JournalLine, OperationalExpense, User, Vendor, Role, Lead, Announcement, AppTask, AppNotification,
   BankAccount, CashTransaction, Reimbursement, FixedAsset,
   RolePermissionMap, AccessKey, PendingReturn, VendorReturn, RejectedItem, StockMovement, ClientPrice, ClientPriceTier, PriceBaseline,
@@ -12,19 +12,13 @@ import {
 } from '@/types';
 import { COA_SEED, CLIENTS_SEED, VENDORS_SEED, MOCK_USERS } from './constants';
 
-/**
- * Buang field yang cuma hidup di kode sebelum baris user dikirim ke database.
- *
- * `isActive` adalah saklar di constants.ts untuk mematikan PIN akun lapangan selama
- * Mode Salin — keputusan kode, bukan data. Tabel `users` tidak punya kolomnya, dan
- * Postgres menolak SELURUH baris begitu ada satu kolom asing: daftar user tidak
- * pernah tersimpan, dan layarnya cuma menampilkan error sinkron berulang.
- */
-const untukDb = <T extends object>(user: T) => {
-  const { isActive, ...sisanya } = user as T & { isActive?: boolean };
-  void isActive;
-  return sisanya;
+/** Credentials belong only in the provisioning request, never browser state/cache/audit. */
+const publicStoreUser = (user: User): User => {
+  const { pin, ...safe } = user;
+  void pin;
+  return safe;
 };
+const untukDb = <T extends object>(user: T): T => user;
 import { PRODUCTS_SEED } from './products_seed';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
@@ -119,7 +113,7 @@ const loadCurrentUserFromStorage = (): User | null => {
   try {
     const raw = window.localStorage.getItem(LOCAL_CURRENT_USER_KEY);
     if (!raw) return null;
-    return JSON.parse(raw);
+    return publicStoreUser(JSON.parse(raw));
   } catch { return null; }
 };
 
@@ -127,7 +121,7 @@ const saveCurrentUserToStorage = (user: User | null) => {
   if (typeof window === 'undefined') return;
   try {
     if (user) {
-      window.localStorage.setItem(LOCAL_CURRENT_USER_KEY, JSON.stringify(user));
+      window.localStorage.setItem(LOCAL_CURRENT_USER_KEY, JSON.stringify(publicStoreUser(user)));
     } else {
       window.localStorage.removeItem(LOCAL_CURRENT_USER_KEY);
     }
@@ -335,8 +329,8 @@ interface AppState {
   currentUser: User | null;
   setCurrentUser: (user: User | null) => void;
   users: User[];
-  addUser: (user: User) => void;
-  updateUser: (id: string, data: Partial<User>) => void;
+  addUser: (user: User) => Promise<void>;
+  updateUser: (id: string, data: Partial<User>) => Promise<void>;
   
   // Storage
   isSyncing: boolean;
@@ -485,14 +479,15 @@ interface AppState {
     allocations: Record<string, number>,
     paymentDate: string,
     bankAccountId: string,
-    totalAmount: number
+    totalAmount: number,
+    paymentId?: string
   ) => Promise<boolean>;
 
   // Accounts Payable (Vendor Bills)
   vendorBills: VendorBill[];
   addVendorBill: (bill: VendorBill) => Promise<void>;
   updateVendorBill: (id: string, data: Partial<VendorBill>) => Promise<void>;
-  deleteVendorBill: (id: string) => Promise<void>;
+  deleteVendorBill: (id: string, cleanup?: { reason: 'failed-posting' }) => Promise<void>;
   payVendorBill: (billId: string, payment: VendorBillPayment) => Promise<void>;
 
   journalEntries: JournalEntry[];
@@ -583,54 +578,6 @@ interface AppState {
 
 }
 
-
-const initialCOAs: ChartOfAccount[] = [
-  // 1-XXXX ASSETS
-  { id: 'coa-1', accountCode: '1-1000', accountName: 'Kas di Tangan (Petty Cash)', accountType: 'Asset' },
-  { id: 'coa-1-2', accountCode: '1-1200', accountName: 'Bank BCA - Utama', accountType: 'Asset' },
-  { id: 'coa-1-3', accountCode: '1-1300', accountName: 'Bank Mandiri - Operasional', accountType: 'Asset' },
-  { id: 'coa-1-4', accountCode: '1-1400', accountName: 'Bank BRI - Simpanan', accountType: 'Asset' },
-  { id: 'coa-transfer-clearing', accountCode: '1-1999', accountName: 'Transfer Antar Bank (Clearing)', accountType: 'Asset' },
-  { id: 'coa-1-5', accountCode: '1-1500', accountName: 'Uang Muka Karyawan (Advance)', accountType: 'Asset' },
-  { id: 'coa-1-5-1', accountCode: '1-1510', accountName: 'Kas Operasional Kurir', accountType: 'Asset' },
-  { id: 'coa-2', accountCode: '1-2000', accountName: 'Piutang Usaha (Klien)', accountType: 'Asset' },
-  { id: 'coa-3', accountCode: '1-3000', accountName: 'Persediaan Barang Dagang', accountType: 'Asset' },
-  { id: 'coa-4', accountCode: '1-4000', accountName: 'Aset Tetap (Kendaraan/Alat)', accountType: 'Asset' },
-  { id: 'coa-4-1', accountCode: '1-4100', accountName: 'Inventaris & Furnitur Kantor', accountType: 'Asset' },
-  { id: 'coa-5', accountCode: '1-4999', accountName: 'Akumulasi Penyusutan Aset', accountType: 'Asset' },
-  
-  // 2-XXXX LIABILITIES
-  { id: 'coa-10', accountCode: '2-1000', accountName: 'Utang Usaha (Vendor)', accountType: 'Liability' },
-  { id: 'coa-10-talangan', accountCode: '2-1500', accountName: 'Utang Talangan Karyawan', accountType: 'Liability' },
-  { id: 'coa-10-2', accountCode: '2-2000', accountName: 'Utang Gaji & Honor', accountType: 'Liability' },
-  { id: 'coa-10-3', accountCode: '2-3000', accountName: 'Utang Pajak (PPN/PPh)', accountType: 'Liability' },
-  { id: 'coa-10-4', accountCode: '2-4000', accountName: 'Pinjaman Bank (Utang)', accountType: 'Liability' },
-  
-  // 3-XXXX EQUITY
-  { id: 'coa-11', accountCode: '3-1000', accountName: 'Modal Pemilik (Owner Capital)', accountType: 'Equity' },
-  { id: 'coa-11-2', accountCode: '3-2000', accountName: 'Prive / Penarikan Pribadi', accountType: 'Equity' },
-  
-  // 4-XXXX REVENUE
-  { id: 'coa-12', accountCode: '4-1000', accountName: 'Pendapatan Penjualan Produk', accountType: 'Revenue' },
-  { id: 'coa-12-2', accountCode: '4-2000', accountName: 'Pendapatan Lain-lain', accountType: 'Revenue' },
-  
-  // 5-XXXX COST OF SALES
-  { id: 'coa-13', accountCode: '5-1000', accountName: 'Harga Pokok Penjualan (HPP)', accountType: 'Expense' },
-  { id: 'coa-14', accountCode: '5-2000', accountName: 'Beban Kerusakan/Retur Barang', accountType: 'Expense' },
-  
-  // 6-XXXX OPERATIONAL EXPENSES
-  { id: 'coa-15', accountCode: '6-1000', accountName: 'Beban Gaji & Tunjangan', accountType: 'Expense' },
-  { id: 'coa-15-2', accountCode: '6-1100', accountName: 'Beban Sewa Gedung/Workshop', accountType: 'Expense' },
-  { id: 'coa-9-2', accountCode: '6-1200', accountName: 'Beban Listrik, Air & Internet', accountType: 'Expense' },
-  { id: 'coa-9-3', accountCode: '6-1300', accountName: 'Beban Marketing & Iklan', accountType: 'Expense' },
-  { id: 'coa-9-4', accountCode: '6-1400', accountName: 'Beban Transportasi & BBM', accountType: 'Expense' },
-  { id: 'coa-9-5', accountCode: '6-1500', accountName: 'Beban ATK & Kantor', accountType: 'Expense' },
-  { id: 'coa-9-6', accountCode: '6-1600', accountName: 'Biaya Admin Platform', accountType: 'Expense' },
-  { id: 'coa-9-7', accountCode: '6-1700', accountName: 'Ongkos Kirim Pembelian', accountType: 'Expense' },
-  { id: 'coa-9-9', accountCode: '6-9000', accountName: 'Beban Operasional Lainnya', accountType: 'Expense' },
-  { id: 'coa-16', accountCode: '6-2000', accountName: 'Beban Penyusutan Aset', accountType: 'Expense' },
-  { id: 'coa-17', accountCode: '6-3000', accountName: 'Beban Bunga Pinjaman', accountType: 'Expense' },
-];
 
 // NOTE: empty array — bank accounts must be created via UI (admin) or via import seed.
 // Previously this had hardcoded seed banks that auto-re-injected on every store init,
@@ -753,29 +700,56 @@ const bacaBarisById = async <T,>(table: string, ids: string[]): Promise<T[]> => 
   }
 };
 
-export const useAppStore = create<AppState>((set, get) => ({
+function assertSalesOrderDeletable(state: AppState, ids: string[]) {
+  for (const id of ids) {
+    const order = state.salesOrders.find(row => row.id === id);
+    const items = state.salesOrderItems.filter(row => row.salesOrderId === id);
+    if (!order || order.status !== 'Draft' || order.shoppingListDocumentId
+      || state.invoices.some(row => row.salesOrderId === id)
+      || state.deliveries.some(row => row.salesOrderId === id)
+      || state.purchaseItems.some(row => row.salesOrderId === id)
+      || state.stockMovements.some(row => row.salesOrderId === id)
+      || items.some(row => Number(row.qtyFinal || 0) > 0)
+      || state.journalEntries.some(row => row.referenceId === id)
+      || state.cashTransactions.some(row => row.referenceId === id)) {
+      throw new Error('PO sudah memiliki progres atau dokumen turunan; penghapusan ditolak.');
+    }
+  }
+}
+
+async function commandTukarFaktur(action: 'issue' | 'link' | 'delete', params: Record<string, unknown>) {
+  const response = await fetch('/api/tukar-faktur', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, params }),
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok || !payload || payload.error) throw new Error(payload?.error || 'Perintah tukar faktur gagal.');
+  return payload as { data?: unknown; error?: { message: string } };
+}
+
+export const useAppStore = create<AppState>((set, get) => {
+  const actions: AppState = {
       currentUser: loadCurrentUserFromStorage(),
       setCurrentUser: (user) => {
-        saveCurrentUserToStorage(user);
-        set({ currentUser: user });
+        const safe = user ? publicStoreUser(user) : null;
+        saveCurrentUserToStorage(safe);
+        set({ currentUser: safe });
       },
-      users: MOCK_USERS,
+      users: [],
       rolePermissions: initialRolePermissions,
       navConfigs: {},
       addUser: async (user) => {
-        set((state) => ({ users: [...state.users, user] }));
-        await get().syncTable('users', untukDb(user));
+        set((state) => ({ users: [...state.users, publicStoreUser(user)] }));
+        await get().syncTable('users', user);
       },
       updateUser: async (id, data) => {
-        const before = get().users.find(u => u.id === id);
-        set((state) => ({
-          users: state.users.map(u => u.id === id ? { ...u, ...data } : u)
-        }));
-        const updated = get().users.find(u => u.id === id);
-        if (updated) {
-          await get().syncTable('users', untukDb(updated));
-          if (before) await get().logHistory({ table: 'users', recordId: id, action: 'update', oldData: before, newData: updated });
-        }
+        const before = get().users.find(user => user.id === id);
+        if (!before) throw new Error('Personel tidak ditemukan.');
+        const transport = { ...before, ...data };
+        const safe = publicStoreUser(transport);
+        set(state => ({ users: state.users.map(user => user.id === id ? safe : user) }));
+        await get().syncTable('users', transport);
+        // PIN rotations are recorded by the authenticated server provisioning path.
+        await get().logHistory({ table: 'users', recordId: id, action: 'update', oldData: publicStoreUser(before), newData: safe });
       },
 
       isSyncing: false,
@@ -788,82 +762,23 @@ export const useAppStore = create<AppState>((set, get) => ({
       _locallyEditedPermissionRoles: [],
 
       syncTable: async (table: string, data: any, silent = false) => {
-        // Stamp local-mutation time so an in-flight init() can detect and discard
-        // a stale server snapshot taken before this write (prevents value flicker).
-        set({ _lastLocalMutationAt: Date.now() });
-        set({ isSyncing: true });
-
-        const attemptSync = async (): Promise<boolean> => {
-          const res = await fetch('/api/db', {
+        if (!table || !table.trim()) throw new Error('Database table is required.');
+        set({ _lastLocalMutationAt: Date.now(), isSyncing: true });
+        try {
+          await checkedDbMutation('/api/db', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ table, data })
+            body: JSON.stringify({ table, data }),
           });
-          if (!res.ok) {
-            const errData = await res.json().catch(() => ({}));
-            const errMessage = String(errData.error || res.statusText || '');
-            // Only skip on genuine missing-TABLE errors. A missing-COLUMN error
-            // also mentions "schema cache" but must surface, not be swallowed.
-            if (/could not find the table/i.test(errMessage)) {
-              console.warn(`[Sync] ${table} table not available yet, skipping.`);
-              return true; // Not a real failure, table just doesn't exist yet
-            }
-            // Kolom yang tidak ada = bug kode, bukan gangguan jaringan. Postgres
-            // menolak SELURUH baris, jadi datanya HILANG — dan menunggu 2 detik lalu
-            // mengulang tidak akan pernah menolongnya. Ini persis yang dulu bikin PO
-            // kurang kirim tidak pernah tercatat: layar bilang berhasil, database
-            // tidak pernah menerimanya. Gagalkan langsung supaya pemanggilnya tahu.
-            if (/could not find the '.*' column/i.test(errMessage)) {
-              const err = new Error(`Sync failed for ${table}: ${errMessage}`);
-              (err as Error & { fatalSchema?: boolean }).fatalSchema = true;
-              throw err;
-            }
-            throw new Error(`Sync failed for ${table}: ${errMessage}`);
-          }
-          return true;
-        };
-
-        try {
-          await attemptSync();
-
-          // Broadcast to other tabs for INSTANT update (skip if silent)
-          if (!silent && typeof window !== 'undefined') {
+          if (!silent && typeof window !== 'undefined' && typeof BroadcastChannel !== 'undefined') {
             set({ _ignoreBroadcastUntil: Date.now() + 2000 });
             const bc = new BroadcastChannel('disma_core_sync');
             bc.postMessage({ type: 'SYNC_UPDATE', table });
             bc.close();
           }
-        } catch (firstError) {
-          // Beda kolom tidak akan sembuh dengan diulang — teriakkan sekarang.
-          if ((firstError as Error & { fatalSchema?: boolean })?.fatalSchema) {
-            set({ isSyncing: false });
-            if (!silent && typeof window !== 'undefined') {
-              const { toast } = await import('sonner');
-              toast.error(`⚠️ ${table} TIDAK tersimpan — struktur datanya tidak cocok. Lapor ke developer, jangan diulang.`, { duration: 12000 });
-            }
-            throw firstError;
-          }
-          // RETRY ONCE after 2s — Supabase may be waking from hibernation
-          console.warn(`[Sync] First attempt failed for ${table}, retrying in 2s...`, firstError);
-          try {
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            await attemptSync();
-            console.log(`[Sync] Retry succeeded for ${table}`);
-          } catch (retryError) {
-            console.error(`[Sync] FAILED after retry for ${table}:`, retryError);
-            // Show visible error to user — NEVER fail silently
-            if (!silent && typeof window !== 'undefined') {
-              const { toast } = await import('sonner');
-              toast.error(`⚠️ Gagal menyimpan ${table} ke server! Data tersimpan lokal saja. Coba sync lagi nanti.`, { duration: 8000 });
-            }
-            // CRITICAL: accounting tables MUST propagate failure so callers (e.g. createAccountingEntry)
-            // can abort and prevent silent data corruption (transaction marked done without journal).
-            const CRITICAL_TABLES = ['journal_entries', 'journal_lines', 'cash_transactions', 'bank_accounts'];
-            if (CRITICAL_TABLES.includes(table)) {
-              set({ isSyncing: false });
-              throw retryError;
-            }
-          }
+        } catch (error) {
+          if (!silent && typeof window !== 'undefined') toast.error(`Gagal menyimpan ${table}. Perubahan dibatalkan.`, { duration: 8000 });
+          throw error;
         } finally {
           set({ isSyncing: false });
         }
@@ -1076,31 +991,9 @@ export const useAppStore = create<AppState>((set, get) => ({
           
           if (hasAnyData) {
 
-            // Self-Repair: If Master Data is missing or has wrong IDs in DB, re-sync
-            const dbCoaIds = new Set((data.coas || []).map((c: any) => c.id));
-            const hasIdMismatch = initialCOAs.some(c => !dbCoaIds.has(c.id));
-            if ((!data.coas || data.coas.length === 0) || hasIdMismatch) {
-               console.log("Master Seed: COAs missing or ID mismatch in Supabase. Re-syncing...");
-               get().syncTable('coas', initialCOAs);
-            }
-            if ((!data.users || data.users.length === 0) && MOCK_USERS.length > 0) {
-               console.log("Master Seed: Users missing in Supabase. Seeding...");
-               get().syncTable('users', MOCK_USERS.map(untukDb));
-            }
-            if ((!data.bankAccounts || data.bankAccounts.length === 0) && INITIAL_BANK_ACCOUNTS.length > 0) {
-               console.log("Master Seed: Bank Accounts missing in Supabase. Seeding...");
-               get().syncTable('bank_accounts', INITIAL_BANK_ACCOUNTS);
-            }
-            // DANGER: Automatic save to HDD in init() can cause data loss if fetch is empty.
-            // Removed to prevent race conditions during polling.
-
-            const mergedCoas = [...initialCOAs];
-            if (data.coas && Array.isArray(data.coas)) {
-              data.coas.forEach((c: ChartOfAccount) => {
-                const exists = mergedCoas.find(orig => orig.accountCode === c.accountCode);
-                if (!exists) mergedCoas.push(c);
-              });
-            }
+            // IDs from the database are authoritative. Code seeds must never
+            // shadow a real account with the same code but another primary key.
+            const mergedCoas = Array.isArray(data.coas) ? data.coas : get().coas;
 
             const mergedPermissions = { ...initialRolePermissions };
             const hasServerPermissions = data.rolePermissions && typeof data.rolePermissions === 'object' && Object.keys(data.rolePermissions).length > 0;
@@ -1133,7 +1026,7 @@ export const useAppStore = create<AppState>((set, get) => ({
               } else {
                 // Completely fresh: Seed
                 mergedBanks = [...INITIAL_BANK_ACCOUNTS];
-                mergedBanks.forEach(b => get().syncTable('bank_accounts', b, true));
+                // Missing master data is never seeded during hydration.
               }
             }
             
@@ -1147,33 +1040,10 @@ export const useAppStore = create<AppState>((set, get) => ({
               }
             });
             mergedBanks = finalUniqueBanks;
-            saveLocalBankAccountsCache(mergedBanks);
-            set({ bankAccounts: mergedBanks });
 
-            // --- USER SEEDING & SHIELD ---
-            let mergedUsers = data.users || [];
-            // Preserve mock users if they don't exist in DB to ensure initial team exists
-            MOCK_USERS.forEach(mock => {
-              if (!mergedUsers.find((u: any) => u.id === mock.id)) {
-                mergedUsers.push(mock);
-                // No auto-sync here to avoid prompt storm, will sync on first edit
-              }
-            });
-            // Preserve local users not yet in DB
-            get().users.forEach(localUser => {
-              if (!mergedUsers.find((u: any) => u.id === localUser.id)) {
-                mergedUsers.push(localUser);
-              }
-            });
-            // `isActive` sengaja tidak disimpan di database — itu saklar di constants.ts
-            // yang mematikan PIN akun lapangan selama Mode Salin. Baris dari database
-            // tidak membawanya, jadi kalau tidak ditempelkan lagi di sini, akun yang
-            // sengaja dimatikan diam-diam bisa dipakai login lagi.
-            mergedUsers = mergedUsers.map((u: any) => {
-              const mock = MOCK_USERS.find(m => m.id === u.id);
-              return mock && 'isActive' in mock ? { ...u, isActive: mock.isActive } : u;
-            });
-
+            // Server identities and activation are authoritative; do not resurrect
+            // deleted accounts or copy credentials from seeds/old browser state.
+            const mergedUsers = (Array.isArray(data.users) ? data.users : get().users).map(publicStoreUser);
 
             // --- SERVER IS KING: No more smartMerge with local cache ---
             // Direct Supabase fetch succeeded. Use server data as the single source of truth.
@@ -1307,178 +1177,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             if (data.deliveries !== undefined) saveLocalCache(LOCAL_DELIVERIES_CACHE_KEY, data.deliveries);
             if (data.leads !== undefined) saveLocalLeadsCache(data.leads);
 
-            // --- LEGACY HPP BACKFILL ---
-            // Before the HPP mapping fix, market sourcing settlements were posted to inventory (1-3000).
-            // Repair them in-place so historical P&L reports reflect the correct cost of goods sold.
-            const repairLegacyHppSettlements = async () => {
-              const current = get();
-              const hppCoa = current.coas.find(c => c.accountCode === '5-1000');
-              const legacyInventoryCoa = current.coas.find(c => c.accountCode === '1-3000');
 
-              if (!hppCoa || !legacyInventoryCoa) return 0;
-
-              const targetEntries = current.journalEntries.filter(entry => {
-                const desc = (entry.description || '').toLowerCase();
-                return (
-                  desc.includes('penyelesaian belanja sourcing') ||
-                  desc.includes('belanja pasar disetujui') ||
-                  desc.includes('sourcing (hpp)')
-                );
-              });
-
-              let repaired = 0;
-              for (const entry of targetEntries) {
-                const entryLines = current.journalLines.filter(line => line.journalEntryId === entry.id);
-                const hasLegacyDebit = entryLines.some(line => line.accountId === legacyInventoryCoa.id && Number(line.debitAmount || 0) > 0);
-                const hasHppDebit = entryLines.some(line => line.accountId === hppCoa.id && Number(line.debitAmount || 0) > 0);
-
-                if (!hasLegacyDebit || hasHppDebit) continue;
-
-                const updatedLines = entryLines.map(line => (
-                  line.accountId === legacyInventoryCoa.id && Number(line.debitAmount || 0) > 0
-                    ? { ...line, accountId: hppCoa.id }
-                    : line
-                ));
-
-                await get().updateJournalEntry(entry.id, {}, updatedLines);
-                repaired += 1;
-              }
-
-              if (repaired > 0) {
-                console.log(`Legacy HPP backfill complete: repaired ${repaired} journal entr${repaired === 1 ? 'y' : 'ies'}.`);
-              }
-
-              return repaired;
-            };
-
-            await repairLegacyHppSettlements();
-
-            const repairDuplicateSettlementRecords = async () => {
-              const current = get();
-
-              const cashTransactions = [...current.cashTransactions];
-              const seenCashKeys = new Set<string>();
-              const dedupedCashTransactions = cashTransactions.filter((tx) => {
-                const cashKey = [
-                  tx.type,
-                  tx.category,
-                  tx.bankAccountId,
-                  tx.referenceId || '',
-                  tx.amount,
-                  tx.description || '',
-                ].join('|');
-
-                if (seenCashKeys.has(cashKey)) return false;
-                seenCashKeys.add(cashKey);
-                return true;
-              });
-
-              const linesByEntry = new Map<string, JournalLine[]>();
-              current.journalLines.forEach((line) => {
-                const existing = linesByEntry.get(line.journalEntryId) || [];
-                existing.push(line);
-                linesByEntry.set(line.journalEntryId, existing);
-              });
-
-              const seenJournalKeys = new Set<string>();
-              const dedupedJournalEntries = current.journalEntries.filter((entry) => {
-                const normalizedLines = [...(linesByEntry.get(entry.id) || [])]
-                  .sort((a, b) => a.id.localeCompare(b.id))
-                  .map((line) => `${line.accountId}:${line.debitAmount}:${line.creditAmount}`)
-                  .join('|');
-
-                const journalKey = [
-                  entry.referenceType || '',
-                  entry.referenceId || '',
-                  entry.description || '',
-                  normalizedLines,
-                ].join('|');
-
-                if (seenJournalKeys.has(journalKey)) return false;
-                seenJournalKeys.add(journalKey);
-                return true;
-              });
-
-              const validJournalEntryIds = new Set(dedupedJournalEntries.map((entry) => entry.id));
-              const dedupedJournalLines = current.journalLines.filter((line) => validJournalEntryIds.has(line.journalEntryId));
-
-              const cashChanged = dedupedCashTransactions.length !== current.cashTransactions.length;
-              const journalChanged = dedupedJournalEntries.length !== current.journalEntries.length;
-
-              if (!cashChanged && !journalChanged) return 0;
-
-              // NOTE: Bank balance is DB-authoritative (set via opening balance + cumulative deltas).
-              // Recomputing balance = sum(In) - sum(Out) starting from 0 breaks imports / opening balances.
-              // We only dedup the cash_tx + JE records, leave bank balances untouched.
-              set({
-                cashTransactions: dedupedCashTransactions,
-                journalEntries: dedupedJournalEntries,
-                journalLines: dedupedJournalLines,
-              });
-
-              // Only reset+reseed dedup-affected tables. Leave bank_accounts alone (DB-authoritative balance).
-              await fetch('/api/db/reset', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  action: 'custom',
-                  tables: ['journal_lines', 'journal_entries', 'cash_transactions'],
-                })
-              });
-
-              await fetch('/api/db/reset', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  action: 'seed',
-                  seedData: {
-                    journal_entries: dedupedJournalEntries,
-                    journal_lines: dedupedJournalLines,
-                    cash_transactions: dedupedCashTransactions,
-                  }
-                })
-              });
-
-              const removedCash = current.cashTransactions.length - dedupedCashTransactions.length;
-              const removedJournal = current.journalEntries.length - dedupedJournalEntries.length;
-              console.log(`Duplicate settlement repair complete: removed ${removedCash} cash transaction(s) and ${removedJournal} journal entr${removedJournal === 1 ? 'y' : 'ies'}.`);
-              return removedCash + removedJournal;
-            };
-
-            await repairDuplicateSettlementRecords();
-
-            // --- LEGACY INVENTORY STOCK CLEANUP ---
-            // If there is no purchase history yet, any pre-filled product stock is stale seed data.
-            // Reset it to zero so inventory only grows from real QC/inbound events.
-            const repairLegacyInventoryStock = async () => {
-              const current = get();
-              const hasPurchaseHistory = Array.isArray(data.purchaseItems) && data.purchaseItems.length > 0;
-              if (hasPurchaseHistory) return 0;
-
-              const productsToRepair = current.products.filter(product => Number(product.currentStock || 0) !== 0);
-              if (productsToRepair.length === 0) return 0;
-
-              const zeroedProducts = current.products.map(product => (
-                Number(product.currentStock || 0) !== 0
-                  ? { ...product, currentStock: 0 }
-                  : product
-              ));
-
-              set({ products: zeroedProducts });
-
-              for (const product of productsToRepair) {
-                await get().syncTable(
-                  'products',
-                  { ...product, currentStock: 0 },
-                  true
-                );
-              }
-
-              console.log(`Legacy inventory stock cleanup complete: reset ${productsToRepair.length} product stock record${productsToRepair.length === 1 ? '' : 's'}.`);
-              return productsToRepair.length;
-            };
-
-            await repairLegacyInventoryStock();
           }
         } catch (error) {
           console.error('Store Init Error:', error);
@@ -1623,7 +1322,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
 
         try {
-          const res = await fetch('/api/db', {
+          const res = await checkedDbMutation('/api/db', {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ table: 'clients', id, actor: { id: state.currentUser.id, pin: state.currentUser.pin } })
@@ -1677,7 +1376,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         set({ salesOrders: updated });
         saveLocalSalesOrdersCache(updated);
         const changed = updated.filter(so => map.has(so.id));
-        const res = await fetch('/api/db', {
+        const res = await checkedDbMutation('/api/db', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ table: 'sales_orders', data: changed })
@@ -1714,7 +1413,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           // Prepare payload with complete updated client data to satisfy DB constraints
           const clientsToSync = updates.map(u => updatedClients.find(c => c.id === u.id)).filter(Boolean);
 
-          const response = await fetch('/api/db', {
+          const response = await checkedDbMutation('/api/db', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
@@ -1728,8 +1427,11 @@ export const useAppStore = create<AppState>((set, get) => ({
             throw new Error(`Sync failed: ${errText}`);
           }
 
-          set({ clients: updatedClients });
-          saveLocalClientsCache(updatedClients);
+          const beforeById = new Map(beforeClients.map(row => [row.id, row]));
+          const changedById = new Map(clientsToSync.map(row => [row!.id, row!]));
+          const mergedClients = get().clients.map(row => row === beforeById.get(row.id) && changedById.has(row.id) ? changedById.get(row.id)! : row);
+          set({ clients: mergedClients });
+          saveLocalClientsCache(mergedClients);
 
           for (const u of updates) {
             const before = beforeClients.find(c => c.id === u.id);
@@ -1741,6 +1443,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         } catch (e: any) {
           console.error("Failed to update multiple clients:", e);
           toast.error("Gagal melakukan pembaruan massal di database: " + e.message);
+          throw e;
         } finally {
           set({ isSyncing: false });
         }
@@ -1844,7 +1547,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           saveLocalProductsCache(updatedProducts);
 
           // Bulk sync to DB
-          await fetch('/api/db', {
+          await checkedDbMutation('/api/db', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
@@ -1894,6 +1597,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
       },
       deleteSalesOrder: async (id: string) => {
+        assertSalesOrderDeletable(get(), [id]);
         get().takeDevSnapshot();
         const orderBefore = get().salesOrders.find(so => so.id === id);
         const itemsToDelete = get().salesOrderItems.filter(item => item.salesOrderId === id);
@@ -1908,12 +1612,12 @@ export const useAppStore = create<AppState>((set, get) => ({
 
         try {
           if (itemIds.length > 0) {
-            await fetch('/api/db', {
+            await checkedDbMutation('/api/db', {
               method: 'DELETE',
               body: JSON.stringify({ table: 'sales_order_items', id: itemIds }),
             });
           }
-          await fetch('/api/db', {
+          await checkedDbMutation('/api/db', {
             method: 'DELETE',
             body: JSON.stringify({ table: 'sales_orders', id }),
           });
@@ -1921,9 +1625,11 @@ export const useAppStore = create<AppState>((set, get) => ({
           if (orderBefore) await get().logHistory({ table: 'sales_orders', recordId: id, action: 'delete', oldData: orderBefore, newData: null });
         } catch (e) {
           console.error("Failed to delete sales order:", e);
+          throw e;
         }
       },
       deleteMultipleSalesOrders: async (ids: string[]) => {
+        assertSalesOrderDeletable(get(), ids);
         get().takeDevSnapshot();
         const ordersBefore = get().salesOrders.filter(so => ids.includes(so.id));
         const itemsToDelete = get().salesOrderItems.filter(item => ids.includes(item.salesOrderId));
@@ -1938,12 +1644,12 @@ export const useAppStore = create<AppState>((set, get) => ({
 
         try {
           if (itemIds.length > 0) {
-            await fetch('/api/db', {
+            await checkedDbMutation('/api/db', {
               method: 'DELETE',
               body: JSON.stringify({ table: 'sales_order_items', id: itemIds }),
             });
           }
-          await fetch('/api/db', {
+          await checkedDbMutation('/api/db', {
             method: 'DELETE',
             body: JSON.stringify({ table: 'sales_orders', id: ids }),
           });
@@ -1953,6 +1659,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           }
         } catch (e) {
           console.error("Failed to bulk delete sales orders:", e);
+          throw e;
         }
       },
 
@@ -1985,7 +1692,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         const updatedSalesOrderItems = get().salesOrderItems.filter(item => item.id !== id);
         set({ salesOrderItems: updatedSalesOrderItems });
         saveLocalSalesOrderItemsCache(updatedSalesOrderItems);
-        await fetch('/api/db', { method: 'DELETE', body: JSON.stringify({ table: 'sales_order_items', id }) });
+        await checkedDbMutation('/api/db', { method: 'DELETE', body: JSON.stringify({ table: 'sales_order_items', id }) });
         if (before) await get().logHistory({ table: 'sales_order_items', recordId: id, action: 'delete', oldData: before, newData: null });
       },
 
@@ -2008,75 +1715,23 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
       },
       deletePurchase: async (id: string) => {
-        // Cascade: remove related purchase_items + vendor_bills + unlink salesOrders shoppingListDocumentId
-        const purchaseBefore = get().purchases.find(p => p.id === id);
-        const itemsToDelete = get().purchaseItems.filter(pi => pi.purchaseId === id);
-        const itemIds = itemsToDelete.map(pi => pi.id);
-
-        const billsToDelete = get().vendorBills.filter(vb => vb.purchaseId === id);
-        const billIds = billsToDelete.map(vb => vb.id);
-
-        const remainingPurchases = get().purchases.filter(p => p.id !== id);
-        const remainingItems = get().purchaseItems.filter(pi => pi.purchaseId !== id);
-        const remainingVendorBills = get().vendorBills.filter(vb => vb.purchaseId !== id);
-
-        set({
-          purchases: remainingPurchases,
-          purchaseItems: remainingItems,
-          vendorBills: remainingVendorBills
-        });
-        saveLocalPurchasesCache(remainingPurchases);
-        saveLocalPurchaseItemsCache(remainingItems);
-
-        // Unlink sales orders referencing this purchase as shopping list doc
-        const affectedSOs = get().salesOrders.filter(so => so.shoppingListDocumentId === id);
-        const sosBeforeMap = new Map(affectedSOs.map(so => [so.id, { ...so }]));
-        if (affectedSOs.length > 0) {
-          const updatedSOs = get().salesOrders.map(so =>
-            so.shoppingListDocumentId === id
-              ? { ...so, status: 'Draft' as const, shoppingListDocumentId: null as any, shoppingListCompiledAt: null as any, shoppingListCompiledBy: null as any }
-              : so
-          );
-          set({ salesOrders: updatedSOs });
-          saveLocalSalesOrdersCache(updatedSOs);
-          for (const so of affectedSOs) {
-            const after = updatedSOs.find(s => s.id === so.id)!;
-            await get().syncTable('sales_orders', after);
-            const beforeSO = sosBeforeMap.get(so.id);
-            if (beforeSO) await get().logHistory({ table: 'sales_orders', recordId: so.id, action: 'update', oldData: beforeSO, newData: after, reason: `Auto-unlink (deletePurchase ${id.slice(0,8)})` });
-          }
+        const state = get();
+        const purchase = state.purchases.find(p => p.id === id);
+        if (!purchase) throw new Error('Dokumen belanja tidak ditemukan.');
+        const children = state.purchaseItems.filter(item => item.purchaseId === id);
+        const refs = new Set([id, ...children.map(item => item.id)]);
+        if (children.length || state.vendorBills.some(bill => bill.purchaseId === id)
+          || state.salesOrders.some(order => order.shoppingListDocumentId === id)
+          || state.stockMovements.some(row => refs.has(row.referenceId || ''))
+          || state.cashTransactions.some(row => refs.has(row.referenceId || ''))
+          || state.journalEntries.some(row => refs.has(row.referenceId || ''))
+          || !['Draft', 'Pending'].includes(purchase.status)) {
+          throw new Error('Dokumen belanja sudah memiliki detail atau riwayat. Penghapusan ditolak; gunakan pembatalan sumber.');
         }
-
-        try {
-          if (billIds.length > 0) {
-            await fetch('/api/db', {
-              method: 'DELETE',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ table: 'vendor_bills', id: billIds })
-            });
-            for (const vb of billsToDelete) {
-              await get().logHistory({ table: 'vendor_bills', recordId: vb.id, action: 'delete', oldData: vb, newData: null, reason: `Cascade from deletePurchase ${id.slice(0,8)}` });
-            }
-          }
-          if (itemIds.length > 0) {
-            await fetch('/api/db', {
-              method: 'DELETE',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ table: 'purchase_items', id: itemIds })
-            });
-            for (const pi of itemsToDelete) {
-              await get().logHistory({ table: 'purchase_items', recordId: pi.id, action: 'delete', oldData: pi, newData: null, reason: `Cascade from deletePurchase ${id.slice(0,8)}` });
-            }
-          }
-          await fetch('/api/db', {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ table: 'purchases', id })
-          });
-          if (purchaseBefore) await get().logHistory({ table: 'purchases', recordId: id, action: 'delete', oldData: purchaseBefore, newData: null });
-        } catch (e) {
-          console.error("Failed to delete purchase from server:", e);
-        }
+        await checkedDbMutation('/api/db', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ table: 'purchases', id }) });
+        const remaining = get().purchases.filter(row => row.id !== id);
+        set({ purchases: remaining });
+        saveLocalPurchasesCache(remaining);
       },
 
       purchaseItems: [],
@@ -2104,12 +1759,21 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
       },
       deletePurchaseItem: async (id: string) => {
+        const item = get().purchaseItems.find(row => row.id === id);
+        const purchase = get().purchases.find(row => row.id === item?.purchaseId);
+        if (item && (get().vendorBills.some(row => row.purchaseId === item.purchaseId)
+          || get().stockMovements.some(row => row.referenceId === id || row.referenceId === item.purchaseId)
+          || get().cashTransactions.some(row => row.referenceId === id || row.referenceId === item.purchaseId)
+          || get().journalEntries.some(row => row.referenceId === id || row.referenceId === item.purchaseId)
+          || (purchase && !['Draft', 'Pending'].includes(purchase.status)))) {
+          throw new Error('Detail belanja sudah memiliki riwayat; penghapusan ditolak.');
+        }
         const before = get().purchaseItems.find(pi => pi.id === id);
         const remaining = get().purchaseItems.filter(pi => pi.id !== id);
         set({ purchaseItems: remaining });
         saveLocalPurchaseItemsCache(remaining);
         try {
-          await fetch('/api/db', {
+          await checkedDbMutation('/api/db', {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ table: 'purchase_items', id })
@@ -2117,6 +1781,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           if (before) await get().logHistory({ table: 'purchase_items', recordId: id, action: 'delete', oldData: before, newData: null });
         } catch (e) {
           console.error("Failed to delete purchase item from server:", e);
+          throw e;
         }
       },
 
@@ -2144,7 +1809,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         set({ purchaseRequests: remaining });
         saveLocalPurchaseRequestsCache(remaining);
         try {
-          await fetch('/api/db', {
+          await checkedDbMutation('/api/db', {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ table: 'purchase_requests', id })
@@ -2152,6 +1817,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           if (before) await get().logHistory({ table: 'purchase_requests', recordId: id, action: 'delete', oldData: before, newData: null });
         } catch (e) {
           console.error("Failed to delete purchase request from server:", e);
+          throw e;
         }
       },
 
@@ -2179,7 +1845,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         set({ disbursementRequests: remaining });
         saveLocalDisbursementRequestsCache(remaining);
         try {
-          await fetch('/api/db', {
+          await checkedDbMutation('/api/db', {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ table: 'disbursement_requests', id })
@@ -2187,6 +1853,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           if (before) await get().logHistory({ table: 'disbursement_requests', recordId: id, action: 'delete', oldData: before, newData: null });
         } catch (e) {
           console.error("Failed to delete disbursement request from server:", e);
+          throw e;
         }
       },
 
@@ -2247,15 +1914,13 @@ export const useAppStore = create<AppState>((set, get) => ({
         const before = get().deliveries.find(d => d.id === id);
         set((state) => ({ deliveries: state.deliveries.filter(d => d.id !== id) }));
         try {
-          await fetch('/api/db', {
+          await checkedDbMutation('/api/db', {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ table: 'deliveries', id })
           });
           if (before) await get().logHistory({ table: 'deliveries', recordId: id, action: 'delete', oldData: before, newData: null });
         } catch (e) {
-          // Restore on failure
-          if (before) set((state) => ({ deliveries: [before, ...state.deliveries] }));
           throw e;
         }
       },
@@ -2312,11 +1977,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       },
       deleteTukarFaktur: async (id: string) => {
         const before = get().tukarFakturs.find(t => t.id === id);
-        const { createClient } = await import('@supabase/supabase-js');
-        const { resolveSupabaseEnv } = await import('@/lib/supabase-env');
-        const env = resolveSupabaseEnv();
-        const sb = createClient(env.url, env.anonKey);
-        const { error } = await sb.rpc('delete_tukar_faktur', { p_tf_id: id });
+        const { error } = await commandTukarFaktur('delete', { p_tf_id: id });
         if (error) throw new Error(`Delete TF gagal: ${error.message}`);
 
         set((state) => ({
@@ -2327,11 +1988,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         if (before) await get().logHistory({ table: 'tukar_faktur', recordId: id, action: 'delete', oldData: before, newData: null });
       },
       issueTukarFaktur: async (tfId: string, invoiceIds: string[], issueDate: string, userId: string) => {
-        const { createClient } = await import('@supabase/supabase-js');
-        const { resolveSupabaseEnv } = await import('@/lib/supabase-env');
-        const env = resolveSupabaseEnv();
-        const sb = createClient(env.url, env.anonKey);
-        const { data, error } = await sb.rpc('issue_tukar_faktur', {
+        const { data, error } = await commandTukarFaktur('issue', {
           p_tf_id: tfId,
           p_invoice_ids: invoiceIds,
           p_issue_date: issueDate,
@@ -2364,11 +2021,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       },
 
       linkInvoicesToTukarFaktur: async (tfId: string, invoiceIds: string[]) => {
-        const { createClient } = await import('@supabase/supabase-js');
-        const { resolveSupabaseEnv } = await import('@/lib/supabase-env');
-        const env = resolveSupabaseEnv();
-        const sb = createClient(env.url, env.anonKey);
-        const { data, error } = await sb.rpc('link_invoices_to_tukar_faktur', {
+        const { data, error } = await commandTukarFaktur('link', {
           p_tf_id: tfId,
           p_invoice_ids: invoiceIds,
         });
@@ -2399,109 +2052,19 @@ export const useAppStore = create<AppState>((set, get) => ({
         return data;
       },
 
-      recordTukarFakturPayment: async (tfId, allocations, paymentDate, bankAccountId, totalAmount) => {
-        const { recordPaymentReceived } = await import('./accounting');
+      recordTukarFakturPayment: async (tfId, allocations, paymentDate, bankAccountId, totalAmount, paymentId = uuidv4()) => {
         const state = get();
-        
-        let childUpdates: { id: string; data: Partial<Invoice> }[] = [];
-        let success = true;
-
-        for (const [childId, amount] of Object.entries(allocations)) {
-          if (amount <= 0) continue;
-          const child = state.invoices.find(i => i.id === childId);
-          if (!child) continue;
-
-          const apiSuccess = await recordPaymentReceived(childId, amount, paymentDate, bankAccountId);
-          if (!apiSuccess) {
-            success = false;
-            break;
-          }
-
-          const newAmountPaid = (child.amountPaid || 0) + amount;
-          const status: InvoiceStatus = newAmountPaid >= child.totalAmount ? 'Paid' : 'Partial';
-          const paymentRecord = {
-            id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
-            amount,
-            date: paymentDate,
-            note: `Pembayaran via Tukar Faktur ${tfId}`
-          };
-
-          childUpdates.push({
-            id: childId,
-            data: {
-              amountPaid: newAmountPaid,
-              status,
-              payments: [...(child.payments || []), paymentRecord]
-            }
-          });
+        const requested = Object.entries(allocations).map(([invoiceId, amount]) => ({ invoiceId, amount }));
+        if (!requested.length || !Number.isFinite(totalAmount) || totalAmount <= 0) return false;
+        for (const allocation of requested) {
+          const invoice = state.invoices.find(row => row.id === allocation.invoiceId);
+          if (!invoice || !Number.isFinite(allocation.amount) || allocation.amount <= 0
+            || (invoice.tukarFakturId !== tfId && invoice.supersededByInvoiceId !== tfId)) return false;
         }
-
-        if (!success) return false;
-
-        // Update child invoices in state
-        const updatedInvoices = state.invoices.map(inv => {
-          const update = childUpdates.find(u => u.id === inv.id);
-          return update ? { ...inv, ...update.data } : inv;
-        });
-
-        // `tfId` bisa menunjuk ke dua jenis batch: invoice konsolidasi lama (punya baris
-        // invoice sendiri sebagai induk) atau baris `tukar_faktur` dari sistem baru (tidak
-        // punya invoice induk sama sekali). Dulu SELURUH penerapan hasil pembayaran ada di
-        // dalam `if (parent)`, jadi untuk batch sistem baru pembayaran anaknya hilang dari
-        // state dan tidak pernah tersimpan. Terapkan update anak lebih dulu, tanpa syarat.
-        const parent = updatedInvoices.find(i => i.id === tfId);
-        const invoicesToSync: Invoice[] = [];
-        let finalInvoices = updatedInvoices;
-
-        if (parent) {
-          const parentChildren = updatedInvoices.filter(
-            i => i.supersededByInvoiceId === tfId || i.tukarFakturId === tfId
-          );
-          const totalPaid = parentChildren.reduce((sum, c) => sum + (c.amountPaid || 0), 0);
-          const status: InvoiceStatus = totalPaid >= parent.totalAmount ? 'Paid' : totalPaid > 0 ? 'Partial' : 'Unpaid';
-
-          const parentPaymentRecord = {
-            id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
-            amount: totalAmount,
-            date: paymentDate,
-            note: `Pembayaran bulk Tukar Faktur`
-          };
-
-          const updatedParent = {
-            ...parent,
-            amountPaid: totalPaid,
-            status,
-            payments: [...(parent.payments || []), parentPaymentRecord]
-          };
-
-          finalInvoices = updatedInvoices.map(inv => inv.id === tfId ? updatedParent : inv);
-          invoicesToSync.push(updatedParent);
-        }
-
-        set({ invoices: finalInvoices });
-        saveLocalCache(LOCAL_INVOICES_CACHE_KEY, finalInvoices);
-
-        for (const update of childUpdates) {
-          const updatedChild = finalInvoices.find(i => i.id === update.id);
-          if (updatedChild) invoicesToSync.push(updatedChild);
-        }
-
-        // Sync parent and child invoices to database in a single batch request
-        if (invoicesToSync.length > 0) {
-          await get().syncTable('invoices', invoicesToSync);
-        }
-
-        // Batch sistem baru: tandai baris tukar_faktur-nya lunas kalau semua anaknya lunas.
-        const tf = get().tukarFakturs.find(t => t.id === tfId);
-        if (tf) {
-          const tfChildren = finalInvoices.filter(i => i.tukarFakturId === tfId);
-          const fullyPaid = tfChildren.length > 0 && tfChildren.every(c => c.status === 'Paid');
-          if (fullyPaid && tf.status !== 'Paid') {
-            await get().updateTukarFaktur(tfId, { status: 'Paid' });
-          }
-        }
-
-        return true;
+        if (Math.abs(requested.reduce((sum, row) => sum + row.amount, 0) - totalAmount) > 0.01) return false;
+        const { recordClientReceipt } = await import('./accounting');
+        // The atomic command hydrates all committed invoice and money rows.
+        return recordClientReceipt({ paymentId, date: paymentDate, bankAccountId, amount: totalAmount, allocations: requested });
       },
 
       // === Vendor Bills (Accounts Payable) ===
@@ -2511,134 +2074,70 @@ export const useAppStore = create<AppState>((set, get) => ({
         await get().syncTable('vendor_bills', bill);
       },
       updateVendorBill: async (id: string, data: Partial<VendorBill>) => {
+        const existing = get().vendorBills.find(row => row.id === id);
+        if (!existing) throw new Error('Tagihan vendor tidak ditemukan.');
+        const posted = Number(existing.amountPaid || 0) > 0 || (existing.payments || []).length > 0
+          || get().journalLines.some(line => line.vendorBillId === id);
+        if (posted) throw new Error('Tagihan vendor tercatat tidak dapat diedit langsung. Gunakan pembayaran atau reversal sumber.');
         set((state) => ({
           vendorBills: state.vendorBills.map(vb => vb.id === id ? { ...vb, ...data } : vb)
         }));
         const updated = get().vendorBills.find(vb => vb.id === id);
         if (updated) await get().syncTable('vendor_bills', updated);
       },
-      deleteVendorBill: async (id: string) => {
-        set((state) => ({ vendorBills: state.vendorBills.filter(vb => vb.id !== id) }));
-        try {
-          await fetch('/api/db', {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ table: 'vendor_bills', id })
-          });
-        } catch (e) { console.warn('[deleteVendorBill] sync failed', e); }
+      deleteVendorBill: async (id: string, cleanup?: { reason: 'failed-posting' }) => {
+        const bill = get().vendorBills.find(row => row.id === id);
+        if (cleanup?.reason !== 'failed-posting' || !bill || Number(bill.amountPaid || 0) !== 0
+          || (bill.payments || []).length || get().journalLines.some(line => line.vendorBillId === id)) {
+          throw new Error('Tagihan vendor tercatat tidak dapat dihapus. Gunakan reversal dokumen sumber.');
+        }
+        // Only a newly staged bill without a posted journal may be cleaned up.
+        await checkedDbMutation('/api/db', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ table: 'vendor_bills', id }) });
+        set(state => ({ vendorBills: state.vendorBills.filter(row => row.id !== id) }));
       },
       payVendorBill: async (billId: string, payment: VendorBillPayment) => {
-        const bill = get().vendorBills.find(vb => vb.id === billId);
-        if (!bill) throw new Error('Vendor bill tidak ditemukan');
-
-        // Idempotency: check if payment ID is already registered to avoid double payment
-        const alreadyPaid = bill.payments?.some(p => p.id === payment.id);
-        if (alreadyPaid) {
-          console.warn(`Payment ${payment.id} already applied to bill ${billId}`);
-          return;
-        }
-
-        const bank = get().bankAccounts.find(b => b.id === payment.bankAccountId);
-        if (!bank) throw new Error('Bank account tidak ditemukan');
-
-        // 1. Create Journal Entry dynamically to avoid circular import issues
-        const { createAccountingEntry } = await import('@/lib/accounting');
-        const journalDesc = `Bayar Hutang ${bill.vendorName} (${bill.billNumber})`;
-        const ok = await createAccountingEntry(
-          journalDesc,
-          'Payment',
-          payment.id,
-          [{ accountCode: '2-1000', amount: payment.amount, vendorId: bill.vendorId, vendorBillId: bill.id }] as any,
-          [{ accountCode: bank.accountCode || '1-1100', amount: payment.amount }] as any,
-          payment.date
-        );
-        if (!ok) throw new Error('Gagal mencatat jurnal pembayaran');
-
-        // 2. Add Cash Transaction (which updates bank balance & syncs table)
-        await get().addCashTransaction({
-          id: payment.id,
-          date: payment.date,
-          type: 'Out',
-          amount: payment.amount,
-          bankAccountId: payment.bankAccountId,
-          category: 'Bayar Hutang Vendor',
-          description: payment.note
-            ? `${bill.vendorName} — ${bill.billNumber} (${payment.note})`
-            : `${bill.vendorName} — ${bill.billNumber}`,
-          counterpartName: bill.vendorName,
-          referenceType: 'Manual',
+        const { recordVendorPayment } = await import('./accounting');
+        const success = await recordVendorPayment({
+          paymentId: payment.id, billId, date: payment.date,
+          bankAccountId: payment.bankAccountId, amount: payment.amount, note: payment.note,
         });
-
-        // 3. Update VendorBill record
-        const newPayments = [...(bill.payments || []), payment];
-        const newAmountPaid = (bill.amountPaid || 0) + payment.amount;
-        const newStatus: VendorBill['status'] =
-          newAmountPaid >= bill.totalAmount ? 'Paid' : newAmountPaid > 0 ? 'PartialPaid' : 'Pending';
-
-        const oldBill = { ...bill };
-        await get().updateVendorBill(billId, {
-          payments: newPayments,
-          amountPaid: newAmountPaid,
-          status: newStatus,
-        });
-
-        // 4. Log History
-        await get().logHistory({
-          table: 'vendor_bills',
-          recordId: billId,
-          action: 'update',
-          oldData: oldBill,
-          newData: { ...bill, payments: newPayments, amountPaid: newAmountPaid, status: newStatus }
-        });
+        if (!success) throw new Error('Pembayaran vendor belum tersimpan. Gunakan ID pembayaran yang sama untuk mencoba kembali.');
       },
 
       journalEntries: [],
       addJournalEntry: async (entry) => {
+        if (get().journalEntries.some(row => row.id === entry.id)) throw new Error('Jurnal tercatat tidak dapat ditimpa.');
         const before = get().journalEntries;
         set({ journalEntries: [...before, entry] });
         try {
           await get().syncTable('journal_entries', entry);
         } catch (error) {
-          set({ journalEntries: before });
           throw error;
         }
       },
-      updateJournalEntry: async (id: string, updates: Partial<JournalEntry>, newLines: JournalLine[]) => {
-        const beforeEntry = get().journalEntries.find(e => e.id === id);
-        const beforeLines = get().journalLines.filter(l => l.journalEntryId === id);
-        set((state) => ({
-          journalEntries: state.journalEntries.map(e => e.id === id ? { ...e, ...updates } : e),
-          journalLines: [
-            ...state.journalLines.filter(l => l.journalEntryId !== id),
-            ...newLines
-          ]
-        }));
-        const updatedEntry = get().journalEntries.find(e => e.id === id);
-        if (updatedEntry) {
-          await get().syncTable('journal_entries', updatedEntry);
-          if (beforeEntry) await get().logHistory({ table: 'journal_entries', recordId: id, action: 'update', oldData: { ...beforeEntry, lines: beforeLines }, newData: { ...updatedEntry, lines: newLines } });
-        }
-        await get().syncTable('journal_lines', newLines);
+      updateJournalEntry: async () => {
+        throw new Error('Jurnal tercatat tidak dapat diedit. Gunakan reversal dokumen sumber.');
       },
 
       journalLines: [],
       addJournalLine: async (line) => {
+        if (get().journalLines.some(row => row.id === line.id)) throw new Error('Baris jurnal tercatat tidak dapat ditimpa.');
         const before = get().journalLines;
         set({ journalLines: [...before, line] });
         try {
           await get().syncTable('journal_lines', line);
         } catch (error) {
-          set({ journalLines: before });
           throw error;
         }
       },
       addJournalLines: async (lines) => {
+        if (new Set(lines.map(row => row.id)).size !== lines.length
+          || lines.some(line => get().journalLines.some(row => row.id === line.id))) throw new Error('Baris jurnal tercatat tidak dapat ditimpa.');
         const before = get().journalLines;
         set({ journalLines: [...before, ...lines] });
         try {
           await get().syncTable('journal_lines', lines);
         } catch (error) {
-          set({ journalLines: before });
           throw error;
         }
       },
@@ -2677,7 +2176,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           saveLocalLeadsCache(updated);
           return { leads: updated };
         });
-        await fetch('/api/db', { method: 'DELETE', body: JSON.stringify({ table: 'leads', id }) });
+        await checkedDbMutation('/api/db', { method: 'DELETE', body: JSON.stringify({ table: 'leads', id }) });
         if (before) await get().logHistory({ table: 'leads', recordId: id, action: 'delete', oldData: before, newData: null });
       },
       updateAnnouncement: (announcement) => set({ announcement }),
@@ -2701,7 +2200,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       deleteTask: async (id) => {
         const before = get().tasks.find(t => t.id === id);
         set((state) => ({ tasks: state.tasks.filter(t => t.id !== id) }));
-        await fetch('/api/db', { method: 'DELETE', body: JSON.stringify({ table: 'disma_tasks', id }) });
+        await checkedDbMutation('/api/db', { method: 'DELETE', body: JSON.stringify({ table: 'disma_tasks', id }) });
         if (before) await get().logHistory({ table: 'disma_tasks', recordId: id, action: 'delete', oldData: before, newData: null });
       },
       
@@ -2743,17 +2242,21 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       bankAccounts: [],
       addBankAccount: async (acc) => {
+        if (Number(acc.balance || 0) !== 0) throw new Error('Saldo awal harus dicatat sebagai transaksi sumber.');
         set((state) => ({ bankAccounts: [...state.bankAccounts, acc] }));
         await get().syncTable('bank_accounts', acc);
       },
       updateBankAccount: async (id: string, data: Partial<BankAccount>) => {
+        if ('balance' in data) throw new Error('Saldo bank hanya dapat berubah melalui transaksi sumber.');
         const before = get().bankAccounts.find(b => b.id === id);
         set((state) => ({
           bankAccounts: state.bankAccounts.map(b => b.id === id ? { ...b, ...data } : b)
         }));
         const updated = get().bankAccounts.find(b => b.id === id);
         if (updated) {
-          await get().syncTable('bank_accounts', updated);
+          const { balance, ...metadata } = updated;
+          void balance;
+          await get().syncTable('bank_accounts', metadata);
           if (before) await get().logHistory({ table: 'bank_accounts', recordId: id, action: 'update', oldData: before, newData: updated });
         }
       },
@@ -2775,7 +2278,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         set({ bankAccounts: newBanks });
         saveLocalBankAccountsCache(newBanks);
 
-        const res = await fetch('/api/db', {
+        const res = await checkedDbMutation('/api/db', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ table: 'bank_accounts', id })
@@ -2786,23 +2289,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
         if (before) await get().logHistory({ table: 'bank_accounts', recordId: id, action: 'delete', oldData: before, newData: null });
       },
-      updateBankBalance: async (id: string, amount: number) => {
-        const before = get().bankAccounts.find(b => b.id === id);
-        const beforeBanks = get().bankAccounts;
-        const newBanks = get().bankAccounts.map(b => b.id === id ? { ...b, balance: b.balance + amount } : b);
-        set({ bankAccounts: newBanks });
-        saveLocalBankAccountsCache(newBanks);
-        const updated = get().bankAccounts.find(b => b.id === id);
-        if (updated) {
-          try {
-            await get().syncTable('bank_accounts', updated);
-            if (before) await get().logHistory({ table: 'bank_accounts', recordId: id, action: 'update', oldData: before, newData: updated });
-          } catch (error) {
-            set({ bankAccounts: beforeBanks });
-            saveLocalBankAccountsCache(beforeBanks);
-            throw error;
-          }
-        }
+      updateBankBalance: async () => {
+        throw new Error('Saldo bank hanya dapat berubah melalui transaksi sumber.');
       },
       cashTransactions: [],
       addCashTransaction: async (tx) => {
@@ -2811,23 +2299,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         // Stamp local-mutation time (this path bypasses syncTable) so an in-flight
         // init() discards a stale snapshot instead of flickering the balance back.
         set({ _lastLocalMutationAt: Date.now() });
-        const previousCashTransactions = get().cashTransactions;
-        const previousBankAccounts = get().bankAccounts;
-        const balanceChange = tx.type === 'In' ? tx.amount : -tx.amount;
-
-        set((state) => {
-          const updatedAccounts = state.bankAccounts.map(b => 
-            b.id === tx.bankAccountId ? { ...b, balance: (b.balance || 0) + balanceChange } : b
-          );
-          
-          return { 
-            cashTransactions: state.cashTransactions.some((candidate) => candidate.id === tx.id)
-              ? state.cashTransactions.map((candidate) => candidate.id === tx.id ? tx : candidate)
-              : [tx, ...state.cashTransactions],
-            bankAccounts: updatedAccounts
-          }
-        });
-
         try {
           const response = await fetch('/api/accounting/cash', {
             method: 'POST',
@@ -2836,8 +2307,8 @@ export const useAppStore = create<AppState>((set, get) => ({
           });
 
           const payload = await response.json().catch(() => ({})) as CashPostResponse;
-          if (!response.ok) {
-            throw new Error(payload.error || response.statusText);
+          if (!response.ok || !payload.transaction || !payload.bankAccount) {
+            throw new Error(payload.error || "Cash posting was not acknowledged.");
           }
 
           const serverTx = payload.transaction
@@ -2861,117 +2332,18 @@ export const useAppStore = create<AppState>((set, get) => ({
             saveLocalBankAccountsCache(get().bankAccounts);
           }
         } catch (error) {
-          set({
-            cashTransactions: previousCashTransactions,
-            bankAccounts: previousBankAccounts,
-          });
-          saveLocalBankAccountsCache(previousBankAccounts);
           throw error;
         }
       },
 
-      updateCashTransaction: async (id, updates) => {
-        const existing = get().cashTransactions.find(tx => tx.id === id);
-        if (!existing) return;
-
-        const oldChange = existing.type === 'In' ? existing.amount : -existing.amount;
-        const newTx = { ...existing, ...updates };
-        const newChange = newTx.type === 'In' ? newTx.amount : -newTx.amount;
-        const oldBankId = existing.bankAccountId;
-        const newBankId = newTx.bankAccountId;
-
-        let banksToSync: BankAccount[] = [];
-        set((state) => {
-          // Reverse old effect, apply new effect on bank balances
-          const updatedBanks = state.bankAccounts.map(b => {
-            if (oldBankId === newBankId && b.id === oldBankId) {
-              return { ...b, balance: (b.balance || 0) - oldChange + newChange };
-            }
-            if (b.id === oldBankId) return { ...b, balance: (b.balance || 0) - oldChange };
-            if (b.id === newBankId) return { ...b, balance: (b.balance || 0) + newChange };
-            return b;
-          });
-          banksToSync = updatedBanks.filter(b => b.id === oldBankId || b.id === newBankId);
-          return {
-            cashTransactions: state.cashTransactions.map(tx => tx.id === id ? newTx : tx),
-            bankAccounts: updatedBanks,
-          };
-        });
-
-        await get().syncTable('cash_transactions', newTx);
-        for (const b of banksToSync) await get().syncTable('bank_accounts', b);
-        await get().logHistory({ table: 'cash_transactions', recordId: id, action: 'update', oldData: existing, newData: newTx });
+      updateCashTransaction: async () => {
+        throw new Error('Transaksi kas tercatat tidak dapat diedit. Gunakan reversal dokumen sumber.');
       },
-
-      deleteCashTransaction: async (id) => {
-        const existing = get().cashTransactions.find(tx => tx.id === id);
-        if (!existing) return;
-
-        get().takeDevSnapshot();
-        const changeToReverse = existing.type === 'In' ? existing.amount : -existing.amount;
-        let accountToSync: BankAccount | undefined;
-
-        set((state) => {
-          const updatedAccounts = state.bankAccounts.map(b => 
-            b.id === existing.bankAccountId ? { ...b, balance: (b.balance || 0) - changeToReverse } : b
-          );
-          accountToSync = updatedAccounts.find(b => b.id === existing.bankAccountId);
-          
-          return { 
-            cashTransactions: state.cashTransactions.filter(tx => tx.id !== id),
-            bankAccounts: updatedAccounts
-          }
-        });
-
-        await fetch('/api/db', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ table: 'cash_transactions', id })
-        });
-
-        if (accountToSync) await get().syncTable('bank_accounts', accountToSync);
-        await get().logHistory({ table: 'cash_transactions', recordId: id, action: 'delete', oldData: existing, newData: null });
+      deleteCashTransaction: async () => {
+        throw new Error('Transaksi kas tercatat tidak dapat dihapus. Gunakan reversal dokumen sumber.');
       },
-
-      bulkDeleteCashTransactions: async (ids) => {
-        if (!ids.length) return;
-        get().takeDevSnapshot();
-        
-        const txsToDelete = get().cashTransactions.filter(tx => ids.includes(tx.id));
-        const bankDeltas: Record<string, number> = {};
-        
-        txsToDelete.forEach(tx => {
-          const changeToReverse = tx.type === 'In' ? tx.amount : -tx.amount;
-          bankDeltas[tx.bankAccountId] = (bankDeltas[tx.bankAccountId] || 0) - changeToReverse;
-        });
-
-        let updatedBanks: BankAccount[] = [];
-        set((state) => {
-          updatedBanks = state.bankAccounts.map(b => {
-             if (bankDeltas[b.id]) {
-                return { ...b, balance: (b.balance || 0) + bankDeltas[b.id] };
-             }
-             return b;
-          });
-          return {
-            cashTransactions: state.cashTransactions.filter(tx => !ids.includes(tx.id)),
-            bankAccounts: updatedBanks
-          };
-        });
-
-        await fetch('/api/db', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ table: 'cash_transactions', id: ids })
-        });
-
-        for (const bankId of Object.keys(bankDeltas)) {
-           const b = updatedBanks.find(x => x.id === bankId);
-           if (b) await get().syncTable('bank_accounts', b);
-        }
-        for (const tx of txsToDelete) {
-          await get().logHistory({ table: 'cash_transactions', recordId: tx.id, action: 'delete', oldData: tx, newData: null, reason: 'Bulk delete' });
-        }
+      bulkDeleteCashTransactions: async () => {
+        throw new Error('Transaksi kas tercatat tidak dapat dihapus massal.');
       },
 
       reimbursements: [],
@@ -3028,7 +2400,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       deleteClientPrice: async (id) => {
         const before = get().clientPrices.find(c => c.id === id);
         set((state) => ({ clientPrices: state.clientPrices.filter(c => c.id !== id) }));
-        await fetch('/api/db', {
+        await checkedDbMutation('/api/db', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ table: 'client_prices', id })
@@ -3039,7 +2411,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         if (!ids || ids.length === 0) return;
         const beforeMap = new Map(get().clientPrices.filter(c => ids.includes(c.id)).map(c => [c.id, { ...c }]));
         set((state) => ({ clientPrices: state.clientPrices.filter(c => !ids.includes(c.id)) }));
-        await fetch('/api/db', {
+        await checkedDbMutation('/api/db', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ table: 'client_prices', id: ids })
@@ -3069,7 +2441,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       deleteVendorPrice: async (id) => {
         const before = get().vendorPrices.find(v => v.id === id);
         set((state) => ({ vendorPrices: state.vendorPrices.filter(v => v.id !== id) }));
-        await fetch('/api/db', {
+        await checkedDbMutation('/api/db', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ table: 'vendor_prices', id })
@@ -3152,10 +2524,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       devHistoryStack: [],
       _snapshotDepth: 0,
-      // Wrap a multi-step operation so it produces ONE undo snapshot instead of
-      // one per addCashTransaction. Undo then reverses the whole op atomically.
-      // ponytail: single global depth counter — fine for one-user client; make
-      // it per-operation-id if concurrent batches ever appear.
+      // Compatibility boundary for existing callers; no persisted snapshots are replayed.
       beginUndoableBatch: () => {
         if (get()._snapshotDepth === 0) get().takeDevSnapshot();
         set(s => ({ _snapshotDepth: s._snapshotDepth + 1 }));
@@ -3165,140 +2534,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       shoppingListUndo: null,
       shoppingListHistoryLength: 0,
       setShoppingListUndo: (cb, length) => set({ shoppingListUndo: cb, shoppingListHistoryLength: length }),
-      takeDevSnapshot: () => {
-        // Inside a batch, only the boundary snapshot (taken by beginUndoableBatch)
-        // is kept; inner snapshots are suppressed so undo stays atomic.
-        if (get()._snapshotDepth > 0) return;
-        const state = get();
-        // Simpan hanya data operasional yang relevan (bukan functions/stack itu sendiri)
-        const snapshot: Partial<AppState> = {
-          salesOrders: state.salesOrders,
-          salesOrderItems: state.salesOrderItems,
-          purchases: state.purchases,
-          purchaseItems: state.purchaseItems,
-          purchaseRequests: state.purchaseRequests,
-          disbursementRequests: state.disbursementRequests,
-          deliveries: state.deliveries,
-          expenses: state.expenses,
-          invoices: state.invoices,
-          tukarFakturs: state.tukarFakturs,
-          journalEntries: state.journalEntries,
-          journalLines: state.journalLines,
-          stockMovements: state.stockMovements,
-          cashTransactions: state.cashTransactions,
-          bankAccounts: state.bankAccounts,
-          pendingReturns: state.pendingReturns,
-          vendorReturns: state.vendorReturns,
-          reimbursements: state.reimbursements,
-          rejectedItems: state.rejectedItems,
-          products: state.products,
-        };
-        const currentStack = get().devHistoryStack;
-        // Max 10 history steps
-        const newStack = [...currentStack, snapshot].slice(-10);
-        set({ devHistoryStack: newStack });
-      },
+      takeDevSnapshot: () => { /* Financial history requires source-linked reversal. */ },
       undoDevSnapshot: async () => {
-        const { devHistoryStack } = get();
-        if (devHistoryStack.length === 0) {
-          toast.error("Tidak ada history untuk di-undo.");
-          return;
-        }
-        set({ isUndoing: true });
-        const toastId = toast.loading(`Undoing... (${devHistoryStack.length} step tersisa)`);
-        
-        try {
-          const newStack = [...devHistoryStack];
-          const snapshot = newStack.pop()!;
-          const state = get();
-
-          const ZUSTAND_TO_DB_TABLES: Record<string, string> = {
-            salesOrders: 'sales_orders',
-            salesOrderItems: 'sales_order_items',
-            purchases: 'purchases',
-            purchaseItems: 'purchase_items',
-            purchaseRequests: 'purchase_requests',
-            disbursementRequests: 'disbursement_requests',
-            deliveries: 'deliveries',
-            expenses: 'expenses',
-            invoices: 'invoices',
-            tukarFakturs: 'tukar_faktur',
-            journalEntries: 'journal_entries',
-            journalLines: 'journal_lines',
-            stockMovements: 'stock_movements',
-            cashTransactions: 'cash_transactions',
-            bankAccounts: 'bank_accounts',
-            pendingReturns: 'pending_returns',
-            vendorReturns: 'vendor_returns',
-            reimbursements: 'reimbursements',
-            rejectedItems: 'rejected_items',
-            products: 'products',
-          };
-
-          for (const [storeKey, dbTable] of Object.entries(ZUSTAND_TO_DB_TABLES)) {
-            const snapList = (snapshot as any)[storeKey] || [];
-            const curList = (state as any)[storeKey] || [];
-
-            const snapMap = new Map(snapList.map((r: any) => [r.id, r]));
-            const curMap = new Map(curList.map((r: any) => [r.id, r]));
-
-            const toDelete: string[] = [];
-            const toUpsert: any[] = [];
-
-            // 1. Find deleted or updated items
-            for (const snapItem of snapList) {
-              const curItem = curMap.get(snapItem.id);
-              if (!curItem) {
-                toUpsert.push(snapItem);
-              } else if (JSON.stringify(snapItem) !== JSON.stringify(curItem)) {
-                toUpsert.push(snapItem);
-              }
-            }
-
-            // 2. Find inserted items
-            for (const curItem of curList) {
-              if (!snapMap.has(curItem.id)) {
-                toDelete.push(curItem.id);
-              }
-            }
-
-            // 3. Sync deletions
-            if (toDelete.length > 0) {
-              const delRes = await fetch('/api/db', {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ table: dbTable, id: toDelete })
-              });
-              if (!delRes.ok) throw new Error(`Failed deletion for ${dbTable}`);
-            }
-
-            // 4. Sync upserts
-            if (toUpsert.length > 0) {
-              const upsRes = await fetch('/api/db', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ table: dbTable, data: toUpsert })
-              });
-              if (!upsRes.ok) throw new Error(`Failed update/insert for ${dbTable}`);
-            }
-          }
-
-          // Restore state lokal
-          set({ ...snapshot, devHistoryStack: newStack });
-          if (snapshot.clients) saveLocalClientsCache(snapshot.clients);
-          if (snapshot.products) saveLocalProductsCache(snapshot.products);
-          if (snapshot.salesOrders) saveLocalSalesOrdersCache(snapshot.salesOrders);
-          if (snapshot.salesOrderItems) saveLocalSalesOrderItemsCache(snapshot.salesOrderItems);
-          if (snapshot.purchases) saveLocalPurchasesCache(snapshot.purchases);
-          if (snapshot.purchaseItems) saveLocalPurchaseItemsCache(snapshot.purchaseItems);
-          if (snapshot.purchaseRequests) saveLocalPurchaseRequestsCache(snapshot.purchaseRequests);
-
-          toast.success(`Undo berhasil! (${newStack.length} step tersisa)`, { id: toastId });
-        } catch (e: any) {
-          toast.error("Gagal melakukan undo: " + e.message, { id: toastId });
-        } finally {
-          set({ isUndoing: false });
-        }
+        throw new Error('Undo transaksi global dinonaktifkan. Gunakan pembatalan dari dokumen sumber.');
       },
       resetSimulation: async () => {
         const state = get();
@@ -3428,5 +2666,33 @@ export const useAppStore = create<AppState>((set, get) => ({
         toast.success("Database Reset Berhasil! Me-reload halaman...");
         setTimeout(() => window.location.reload(), 1000);
       },
-    })
-);
+    };
+  // Each action owns only its synchronous optimistic phase. Rollback compares
+  // individual object identities, so rejected writes cannot restore stale arrays.
+  for (const [name, value] of Object.entries(actions)) {
+    if (typeof value !== 'function' || value.constructor.name !== 'AsyncFunction'
+      || ['init', 'forceSync', 'syncTable', 'logHistory', 'refreshVendors', 'resetDb', 'resetSimulation'].includes(name)) continue;
+    (actions as any)[name] = (...args: any[]) => withOptimisticRollback(get, set,
+      () => (value as (...args: any[]) => Promise<unknown>)(...args), () => {
+        const state = get();
+        saveLocalClientsCache(state.clients);
+        saveLocalProductsCache(state.products);
+        saveLocalSalesOrdersCache(state.salesOrders);
+        saveLocalSalesOrderItemsCache(state.salesOrderItems);
+        saveLocalPurchasesCache(state.purchases);
+        saveLocalPurchaseItemsCache(state.purchaseItems);
+        saveLocalBankAccountsCache(state.bankAccounts);
+        saveLocalPurchaseRequestsCache(state.purchaseRequests);
+        saveLocalDisbursementRequestsCache(state.disbursementRequests);
+        saveLocalLeadsCache(state.leads);
+        saveLocalCache(LOCAL_DELIVERIES_CACHE_KEY, state.deliveries);
+        saveLocalCache(LOCAL_JOURNAL_ENTRIES_CACHE_KEY, state.journalEntries);
+        saveLocalCache(LOCAL_JOURNAL_LINES_CACHE_KEY, state.journalLines);
+        saveLocalCache(LOCAL_CASH_TRANSACTIONS_CACHE_KEY, state.cashTransactions);
+        saveLocalCache(LOCAL_VENDORS_CACHE_KEY, state.vendors);
+        saveLocalCache(LOCAL_INVOICES_CACHE_KEY, state.invoices);
+        saveLocalCache(LOCAL_CLIENT_PRICES_CACHE_KEY, state.clientPrices);
+      });
+  }
+  return actions;
+});

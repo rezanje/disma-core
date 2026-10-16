@@ -54,7 +54,7 @@ function getAgingBucket(agingDays: number): AgingBucket {
 function isActiveAR(inv: Invoice): boolean {
   // exclude superseded (consolidated absorbed) invoices to avoid double-counting
   if (inv.supersededByInvoiceId) return false
-  if (inv.status === 'Paid') return false
+  if (['Draft','Cancelled','Paid'].includes(inv.status)) return false
   return (inv.totalAmount - (inv.amountPaid || 0)) > 0
 }
 

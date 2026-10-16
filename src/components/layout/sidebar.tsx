@@ -24,6 +24,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { toast } from "sonner"
+import { logoutSession } from "@/lib/client-session"
 
 import { getNavItemsForUser } from "@/lib/navigation"
 import type { AccessKey } from "@/types"
@@ -56,10 +57,9 @@ export default function Sidebar({ roleName }: SidebarProps) {
   const { items: userNotifications, unreadCount, markAllRead, markRead } = useTaskNotifications()
   const [isSearchOpen, setIsSearchOpen] = useState(false)
 
-  const handleLogout = () => {
-    setCurrentUser(null)
-    toast.success("Logged out successfully")
-    router.push("/login")
+  const handleLogout = async () => {
+    try { await logoutSession(); setCurrentUser(null); router.push("/login") }
+    catch { toast.error("Gagal keluar. Coba lagi.") }
   }
 
   const [isSyncing, setIsSyncing] = useState(false)
@@ -78,7 +78,7 @@ export default function Sidebar({ roleName }: SidebarProps) {
   }
 
   const permissions: AccessKey[] = currentUser?.role ? rolePermissions[currentUser.role] || [] : []
-  const initialItems = getNavItemsForUser(permissions)
+  const initialItems = getNavItemsForUser(permissions, currentUser?.role)
   const navConfigs = useAppStore(state => state.navConfigs) || {}
   const roleConfig = navConfigs[currentUser?.role || 'default']?.desktop || { order: [], hidden: [] }
   

@@ -1,7 +1,9 @@
 "use client"
 
+import { v4 as uuidv4, v5 as uuidv5 } from "uuid"
 import React, { useMemo, useState } from "react"
 import Link from "next/link"
+import { executePurchaseCommand } from "@/lib/purchase-command"
 import { useAppStore } from "@/lib/store"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -31,7 +33,7 @@ function barisDokumen(
     const product = products.find(p => p.id === pi.productId)
     // Vendor pilihan Finance ada di plannedVendorId; vendorId baru terisi setelah
     // barangnya benar-benar dibeli.
-    const vendorId = pi.vendorId || pi.plannedVendorId || null
+    const vendorId = pi.plannedVendorId || null
     return {
       purchaseId,
       productId: pi.productId,
@@ -58,6 +60,8 @@ export default function KonsolidasiBelanjaPage() {
 
   const [dipilih, setDipilih] = useState<Set<string>>(new Set())
   const [melepas, setMelepas] = useState(false)
+  const [printedSelection, setPrintedSelection] = useState('')
+  const [sessionId, setSessionId] = useState('')
   const [pdf, setPdf] = useState<{ url: string; title: string } | null>(null)
 
   const siapCetak = useMemo(
@@ -108,9 +112,17 @@ export default function KonsolidasiBelanjaPage() {
     return next
   })
 
-  const cetakGabungan = () => {
+  const cetakGabungan = async () => {
     if (barisPasar.length === 0) return toast.error("Tidak ada barang jalur pasar untuk dicetak.")
-    const judul = `DAFTAR BELANJA GABUNGAN (${dipilih.size} DOKUMEN)`
+    const selected = purchases.filter(p=>dipilih.has(p.id))
+    const released = selected.filter(p=>p.status !== 'Siap Cetak')
+    const sessions = new Set(released.map(p=>p.paperSessionId || p.id))
+    if (released.length && (released.length !== selected.length || sessions.size > 1)) return toast.error('Cetak ulang satu sesi yang sudah dilepas secara terpisah agar ID kertas tetap dapat ditelusuri.')
+    const session = released[0]?.paperSessionId || `KERTAS-${uuidv4().slice(0,8).toUpperCase()}`
+    try { for (const id of dipilih) await updatePurchase(id, {paperSessionId:session}) }
+    catch (e) { toast.error('ID sesi kertas gagal disimpan.'); return }
+    setSessionId(session); setPrintedSelection([...dipilih].sort().join('|'))
+    const judul = `${session} | ${[...dipilih].map(kodeDokumen).join(', ')}`
     setPdf({ title: judul, url: generateShoppingListPDFDataUrl(barisPasar, judul) })
   }
 
@@ -124,10 +136,11 @@ export default function KonsolidasiBelanjaPage() {
 
   const lepasKeSourcing = async () => {
     if (bisaDilepas.length === 0 || melepas) return
+    if (barisPasar.length > 0 && (printedSelection !== [...dipilih].sort().join('|') || !sessionId)) return toast.error('Cetak gabungan untuk pilihan dokumen ini terlebih dahulu agar ID sesi pada kertas sama.')
     setMelepas(true)
     try {
       useAppStore.getState().takeDevSnapshot()
-      for (const id of bisaDilepas) await updatePurchase(id, { status: 'Pending' })
+      await executePurchaseCommand(useAppStore.getState,{eventId:uuidv5(`paper-release:${sessionId}:${bisaDilepas.slice().sort().join('|')}`,uuidv5.URL),stage:'paper-release',sourceId:sessionId || bisaDilepas[0],payload:{purchaseIds:bisaDilepas,paperSessionId:sessionId}})
       toast.success(`${bisaDilepas.length} dokumen dilepas. Tim sourcing sudah bisa melihatnya.`)
     } catch (e) {
       toast.error("Gagal melepas: " + (e instanceof Error ? e.message : String(e)))

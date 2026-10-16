@@ -14,7 +14,7 @@ export default function TasksLayout({ children }: { children: React.ReactNode })
   const rolePermissions = useAppStore(state => state.rolePermissions) || {}
   const role = currentUser?.role || 'default'
   const permissions = rolePermissions[role] || []
-  const navItems = getNavItemsForUser(permissions as any)
+  const navItems = getNavItemsForUser(permissions as any, currentUser?.role)
   const isMinimized = useAppStore(state => state.isSidebarMinimized)
 
   return (

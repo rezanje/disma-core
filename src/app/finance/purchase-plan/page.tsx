@@ -11,6 +11,7 @@ import { toast } from "sonner"
 import { cn, formatRupiah, formatNumber, parseNumber } from "@/lib/utils"
 import { selectableVendors } from "@/lib/vendor-status"
 import { SearchSelect } from "@/components/ui/search-select"
+import { executePurchaseCommand } from "@/lib/purchase-command"
 import {
   toPurchaseMethod, fromPurchaseMethod, unplannedLines, lineIsPlanned, cashNeeded,
   HANDLING_LABEL, type Handling, type PaymentMethod,
@@ -59,7 +60,7 @@ export default function PurchasePlanPage() {
   const waiting = purchases.filter(p => p.status === 'Menunggu Rencana')
 
   const active = openId ? purchases.find(p => p.id === openId) : waiting[0]
-  const lines = purchaseItems.filter(pi => pi.purchaseId === active?.id)
+  const lines = purchaseItems.filter(pi => pi.purchaseId === active?.id && pi.qtyTarget > 0)
   const belum = unplannedLines(lines)
 
   const setLine = (itemId: string, patch: Record<string, unknown>) => updatePurchaseItem(itemId, patch)
@@ -97,7 +98,6 @@ export default function PurchasePlanPage() {
       const method = toPurchaseMethod(isOnline, handling)
       await Promise.all(terpilih.map(l => updatePurchaseItem(l.id, {
         purchaseMethod: method,
-        qtyPurchased: (method === 'Vendor' || method === 'Dropship') ? (l.qtyTarget ?? 0) : 0,
       })))
       toast.success(`${terpilih.length} barang: ${isOnline ? 'beli online' : HANDLING_LABEL[handling]}`)
     } finally {
@@ -111,8 +111,6 @@ export default function PurchasePlanPage() {
       purchaseMethod: method,
       // Vendor dan dropship dikirim vendor, jadi qty-nya tidak lewat checklist sourcing.
       // Diisi di sini supaya Inbound/QC tidak melihat 0 selamanya.
-      qtyPurchased: (method === 'Vendor' || method === 'Dropship')
-        ? (lines.find(l => l.id === itemId)?.qtyTarget ?? 0) : 0,
       // Pasar tidak punya vendor rencana — vendornya baru diketahui di lapangan.
       ...(method === 'Pasar' ? {} : {}),
     })
@@ -129,24 +127,7 @@ export default function PurchasePlanPage() {
       // Nilai pengajuan dana = uang tunai yang benar-benar perlu dibawa. Tempo ditagih
       // belakangan dan Transfer dibayar dari rekening kantor.
       const tunai = cashNeeded(lines)
-      await updatePurchase(active.id, {
-        // Dikembalikan ke Admin PO, bukan langsung dilempar ke sourcing. Beberapa
-        // dokumen untuk hari kirim yang sama masih harus disatukan jadi satu lembar
-        // cetak — kalau langsung ke sourcing, orang pasar memegang tiga kertas terpisah
-        // dan mendatangi lapak yang sama tiga kali.
-        status: 'Siap Cetak',
-        budgetAmount: tunai,
-        plannedBy: currentUser?.name || currentUser?.id,
-        plannedAt: new Date().toISOString(),
-      })
-
-      // Pengajuan dananya dibuat Admin PO SEBELUM rencana ini ada, jadi angkanya waktu
-      // itu belum bisa diketahui. Kalau tidak diperbarui di sini, Finance menyetujui dan
-      // mencairkan angka yang tidak pernah berhubungan dengan belanja yang direncanakan.
-      const pr = purchaseRequests.find(r => r.id === active.purchaseRequestId)
-      if (pr && !pr.disbursedAt && pr.amount !== tunai) {
-        await updatePurchaseRequest(pr.id, { amount: tunai })
-      }
+      await executePurchaseCommand(useAppStore.getState,{eventId:`plan:${active.id}`,stage:'plan-release',sourceId:active.id,payload:{expectedRevisedAt:active.revisedAt || null}})
 
       toast.success(`Rencana selesai, dikembalikan ke Admin PO untuk dicetak. Uang tunai yang perlu disiapkan ${formatRupiah(tunai)}.`)
       setOpenId(null)
@@ -543,8 +524,8 @@ export default function PurchasePlanPage() {
                           onChange={e => setLine(line.id, { paymentMethod: (e.target.value || undefined) as PaymentMethod })}
                         >
                           <option value="">— Pilih —</option>
-                          <option value="Cash">Cash (bawa uang)</option>
-                          <option value="Tempo">Tempo (bayar belakangan)</option>
+                          <option value="Cash" disabled={line.purchaseMethod === 'Dropship' || line.purchaseMethod === 'Online'}>Cash (bawa uang)</option>
+                          <option value="Tempo" disabled={line.purchaseMethod === 'Online'}>Tempo (bayar belakangan)</option>
                           <option value="Transfer">Transfer (dibayar kantor)</option>
                         </select>
                       </TableCell>

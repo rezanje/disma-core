@@ -30,6 +30,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { toast } from "sonner"
+import { logoutSession } from "@/lib/client-session"
 
 interface NavItem {
   key: string
@@ -71,10 +72,9 @@ export default function Topbar({ title, navItems = [], displayAllNav = false }: 
   const pillNav = displayAllNav ? sortedNavItems : sortedNavItems.slice(0, 4)
   const moreNav = displayAllNav ? [] : sortedNavItems.slice(4)
 
-  const handleLogout = () => {
-    setCurrentUser(null)
-    toast.success("Logged out successfully")
-    router.push("/login")
+  const handleLogout = async () => {
+    try { await logoutSession(); setCurrentUser(null); router.push("/login") }
+    catch { toast.error("Gagal keluar. Coba lagi.") }
   }
 
   return (

@@ -13,6 +13,7 @@ export type LedgerLine = {
   accountCode: string;
   debit: number;
   credit: number;
+  accountType?: string;
 };
 
 export type DayExpense = { day: string; amount: number; approved: boolean };
@@ -39,37 +40,48 @@ const sumOn = (lines: LedgerLine[], day: string, code: string, side: 'debit' | '
 
 /** Lapis 1: omzet dikurangi harga beli barang yang dikirim hari itu. */
 export function grossProfit(lines: LedgerLine[], day: string) {
-  const revenue = sumOn(lines, day, REVENUE, 'credit') - sumOn(lines, day, REVENUE, 'debit');
+  const revenue = (lines || []).filter(line=>line.day===day && (line.accountType==='Revenue' || /^4-/.test(line.accountCode))).reduce((sum,line)=>sum+line.credit-line.debit,0);
   const cogs = sumOn(lines, day, COGS, 'debit') - sumOn(lines, day, COGS, 'credit');
   return { revenue, cogs, gross: revenue - cogs };
 }
 
-/**
- * Lapis 2: setelah biaya jalan hari itu dan jatah harian biaya tetap.
- *
- * Mengembalikan null untuk bagian biaya tetap kalau setelannya belum diisi — bukan nol.
- * Nol akan terbaca sebagai "tidak ada biaya tetap", dan itu kebohongan yang membuat
- * laba bersih terlihat lebih besar dari kenyataan.
- */
+/** Official net uses posted GL only. Paper and fixed-cost estimates are separate. */
 export function netProfit(
-  lines: LedgerLine[],
-  day: string,
-  expenses: DayExpense[],
-  fixed?: FixedCostConfig | null,
+  lines: LedgerLine[], day: string, expenses: DayExpense[], fixed?: FixedCostConfig | null,
 ) {
-  const { revenue, cogs, gross } = grossProfit(lines, day);
-  const ops = (expenses || [])
-    .filter(e => e.day === day && e.approved)
-    .reduce((s, e) => s + e.amount, 0);
-
-  const fixedDaily = fixed && fixed.workingDays > 0
-    ? Math.round(fixed.monthlyTotal / fixed.workingDays)
-    : null;
-
-  return {
-    revenue, cogs, gross, ops, fixedDaily,
-    net: fixedDaily === null ? null : gross - ops - fixedDaily,
+  const { revenue, cogs, gross } = grossProfit(lines,day);
+  const ops = (lines || []).filter(line => line.day===day && line.accountCode!==COGS &&
+    (line.accountType==='Expense' || /^[56]-/.test(line.accountCode)))
+    .reduce((sum,line)=>sum+line.debit-line.credit,0);
+  const fixedDaily = fixed && fixed.workingDays>0 && fixed.monthlyTotal>=0
+    ? Math.round(fixed.monthlyTotal/fixed.workingDays) : null;
+  const net=gross-ops;
+  return {revenue,cogs,gross,ops,net,fixedDaily,
+    estimatedNetAfterFixed:fixedDaily===null ? null : net-fixedDaily,
+    approvedPaperExpenseTotal:(expenses || []).filter(e=>e.day===day && e.approved).reduce((sum,e)=>sum+e.amount,0),
   };
+}
+
+/** Dates with offsets are converted to WIB; date-only contractual days stay exact. */
+export function postedDay(value:string | Date):string {
+  if(typeof value==='string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const date=value instanceof Date ? value : new Date(value);
+  if(!Number.isFinite(date.getTime())) return '';
+  return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Jakarta',year:'numeric',month:'2-digit',day:'2-digit'}).format(date);
+}
+export function postedLedger(
+  entries:{id:string;transactionDate:string;status?:string}[],
+  lines:{journalEntryId:string;accountId:string;debitAmount:number;creditAmount:number}[],
+  accounts:{id:string;accountCode:string;accountType?:string}[],
+):LedgerLine[] {
+  const entryById=new Map(entries.filter(e=>!e.status || e.status==='Posted').map(e=>[e.id,e]));
+  const accountById=new Map(accounts.map(a=>[a.id,a]));
+  return lines.flatMap(line=>{
+    const entry=entryById.get(line.journalEntryId),account=accountById.get(line.accountId);
+    if(!entry || !account) return [];
+    const day=postedDay(entry.transactionDate);
+    return day ? [{day,accountCode:account.accountCode,accountType:account.accountType,debit:Number(line.debitAmount || 0),credit:Number(line.creditAmount || 0)}] : [];
+  });
 }
 
 export type Variance = {
