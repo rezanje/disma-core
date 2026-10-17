@@ -384,14 +384,14 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:justify-between sm:items-center">
         {!embedded && (
           <div>
             <h2 className="text-2xl font-bold tracking-tight">Invoices & Piutang</h2>
             <p className="text-muted-foreground">Kelola tagihan pelanggan dan catat pembayaran masuk.</p>
           </div>
         )}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           <Button
             variant="outline"
             className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-2xl h-12 px-5 font-bold uppercase text-[11px] tracking-widest"
@@ -409,9 +409,9 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
       </div>
 
       <Card>
-        <CardContent className="p-6">
-          <div className="flex items-center gap-4 mb-6">
-            <div className="relative flex-1 max-w-sm">
+        <CardContent className="p-4 sm:p-6">
+          <div className="flex flex-col gap-4 mb-6 md:flex-row md:items-center">
+            <div className="relative w-full min-w-0 md:flex-1 md:max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <Input
                 placeholder="Cari nama klien..."
@@ -421,7 +421,7 @@ export default function InvoicesPage({ embedded }: { embedded?: boolean } = {}) 
               />
             </div>
 
-            <div className="flex gap-2 text-sm text-slate-600 font-medium ml-auto bg-slate-100 dark:bg-slate-900 p-2 rounded-lg">
+            <div className="grid grid-cols-2 gap-2 text-sm text-slate-600 font-medium md:ml-auto bg-slate-100 dark:bg-slate-900 p-2 rounded-lg">
               <div className="px-3 border-r border-slate-300 dark:border-slate-800">
                 Total Unpaid: {formatRupiah(visibleInvoices.filter(i => i.status !== 'Paid').reduce((sum, i) => sum + (Math.max(0, i.totalAmount - i.amountPaid)), 0))}
               </div>

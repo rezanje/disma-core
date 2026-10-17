@@ -5,6 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { User, Settings as SettingsIcon, Bell, Shield, ChevronRight, LayoutGrid, Cog } from "lucide-react"
 import { cn } from "@/lib/utils"
+import BottomNav from "@/components/layout/bottom-nav"
 import Sidebar from "@/components/layout/sidebar"
 import AuthGuard from "@/components/auth/auth-guard"
 import { useAppStore } from "@/lib/store"
@@ -58,7 +59,7 @@ export default function SettingsLayout({ children }: SettingsLayoutProps) {
         <Sidebar roleName={currentUser?.role?.replace('_', ' ') || 'Settings'} />
 
         <div className={cn(
-          "flex-1 flex flex-col transition-all duration-150 min-w-0 px-4 md:px-0 pb-20 md:pb-6",
+          "flex-1 flex flex-col transition-all duration-150 min-w-0 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-6",
           isMinimized ? "md:pl-[60px]" : "md:pl-[212px]"
         )}>
           <div className="w-full space-y-6 pt-10 pb-20 px-4 flex-1">
@@ -67,9 +68,9 @@ export default function SettingsLayout({ children }: SettingsLayoutProps) {
               <p className="text-sm text-slate-500 font-medium">Manage your account and application preferences.</p>
             </div>
 
-            <div className="flex flex-col md:flex-row gap-8">
+            <div className="flex flex-col lg:flex-row gap-8">
               {/* Sidebar Nav */}
-              <aside className="w-full md:w-64 shrink-0 space-y-1">
+              <aside className="w-full lg:w-64 shrink-0 space-y-1">
                 {SETTINGS_NAV.filter(item => {
                   if ((item as any).adminOnly) {
                     return currentUser?.role === 'super_admin'
@@ -114,13 +115,14 @@ export default function SettingsLayout({ children }: SettingsLayoutProps) {
 
               {/* Content Area */}
               <main className="flex-1 min-w-0">
-                <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-800 shadow-sm p-8 glass-panel duration-150">
+                <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-800 shadow-sm p-4 sm:p-6 md:p-8 glass-panel duration-150">
                   {children}
                 </div>
               </main>
             </div>
           </div>
         </div>
+        <BottomNav items={navItems} />
       </div>
     </AuthGuard>
   )

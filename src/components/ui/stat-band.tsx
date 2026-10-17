@@ -48,11 +48,11 @@ function StatBand({
       )}
       {...props}
     >
-      <div className="w-full flex-none border-b border-hairline px-6 py-5 lg:w-[290px] lg:border-r lg:border-b-0">
+      <div className="min-w-0 w-full flex-none border-b border-hairline px-4 py-5 sm:px-6 lg:w-[290px] lg:border-r lg:border-b-0">
         <div className="text-xs font-medium text-slate-500">{leader.label}</div>
         <div
           className={cn(
-            "tabular mt-2 mb-1.5 text-[36px] leading-none font-semibold tracking-[-0.03em]",
+            "tabular mt-2 mb-1.5 text-[30px] sm:text-[36px] leading-none font-semibold tracking-[-0.03em] [overflow-wrap:anywhere]",
             toneClass[leader.tone ?? "ink"]
           )}
         >
@@ -71,13 +71,13 @@ function StatBand({
           <div
             key={i}
             className={cn(
-              "min-w-0 border-hairline px-5 py-5",
+              "min-w-0 border-hairline px-4 py-5 sm:px-5",
               i < items.length - 1 && "border-r",
               i < items.length - 2 && "border-b md:border-b-0"
             )}
           >
             <div className="truncate text-xs text-slate-400">{item.label}</div>
-            <div className={cn("tabular mt-[7px] text-[19px] leading-tight font-semibold", toneClass[item.tone ?? "ink"])}>
+            <div className={cn("tabular mt-[7px] text-[19px] leading-tight font-semibold [overflow-wrap:anywhere]", toneClass[item.tone ?? "ink"])}>
               {item.value}
             </div>
             {item.note ? (

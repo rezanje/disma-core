@@ -365,6 +365,21 @@
 }
 
 @layer components {
+  @media (width < 48rem) {
+    /* Kontrol tetap mudah disentuh, termasuk yang memakai ukuran ringkas. */
+    :where([data-slot="button"], [data-slot="input"], [data-slot="select-trigger"], [data-slot="tabs-trigger"]) {
+      min-height: 44px;
+    }
+
+    :where([data-slot="button"]) {
+      min-width: 44px;
+    }
+
+    [data-slot="tabs-trigger"] {
+      flex-shrink: 0;
+    }
+  }
+
   /* nama kelas dipertahankan (dipakai di ~30 berkas), isinya
      dirapatkan: radius 8px, tanpa bayangan. */
   .liquid-card,

@@ -43,7 +43,7 @@ export default function ProfilePage() {
 
       {/* Avatar Section */}
       <div className="flex flex-col sm:flex-row items-center gap-6 p-6 rounded-2xl bg-slate-50/50 border border-slate-100">
-        <div className="relative group">
+        <div className="relative group shrink-0">
           <div className="w-24 h-24 rounded-full bg-emerald-600 flex items-center justify-center text-3xl text-white font-bold shadow-sm">
             {currentUser?.name?.charAt(0) || 'U'}
           </div>
@@ -51,9 +51,9 @@ export default function ProfilePage() {
             <Camera className="w-4 h-4" />
           </button>
         </div>
-        <div className="text-center sm:text-left space-y-1">
+        <div className="min-w-0 text-center sm:text-left space-y-1 break-words">
           <h4 className="font-bold text-slate-800 ">{currentUser?.name}</h4>
-          <div className="flex items-center gap-2 justify-center sm:justify-start">
+          <div className="flex flex-wrap items-center gap-2 justify-center sm:justify-start">
             <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-md text-[11px] font-bold ">{currentUser?.role}</span>
             <span className="text-[11px] text-slate-400 font-bold  flex items-center gap-1">
               <ShieldCheck className="w-3 h-3" /> Verified Account

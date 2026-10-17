@@ -25,7 +25,7 @@ function PageHeader({
     <header
       data-slot="page-header"
       className={cn(
-        "flex flex-wrap items-center justify-between gap-3 border-b border-border bg-card px-6 py-4 md:px-7",
+        "flex flex-col items-stretch justify-between gap-3 border-b border-border bg-card px-4 py-4 sm:flex-row sm:flex-wrap sm:items-center sm:px-6 md:px-7",
         className
       )}
       {...props}
@@ -36,7 +36,7 @@ function PageHeader({
           <p className="mt-[3px] text-[12.5px] leading-snug text-slate-400">{context}</p>
         ) : null}
       </div>
-      {actions ? <div className="flex flex-wrap items-center gap-2.5">{actions}</div> : null}
+      {actions ? <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2.5 [&>*]:max-w-full">{actions}</div> : null}
     </header>
   )
 }

@@ -27,7 +27,7 @@ export function ResponsiveTable({
   return (
     <div
       className={cn(
-        "w-full max-w-full overflow-x-auto [-webkit-overflow-scrolling:touch] rounded-lg",
+        "min-w-0 w-full max-w-full overflow-x-auto [-webkit-overflow-scrolling:touch] rounded-lg",
         stickyFirstCol &&
           "[&_table_thead_th:first-child]:sticky [&_table_tbody_td:first-child]:sticky [&_table_thead_th:first-child]:left-0 [&_table_tbody_td:first-child]:left-0 [&_table_thead_th:first-child]:z-10 [&_table_thead_th:first-child]:bg-white [&_table_tbody_td:first-child]:bg-white dark:[&_table_thead_th:first-child]:bg-slate-900 dark:[&_table_tbody_td:first-child]:bg-slate-900",
         className
