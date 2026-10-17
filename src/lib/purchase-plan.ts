@@ -113,19 +113,28 @@ export function allocateShoppingDemand<T extends { id: string; productId: string
   });
 }
 
+type ReservationRow = {id:string;salesOrderId:string;productId:string;qtyFinal?:number|null};
+type ReservationOrder = {id:string;status:string;poNumber?:string};
+type ReservationDelivery = {salesOrderId:string;status:string;lineSnapshots?:Array<{salesOrderItemId:string;qty:number}>};
+
 /** Packing is a plan. Only an active released delivery has actually removed stock. */
-export function warehouseReservations(
-  rows: Array<{id:string;salesOrderId:string;productId:string;qtyFinal?:number|null}>,
-  orders: Array<{id:string;status:string}>,
-  deliveries: Array<{salesOrderId:string;status:string;lineSnapshots?:Array<{salesOrderItemId:string;qty:number}>}>,
-): Record<string,number> {
-  const active = new Set(orders.filter(o=>!['Selesai','Batal','Cancelled'].includes(o.status)).map(o=>o.id));
-  const owned: Record<string,number> = {};
+export function warehouseReservationDetails(rows:ReservationRow[],orders:ReservationOrder[],deliveries:ReservationDelivery[]) {
+  const active = new Map(orders.filter(o=>!['Selesai','Batal','Cancelled'].includes(o.status)).map(o=>[o.id,o]));
+  const details: Array<{salesOrderItemId:string;salesOrderId:string;productId:string;poNumber:string;status:string;quantity:number}> = [];
   for (const row of rows) {
-    if (!active.has(row.salesOrderId)) continue;
+    const order = active.get(row.salesOrderId);
+    if (!order) continue;
     const released = deliveries.filter(d=>d.salesOrderId===row.salesOrderId && ['Dikirim','Tunggu Konfirmasi','Awaiting Audit'].includes(d.status))
       .reduce((sum,d)=>sum+(d.lineSnapshots || []).filter(l=>l.salesOrderItemId===row.id).reduce((s,l)=>s+l.qty,0),0);
-    owned[row.productId] = (owned[row.productId] || 0) + Math.max(0, Number(row.qtyFinal || 0) - released);
+    details.push({salesOrderItemId:row.id,salesOrderId:row.salesOrderId,productId:row.productId,poNumber:order.poNumber||order.id,status:order.status,quantity:Math.max(0,Number(row.qtyFinal||0)-released)});
+  }
+  return details;
+}
+
+export function warehouseReservations(rows:ReservationRow[],orders:ReservationOrder[],deliveries:ReservationDelivery[]):Record<string,number> {
+  const owned:Record<string,number> = {};
+  for (const row of warehouseReservationDetails(rows,orders,deliveries)) {
+    owned[row.productId] = (owned[row.productId] || 0) + row.quantity;
   }
   return owned;
 }

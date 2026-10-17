@@ -18,7 +18,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn, formatRupiah } from "@/lib/utils"
 import { executePurchaseCommand, type PurchaseCommand } from "@/lib/purchase-command"
-import { warehouseReservations } from "@/lib/purchase-plan"
+import { warehouseReservationDetails } from "@/lib/purchase-plan"
 import { shoppingQuantities, shoppingDocumentItems } from "@/lib/shopping-quantities"
 import { qtyOwed } from "@/lib/backorder"
 import GlobalUndoButton from "@/components/global-undo-button"
@@ -334,10 +334,20 @@ export default function ShoppingListPage() {
 
   // Quantity already reserved (booked) against warehouse stock from prior bookings.
   // Used to compute available-to-promise stock = currentStock - alreadyBooked.
-  const bookedQtyByProduct = useMemo(
-    () => warehouseReservations(salesOrderItems, salesOrders, deliveries),
+  const warehouseStock = useMemo(
+    () => {
+      const details = warehouseReservationDetails(salesOrderItems, salesOrders, deliveries)
+      const totals: Record<string, number> = {}
+      const owners: Record<string, typeof details> = {}
+      for (const detail of details) {
+        totals[detail.productId] = (totals[detail.productId] || 0) + detail.quantity
+        if (detail.quantity > 0) (owners[detail.productId] ||= []).push(detail)
+      }
+      return { totals, owners }
+    },
     [salesOrderItems, salesOrders, deliveries],
   )
+  const bookedQtyByProduct = warehouseStock.totals
 
   const pendingRejects = useMemo(() => {
     return rejectedItems
@@ -1311,7 +1321,21 @@ export default function ShoppingListPage() {
                                         {item.kebutuhan}
                                       </TableCell>
                                       <TableCell className="text-right font-medium text-slate-500 pr-4">
-                                        {product?.currentStock || 0}
+                                        <div className="flex flex-col items-end gap-1 text-[11px]">
+                                          <span>Fisik: {product?.currentStock || 0}</span>
+                                          <span className="text-amber-700">Terikat PO: {bookedQtyByProduct[item.productId] || 0}</span>
+                                          <span className="font-bold text-emerald-700">Bebas: {Math.max(0, (product?.currentStock || 0) - (bookedQtyByProduct[item.productId] || 0))}</span>
+                                          {(warehouseStock.owners[item.productId] || []).length > 0 && (
+                                            <details className="max-w-48 text-right">
+                                              <summary className="cursor-pointer text-slate-500 underline">Lihat PO pemakai</summary>
+                                              <ul className="mt-1 space-y-1 break-words text-slate-600">
+                                                {warehouseStock.owners[item.productId].map(owner => (
+                                                  <li key={owner.salesOrderItemId}>{owner.poNumber}: {owner.quantity} {item.uom} ({owner.status})</li>
+                                                ))}
+                                              </ul>
+                                            </details>
+                                          )}
+                                        </div>
                                       </TableCell>
                                       <TableCell className="text-right pr-4">
                                         <div className="flex flex-col items-end gap-1">

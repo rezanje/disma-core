@@ -23,3 +23,19 @@ assert.equal(warehouseReservations(owned,[{id:'so',status:'Dikirim'}],[{salesOrd
 assert.equal(warehouseReservations([{...owned[0],qtyFinal:4}],[{id:'so',status:'Kurang Kirim'}],[{salesOrderId:'so',status:'Terkirim',lineSnapshots:[{salesOrderItemId:'line',qty:6}]}]).p,4,'closed round must not free current round allocations');
 assert.equal(allocateShoppingDemand([{id:'fraction',productId:'p',quantity:.3}],{p:.1})[0].toBuy,.2,'fractional stock arithmetic must not create phantom unmet demand');
 assert.deepEqual(allocateMergedActuals([{id:'fraction-a',qtyTarget:.1},{id:'fraction-b',qtyTarget:.2}],.3,30000).map(r=>r.qtyPurchased),[.1,.2]);
+
+// Observed live shape: seven physical units all belong to another Packing PO.
+const {warehouseReservationDetails}=require('./purchase-plan');
+const {shoppingQuantities}=require('./shopping-quantities');
+assert.equal(typeof warehouseReservationDetails,'function','stock explanations must expose the PO that owns the reservation');
+const reservedRows=[{id:'old-line',salesOrderId:'old-po',productId:'leek',qtyFinal:7},{id:'new-line',salesOrderId:'new-po',productId:'leek',qtyFinal:null}];
+const reservingOrders=[{id:'old-po',poNumber:'Existing PO',status:'Packing'},{id:'new-po',poNumber:'New PO',status:'Belanja'}];
+const details=warehouseReservationDetails(reservedRows,reservingOrders,[]).filter((row:any)=>row.quantity>0);
+assert.deepEqual(details,[{salesOrderItemId:'old-line',salesOrderId:'old-po',productId:'leek',poNumber:'Existing PO',status:'Packing',quantity:7}]);
+const reservationTotals=warehouseReservations(reservedRows,reservingOrders,[]);
+assert.equal(reservationTotals.leek,7);
+const nextDemand=[{id:'new-line',productId:'leek',salesOrderId:'new-po',quantity:10}];
+assert.equal(shoppingQuantities(nextDemand,{leek:7},reservationTotals)[0].totalQty,10,'seven physical but reserved units must not be bought against twice');
+const releasedTotals=warehouseReservations(reservedRows,[{...reservingOrders[0],status:'Batal'},reservingOrders[1]],[]);
+assert.equal(shoppingQuantities(nextDemand,{leek:7},releasedTotals)[0].totalQty,3,'the shortfall becomes three only when those units are actually free');
+console.log('physical stock, reservation ownership and free-stock explanation checks passed');
