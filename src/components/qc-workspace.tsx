@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils"
 import QcEntryTable from "@/components/qc-entry-table"
 import { qtyOwed } from "@/lib/backorder"
 import { returnOriginVendorIds, returnVendorChoices, returnPaperNumber } from "@/lib/return-origin-vendors"
-import { balanceReturnSplit, isReturnSplitValid, isSwapSplitValid } from "@/lib/vendor-return"
+import { balanceReturnSplit, returnEvidenceError, vendorReturnSubmitMessage, isReturnSplitValid, isSwapSplitValid } from "@/lib/vendor-return"
 
 
 export default function QCWorkspace({ transcription = false }: { transcription?: boolean }) {
@@ -42,6 +42,7 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
   const kurirs = users.filter(u => u.role === 'kurir')
 
   const [returnEvidence,setReturnEvidence] = useState<PaperEvidence>({})
+  const [returnError,setReturnError] = useState("")
   const [packingEvidence,setPackingEvidence] = useState<PaperEvidence>({})
   const [operationBusy,setOperationBusy] = useState(false)
 
@@ -56,6 +57,7 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
   const [retVendorId, setRetVendorId] = useState("")
   const [vendorSearch,setVendorSearch] = useState("")
   const [selectedVendorReturnId, setSelectedVendorReturnId] = useState("")
+  const [vendorReturnError,setVendorReturnError] = useState("")
   const [swapPassQty, setSwapPassQty] = useState(0)
   const [swapRejectQty, setSwapRejectQty] = useState(0)
   const pendingVendorReturns = vendorReturns.filter(v => v.status === 'Menunggu Vendor')
@@ -75,21 +77,27 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
 
   const handleProcessReturnQC = async () => {
     if (!activeReturn || operationBusy) return
-    if(retQtyVendor>0&&!returnVendorChoices(activeReturn,useAppStore.getState()).some(v=>v.id===returnVendorId)){toast.error('Pilih vendor tujuan retur sesuai laporan.');return}
+    const evidenceError=returnEvidenceError(returnEvidence)
+    if(evidenceError){setReturnError(evidenceError);return}
+    if(retQtyVendor>0&&!returnVendorChoices(activeReturn,useAppStore.getState()).some(v=>v.id===returnVendorId)){setReturnError('Pilih vendor tujuan retur sesuai laporan.');return}
+    setReturnError("")
     setOperationBusy(true)
     try {
       await executeGoodsCommand(useAppStore.getState,{eventId:`return:${activeReturn.id}`,stage:'return',sourceId:activeReturn.id,payload:{pass:retQtyPass,reject:retQtyReject,vendor:retQtyVendor,vendorId:returnVendorId,reason:retReason,...returnEvidence}})
       toast.success('QC retur tersimpan.');setSelectedReturnId('');setReturnEvidence({})
-    } catch(error) {toast.error(error instanceof Error ? error.message : 'QC retur gagal.')} finally {setOperationBusy(false)}
+    } catch(error) {const message=error instanceof Error ? error.message : 'QC retur gagal.';setReturnError(message);toast.error(message)} finally {setOperationBusy(false)}
   }
 
   const handleResolveVendorReturn = async (mode: 'swap' | 'reject') => {
     if (!activeVendorReturn || operationBusy) return
+    const evidenceError=returnEvidenceError(returnEvidence)
+    if(evidenceError){setVendorReturnError(evidenceError);return}
+    setVendorReturnError("")
     setOperationBusy(true)
     try {
       await executeGoodsCommand(useAppStore.getState,{eventId:`vendor-return:${activeVendorReturn.id}`,stage:'vendor-return',sourceId:activeVendorReturn.id,payload:{mode,pass:swapPassQty,reject:swapRejectQty,...returnEvidence}})
       toast.success('Penyelesaian retur vendor tersimpan.');setSelectedVendorReturnId('');setReturnEvidence({})
-    } catch(error) {toast.error(error instanceof Error ? error.message : 'Retur vendor gagal.')} finally {setOperationBusy(false)}
+    } catch(error) {const message=vendorReturnSubmitMessage(error instanceof Error ? error.message : 'Retur vendor gagal.');setVendorReturnError(message);toast.error(message)} finally {setOperationBusy(false)}
   }
 
   // --- TAB 3: PERSIAPAN PENGIRIMAN ---
@@ -208,6 +216,7 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
                           <button
                             key={ret.id}
                             onClick={() => {
+                              setReturnError("")
                               setSelectedReturnId(ret.id)
                               setRetQtyPass(ret.qty)
                               setRetQtyReject(0)
@@ -305,7 +314,8 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
                       </div>
                     )}
 
-                    <PaperEvidenceFields value={returnEvidence} onChange={setReturnEvidence}/>
+                    <PaperEvidenceFields value={returnEvidence} onChange={value=>{setReturnEvidence(value);setReturnError("")}} photoOptional/>
+                    {returnError&&<p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{returnError}</p>}
                         <Button
                       className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold  shadow-sm active:scale-95 transition-all"
                       disabled={operationBusy || (retQtyVendor>0&&!eligibleVendors.some(v=>v.id===returnVendorId)) || !isReturnSplitValid({ pass: retQtyPass, buang: retQtyReject, vendor: retQtyVendor }, activeReturn.qty)} onClick={handleProcessReturnQC}
@@ -340,7 +350,7 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
                       <button
                         key={vr.id}
                         onClick={() => {
-                          setSelectedVendorReturnId(vr.id)
+                          setVendorReturnError("");setSelectedVendorReturnId(vr.id)
                           setSwapPassQty(vr.qty)
                           setSwapRejectQty(0)
                         }}
@@ -388,7 +398,8 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
                     </div>
                   </div>
 
-                  <PaperEvidenceFields value={returnEvidence} onChange={setReturnEvidence}/>
+                  <PaperEvidenceFields value={returnEvidence} onChange={value=>{setReturnEvidence(value);setVendorReturnError("")}} photoOptional/>
+                  {vendorReturnError&&<p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{vendorReturnError}</p>}
 <div className="grid grid-cols-2 gap-4">
                     <Button
                       className="h-16 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold  shadow-sm active:scale-95 transition-all"
