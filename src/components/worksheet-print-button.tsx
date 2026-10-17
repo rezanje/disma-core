@@ -26,6 +26,8 @@ export function WorksheetPrintButton({
   label = "Print Lembar Kerja",
   catatanOperasional,
   className,
+  paperNumber: controlledPaperNumber,
+  showPaperNumberInput = true,
 }: {
   kind: WorksheetKind
   title: string
@@ -33,8 +35,11 @@ export function WorksheetPrintButton({
   label?: string
   catatanOperasional?: boolean
   className?: string
+  paperNumber?: string
+  showPaperNumberInput?: boolean
 }) {
-  const [paperNumber,setPaperNumber]=useState('')
+  const [localPaperNumber,setPaperNumber]=useState('')
+  const paperNumber=controlledPaperNumber??localPaperNumber
   const [pdf, setPdf] = useState<string | null>(null)
 
   const buka = () => {
@@ -49,7 +54,7 @@ export function WorksheetPrintButton({
 
   return (
     <>
-      <Input aria-label="Nomor berkas / revisi cetak" placeholder="Nomor berkas / revisi (otomatis jika kosong)" value={paperNumber} onChange={e=>setPaperNumber(e.target.value)} className="max-w-xs"/>
+      {showPaperNumberInput&&<Input aria-label="Nomor berkas / revisi cetak" placeholder="Nomor berkas / revisi (otomatis jika kosong)" value={paperNumber} onChange={e=>setPaperNumber(e.target.value)} className="max-w-xs"/>}
       <Button
         variant="outline"
         onClick={buka}
