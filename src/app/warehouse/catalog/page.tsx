@@ -517,7 +517,7 @@ export default function WarehouseCatalogPage() {
                             ) : "-"}
                           </TableCell>
                           <TableCell className="px-6 py-3 text-right font-bold text-xs text-slate-600 dark:text-slate-400">
-                            {m.unitCost ? formatRupiah(m.unitCost) : "-"}
+                            {(m.finalUnitCost??m.unitCost) ? formatRupiah((m.finalUnitCost??m.unitCost)!) : "-"}
                           </TableCell>
                           <TableCell className="px-6 py-3 text-right">
                             <span className={cn(

@@ -11,7 +11,8 @@ import { PaperEvidenceFields } from "@/components/paper-evidence-fields"
 import { executeGoodsCommand, type PaperEvidence } from "@/lib/goods-command"
 import { recordPacking } from "@/lib/dispatch"
 import { processInboundQC } from "@/lib/qc-process"
-import { awaitingArrival, awaitingQc, buildFifoAllocations } from "@/lib/daily-flow"
+import GoodsArrivalList from "@/components/goods-arrival-list"
+import { qcRemaining, awaitingQc, buildFifoAllocations } from "@/lib/daily-flow"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -48,11 +49,9 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
   // Antreannya dihitung di src/lib/daily-flow.ts supaya layar harian gabungan
   // melihat daftar yang persis sama.
   const pendingQCItems = awaitingQc(purchaseItems, purchases)
-    .filter(item => !transcription || item.purchaseMethod !== 'Online' || item.inboundStatus === 'pra_inbound')
     .map(item => ({ ...item, product: products.find(p => p.id === item.productId) }))
     .filter(item => item.product)
 
-  const waitingArrivals = transcription ? awaitingArrival(purchaseItems, purchases) : []
   const [selectedPurchaseItemId, setSelectedPurchaseItemId] = useState("")
   const [qtyPassToInventory, setQtyPassToInventory] = useState(0)
   const [poAllocations, setPoAllocations] = useState<PoAllocation[]>([])
@@ -71,6 +70,7 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
   const [packingEvidence,setPackingEvidence] = useState<PaperEvidence>({})
   const [qcSaving,setQcSaving] = useState(false)
   const [operationBusy,setOperationBusy] = useState(false)
+  const [rejectVendorId,setRejectVendorId] = useState('')
   const [vendorUnitPrice,setVendorUnitPrice] = useState('')
   const [qcBankId,setQcBankId] = useState('')
   const [rejectAction, setRejectAction] = useState<'Return' | 'Disposal' | 'B2C'>('Disposal')
@@ -105,6 +105,7 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
       qcPerformedByUserId: paperEvidence.performedBy || qcPerformedBy,
       eventId: `qc:${activePurchaseItem.id}:${paperEvidence.paperNumber || 'initial'}`,
       vendorUnitPrice: vendorUnitPrice ? Number(vendorUnitPrice) : undefined,
+      rejectVendorId: rejectVendorId || undefined,
       bankAccountId: qcBankId,
       ...paperEvidence,
     }) } finally { setQcSaving(false) }
@@ -345,19 +346,19 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
                            {(() => {
                              const totalAllocPos = poAllocations.reduce((s, a) => s + a.qty, 0)
                              const totalDone = qtyPassToInventory + totalAllocPos + qtyReject
-                             const balanced = totalDone === (activePurchaseItem.qtyPurchased-(activePurchaseItem.qcProcessedQty||0))
+                             const balanced = totalDone === qcRemaining(activePurchaseItem)
                              return <>
                                <span className={cn("text-xs font-bold ", balanced ? "text-emerald-600" : "text-rose-600")}>
                                  Status: {balanced ? "Balance ✓" : "Tidak Balance !"}
                                </span>
-                               <span className="text-[11px] font-bold text-slate-400">Processed: {totalDone} / {(activePurchaseItem.qtyPurchased-(activePurchaseItem.qcProcessedQty||0))}</span>
+                               <span className="text-[11px] font-bold text-slate-400">Processed: {totalDone} / {qcRemaining(activePurchaseItem)}</span>
                              </>
                            })()}
                         </div>
 
                         {(() => {
                           const totalAllocPos = poAllocations.reduce((s, a) => s + a.qty, 0)
-                          return (qtyPassToInventory + totalAllocPos + qtyReject !== (activePurchaseItem.qtyPurchased-(activePurchaseItem.qcProcessedQty||0)))
+                          return (qtyPassToInventory + totalAllocPos + qtyReject !== qcRemaining(activePurchaseItem))
                         })() && (
                            <div className="space-y-2 p-3 bg-rose-50 rounded-xl border border-rose-100">
                               <Label className="text-rose-700 font-bold uppercase text-[11px] tracking-widest">Alasan Selisih / Tidak Balance (Wajib)</Label>
@@ -420,7 +421,8 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
                         )}
 
                     <PaperEvidenceFields value={paperEvidence} onChange={setPaperEvidence}/>
-                    <div><Label>Harga vendor per satuan</Label><Input type="number" min="0" value={vendorUnitPrice} placeholder={String(activePurchaseItem.actualUnitPrice||activePurchaseItem.estimatedUnitPrice||0)} onChange={e=>setVendorUnitPrice(e.target.value)}/></div>
+                    {!activePurchaseItem.physicalBeforeReport&&<div><Label>Harga vendor per satuan</Label><Input type="number" min="0" value={vendorUnitPrice} placeholder={String(activePurchaseItem.actualUnitPrice||activePurchaseItem.estimatedUnitPrice||0)} onChange={e=>setVendorUnitPrice(e.target.value)}/></div>}
+                    {activePurchaseItem.physicalBeforeReport&&rejectAction==='Return'&&qtyReject>0&&<div><Label>Vendor tujuan retur</Label><select className="w-full rounded-md border p-2" value={rejectVendorId} onChange={e=>setRejectVendorId(e.target.value)}><option value="">Pilih vendor</option>{vendors.map(v=><option key={v.id} value={v.id}>{v.companyName}</option>)}</select></div>}
                     {activePurchaseItem.purchaseMethod==='Vendor'&&activePurchaseItem.paymentMethod==='Transfer'&&['finance','super_admin'].includes(useAppStore.getState().currentUser?.role||'')&&<div><Label>Rekening sumber</Label><select value={qcBankId} onChange={e=>setQcBankId(e.target.value)}><option value="">Pilih rekening</option>{useAppStore.getState().bankAccounts.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></div>}
 
                     <Button
@@ -442,28 +444,7 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
         </div>
       </div>
 
-      {transcription && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Menunggu barang datang ({waitingArrivals.length})</CardTitle>
-            <p className="text-sm text-slate-500">Pesanan vendor dan online ke gudang. Konfirmasi hanya setelah barang benar-benar tiba; stok bertambah setelah hasil QC disimpan.</p>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {waitingArrivals.length === 0 && <p className="text-sm text-slate-500">Tidak ada pesanan yang menunggu barang datang.</p>}
-            {waitingArrivals.map(item => {
-              const product = products.find(p => p.id === item.productId)
-              const vendor = vendors.find(v => v.id === (item.vendorId || item.plannedVendorId))
-              const purchase = purchases.find(p => p.id === item.purchaseId)
-              return (
-                <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3">
-                  <div><p className="font-semibold">{product?.name || item.productId}</p><p className="text-sm text-slate-500">{item.qtyPurchased || item.qtyTarget} {product?.uom} · {vendor?.companyName || 'Vendor belum diisi'} · {purchase?.advanceCode || item.purchaseId}</p></div>
-                  <Button onClick={() => { window.location.href="/admin/hari-ini" }}>Salin berkas penerimaan</Button>
-                </div>
-              )
-            })}
-          </CardContent>
-        </Card>
-      )}
+      <GoodsArrivalList/>
 
       <Tabs defaultValue="sourcing" className="w-full">
         {!transcription && <TabsList className="bg-slate-100 p-1 rounded-2xl mb-6">
@@ -546,9 +527,9 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
                              const dipilih = selectedPurchaseItemId === item.id
                              const pilihBaris = () => {
                                setSelectedPurchaseItemId(item.id)
-                               setPaperEvidence({});setVendorUnitPrice('');setQcBankId('')
+                               setPaperEvidence({});setVendorUnitPrice('');setQcBankId('');setRejectVendorId(item.vendorId||item.plannedVendorId||'')
                                setQtyReject(0)
-                               const { allocations, inventoryRemainder } = buildFifo(item.productId, item.qtyPurchased-(item.qcProcessedQty||0))
+                               const { allocations, inventoryRemainder } = buildFifo(item.productId, qcRemaining(item))
                                setPoAllocations(allocations)
                                setQtyPassToInventory(inventoryRemainder)
                              }
@@ -564,12 +545,13 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
                                  <td className="px-4 py-2.5">
                                    <p className="font-bold text-slate-800 leading-tight">{item.product?.name}</p>
                                    <p className="text-[11px] font-bold  text-slate-400">{item.product?.skuCode}</p>
+                                   {item.costPending&&<p className="text-xs text-amber-700">Laporan belanja menyusul · biaya belum lengkap</p>}
                                  </td>
                                  <td className="px-3 py-2.5 text-[11px] font-bold  text-slate-400">
                                    {item.purchaseMethod || 'Pasar'}
                                  </td>
                                  <td className="px-3 py-2.5 text-right font-bold text-slate-700 whitespace-nowrap">
-                                   {item.qtyPurchased} {item.product?.uom}
+                                   {qcRemaining(item)} {item.product?.uom}
                                  </td>
                                  <td className="px-3 py-2 text-right">
                                    <Button

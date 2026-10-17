@@ -13,6 +13,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useAppStore } from "@/lib/store"
+import MarketReceiptReconciliation from "@/components/market-receipt-reconciliation"
 import AuthGuard from "@/components/auth/auth-guard"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -77,7 +78,7 @@ export default function SalinBelanjaPage() {
   const baris = useMemo(() => {
     const ids = new Set(idMenunggu ? idMenunggu.split('|') : [])
     const groups = new Map<string, typeof purchaseItems[number] & { members: typeof purchaseItems }>()
-    for (const pi of purchaseItems.filter(pi => ids.has(pi.purchaseId) && (!pi.purchaseMethod || pi.purchaseMethod === 'Pasar') && pi.qtyPurchased < pi.qtyTarget)) {
+    for (const pi of purchaseItems.filter(pi => ids.has(pi.purchaseId) && (!pi.purchaseMethod || pi.purchaseMethod === 'Pasar') && pi.qtyPurchased < pi.qtyTarget).sort((a,b)=>Number(!!b.physicalBeforeReport)-Number(!!a.physicalBeforeReport))) {
       const key = [pi.productId, pi.plannedVendorId || '', pi.purchaseMethod || 'Pasar', pi.paymentMethod || 'Cash'].join('|')
       const remaining = pi.qtyTarget - (pi.qtyPurchased || 0)
       const old = groups.get(key)
@@ -217,6 +218,7 @@ export default function SalinBelanjaPage() {
           </p>
         </div>
 
+        <MarketReceiptReconciliation/>
         {pendingReport && <div role="alert" className="p-4 rounded border border-amber-300 bg-amber-50 text-sm">Transaksi {pendingReport.input.eventId} belum selesai. Percobaan ulang memakai angka dan ID yang sama.<Button onClick={simpan} disabled={kirim} className="ml-3">Coba simpan ulang</Button></div>}
         {menunggu.length > 0 && <Card><CardContent className="space-y-3 p-4">
           <Label>Pilih persis dokumen yang tertulis pada kertas / sesi gabungan</Label>
@@ -352,6 +354,7 @@ export default function SalinBelanjaPage() {
                           <TableCell className="text-[11px] font-bold text-slate-400">{product?.skuCode}</TableCell>
                           <TableCell>
                             <p className="font-bold text-sm">{product?.name}</p>
+                            {pi.members.some(m=>m.costPending)&&<p className="text-xs text-amber-700">Barang sudah diterima · laporan belanja menyusul</p>}
                             <p className="text-[11px] text-slate-400 font-bold uppercase">
                               {pi.members.map(m => `${kodeDokumen(m.purchaseId)} / ${salesOrders.find(s=>s.id===m.salesOrderId)?.poNumber || 'stok'}: sisa ${m.qtyTarget}`).join(' · ')}
                               {menunggu.length > 1 && ` · ${kodeDokumen(l.purchaseId)}`}

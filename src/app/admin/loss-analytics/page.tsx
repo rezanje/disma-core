@@ -146,7 +146,7 @@ export default function LossAnalyticsPage() {
     stockMovements.forEach(m => {
       if (m.kind === 'ADJUSTMENT' && m.stockDelta < 0 && m.source === 'Stock Opname') {
         const product = products.find(p => p.id === m.productId)
-        const unitCost = m.unitCost || product?.basePrice || 0
+        const unitCost = m.finalUnitCost || m.unitCost || product?.basePrice || 0
         const qty = Math.abs(m.stockDelta)
         const lossAmount = qty * unitCost
 

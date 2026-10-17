@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import { arrivalRemaining, qcRemaining, awaitingArrival, awaitingQc } from './daily-flow';
+const purchases=[{id:'paper',status:'Belanja'},{id:'draft',status:'Menunggu Rencana'}];
+const planned={id:'market',purchaseId:'paper',purchaseMethod:'Pasar',qtyTarget:10,qtyPurchased:0};
+assert.deepEqual(awaitingArrival([planned,{...planned,id:'draft',purchaseId:'draft'},{...planned,id:'direct',purchaseMethod:'Dropship'}],purchases).map(i=>i.id),['market'],'market goods can arrive before Finance enters the paper');
+assert.equal(awaitingQc([planned],purchases).length,0,'a shopping plan is not physical inventory');
+const received={...planned,qtyTarget:6,physicalQtyReceived:6,physicalBeforeReport:true,inboundStatus:'pra_inbound' as const,costPending:true};
+assert.deepEqual(awaitingQc([received],purchases).map(i=>i.id),['market'],'physical receipt unlocks QC with no report');
+assert.equal(awaitingQc([{...received,isQCed:true,inboundStatus:'verified'}],purchases).length,0,'a late report must not queue completed QC again');
+assert.equal(awaitingQc([{...planned,purchaseMethod:'Vendor',isOnlineOrdered:true,physicalQtyReceived:6,qcProcessedQty:6,qtyPurchased:10,inboundStatus:'partial'}],purchases).length,0,'a completed vendor tranche waits for the next actual arrival');
+assert.equal(qcRemaining(received),6);
+assert.equal(qcRemaining({...received,qcProcessedQty:4}),2);
+assert.equal(arrivalRemaining({...planned,qcProcessedQty:6}),4);
+console.log('early market receipt queue: OK');

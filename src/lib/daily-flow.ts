@@ -12,6 +12,10 @@ export type QueueItem = {
   purchaseMethod?: string | null;
   isOnlineOrdered?: boolean;
   qtyPurchased?: number;
+  qtyTarget?: number;
+  physicalQtyReceived?: number;
+  physicalBeforeReport?: boolean;
+  qcProcessedQty?: number;
   reportEventIds?: string[];
 };
 
@@ -19,17 +23,21 @@ export type QueueParent = { id: string; status: string };
 
 /** Pesanan ke gudang yang belum dikonfirmasi datang; dropship langsung ke klien. */
 export function awaitingArrival<T extends QueueItem>(items: T[], purchases: QueueParent[]): T[] {
-  return items.filter(item =>
-    (item.purchaseMethod === 'Vendor' || item.purchaseMethod === 'Online') &&
-    item.isOnlineOrdered && !item.isQCed && !item.inboundStatus &&
-    purchases.some(p => p.id === item.purchaseId && ['Pending','Belanja','Selesai'].includes(p.status)),
-  );
+  return items.filter(item => {
+    if (item.isQCed || !purchases.some(p => p.id === item.purchaseId && ['Pending','Belanja','Selesai'].includes(p.status))) return false;
+    if (item.purchaseMethod === 'Pasar' || !item.purchaseMethod) {
+      return !item.physicalBeforeReport && (item.qtyTarget || item.qtyPurchased || 0) > (item.physicalQtyReceived ?? item.qcProcessedQty ?? 0);
+    }
+    return (item.purchaseMethod === 'Vendor' || item.purchaseMethod === 'Online') && !!item.isOnlineOrdered &&
+      (item.physicalQtyReceived != null ? (item.qtyPurchased || 0) > item.physicalQtyReceived : !item.inboundStatus);
+  });
 }
 
 /** Barang yang sudah dibeli tapi belum diperiksa. */
 export function awaitingQc<T extends QueueItem>(items: T[], purchases: QueueParent[]): T[] {
   return (items || []).filter(pi => {
     if (pi.isQCed) return false;
+    if (pi.physicalQtyReceived != null && qcRemaining(pi) <= 0) return false;
     if (pi.inboundStatus === 'verified' || pi.inboundStatus === 'rejected') return false;
     const parent = (purchases || []).find(p => p.id === pi.purchaseId);
     if (!parent || !['Pending','Belanja','Selesai'].includes(parent.status)) return false;
@@ -92,4 +100,14 @@ export function buildFifoAllocations(
   });
 
   return { allocations, inventoryRemainder: remaining };
+}
+
+/** Only measured receipts supply early QC; a plan never supplies physical stock. */
+export function qcRemaining(item: QueueItem): number {
+  const incoming = item.physicalBeforeReport ? (item.physicalQtyReceived || 0)
+    : item.physicalQtyReceived ? Math.min(item.qtyPurchased || 0, item.physicalQtyReceived) : (item.qtyPurchased || 0);
+  return Math.max(0, incoming - (item.qcProcessedQty || 0));
+}
+export function arrivalRemaining(item: QueueItem): number {
+  return Math.max(0, (item.qtyPurchased || item.qtyTarget || 0) - (item.physicalQtyReceived ?? item.qcProcessedQty ?? 0));
 }
