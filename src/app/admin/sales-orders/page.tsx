@@ -152,42 +152,46 @@ const PricelistRow = memo(function PricelistRow({
   return (
     <tr
       className={cn(
-        "border-b last:border-b-0 transition-colors",
+        "grid grid-cols-[2rem_minmax(0,1fr)] gap-x-2 border-b p-3 last:border-b-0 transition-colors md:table-row md:p-0",
         checked ? "bg-emerald-50/60 dark:bg-emerald-950/20" : "hover:bg-slate-50 dark:hover:bg-slate-900/30"
       )}
     >
-      <td className="px-3 py-2.5">
+      <td className="col-start-1 row-start-1 py-1 md:px-3 md:py-2.5">
         <input
           type="checkbox"
+          aria-label={`Pilih ${product.name}`}
           checked={checked}
           onChange={(e) => onSetQty(product.id, e.target.checked ? (qty || 1) : 0)}
-          className="w-4 h-4 accent-emerald-600 cursor-pointer"
+          className="w-5 h-5 md:w-4 md:h-4 accent-emerald-600 cursor-pointer"
         />
       </td>
-      <td className="py-2.5">
+      <td className="col-start-2 row-start-1 min-w-0 py-1 md:py-2.5">
         <div className="flex flex-col gap-0.5">
-          <span className={cn("font-semibold", checked && "text-emerald-800 dark:text-emerald-300")}>{product.name}</span>
+          <span className={cn("font-semibold [overflow-wrap:anywhere]", checked && "text-emerald-800 dark:text-emerald-300")}>{product.name}</span>
           <span className="text-[11px] text-slate-400 font-medium">
             {product.skuCode} • {product.uom} • Stok: {product.currentStock}
             {freq ? ` • ${freq}x pernah dibeli` : ""}
           </span>
         </div>
       </td>
-      <td className="text-right pr-3 font-bold text-slate-700 dark:text-slate-200 whitespace-nowrap">
+      <td className="col-start-2 row-start-2 flex flex-wrap items-center gap-1 py-1 font-bold text-slate-700 dark:text-slate-200 md:table-cell md:text-right md:pr-3 md:whitespace-nowrap">
+        <span className="text-xs font-normal text-slate-500 md:hidden">Harga:</span>
         {formatRupiah(price)}
         {tier !== 'Standard' && (
           <span className="ml-1 text-[11px] font-bold text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200 uppercase">{tier}</span>
         )}
       </td>
-      <td className="py-2 px-2 text-center">
+      <td className="col-start-2 row-start-3 flex items-center gap-3 py-1 md:table-cell md:py-2 md:px-2 md:text-center">
+        <span className="text-xs text-slate-500 md:hidden">Qty ({product.uom})</span>
         <EditNumber
           decimal
           inputMode="decimal"
+          aria-label={`Qty daftar harga ${product.name}`}
           placeholder="0"
           value={qty}
           onCommit={(v) => onSetQty(product.id, v)}
           onFocus={(e) => e.target.select()}
-          className="w-20 h-8 text-center text-sm font-bold border rounded-md bg-white dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+          className="w-24 md:w-20 h-11 md:h-8 text-center text-base md:text-sm font-bold border rounded-md bg-white dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
         />
       </td>
     </tr>
@@ -1120,13 +1124,13 @@ export default function SalesOrdersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
         <div>
           <h2 className="text-[19px] leading-tight font-semibold text-slate-900">Pesanan klien</h2>
           <p className="mt-[3px] text-[12.5px] text-slate-400">Pesanan masuk dari klien dan jalannya sampai terkirim.</p>
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <GlobalUndoButton inline />
           <Dialog open={isOpen} onOpenChange={(open) => {
             if (!open) {
@@ -1140,11 +1144,11 @@ export default function SalesOrdersPage() {
                 <Plus className="mr-2 h-4 w-4" /> New Sales Order
               </Button>
             } />
-          <DialogContent className="sm:max-w-[95vw] w-[95vw] max-h-[95vh] overflow-y-auto rounded-xl">
-            <DialogHeader>
+          <DialogContent className="grid-cols-[minmax(0,1fr)] w-[calc(100%-1rem)] max-w-none max-h-[calc(100dvh-1rem)] overflow-x-hidden overflow-y-auto rounded-xl md:w-[95vw] md:max-w-[95vw] max-md:[&_input]:text-base max-md:[&_textarea]:text-base max-md:[&_select]:text-base max-md:[&_button]:min-h-11">
+            <DialogHeader className="min-w-0 pr-10">
               <DialogTitle>{editingSO ? `Edit Sales Order: ${editingSO.poNumber}` : "Create New Sales Order"}</DialogTitle>
             </DialogHeader>
-            <div className="grid gap-6 py-4">
+            <div className="min-w-0 grid gap-6 py-4">
               
               <div className="space-y-2">
                 <Label className="text-emerald-600 font-bold uppercase text-[11px] tracking-widest">PO Number (Dapat Diubah)</Label>
@@ -1157,9 +1161,9 @@ export default function SalesOrdersPage() {
                 <p className="text-[11px] text-slate-400 font-bold ">Sesuaikan dengan nomor PO dari Client jika perlu.</p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <div className="flex justify-between items-center">
+                  <div className="flex flex-wrap gap-2 justify-between items-center">
                     <Label>Client (Customer)</Label>
                     <button 
                       type="button" 
@@ -1177,7 +1181,7 @@ export default function SalesOrdersPage() {
                         aria-expanded={isClientSearchOpen}
                         className="w-full justify-between font-normal bg-white dark:bg-slate-950"
                       >
-                        <span className="truncate">
+                        <span className="min-w-0 flex-1 truncate text-left">
                           {clientId 
                             ? clients.find((c) => c.id === clientId)?.companyName 
                             : "Select client..."}
@@ -1185,12 +1189,12 @@ export default function SalesOrdersPage() {
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                       </Button>
                     } />
-                    <PopoverContent className="w-[300px] p-0" align="start">
+                    <PopoverContent className="w-[300px] max-w-[calc(100vw-2rem)] p-0" align="start">
                       <div className="flex items-center border-b px-3 h-10">
                         <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
                         <input
                           placeholder="Search client..."
-                          className="flex h-full w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                          className="flex h-full min-w-0 w-full rounded-md bg-transparent py-3 text-base md:text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
                           value={clientSearch}
                           onChange={(e) => setClientSearch(e.target.value)}
                         />
@@ -1258,11 +1262,11 @@ export default function SalesOrdersPage() {
                     return (
                       <div className="space-y-3 duration-200">
                         {/* Header */}
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                           <p className="text-[11px] font-bold  text-slate-400">
                             Price List Client ({q ? `${visibleRows.length} / ` : ""}{pricelistRows.length} produk)
                           </p>
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <button
                               type="button"
                               onClick={() => setPricelistTerbuka(v => !v)}
@@ -1293,8 +1297,8 @@ export default function SalesOrdersPage() {
 
                         {pricelistTerbuka && (<>
                         {/* Search + sort */}
-                        <div className="flex items-center gap-2">
-                          <div className="relative flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="relative min-w-0 basis-full md:basis-0 flex-1">
                             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                             <input
                               value={pricelistSearch}
@@ -1332,8 +1336,8 @@ export default function SalesOrdersPage() {
 
                         {/* Checklist table */}
                         <div className="rounded-lg border bg-white dark:bg-slate-950 overflow-hidden max-h-[50vh] overflow-y-auto">
-                          <table className="w-full text-sm">
-                            <thead>
+                          <table className="block w-full text-sm md:table" role="table">
+                            <thead className="hidden md:table-header-group">
                               <tr className="bg-slate-50 dark:bg-slate-900/60 border-b">
                                 <th className="w-8 px-3 py-2"></th>
                                 <th className="text-left text-xs font-bold text-slate-500 py-2">Produk</th>
@@ -1341,7 +1345,7 @@ export default function SalesOrdersPage() {
                                 <th className="text-center text-xs font-bold text-slate-500 py-2 w-28">Qty</th>
                               </tr>
                             </thead>
-                            <tbody>
+                            <tbody className="block md:table-row-group">
                               {visibleRows.length === 0 && (
                                 <tr><td colSpan={4} className="py-6 text-center text-xs text-slate-400 font-medium">Produk tidak ditemukan.</td></tr>
                               )}
@@ -1381,14 +1385,14 @@ export default function SalesOrdersPage() {
                                 <Popover open={isProductSearchOpen} onOpenChange={setIsProductSearchOpen}>
                                   <PopoverTrigger render={
                                     <Button variant="outline" role="combobox" aria-expanded={isProductSearchOpen} className="w-full justify-between font-normal bg-white dark:bg-slate-950 h-10">
-                                      <span className="truncate">{newLineProductId ? products.find((p) => p.id === newLineProductId)?.name : "Pilih barang..."}</span>
+                                      <span className="min-w-0 flex-1 truncate text-left">{newLineProductId ? products.find((p) => p.id === newLineProductId)?.name : "Pilih barang..."}</span>
                                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                     </Button>
                                   } />
-                                  <PopoverContent className="w-[350px] p-0" align="start">
+                                  <PopoverContent className="w-[350px] max-w-[calc(100vw-2rem)] p-0" align="start">
                                     <div className="flex items-center border-b px-3 h-10">
                                       <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
-                                      <input placeholder="Cari nama atau SKU..." className="flex h-full w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground" value={productSearch} onChange={(e) => setProductSearch(e.target.value)} />
+                                      <input placeholder="Cari nama atau SKU..." className="flex h-full min-w-0 w-full rounded-md bg-transparent py-3 text-base md:text-sm outline-none placeholder:text-muted-foreground" value={productSearch} onChange={(e) => setProductSearch(e.target.value)} />
                                     </div>
                                     <div className="max-h-[300px] overflow-y-auto p-1">
                                       {products.filter(p => !productSearch || p.name.toLowerCase().includes(productSearch.toLowerCase()) || p.skuCode.toLowerCase().includes(productSearch.toLowerCase())).slice(0, 50).map((p) => (
@@ -1458,14 +1462,14 @@ export default function SalesOrdersPage() {
                           <Popover open={isProductSearchOpen} onOpenChange={setIsProductSearchOpen}>
                             <PopoverTrigger render={
                               <Button variant="outline" role="combobox" aria-expanded={isProductSearchOpen} className="w-full justify-between font-normal bg-white dark:bg-slate-950 h-10">
-                                <span className="truncate">{newLineProductId ? products.find((p) => p.id === newLineProductId)?.name : "Pilih barang..."}</span>
+                                <span className="min-w-0 flex-1 truncate text-left">{newLineProductId ? products.find((p) => p.id === newLineProductId)?.name : "Pilih barang..."}</span>
                                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                               </Button>
                             } />
-                            <PopoverContent className="w-[350px] p-0" align="start">
+                            <PopoverContent className="w-[350px] max-w-[calc(100vw-2rem)] p-0" align="start">
                               <div className="flex items-center border-b px-3 h-10">
                                 <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
-                                <input placeholder="Cari nama atau SKU..." className="flex h-full w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground" value={productSearch} onChange={(e) => setProductSearch(e.target.value)} />
+                                <input placeholder="Cari nama atau SKU..." className="flex h-full min-w-0 w-full rounded-md bg-transparent py-3 text-base md:text-sm outline-none placeholder:text-muted-foreground" value={productSearch} onChange={(e) => setProductSearch(e.target.value)} />
                               </div>
                               <div className="max-h-[300px] overflow-y-auto p-1">
                                 {filteredProducts.length === 0 ? (
@@ -1521,11 +1525,11 @@ export default function SalesOrdersPage() {
                             const isLoss = marginAmount < 0
                             return (
                               <div className={cn("flex flex-col gap-1.5 p-2 rounded-lg border text-xs font-semibold mt-4 transition-all duration-300", isLoss ? "bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400 border-rose-100 dark:border-rose-900/30" : marginAmount === 0 ? "bg-slate-50 dark:bg-slate-900/50 text-slate-700 dark:text-slate-400 border-slate-200" : "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30")}>
-                                <div className="flex justify-between items-center gap-2">
+                                <div className="flex flex-wrap justify-between items-center gap-2">
                                   <span className="whitespace-nowrap">Estimasi HPP (Beli):</span>
                                   <Input type="text" inputMode="numeric" className="h-7 w-40 text-right font-bold text-slate-900 dark:text-slate-100 bg-card dark:bg-slate-950/80 border-slate-300" value={formatNumber(newLineHpp)} onChange={(e) => { const val = parseNumber(e.target.value); setNewLineHpp(val); if (newLineTier && newLineTier !== 'Custom' && newLineTier !== 'Standard') { const product = products.find(p => p.id === newLineProductId); if (product) setNewLinePrice(getPriceForTier(product, newLineTier, val || undefined)) } }} placeholder="Isi HPP..." />
                                 </div>
-                                <div className="flex justify-between items-center border-t border-dashed border-current/10 pt-1 mt-0.5">
+                                <div className="flex flex-wrap gap-2 justify-between items-center border-t border-dashed border-current/10 pt-1 mt-0.5">
                                   <span>Estimasi Margin:</span>
                                   <span className={cn("font-bold text-base", isLoss ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400")}>{isLoss ? "" : "+"}{formatRupiah(marginAmount)} ({marginPercent.toFixed(1)}%)</span>
                                 </div>
@@ -1548,8 +1552,8 @@ export default function SalesOrdersPage() {
                   <div className="space-y-2 mt-4">
                     <h4 className="text-[11px] font-bold  text-slate-400">Daftar Barang Pesanan:</h4>
                     <div className="rounded-md border bg-white dark:bg-slate-950 overflow-hidden">
-                      <Table>
-                        <TableHeader>
+                      <Table className="block md:table">
+                        <TableHeader className="hidden md:table-header-group">
                           <TableRow className="bg-slate-50 dark:bg-slate-900/50">
                             <TableHead className="text-xs">Product</TableHead>
                             <TableHead className="text-right text-xs w-20">Qty</TableHead>
@@ -1559,12 +1563,12 @@ export default function SalesOrdersPage() {
                             <TableHead className="w-[40px]"></TableHead>
                           </TableRow>
                         </TableHeader>
-                        <TableBody>
+                        <TableBody className="block md:table-row-group">
                           {lineItems.map(item => (
-                            <TableRow key={item.id}>
-                              <TableCell className="font-medium text-sm py-2">
+                            <TableRow key={item.id} className="grid grid-cols-2 gap-3 p-3 md:table-row md:p-0">
+                              <TableCell className="col-span-2 min-w-0 whitespace-normal px-0 py-0 font-medium text-sm md:px-5 md:py-2">
                                 <div className="flex flex-col gap-0.5">
-                                  <span>{item.productName}</span>
+                                  <span className="[overflow-wrap:anywhere]">{item.productName}</span>
                                   {item.isCustomPrice && (
                                     <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded w-fit border border-emerald-200 uppercase">
                                       {item.priceSource === 'Custom' ? 'HARGA KUSTOM' : `PRICE LIST: ${item.priceSource}`}
@@ -1572,41 +1576,51 @@ export default function SalesOrdersPage() {
                                   )}
                                 </div>
                               </TableCell>
-                              <TableCell className="text-right text-sm py-2">
+                              <TableCell className="min-w-0 px-0 py-0 text-sm md:text-right md:px-5 md:py-2">
+                                <span className="mb-1 block text-xs text-slate-500 md:hidden">Qty</span>
                                 <Input
                                   type="number"
+                                  aria-label={`Qty pesanan ${item.productName}`}
                                   onWheel={(e) => e.currentTarget.blur()}
                                   min="0"
                                   step="any"
-                                  className="h-8 w-20 text-right text-sm font-bold ml-auto"
+                                  className="h-11 w-full max-w-full text-right text-base font-bold md:ml-auto md:h-8 md:w-20 md:text-sm"
                                   value={item.qty || ''}
                                   onChange={(e) => updateLineItem(item.id, { qty: parseFloat(e.target.value) || 0 })}
                                 />
                               </TableCell>
-                              <TableCell className="text-center text-xs py-2 text-slate-500">{products.find(p => p.id === item.productId)?.uom ?? '-'}</TableCell>
-                              <TableCell className="text-right text-sm py-2">
+                              <TableCell className="px-0 py-0 text-xs text-slate-500 md:text-center md:px-5 md:py-2">
+                                <span className="mb-1 block md:hidden">Satuan</span>
+                                {products.find(p => p.id === item.productId)?.uom ?? '-'}
+                              </TableCell>
+                              <TableCell className="min-w-0 px-0 py-0 text-sm md:text-right md:px-5 md:py-2">
+                                <span className="mb-1 block text-xs text-slate-500 md:hidden">Harga satuan (Rp)</span>
                                 <Input
                                   type="text"
                                   inputMode="numeric"
-                                  className="h-8 w-28 text-right text-sm font-bold ml-auto"
+                                  aria-label={`Harga pesanan ${item.productName}`}
+                                  className="h-11 w-full max-w-full text-right text-base font-bold md:ml-auto md:h-8 md:w-28 md:text-sm"
                                   value={item.unitPrice ? item.unitPrice.toLocaleString('id-ID') : ''}
                                   onChange={(e) => updateLineItem(item.id, { unitPrice: parseInt(e.target.value.replace(/\D/g, ''), 10) || 0 })}
                                 />
                               </TableCell>
-                              <TableCell className="text-right font-bold text-sm py-2">{formatRupiah(item.qty * item.unitPrice)}</TableCell>
-                              <TableCell className="py-2">
-                                <Button variant="ghost" size="icon" className="h-7 w-7 text-rose-500" onClick={() => removeLineItem(item.id)}>
+                              <TableCell className="min-w-0 whitespace-normal px-0 py-0 text-right font-bold text-sm md:px-5 md:py-2">
+                                <span className="mb-1 block text-xs font-normal text-slate-500 md:hidden">Subtotal</span>
+                                <span className="[overflow-wrap:anywhere]">{formatRupiah(item.qty * item.unitPrice)}</span>
+                              </TableCell>
+                              <TableCell className="col-span-2 flex justify-end px-0 py-0 md:table-cell md:px-5 md:py-2">
+                                <Button variant="ghost" size="icon" aria-label={`Hapus ${item.productName}`} className="h-7 w-7 text-rose-500" onClick={() => removeLineItem(item.id)}>
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
                               </TableCell>
                             </TableRow>
                           ))}
-                          <TableRow className="bg-slate-50 dark:bg-slate-900/50 font-bold">
-                            <TableCell colSpan={3} className="text-right text-sm">TOTAL PESANAN:</TableCell>
-                            <TableCell className="text-right text-sm text-emerald-600">
+                          <TableRow className="flex flex-wrap justify-between gap-2 bg-slate-50 p-3 dark:bg-slate-900/50 font-bold md:table-row md:p-0">
+                            <TableCell colSpan={4} className="px-0 py-0 text-sm md:text-right md:px-5 md:py-2.5">TOTAL PESANAN:</TableCell>
+                            <TableCell className="px-0 py-0 text-right text-sm text-emerald-600 md:px-5 md:py-2.5">
                               {formatRupiah(lineItems.reduce((sum, item) => sum + (item.qty * item.unitPrice), 0))}
                             </TableCell>
-                            <TableCell></TableCell>
+                            <TableCell className="hidden md:table-cell"></TableCell>
                           </TableRow>
                         </TableBody>
                       </Table>
@@ -1616,7 +1630,7 @@ export default function SalesOrdersPage() {
               </div>
 
             </div>
-            <div className="flex justify-end gap-3 mt-4 border-t pt-4">
+            <div className="flex flex-col-reverse gap-3 mt-4 border-t pt-4 sm:flex-row sm:justify-end">
               <Button variant="outline" onClick={closeSOModal} disabled={isSavingOrder}>Cancel</Button>
               <Button onClick={handleSaveSO} disabled={isSavingOrder}>
                 {isSavingOrder ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Menyimpan...</> : (editingSO ? "Save Changes" : "Create Sales Order")}
