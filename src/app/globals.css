@@ -325,6 +325,18 @@
     @apply bg-background text-foreground min-h-screen relative font-sans overflow-x-hidden;
   }
 
+  @media (width < 48rem) {
+    html,
+    body {
+      width: 100%;
+      max-width: 100%;
+      /* Fallback untuk browser lama; clip tidak membuat scroll container baru. */
+      overflow-x: hidden;
+      overflow-x: clip;
+      overscroll-behavior-x: none;
+    }
+  }
+
   html, body, h1, h2, h3, h4, h5, h6, p, span, div, table, input, button {
     @apply font-sans;
   }
