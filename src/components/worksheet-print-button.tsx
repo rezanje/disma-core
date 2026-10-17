@@ -65,7 +65,7 @@ export function WorksheetPrintButton({
       </Button>
 
       <Dialog open={!!pdf} onOpenChange={open => !open && setPdf(null)}>
-        <DialogContent className="max-w-[96vw] sm:max-w-[96vw] w-[96vw] h-[96vh] p-0 rounded-[2rem] overflow-hidden border-none bg-slate-900 shadow-2xl flex flex-col">
+        <DialogContent showCloseButton={false} className="max-w-[96vw] sm:max-w-[96vw] w-[96vw] h-[96vh] p-0 rounded-[2rem] overflow-hidden border-none bg-slate-900 shadow-2xl flex flex-col">
           <DialogHeader className="shrink-0 flex-row items-center justify-between space-y-0 bg-slate-900 p-6 text-white">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400">
@@ -82,6 +82,7 @@ export function WorksheetPrintButton({
               variant="ghost"
               size="icon"
               className="rounded-xl text-slate-400 hover:bg-white/10 hover:text-white"
+              aria-label="Tutup preview"
               onClick={() => setPdf(null)}
             >
               <X className="h-5 w-5" />

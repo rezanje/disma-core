@@ -1,0 +1,7 @@
+-- Include courier custody and durable paper commands in complete backup/restore.
+BEGIN;
+CREATE OR REPLACE FUNCTION public.business_backup_tables() RETURNS text[]
+LANGUAGE sql IMMUTABLE SET search_path=public,pg_temp AS $$ SELECT ARRAY['app_settings','users','clients','vendors','products','coas','bank_accounts','employees','leads','budget_plans','budget_categories','budget_sub_categories','budget_adjustments','purchase_requests','purchases','vendor_bills','sales_orders','sales_order_items','purchase_items','tukar_faktur','deliveries','invoices','journal_entries','journal_lines','stock_movements','expenses','reimbursements','cash_transactions','disbursement_requests','tutup_hari_kantong','pending_returns','vendor_returns','rejected_items','fixed_assets','client_prices','vendor_prices','notifications','disma_tasks','kpis','okr_objectives','okr_key_results','record_history','shopping_draft','daily_close','credit_notes','client_receipts','client_receipt_allocations','financial_events','financial_command_events','goods_events','purchase_events','bank_reconciliation_statements','bank_reconciliation_rows','bank_reconciliation_matches','vendor_advances','vendor_advance_allocations','vendor_claim_settlements','financial_reversals','paper_operations','courier_spares']::text[] $$;
+REVOKE ALL ON FUNCTION public.business_backup_tables() FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.business_backup_tables() TO service_role;
+COMMIT;

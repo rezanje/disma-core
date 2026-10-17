@@ -42,7 +42,7 @@ export default function HariIniPage() {
  const button=(key:string,label:string,fn:()=>Promise<unknown>)=><Button disabled={!!busy} onClick={()=>run(key,fn)}>{busy===key?'Menyimpan…':label}</Button>;
  return <AuthGuard allowedRoles={['admin_po','finance','super_admin']}><div className="space-y-6">
   <PageHeader title="Hari ini" context="Salin berkas fisik sesuai urutan. Pelaksana lapangan dipilih namanya; pengetik dicatat terpisah."/>
-  <p className="text-sm text-muted-foreground">Penerimaan → QC → packing → barang keluar → serah terima kurir → hasil klien → audit Finance. Setiap tahap menyimpan nomor berkas dan waktu kejadian sebenarnya.</p>
+  <div className="flex flex-wrap gap-3 rounded-xl border bg-white p-4 text-sm"><Link className="font-medium underline" href="/admin/operasi?workspace=cetak">1 · Cetak paket lapangan</Link><Link className="font-medium underline" href="/admin/operasi?workspace=qc">2 · Salin QC & serah terima sekaligus</Link><Link className="font-medium underline" href="/admin/operasi?workspace=hasil">3 · Salin hasil kiriman</Link></div>
   <div className="flex flex-wrap gap-4 text-sm"><Link href="/warehouse/inbound">Cetak lembar penerimaan</Link><Link href="/warehouse/qc">QC / retur / persiapan</Link><Link href="/warehouse/outbound">Cetak lembar keluar</Link><Link href="/courier/handover">Cetak serah terima</Link><Link href="/admin/audit-pengiriman">Audit Finance</Link></div>
   <PoReconciliationSummary/>
   <GoodsArrivalList/>

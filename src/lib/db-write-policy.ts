@@ -110,7 +110,7 @@ export function validateProtectedWrite(table:string,row:Row,existing:Row|null,ro
  * so a concurrent source command cannot be undone by an older browser snapshot. */
 export const PROTECTED_COLUMNS:Record<string,string[]>={
  products:['current_stock','b2c_stock'],
- sales_orders:['shopping_list_document_id','shopping_list_compiled_at','shopping_list_compiled_by'],
+ sales_orders:['parent_order_id','supplement_reference','supplement_note','supplement_recorded_at','supplement_recorded_by','shopping_list_document_id','shopping_list_compiled_at','shopping_list_compiled_by'],
  purchases:['status','actual_spent','expected_remainder','paper_occurred_at','paper_performer_id','paper_recorded_at','reconciliation_status','budget_amount','disbursed_amount','disbursed_at','disbursed_by','disbursed_to_bank_account_id'],
  users:[],
  purchase_requests:[],

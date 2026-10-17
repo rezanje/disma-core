@@ -140,7 +140,9 @@ export type StockMovementKind =
   | 'RETURN_REJECT'
   | 'ADJUSTMENT'
   | 'BOOKING'
-  | 'INITIAL';
+  | 'INITIAL'
+  | 'SPARE_OUTBOUND'
+  | 'SPARE_RETURN';
 
 export interface StockMovement {
   id: string;
@@ -171,6 +173,11 @@ export interface StockMovement {
 export type SalesOrderStatus = 'Pending Approval' | 'Draft' | 'Belanja' | 'Sourcing' | 'QC' | 'Packing' | 'Siap Kirim' | 'Dikirim' | 'Awaiting Audit' | 'Terkirim' | 'Kurang Kirim' | 'Selesai' | 'Batal';
 
 export interface SalesOrder {
+  parentOrderId?: string;
+  supplementReference?: string;
+  supplementNote?: string;
+  supplementRecordedAt?: string;
+  supplementRecordedBy?: string;
   id: string;
   poNumber: string;
   clientId: string;
@@ -816,4 +823,8 @@ export interface CreditNote {
   reason: string;
   createdBy?: string;
   createdAt: string;
+}
+
+export interface CourierSpare {
+ id:string;productId:string;courierId:string;qty:number;used:number;damaged:number;returned:number;status:"Dibawa"|"Selesai";reason?:string;occurredAt:string;performedBy:string;paperNumber:string;paperProof?:string;recordedBy:string;recordedAt:string;settledAt?:string;settlementPaper?:string;costPending:boolean;finalUnitCost?:number;
 }
