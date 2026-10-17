@@ -2,13 +2,16 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { usePathname, useSearchParams } from "next/navigation"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { getActiveNavigation } from "@/lib/navigation-tabs"
-import { MoreHorizontal } from "lucide-react"
+import { LogOut, MoreHorizontal } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet"
 import { useAppStore } from "@/lib/store"
 import { GuideButton } from "@/components/onboarding/onboarding"
+import { Button } from "@/components/ui/button"
+import { logoutSession } from "@/lib/client-session"
+import { toast } from "sonner"
 
 interface NavItem {
   key: string
@@ -26,16 +29,53 @@ const MAX_SLOTS = 5
 
 export default function BottomNav({ items }: BottomNavProps) {
   const pathname = usePathname()
+  const router = useRouter()
   const searchParams = useSearchParams()
   const currentUser = useAppStore(state => state.currentUser)
   const navConfigs = useAppStore(state => state.navConfigs) || {}
   const [moreOpen, setMoreOpen] = useState(false)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const setCurrentUser = useAppStore(state => state.setCurrentUser)
+
+  const handleLogout = async () => {
+    if (isLoggingOut) return
+    setIsLoggingOut(true)
+    try {
+      await logoutSession()
+      setCurrentUser(null)
+      setMoreOpen(false)
+      router.replace('/login')
+    } catch {
+      toast.error('Gagal keluar. Coba lagi.')
+    } finally {
+      setIsLoggingOut(false)
+    }
+  }
 
   const role = currentUser?.role || 'default'
   const config = navConfigs[role]?.mobile
 
-  // If master toggle for mobile is off, don't show BottomNav
-  if (config && config.enabled === false) return null
+  const logoutButton = (
+    <Button
+      type="button"
+      variant="outline"
+      disabled={isLoggingOut}
+      onClick={handleLogout}
+      className="w-full justify-start border-rose-200 text-rose-600 hover:bg-rose-50"
+    >
+      <LogOut className="h-4 w-4" />
+      {isLoggingOut ? 'Sedang keluar…' : 'Keluar / Logout'}
+    </Button>
+  )
+
+  // Hiding navigation links must not remove the only phone logout control.
+  if (config?.enabled === false) {
+    return (
+      <div className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-4 z-40 md:hidden">
+        {logoutButton}
+      </div>
+    )
+  }
 
   const customOrder = config?.order
   const hiddenKeys = config?.hidden || []
@@ -69,7 +109,7 @@ export default function BottomNav({ items }: BottomNavProps) {
   const overflowActive = overflowItems.some(item => isItemActive(item.href))
 
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 glass-topbar flex items-stretch justify-around px-2 pb-safe z-50">
+    <nav aria-label="Navigasi utama" className="md:hidden fixed bottom-0 left-0 right-0 glass-topbar flex items-stretch justify-around px-2 pb-safe z-50">
       {primaryItems.map((item) => {
         const isActive = activeNavigation?.groupKey === item.key
         return (
@@ -105,7 +145,8 @@ export default function BottomNav({ items }: BottomNavProps) {
           </SheetTrigger>
           <SheetContent side="bottom" className="rounded-t-2xl pb-safe px-4 pt-4 max-h-[85dvh] overflow-y-auto">
             <SheetTitle className="text-sm font-bold  text-slate-800 dark:text-slate-200 mb-4">Menu</SheetTitle>
-            <div className="grid grid-cols-3 gap-3 pb-4">
+            {logoutButton}
+            <div className="grid grid-cols-2 gap-3 pb-4 sm:grid-cols-3">
               {overflowItems.map((item) => {
                 const isActive = isItemActive(item.href)
                 return (
@@ -115,12 +156,12 @@ export default function BottomNav({ items }: BottomNavProps) {
                     aria-current={isActive ? 'page' : undefined}
                     onClick={() => setMoreOpen(false)}
                     className={cn(
-                      "flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl transition-colors touch-manipulation",
+                      "flex min-w-0 flex-col items-center justify-center gap-1.5 p-3 rounded-xl transition-colors touch-manipulation",
                       isActive ? "bg-primary/15 text-primary" : "text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
                     )}
                   >
                     {item.icon}
-                    <span className="text-[11px] font-bold leading-none tracking-tight text-center">{item.title}</span>
+                    <span className="text-[11px] font-bold leading-snug tracking-tight text-center break-words">{item.title}</span>
                   </Link>
                 )
               })}
@@ -133,6 +174,6 @@ export default function BottomNav({ items }: BottomNavProps) {
             </div>
           </SheetContent>
       </Sheet>
-    </div>
+    </nav>
   )
 }

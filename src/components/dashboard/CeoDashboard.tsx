@@ -690,7 +690,7 @@ export default function CeoDashboard() {
         context={`${new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} · ringkasan kondisi bisnis`}
       />
 
-      <div className="px-6 md:px-7">
+      <div className="px-4 sm:px-6 md:px-7">
         <StatBand
           leader={{
             label: 'Laba bersih bulan ini',
@@ -707,7 +707,7 @@ export default function CeoDashboard() {
         />
       </div>
 
-      <div className="space-y-[18px] px-6 md:px-7">
+      <div className="space-y-[18px] px-4 sm:px-6 md:px-7">
       {/* Analytics Layer */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <Card className="lg:col-span-2 liquid-card">
