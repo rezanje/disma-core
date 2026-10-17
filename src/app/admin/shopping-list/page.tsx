@@ -18,7 +18,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn, formatRupiah } from "@/lib/utils"
 import { executePurchaseCommand, type PurchaseCommand } from "@/lib/purchase-command"
-import { allocateShoppingDemand, warehouseReservations } from "@/lib/purchase-plan"
+import { warehouseReservations } from "@/lib/purchase-plan"
+import { shoppingQuantities, shoppingDocumentItems } from "@/lib/shopping-quantities"
 import { qtyOwed } from "@/lib/backorder"
 import GlobalUndoButton from "@/components/global-undo-button"
 import { PdfCanvasPreview } from "@/components/pdf-canvas-preview"
@@ -37,6 +38,7 @@ type ShoppingListDocumentItem = {
   vendorId?: string
   vendorName?: string
 }
+type ShoppingRequirementItem = ShoppingListDocumentItem & { kebutuhan: number; fromStock?: boolean }
 
 const LOKASI_LABEL: Record<string, string> = { Pasar: 'Pasar', Online: 'Beli Online', Vendor: 'Vendor' }
 const METODE_BAYAR_LABEL: Record<string, string> = { Cash: 'Cash', Tempo: 'Tempo', Transfer: 'Transfer' }
@@ -310,21 +312,11 @@ export default function ShoppingListPage() {
   // tidak ada orang kita di lokasi serah terima, jadi naikkan Cash ke Transfer.
 
 
-  const toggleStockBooked = (key: string) => {
+  const resetPurchaseQuantity = (id: string) => {
     saveToHistory()
-    setStockBookedProductIds(prev => {
-      const next = new Set(prev)
-      if (next.has(key)) {
-        next.delete(key)
-      } else {
-        next.add(key)
-        // Clear vendor assignments when taken from warehouse
-        setVendorAssignments(v => {
-          const n = { ...v }
-          delete n[key]
-          return n
-        })
-      }
+    setCustomQtys(prev => {
+      const next = { ...prev }
+      delete next[id]
       return next
     })
   }
@@ -415,22 +407,7 @@ export default function ShoppingListPage() {
     }))
   ]
 
-  const rekapPOByProduct = useMemo(() => {
-    const map: Record<string, number> = {}
-    const selectedSOIdSet = new Set(selectedSOs.map(so => so.id))
-    purchaseItems.forEach(pi => {
-      if (!pi.salesOrderId || !selectedSOIdSet.has(pi.salesOrderId)) return
-      // Hanya baris belanja yang MASIH berjalan yang boleh mengurangi kebutuhan.
-      // Baris yang sudah lewat QC barangnya sudah diterima dan sudah dikirim — untuk
-      // ronde susulan, menghitungnya lagi bikin kebutuhan sisa jadi nol dan tombol
-      // belanjanya tidak pernah muncul.
-      if (pi.isQCed) return
-      map[pi.productId] = (map[pi.productId] || 0) + Number(pi.qtyTarget || 0)
-    })
-    return map
-  }, [purchaseItems, selectedSOs])
-
-  const rawConsolidatedList = allRequirementItems.reduce((acc: any[], curr: any) => {
+  const rawConsolidatedList = allRequirementItems.reduce<ShoppingRequirementItem[]>((acc, curr) => {
     const existing = acc.find(item => item.productId === curr.productId && item.salesOrderId === curr.salesOrderId)
     
     if (existing) {
@@ -467,7 +444,7 @@ export default function ShoppingListPage() {
       }
     }
     return acc
-  }, [] as Array<{productId: string, productName: string, skuCode: string, uom?: string, kebutuhan: number, totalQty: number, estimatedPrice: number, sellPrice: number, purchaseMethod: 'Pasar' | 'Online' | 'Vendor' | 'Dropship', paymentMethod: 'Cash' | 'Tempo' | 'Transfer', salesOrderId?: string, vendorId?: string, vendorName?: string, fromStock?: boolean}>)
+  }, [])
 
   const consolidatedList = useMemo(() => {
     const onHand = Object.fromEntries(products.map(p => [p.id, Math.max(0, p.currentStock || 0)]))
@@ -477,19 +454,14 @@ export default function ShoppingListPage() {
     for (const row of purchaseItems) {
       if (row.isQCed) continue
       const key = `${row.productId}_${row.salesOrderId || 'manual'}`
-      sourced[key] = (sourced[key] || 0) + Number(row.qtyTarget || 0)
+      sourced[key] = (sourced[key] || 0) + Math.max(0, Number(row.qtyTarget || 0) - Number(row.qcProcessedQty || 0))
     }
     for (const row of salesOrderItems) {
       const key = `${row.productId}_${row.salesOrderId}`
       sourced[key] = (sourced[key] || 0) + Math.max(0, Number(row.qtyFinal || 0))
     }
-    const demand = rawConsolidatedList.map(item => ({ ...item, stockOnly: item.fromStock, id: `${item.productId}_${item.salesOrderId || 'manual'}`, quantity: item.kebutuhan }))
-    return allocateShoppingDemand(demand, onHand, reserved, sourced).map(item => ({
-      ...item,
-      allocatedStock: item.allocatedStock,
-      fromStock: item.stockOnly,
-      totalQty: item.stockOnly ? 0 : (customQtys[item.id] ?? item.toBuy),
-    }))
+    const demand = rawConsolidatedList.map(item => ({ ...item, id: `${item.productId}_${item.salesOrderId || 'manual'}`, quantity: item.kebutuhan }))
+    return shoppingQuantities(demand, onHand, reserved, sourced, customQtys)
   }, [rawConsolidatedList, products, bookedQtyByProduct, purchaseItems, salesOrders, salesOrderItems, customQtys])
 
 
@@ -573,11 +545,9 @@ export default function ShoppingListPage() {
     }
 
     // Items fulfilled from warehouse stock are booked (reserved), NOT bought.
-    const buyItems = consolidatedList.filter(item => !item.fromStock && item.totalQty > 0)
-    const stockItems = consolidatedList.filter(item => item.fromStock || item.allocatedStock > 0)
-    if (!pendingCompile && stockItems.some(item=>item.fromStock && !item.salesOrderId)) return toast.error('Ambil stok gudang harus terhubung ke PO, bukan pembelian stok manual.')
-    if (!pendingCompile && stockItems.some(item=>item.fromStock && item.allocatedStock < item.kebutuhan)) return toast.error('Stok bebas tidak mencukupi untuk baris Gudang. Gunakan qty beli untuk sisanya.')
-    const documentItems = buyItems.map(item => ({ ...item }))
+    const buyItems = consolidatedList.filter(item => item.totalQty > 0)
+    const stockItems = consolidatedList.filter(item => item.salesOrderId && item.allocatedStock > 0)
+    const documentItems = shoppingDocumentItems(consolidatedList)
     const documentId = uuidv4()
     const generatedAt = new Date().toISOString()
     const advanceCode = `ADV-${toDateInputValue(generatedAt).replaceAll('-', '')}-${String(purchases.length + 1).padStart(3, '0')}`
@@ -588,7 +558,7 @@ export default function ShoppingListPage() {
         eventId:documentId,stage:'compile',sourceId:documentId,payload:{
           occurredAt:generatedAt,advanceCode,purchaseRequestId:selectedPRId || '',salesOrderIds:selectedSOs.map(s=>s.id),
           items:documentItems.map(item=>({id:uuidv4(),productId:item.productId,salesOrderId:item.salesOrderId,qtyTarget:item.totalQty,estimatedUnitPrice:item.estimatedPrice})),
-          reservations:stockItems.map(item=>({salesOrderItemId:salesOrderItems.find(r=>r.salesOrderId===item.salesOrderId && r.productId===item.productId)?.id,qty:item.fromStock ? item.kebutuhan : item.allocatedStock})),
+          reservations:stockItems.map(item=>({salesOrderItemId:salesOrderItems.find(r=>r.salesOrderId===item.salesOrderId && r.productId===item.productId)?.id,qty:item.allocatedStock})),
           rejectedIds:[...compiledRejectIds],
         },
       }
@@ -605,6 +575,11 @@ export default function ShoppingListPage() {
       // them like the PO items (which drop out via shoppingListCompiledAt). The
       // persist effect syncs localStorage.
       setManualItems([])
+      setCustomQtys(prev => {
+        const next = { ...prev }
+        consolidatedList.forEach(item => delete next[item.id])
+        return next
+      })
 
       setSelectedPRId('')
       // Clear "from stock" selections that were just processed into bookings.
@@ -1247,53 +1222,9 @@ export default function ShoppingListPage() {
                   </div>
                 )}
 
-                {/* Banner Alokasi Gudang */}
-                {(() => {
-                  const suggestions = consolidatedList.filter(item => {
-                    if (item.fromStock) return false
-                    const prod = products.find(p => p.id === item.productId)
-                    const avail = (prod?.currentStock ?? 0) - (bookedQtyByProduct[item.productId] || 0)
-                    return avail > 0
-                  })
-                  if (suggestions.length === 0) return null
-                  return (
-                    <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 bg-emerald-100 text-emerald-800 rounded-xl flex items-center justify-center">
-                          <Warehouse className="w-5 h-5 text-emerald-600" />
-                        </div>
-                        <div>
-                          <h4 className="text-xs font-bold  text-slate-800">
-                            Saran Alokasi dari Gudang
-                          </h4>
-                          <p className="text-[11px] text-slate-500">
-                            Terdapat {suggestions.length} produk yang memiliki stok tersedia di gudang. Mau dialokasikan dari gudang?
-                          </p>
-                        </div>
-                      </div>
-                      <Button
-                        size="sm"
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px]  rounded-xl"
-                        onClick={() => {
-                          saveToHistory()
-                          setStockBookedProductIds(prev => {
-                            const next = new Set(prev)
-                            suggestions.forEach(item => next.add(rowKey(item)))
-                            return next
-                          })
-                          setVendorAssignments(v => {
-                            const n = { ...v }
-                            suggestions.forEach(item => delete n[rowKey(item)])
-                            return n
-                          })
-                          toast.success(`Berhasil mengalokasikan ${suggestions.length} produk dari gudang.`)
-                        }}
-                      >
-                        Alokasikan Semua ({suggestions.length} produk)
-                      </Button>
-                    </div>
-                  )
-                })()}
+                <p className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-slate-600">
+                  Qty Beli otomatis mengisi kekurangan setelah stok gudang yang masih bebas diperhitungkan. Bisa diedit untuk membeli tambahan stok; gunakan Otomatis untuk menghitung ulang.
+                </p>
 
                 {/* Pemilihan vendor dihapus dari layar ini (23 Agu 2026). Yang tahu
                     vendor dan harganya adalah Finance, dan sejak 16 Agu pilihan di sini
@@ -1359,22 +1290,7 @@ export default function ShoppingListPage() {
                                               </span>
                                             )
                                           })()}
-                                           {(() => {
-                                             const alreadyBought = rekapPOByProduct[item.productId] || 0
-                                             if (alreadyBought <= 0) return null
-                                             const stillNeeded = item.totalQty - alreadyBought
-                                             return (
-                                               <span
-                                                 className={cn(
-                                                   "w-fit text-[11px] font-bold  px-1.5 py-0.5 rounded flex items-center gap-1",
-                                                   stillNeeded <= 0 ? "bg-emerald-100 text-emerald-700" : "bg-orange-100 text-orange-700"
-                                                 )}
-                                                 title={`Sudah dibeli ${alreadyBought} di PO sebelumnya. Sisa: ${Math.max(0, stillNeeded)}`}
-                                               >
-                                                 {stillNeeded <= 0 ? '✓ Sudah Terbeli' : `Rekap: ${alreadyBought} dibeli, sisa ${stillNeeded}`}
-                                               </span>
-                                             )
-                                           })()}
+
                                           {product?.weeklyPriceRange && product.weeklyPriceRange.min > 0 && product.weeklyPriceRange.max > 0 ? (
                                             <span className="text-[11px] font-bold text-amber-600 w-fit" title="Harga terendah-tertinggi minggu ini (Kamis-Rabu)">
                                               Patokan: {formatRupiah(product.weeklyPriceRange.min)} - {formatRupiah(product.weeklyPriceRange.max)}
@@ -1384,23 +1300,11 @@ export default function ShoppingListPage() {
                                               Patokan: {formatRupiah(product?.basePrice || 0)}
                                             </span>
                                           )}
-                                          {item.fromStock && (() => {
-                                            const avail = (product?.currentStock ?? 0) - (bookedQtyByProduct[item.productId] || 0)
-                                            const short = item.totalQty > avail
-                                            return (
-                                              <span className={cn(
-                                                "w-fit text-[11px] font-bold  px-1.5 py-0.5 rounded flex items-center gap-1",
-                                                short ? "bg-rose-50 text-rose-600" : "bg-amber-100 text-amber-700"
-                                              )}>
-                                                <Warehouse className="w-2.5 h-2.5" /> Dari Gudang
-                                                {short && (
-                                                  <span className="flex items-center gap-0.5" title="Stok tersedia kurang dari kebutuhan">
-                                                    <AlertTriangle className="w-2.5 h-2.5" /> stok {avail}/{item.totalQty}
-                                                  </span>
-                                                )}
-                                              </span>
-                                            )
-                                          })()}
+                                          {item.allocatedStock > 0 && (
+                                            <span className="w-fit text-[11px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 bg-amber-100 text-amber-700">
+                                              <Warehouse className="w-2.5 h-2.5" /> {item.allocatedStock} {item.uom} dari gudang
+                                            </span>
+                                          )}
                                         </div>
                                       </TableCell>
                                       <TableCell className="text-right font-medium text-slate-600 pr-4">
@@ -1413,9 +1317,12 @@ export default function ShoppingListPage() {
                                         <div className="flex flex-col items-end gap-1">
                                           <Input 
                                             type="number"
+                                            aria-label={`Qty Beli ${item.productName}`}
                                             className="h-8 w-20 text-right text-xs font-bold border-slate-200"
                                             placeholder="0"
-                                            value={item.totalQty || ''}
+                                            min={0}
+                                            step="any"
+                                            value={item.totalQty}
                                             onChange={(e) => {
                                               saveToHistory()
                                               const val = Math.max(0, parseFloat(e.target.value) || 0)
@@ -1426,22 +1333,10 @@ export default function ShoppingListPage() {
                                               }))
                                             }}
                                           />
-                                          {(() => {
-                                            const alreadyBought = rekapPOByProduct[item.productId] || 0
-                                            if (alreadyBought <= 0) return null
-                                            const stillNeeded = Math.max(0, item.totalQty - alreadyBought)
-                                            return (
-                                              <span className={cn(
-                                                "text-[11px] font-bold px-1.5 py-0.5 rounded",
-                                                stillNeeded === 0 ? "text-emerald-600 bg-emerald-50" : "text-orange-600 bg-orange-50"
-                                              )}>
-                                                beli {stillNeeded}
-                                              </span>
-                                            )
-                                          })()}
-                                          {!item.fromStock && (product?.currentStock || 0) > 0 && (product?.currentStock || 0) < item.kebutuhan && (
-                                            <span className="text-[11px] font-bold px-1.5 py-0.5 rounded text-slate-500 bg-slate-100">
-                                              {product?.currentStock} dari gudang + {item.totalQty} dibeli
+
+                                          {item.stockPurchaseQty > 0 && (
+                                            <span className="text-[11px] font-bold px-1.5 py-0.5 rounded text-emerald-700 bg-emerald-50">
+                                              Tambahan stok: {item.stockPurchaseQty} {item.uom}
                                             </span>
                                           )}
                                         </div>
@@ -1474,20 +1369,19 @@ export default function ShoppingListPage() {
                                                 bayar TIDAK lagi dipilih di sini. Sejak 16 Agu itu wewenang
                                                 Finance di Rencana Pembelian — dan pilihan di layar ini tidak
                                                 pernah tersimpan, jadi yang tersisa cuma kerja sia-sia dan
-                                                kesan bahwa Admin PO yang memutuskan. Tombol Gudang tetap:
-                                                mengambil dari stok itu keputusan jumlah, bukan pemasok. */}
+                                                kesan bahwa Admin PO yang memutuskan. Tombol Otomatis mengembalikan jumlah beli ke kekurangan stok. */}
                                             {/* Button Gudang */}
                                             <button
-                                               onClick={() => toggleStockBooked(rowKey(item))}
+                                               onClick={() => resetPurchaseQuantity(item.id)}
                                                className={cn(
                                                   "px-2 py-1 text-[11px] font-bold uppercase rounded-md border transition-all",
                                                   item.fromStock
                                                      ? "bg-amber-100 border-amber-300 text-amber-700"
                                                      : "bg-slate-50 border-slate-200 text-slate-400"
                                                )}
-                                               title="Ambil dari stok Gudang (booking)"
+                                               title="Hitung ulang Qty Beli dari kebutuhan dan stok bebas"
                                             >
-                                               Gudang
+                                               Otomatis
                                             </button>
                                             <button
                                                onClick={() => {
