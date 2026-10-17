@@ -328,6 +328,10 @@ interface AppState {
   // Auth
   currentUser: User | null;
   setCurrentUser: (user: User | null) => void;
+  // In-memory UI readiness only. Never restored from the cached identity;
+  // every protected API still validates the server session independently.
+  isSessionVerified: boolean;
+  setServerSession: (user: User | null) => void;
   users: User[];
   addUser: (user: User) => Promise<void>;
   updateUser: (id: string, data: Partial<User>) => Promise<void>;
@@ -729,10 +733,18 @@ async function commandTukarFaktur(action: 'issue' | 'link' | 'delete', params: R
 export const useAppStore = create<AppState>((set, get) => {
   const actions: AppState = {
       currentUser: loadCurrentUserFromStorage(),
+      isSessionVerified: false,
       setCurrentUser: (user) => {
         const safe = user ? publicStoreUser(user) : null;
         saveCurrentUserToStorage(safe);
-        set({ currentUser: safe });
+        const previous = get().currentUser;
+        set({ currentUser: safe, isSessionVerified: get().isSessionVerified && !!safe
+          && safe.id === previous?.id && safe.role === previous?.role && safe.isActive !== false });
+      },
+      setServerSession: (user) => {
+        const safe = user ? publicStoreUser(user) : null;
+        saveCurrentUserToStorage(safe);
+        set({ currentUser: safe, isSessionVerified: !!safe && safe.isActive !== false });
       },
       users: [],
       rolePermissions: initialRolePermissions,

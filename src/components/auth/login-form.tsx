@@ -27,7 +27,7 @@ const formSchema = zodSchema.object({
 
 export default function LoginForm() {
   const router = useRouter()
-  const setCurrentUser = useAppStore((state) => state.setCurrentUser)
+  const setServerSession = useAppStore((state) => state.setServerSession)
   const [isLoading, setIsLoading] = useState(false)
 
   const form = useForm<zodSchema.infer<typeof formSchema>>({
@@ -46,7 +46,7 @@ export default function LoginForm() {
       })
       const result = await response.json()
       if (!response.ok || !result.user) throw new Error(result.error || 'Gagal masuk')
-      setCurrentUser(result.user)
+      setServerSession(result.user)
       try { sessionStorage.setItem(PENDING_WELCOME_KEY, "1") } catch {}
       toast.success(`Welcome back, ${result.user.name}!`)
       router.push(result.user.role === 'admin_po' ? '/admin/hari-ini' : result.user.role === 'finance' ? '/finance' : '/admin')

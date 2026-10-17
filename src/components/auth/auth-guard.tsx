@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { useAppStore } from "@/lib/store"
 import { Loader2 } from "lucide-react"
@@ -11,7 +11,7 @@ export default function AuthGuard({children}:AuthGuardProps) {
   const router=useRouter()
   const pathname=usePathname()
   const currentUser=useAppStore(state=>state.currentUser)
-  const [verifiedPath,setVerifiedPath]=useState<string|null>(null)
+  const isSessionVerified=useAppStore(state=>state.isSessionVerified)
   useEffect(()=>{
     let cancelled=false
     void (async()=>{
@@ -20,22 +20,22 @@ export default function AuthGuard({children}:AuthGuardProps) {
         const result=await response.json()
         if(cancelled) return
         if(!response.ok || !result.user) {
-          useAppStore.getState().setCurrentUser(null)
+          useAppStore.getState().setServerSession(null)
           if(pathname!=='/login') router.replace('/login')
-          else setVerifiedPath(pathname)
           return
         }
-        useAppStore.getState().setCurrentUser(result.user)
+        useAppStore.getState().setServerSession(result.user)
         const home=result.user.role==='admin_po' ? '/admin/hari-ini' : result.user.role==='finance' ? '/finance' : '/admin'
         if(pathname==='/login' || !canAccessRoute(result.user.role,pathname)) router.replace(home)
-        else setVerifiedPath(pathname)
       } catch {
-        if(!cancelled) { useAppStore.getState().setCurrentUser(null); router.replace('/login') }
+        if(!cancelled) { useAppStore.getState().setServerSession(null); router.replace('/login') }
       }
     })()
     return ()=>{cancelled=true}
-  },[pathname,router])
-  if(verifiedPath!==pathname || (!currentUser && pathname!=='/login')) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+  },[pathname,router,currentUser?.id,currentUser?.role])
+  // A verified session survives client navigation and layout changes. Recheck
+  // in the background without unmounting the page on every menu click.
+  if(!isSessionVerified || !currentUser) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
   if(currentUser && !canAccessRoute(currentUser.role,pathname)) return null
   return <>{children}</>
 }

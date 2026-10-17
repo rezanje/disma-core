@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation"
 import { useAppStore } from "@/lib/store"
 
 export default function StoreSync() {
-  const pathname = usePathname()
+  const isLoginPage = usePathname() === '/login'
   const init = useAppStore(state => state.init)
   useEffect(() => {
     let disposed = false
@@ -14,12 +14,12 @@ export default function StoreSync() {
         const response = await fetch('/api/auth/session', {cache:'no-store',credentials:'same-origin'})
         if(disposed) return
         if(!response.ok) {
-          useAppStore.getState().setCurrentUser(null)
+          useAppStore.getState().setServerSession(null)
           return
         }
         const {user} = await response.json()
         if(disposed || !user) return
-        useAppStore.getState().setCurrentUser(user)
+        useAppStore.getState().setServerSession(user)
         await init()
       } catch { /* Retain the last read state; APIs still fail closed. */ }
     }
@@ -37,6 +37,8 @@ export default function StoreSync() {
       bc.close()
       clearInterval(pollInterval)
     }
-  },[init,pathname])
+    // Leaving login starts the first read; ordinary menu changes use the
+    // existing snapshot. Polls and broadcasts keep it fresh in the background.
+  },[init,isLoginPage])
   return null
 }
