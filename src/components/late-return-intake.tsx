@@ -34,10 +34,11 @@ export default function LateReturnIntake(){
   }catch(error){toast.error(error instanceof Error?error.message:'Penerimaan retur gagal.');}finally{setBusy(false);}
  };
  return <section className="space-y-3">
-  <h2 className="font-semibold">6 · Retur setelah pengiriman selesai</h2>
+  <h2 className="font-semibold">Retur setelah barang diterima outlet</h2>
   <Card><CardContent className="space-y-3 p-4">
-   <p className="text-sm text-muted-foreground">Pilih ronde asli dari berkas. Penerimaan fisik masuk antrean QC; Finance memproses kredit dari harga tagihan asli.</p>
-   <div><Label htmlFor="return-round">Ronde pengiriman asli</Label><select id="return-round" className="w-full rounded-md border bg-background p-2" value={deliveryId} onChange={e=>{setDeliveryId(e.target.value);setLineId('');setQty('');}}><option value="">Pilih ronde selesai</option>{rounds.map(d=><option key={d.id} value={d.id}>{s.salesOrders.find(o=>o.id===d.salesOrderId)?.poNumber} · {d.deliveryDate} · {d.id}</option>)}</select></div>
+   <p className="text-sm text-muted-foreground">Untuk barang yang dikembalikan belakangan, setelah penerimaan outlet sudah dicatat selesai. Contoh: hari ini diterima 10 kg, besok dikembalikan 2 kg. Barang kembali diperiksa QC; penyesuaian tagihan diproses Finance.</p>
+   <p className="text-sm text-muted-foreground">Kalau barang langsung ditolak saat diantar, cukup catat jumlah diterima / selisih pada Penerimaan outlet. Tidak perlu dicatat ulang di sini.</p>
+   <div><Label htmlFor="return-round">Pengiriman asal</Label><select id="return-round" className="w-full rounded-md border bg-background p-2" value={deliveryId} onChange={e=>{setDeliveryId(e.target.value);setLineId('');setQty('');}}><option value="">Pilih pengiriman yang sudah selesai</option>{rounds.map(d=><option key={d.id} value={d.id}>{s.salesOrders.find(o=>o.id===d.salesOrderId)?.poNumber} · {d.deliveryDate} · {d.id}</option>)}</select></div>
    {delivery&&<>
     <div><Label htmlFor="return-line">Barang asli</Label><select id="return-line" className="w-full rounded-md border bg-background p-2" value={lineId} onChange={e=>setLineId(e.target.value)}><option value="">Pilih barang</option>{lines.filter((l,n,a)=>a.findIndex(x=>x.salesOrderItemId===l.salesOrderItemId)===n).map(l=><option key={l.salesOrderItemId} value={l.salesOrderItemId}>{l.productName}</option>)}</select></div>
     {lineId&&<>
