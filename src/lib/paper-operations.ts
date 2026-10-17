@@ -1,6 +1,7 @@
 import type { PaperEvidence } from './goods-command';
 import type { QcEntryPlan } from './qc-entry';
 import { goodsUpdateKeys } from './goods-batch';
+import { purchasingQuantity } from './purchase-plan';
 
 export const paperUpdateKeys=[...goodsUpdateKeys,'purchases','courierSpares'] as const;
 export type PaperCommand={eventId:string;stage:'transcribe'|'supplement'|'spare-settle';payload:Record<string,any>};
@@ -17,7 +18,7 @@ export function paperIso(value:string){
 }
 function evidence(value:PaperEvidence):PaperEvidence {
  if(!value.performedBy||!value.paperNumber?.trim())throw new Error('Isi pelaksana dan nomor berkas sesuai kertas.');
- return {...value,paperNumber:value.paperNumber.trim(),occurredAt:paperIso(value.occurredAt||'')};
+ return {performedBy:value.performedBy,paperNumber:value.paperNumber.trim(),occurredAt:paperIso(value.occurredAt||''),paperProof:value.paperProof,recipientName:value.recipientName,rejectionReason:value.rejectionReason,signedPaperChecked:value.signedPaperChecked};
 }
 function command(eventId:string,stage:PaperCommand['stage'],payload:PaperCommand['payload']):PaperCommand {
  if(!eventId||eventId.length>64)throw new Error('Nomor kejadian tidak valid.');return {eventId,stage,payload};
@@ -28,19 +29,23 @@ export function preparePaperTranscription(eventId:string,plans:QcEntryPlan[],dis
  if(new Set(dispatches.map(d=>d.soId)).size!==dispatches.length)throw new Error('PO serah terima berulang.');
  const qc=plans.map(plan=>{
   const {purchaseItemId,eventId:qcId,...payload}=plan.qc;
-  return {sourceId:plan.sourceId,commands:[...(plan.arrival?[{...plan.arrival,payload:{...plan.arrival.payload,...evidence(plan.arrival.payload as PaperEvidence)}}]:[]),{eventId:qcId,stage:'qc',sourceId:purchaseItemId,payload:{...payload,...evidence(payload)}}]};
+  const allocations=payload.allocations.map(row=>({...row,qty:purchasingQuantity(row.qty)}));
+  const passed=purchasingQuantity(payload.qtyPassToInventory+payload.allocations.reduce((sum,row)=>sum+row.qty,0));
+  const allocated=purchasingQuantity(allocations.reduce((sum,row)=>sum+row.qty,0));
+  const qtyPassToInventory=purchasingQuantity(Math.max(0,passed-allocated));
+  return {sourceId:plan.sourceId,commands:[...(plan.arrival?[{...plan.arrival,payload:{...plan.arrival.payload,qty:purchasingQuantity(Number(plan.arrival.payload.qty)),...evidence(plan.arrival.payload as PaperEvidence)}}]:[]),{eventId:qcId,stage:'qc',sourceId:purchaseItemId,payload:{...payload,allocations,qtyPassToInventory,qtyReject:purchasingQuantity(payload.qtyReject),...evidence(payload)}}]};
  });
  const checked=dispatches.map(d=>{
   const ev=evidence(d.evidence);const handoverAt=paperIso(d.handoverAt);
   if(handoverAt<ev.occurredAt!)throw new Error('Waktu serah terima harus setelah QC / penyiapan.');
   if(!d.signedPaperChecked&&!ev.paperProof)throw new Error('Periksa berita acara dengan tanda tangan sebelum mencatat serah terima.');
   if(!d.soId||!d.courierId||!d.lines.length||d.lines.some(l=>!l.salesOrderItemId||!Number.isFinite(l.qty)||l.qty<0)||new Set(d.lines.map(l=>l.salesOrderItemId)).size!==d.lines.length)throw new Error('Lengkapi kurir dan jumlah barang kiriman.');
-  return {...d,evidence:ev,handoverAt};
+  return {...d,lines:d.lines.map(line=>({...line,qty:purchasingQuantity(line.qty)})),evidence:ev,handoverAt};
  });
  const spareRows=spares.map(s=>{
   if(!s.productId||!s.courierId||!positive(s.qty))throw new Error('Isi barang, kurir dan jumlah spare yang valid.');
   if(!s.evidence.signedPaperChecked&&!s.evidence.paperProof)throw new Error('Periksa berita acara dengan tanda tangan sebelum mencatat spare kurir.');
-  return {...s,evidence:evidence(s.evidence)};
+  return {...s,qty:purchasingQuantity(s.qty),evidence:evidence(s.evidence)};
  });
  return command(eventId,'transcribe',{qc,dispatches:checked,spares:spareRows});
 }
