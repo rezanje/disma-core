@@ -7,3 +7,11 @@ export function returnOriginVendorIds(ret:PendingReturn,state:{deliveries:Delive
  const purchases=state.purchaseItems.filter(pi=>pi.productId===ret.productId&&(sources.length?sourceIds.has(pi.id):pi.salesOrderId===ret.originalSoId&&pi.qtyPurchased>0));
  return [...new Set(purchases.map(pi=>pi.vendorId?.trim()).filter((id):id is string=>!!id))];
 }
+
+export function returnVendorChoices(ret:PendingReturn,state:Parameters<typeof returnOriginVendorIds>[1]&{vendors:import('@/types').Vendor[]}){
+ const ids=returnOriginVendorIds(ret,state);
+ return state.vendors.filter(v=>!ids.length||ids.includes(v.id));
+}
+export function returnPaperNumber(ret:PendingReturn,state:{deliveries:Delivery[]}):string {
+ return state.deliveries.find(d=>d.id===ret.deliveryId)?.paperNumber?.trim()||ret.diNumber?.trim()||`RETUR-${ret.id}`;
+}

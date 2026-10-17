@@ -16,3 +16,13 @@ assert.equal(isSwapSplitValid({ pass: 3, reject: 1 }, 5), false); // sums to 4
 assert.equal(isSwapSplitValid({ pass: 2, reject: -1 }, 1), false); // negative
 
 console.log('vendor-return.check: all assertions passed');
+
+const {balanceReturnSplit}=require('./vendor-return');
+assert.equal(typeof balanceReturnSplit,'function');
+assert.deepEqual(balanceReturnSplit({pass:3,buang:0,vendor:0},3,'vendor',3),{pass:0,buang:0,vendor:3});
+assert.deepEqual(balanceReturnSplit({pass:0,buang:0,vendor:3},3,'buang',2),{pass:0,buang:2,vendor:1});
+assert.deepEqual(balanceReturnSplit({pass:0,buang:2,vendor:1},3,'pass',2),{pass:2,buang:0,vendor:1});
+for(const key of ['pass','buang','vendor'])for(const value of [-1,0,0.1,2,3,8,NaN]){
+ const result=balanceReturnSplit({pass:1,buang:1,vendor:1},3,key,value);
+ assert.ok(isReturnSplitValid(result,3));assert.ok(Object.values(result).every((n:any)=>n>=0));
+}

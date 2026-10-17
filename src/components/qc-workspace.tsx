@@ -18,8 +18,8 @@ import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import QcEntryTable from "@/components/qc-entry-table"
 import { qtyOwed } from "@/lib/backorder"
-import { returnOriginVendorIds } from "@/lib/return-origin-vendors"
-import { isReturnSplitValid, isSwapSplitValid } from "@/lib/vendor-return"
+import { returnOriginVendorIds, returnVendorChoices, returnPaperNumber } from "@/lib/return-origin-vendors"
+import { balanceReturnSplit, isReturnSplitValid, isSwapSplitValid } from "@/lib/vendor-return"
 
 
 export default function QCWorkspace({ transcription = false }: { transcription?: boolean }) {
@@ -54,6 +54,7 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
   const [retReason, setRetReason] = useState("")
   const [retQtyVendor, setRetQtyVendor] = useState(0)
   const [retVendorId, setRetVendorId] = useState("")
+  const [vendorSearch,setVendorSearch] = useState("")
   const [selectedVendorReturnId, setSelectedVendorReturnId] = useState("")
   const [swapPassQty, setSwapPassQty] = useState(0)
   const [swapRejectQty, setSwapRejectQty] = useState(0)
@@ -63,11 +64,18 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
 
   const originVendorIds = activeReturn ? returnOriginVendorIds(activeReturn,{purchaseItems,deliveries}) : []
   const originVendors = vendors.filter(v=>originVendorIds.includes(v.id))
+  const eligibleVendors = activeReturn ? returnVendorChoices(activeReturn,{purchaseItems,deliveries,vendors}) : []
+  const visibleVendors = eligibleVendors.filter(v=>v.id===retVendorId||v.companyName.toLocaleLowerCase('id-ID').includes(vendorSearch.toLocaleLowerCase('id-ID')))
   const returnVendorId = originVendors.length===1 ? originVendors[0].id : retVendorId
+  const changeReturnQty = (key:'pass'|'buang'|'vendor',value:number) => {
+    if(!activeReturn)return
+    const next=balanceReturnSplit({pass:retQtyPass,buang:retQtyReject,vendor:retQtyVendor},activeReturn.qty,key,value)
+    setRetQtyPass(next.pass);setRetQtyReject(next.buang);setRetQtyVendor(next.vendor)
+  }
 
   const handleProcessReturnQC = async () => {
     if (!activeReturn || operationBusy) return
-    if(retQtyVendor>0&&!returnOriginVendorIds(activeReturn,useAppStore.getState()).includes(returnVendorId)){toast.error('Pilih vendor asal pembelian. Jika belum tercatat, lengkapi laporan belanja terlebih dahulu.');return}
+    if(retQtyVendor>0&&!returnVendorChoices(activeReturn,useAppStore.getState()).some(v=>v.id===returnVendorId)){toast.error('Pilih vendor tujuan retur sesuai laporan.');return}
     setOperationBusy(true)
     try {
       await executeGoodsCommand(useAppStore.getState,{eventId:`return:${activeReturn.id}`,stage:'return',sourceId:activeReturn.id,payload:{pass:retQtyPass,reject:retQtyReject,vendor:retQtyVendor,vendorId:returnVendorId,reason:retReason,...returnEvidence}})
@@ -207,6 +215,8 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
                               const origins = returnOriginVendorIds(ret,{purchaseItems,deliveries})
                               const suggested = origins.length===1 ? origins[0] : ""
                               setRetVendorId(suggested)
+                              setVendorSearch("")
+                              setReturnEvidence({paperNumber:returnPaperNumber(ret,{deliveries})})
                             }}
                             className={cn(
                               "p-5 rounded-xl border text-left flex justify-between items-center transition-all",
@@ -243,10 +253,10 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
                           <RefreshCcw className="w-4 h-4" /> Masuk Stok
                         </Label>
                         <Input
-                           type="number" min="0" step="any"
+                           type="number" min="0" max={activeReturn.qty} step="any"
                            className="text-lg font-bold h-11 rounded-xl border-none shadow-sm"
                            value={retQtyPass}
-                           onChange={(e) => setRetQtyPass(parseFloat(e.target.value) || 0)}
+                           onChange={(e) => changeReturnQty('pass',Number(e.target.value))}
                         />
                       </div>
                       <div className="bg-rose-50/50 p-5 rounded-xl border border-rose-100/50 space-y-3">
@@ -254,10 +264,10 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
                           <Trash2 className="w-4 h-4" /> Buang
                         </Label>
                         <Input
-                           type="number" min="0" step="any"
+                           type="number" min="0" max={activeReturn.qty} step="any"
                            className="text-lg font-bold h-11 rounded-xl border-none shadow-sm"
                            value={retQtyReject}
-                           onChange={(e) => setRetQtyReject(parseFloat(e.target.value) || 0)}
+                           onChange={(e) => changeReturnQty('buang',Number(e.target.value))}
                         />
                       </div>
                       <div className="bg-blue-50/50 p-5 rounded-xl border border-blue-100/50 space-y-3">
@@ -265,36 +275,40 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
                           <Store className="w-4 h-4" /> Retur ke Vendor
                         </Label>
                         <Input
-                           type="number" min="0" step="any"
+                           type="number" min="0" max={activeReturn.qty} step="any"
                            className="text-lg font-bold h-11 rounded-xl border-none shadow-sm"
                            value={retQtyVendor}
-                           onChange={(e) => setRetQtyVendor(parseFloat(e.target.value) || 0)}
+                           onChange={(e) => changeReturnQty('vendor',Number(e.target.value))}
                         />
                       </div>
                     </div>
 
+                    <p className="text-sm text-slate-600">Jumlah retur: {activeReturn.qty} {activeReturnProduct.uom} = Masuk stok {retQtyPass} + Buang {retQtyReject} + Retur vendor {retQtyVendor}. Angka lain menyesuaikan otomatis saat diubah.</p>
+
                     {retQtyVendor > 0 && (
                       <div className="bg-blue-50/50 p-5 rounded-xl border border-blue-100/50 space-y-3">
-                        <Label className="text-blue-700 font-bold uppercase text-[11px] tracking-widest">Vendor asal pembelian</Label>
+                        <Label className="text-blue-700 font-bold uppercase text-[11px] tracking-widest">{originVendorIds.length?"Vendor asal pembelian":"Vendor tujuan retur"}</Label>
+                        {originVendors.length!==1&&<Input aria-label="Cari vendor retur" placeholder="Cari nama vendor…" value={vendorSearch} onChange={e=>setVendorSearch(e.target.value)}/>}
                         <select
                           className="w-full h-14 rounded-xl border border-blue-100 bg-white px-4 font-bold text-slate-700"
-                          disabled={originVendors.length<=1}
+                          aria-label="Vendor tujuan retur"
+                          disabled={originVendors.length===1}
                           value={returnVendorId}
                           onChange={(e) => setRetVendorId(e.target.value)}
                         >
-                          <option value="">{originVendors.length?"— Pilih vendor asal —":"Vendor asal belum tercatat"}</option>
-                          {originVendors.map(v => (
+                          <option value="">{originVendorIds.length?"— Pilih vendor asal —":"— Pilih vendor tujuan —"}</option>
+                          {visibleVendors.map(v => (
                             <option key={v.id} value={v.id}>{v.companyName}</option>
                           ))}
                         </select>
-                        <p className="text-xs text-slate-600">{originVendors.length===0?"Lengkapi vendor aktual pada laporan belanja asal sebelum mencatat retur ke vendor.":originVendors.length===1?"Otomatis sesuai vendor tempat barang ini dibeli.":"Barang berasal dari beberapa vendor. Pilih sesuai barang dan bukti pembelian yang diretur."}</p>
+                        <p className="text-xs text-slate-600">{originVendors.length===0?"Vendor asal belum tercatat. Cari dan pilih vendor sesuai bukti pembelian / laporan retur.":originVendors.length===1?"Otomatis sesuai vendor tempat barang ini dibeli.":"Barang berasal dari beberapa vendor. Pilih sesuai barang dan bukti pembelian yang diretur."}</p>
                       </div>
                     )}
 
                     <PaperEvidenceFields value={returnEvidence} onChange={setReturnEvidence}/>
                         <Button
                       className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold  shadow-sm active:scale-95 transition-all"
-                      disabled={operationBusy || (retQtyVendor>0&&!originVendors.some(v=>v.id===returnVendorId)) || !isReturnSplitValid({ pass: retQtyPass, buang: retQtyReject, vendor: retQtyVendor }, activeReturn.qty)} onClick={handleProcessReturnQC}
+                      disabled={operationBusy || (retQtyVendor>0&&!eligibleVendors.some(v=>v.id===returnVendorId)) || !isReturnSplitValid({ pass: retQtyPass, buang: retQtyReject, vendor: retQtyVendor }, activeReturn.qty)} onClick={handleProcessReturnQC}
                     >
                       Input Hasil QC Retur
                     </Button>
