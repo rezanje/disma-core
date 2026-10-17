@@ -42,5 +42,14 @@ try{
  let html=renderToStaticMarkup(createElement(Qc,{transitionMode:true}));assert.ok(html.includes('Salin QC &amp; serah terima'));assert.ok(html.includes('Serah terima PO1'));assert.ok(html.includes('Rivai'));assert.ok(html.includes('Spare PO1 Daun Bawang'));assert.equal((html.match(/>Simpan QC &amp; serah terima</g)||[]).length,1,'one save action below both worksheets');assert.ok(!html.includes('>Simpan semua ('));
  html=renderToStaticMarkup(createElement(Packet));assert.ok(html.includes('Cetak daftar belanja &amp; paket lapangan'));assert.ok(html.includes('Pilih dokumen hasil perencanaan.'));assert.ok(!html.includes('Tanggal pengiriman</label>'),'no separate date-based shopping selection');
  html=renderToStaticMarkup(createElement(Results));assert.ok(html.includes('Salin hasil kiriman'));assert.ok(!html.includes('Catat packing'));
+ state.deliveries=[{id:'delivery-numbered',salesOrderId:'so',courierId:'rivai',status:'Dikirim',paperNumber:'SJ-20261018-001',lineSnapshots:[{salesOrderItemId:'li',productId:'p',productName:'Daun Bawang',uom:'kg',qty:10}]}];
+ html=renderToStaticMarkup(createElement(Results));
+ assert.match(html,/<input[^>]*placeholder="Nomor lembar fisik"[^>]*value="SJ-20261018-001"/,'result paper field must be populated from the delivery, not merely a placeholder');
+ const paperInput=html.match(/<input[^>]*placeholder="Nomor lembar fisik"[^>]*>/)?.[0]||'';
+ assert.ok(!/\s(?:readonly|disabled)(?:=|\s|>)/i.test(paperInput),'automatic paper number stays editable');
+ state.deliveries[0].paperNumber='';
+ html=renderToStaticMarkup(createElement(Results));
+ assert.match(html,/<input[^>]*placeholder="Nomor lembar fisik"[^>]*value="HASIL-delivery-numbered"/,'legacy deliveries without a paper number get a stable fallback');
+
 }finally{Module._load=originalLoad}
 console.log('actual office view rendering: combined save, packet, courier and results-only screen: OK');
