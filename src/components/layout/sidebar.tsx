@@ -27,6 +27,7 @@ import { toast } from "sonner"
 import { logoutSession } from "@/lib/client-session"
 
 import { getNavItemsForUser } from "@/lib/navigation"
+import { getActiveNavigation } from "@/lib/navigation-tabs"
 import type { AccessKey } from "@/types"
 
 interface NavItem {
@@ -46,9 +47,6 @@ export default function Sidebar({ roleName }: SidebarProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   
-  const currentPathWithQuery = searchParams.toString() 
-    ? `${pathname}?${searchParams.toString()}` 
-    : pathname
   const setCurrentUser = useAppStore(state => state.setCurrentUser)
   const currentUser = useAppStore(state => state.currentUser)
   const rolePermissions = useAppStore(state => state.rolePermissions) || {}
@@ -96,6 +94,7 @@ export default function Sidebar({ roleName }: SidebarProps) {
     if (idxB === -1) return -1
     return idxA - idxB
   })
+  const activeNavigation = getActiveNavigation(allItems, pathname, searchParams.toString())
 
   // Sub-menu state
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({})
@@ -272,20 +271,14 @@ export default function Sidebar({ roleName }: SidebarProps) {
             <nav className="space-y-1">
               {categories[catKey].map((item, index) => {
                 const hasChildren = item.children && item.children.length > 0;
-                const isExpanded = expandedMenus[item.key] ?? pathname.startsWith(item.href);
-                const isActive = pathname === item.href || (
-                  pathname.startsWith(`${item.href}/`) && 
-                  !allItems.some(other => 
-                    other.href !== item.href && 
-                    (pathname === other.href || pathname.startsWith(`${other.href}/`)) && 
-                    other.href.length > item.href.length
-                  )
-                )
+                const isActive = activeNavigation?.groupKey === item.key
+                const isExpanded = expandedMenus[item.key] ?? isActive
                 return (
                   <div key={index} className="space-y-1">
                     <div className="relative">
                     <Link
                       href={item.href}
+                      aria-current={isActive && !hasChildren ? 'page' : undefined}
                       className={cn(
                         "flex items-center rounded-2xl transition-all duration-300 group relative",
                         isMinimized ? "justify-center w-12 h-12 mx-auto" : "gap-3 px-4 py-3 text-xs font-bold",
@@ -328,11 +321,12 @@ export default function Sidebar({ roleName }: SidebarProps) {
                     {!isMinimized && hasChildren && isExpanded && (
                       <div className="ml-9 space-y-1 py-1 border-l-2 border-slate-100 dark:border-slate-800 pl-4 mb-2">
                         {item.children?.map(child => {
-                          const isChildActive = currentPathWithQuery === child.href;
+                          const isChildActive = isActive && activeNavigation?.childKey === child.key
                           return (
                             <Link
                               key={child.key}
                               href={child.href}
+                              aria-current={isChildActive ? 'page' : undefined}
                               className={cn(
                                 "block py-1.5 text-[11px] font-bold transition-all",
                                 isChildActive 
