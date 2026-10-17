@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import Module from 'node:module';
 const originalLoad=(Module as any)._load;const originalFetch=globalThis.fetch;
-const keys=['purchases','purchaseItems','salesOrders','salesOrderItems','products','stockMovements','notifications','purchaseRequests','rejectedItems','bankAccounts','cashTransactions','journalEntries','journalLines','expenses'];
+const keys=['purchases','purchaseItems','salesOrders','salesOrderItems','products','stockMovements','notifications','purchaseRequests','rejectedItems','bankAccounts','cashTransactions','journalEntries','journalLines','expenses','vendorBills','vendorReturns'];
 let state:any={_lastLocalMutationAt:0,currentUser:{id:'u'},...Object.fromEntries(keys.map(k=>[k,[]]))};
 let applied=0;
 const store={getState:()=>state,setState:(fn:any)=>{state={...state,...fn(state)};applied++}};

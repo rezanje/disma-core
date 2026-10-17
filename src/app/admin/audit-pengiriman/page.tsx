@@ -102,6 +102,7 @@ export default function AuditPengirimanPage() {
               ? cogsFallbackItems(so.id, soItems.filter(i => roundQtyToBook(i) > 0), purchaseItems)
               : []
 
+            const pendingCost=(delivery.acceptedLineSnapshots||[]).some(line=>line.qty>0&&line.costSources?.some(source=>purchaseItems.some(item=>item.id===source.purchaseItemId&&item.costPending)))
             return (
               <Card key={delivery.id} className="overflow-hidden rounded-2xl">
                 <CardHeader className="pb-2">
@@ -158,11 +159,12 @@ export default function AuditPengirimanPage() {
                     </div>
                   )}
 
+                  {pendingCost&&<p className="text-sm text-amber-700">Biaya belum lengkap. Lengkapi laporan belanja sourcing sebelum finalisasi invoice dan HPP.</p>}
                   <Button
                     className={cn(
                       "h-12 w-full rounded-xl bg-emerald-600 text-[11px] font-black uppercase tracking-widest text-white hover:bg-emerald-700",
                     )}
-                    disabled={memproses === delivery.id}
+                    disabled={memproses === delivery.id || pendingCost}
                     onClick={() => jalankan(delivery.id)}
                   >
                     {memproses === delivery.id

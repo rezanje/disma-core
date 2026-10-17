@@ -100,7 +100,7 @@ store.setState({invoices,bankAccounts:[{id:'bank',accountCode:'1-1000',balance:0
   global.fetch=async(url,options)=>{
     if(url!=='/api/operations/purchases') return financialTransport(url,options);
     const b=JSON.parse(options.body);assert.equal(b.stage,'online');assert.equal(b.payload.unitPrice,9);
-    const updates=Object.fromEntries(['purchases','purchaseItems','salesOrders','salesOrderItems','products','stockMovements','notifications','purchaseRequests','rejectedItems','bankAccounts','cashTransactions','journalEntries','journalLines','expenses'].map(key=>[key,[]]));
+    const updates=Object.fromEntries(['purchases','purchaseItems','salesOrders','salesOrderItems','products','stockMovements','notifications','purchaseRequests','rejectedItems','bankAccounts','cashTransactions','journalEntries','journalLines','expenses','vendorBills','vendorReturns'].map(key=>[key,[]]));
     updates.purchaseItems=[{id:'ONLINE',qtyTarget:10,isOnlineAudited:true}];updates.bankAccounts=[{id:'bank',balance:0}];
     const journalId=`financial:online:${b.eventId}:journal`;
     updates.cashTransactions=[{id:`financial:online:${b.eventId}:out`}];updates.journalEntries=[{id:journalId}];updates.journalLines=[{id:'online-debit',journalEntryId:journalId},{id:'online-credit',journalEntryId:journalId}];

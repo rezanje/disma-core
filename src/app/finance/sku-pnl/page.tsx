@@ -63,7 +63,7 @@ export default function SkuPnlPage({ embedded }: { embedded?: boolean } = {}) {
         if (!bucket) return null;
         // ponytail: unitCost fallback to basePrice; client-return movements carry no
         // unitCost, so they fall back to basePrice — matches how the GL books them.
-        const unitCost = m.unitCost ?? productById.get(m.productId)?.basePrice ?? 0;
+        const unitCost = m.finalUnitCost ?? m.unitCost ?? productById.get(m.productId)?.basePrice ?? 0;
         return {
           productId: m.productId,
           date: m.date,

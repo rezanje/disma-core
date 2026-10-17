@@ -11,6 +11,7 @@
 // dihilangkan cuma React dan toast — pemanggilnya yang memutuskan cara bicara
 // ke orangnya.
 
+import { qcRemaining } from './daily-flow';
 import { executeGoodsCommand, goodsEventId, type PaperEvidence } from './goods-command';
 import type { useAppStore as StoreType } from './store';
 
@@ -31,6 +32,7 @@ export type QcInput = PaperEvidence & {
   rejectReason?: string;
   /** Harga yang benar-benar ditagih vendor. Kosong berarti pakai harga belanja. */
   vendorUnitPrice?: number;
+  rejectVendorId?: string;
   unbalanceReason?: string;
   batchNumber?: string;
   expiryDate?: string;
@@ -68,7 +70,7 @@ export async function processInboundQC(getState: () => Store, input: QcInput): P
   const product = item ? state.products.find(p => p.id === item.productId) : undefined;
   if (!item || !product) return { ok: false, error: 'Barangnya tidak ketemu.' };
 
-  const remaining = Math.max(0, item.qtyPurchased - (item.qcProcessedQty || 0));
+  const remaining = qcRemaining(item);
   const stableId = goodsEventId(input.eventId || `qc:${item.id}`);
   const balance = item.qcEventIds?.includes(stableId) ? null : qcBalanceProblem(input, remaining);
   if (balance) return { ok: false, error: balance };

@@ -165,6 +165,7 @@ export interface StockMovement {
   batchNumber?: string;
   expiryDate?: string;
   unitCost?: number;
+  finalUnitCost?: number;
 }
 
 export type SalesOrderStatus = 'Pending Approval' | 'Draft' | 'Belanja' | 'Sourcing' | 'QC' | 'Packing' | 'Siap Kirim' | 'Dikirim' | 'Awaiting Audit' | 'Terkirim' | 'Kurang Kirim' | 'Selesai' | 'Batal';
@@ -320,6 +321,9 @@ export interface PurchaseItem {
   expiryDate?: string;
   /** Kenapa harga belinya di atas batas. Wajib diisi kalau lewat, tidak pernah memblokir belanja. */
   overCeilingReason?: string;
+  physicalQtyReceived?: number;
+  physicalBeforeReport?: boolean;
+  costPending?: boolean;
   qcProcessedQty?: number;
   qcEventIds?: string[];
   qcOccurredAt?: string;
@@ -338,6 +342,8 @@ export type DeliveryStatus = 'Menunggu' | 'Dikirim' | 'Tunggu Konfirmasi' | 'Awa
 export interface DeliveryLineSnapshot {
   lineTotal?: number;
   costTotal?: number;
+  costBasisQty?: number;
+  costSources?: Array<{purchaseItemId:string; qty:number; unitCost:number}>;
   salesOrderItemId: string;
   productId: string;
   productName: string;
