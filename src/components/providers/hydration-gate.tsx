@@ -6,6 +6,7 @@ import { useAppStore } from "@/lib/store"
 
 export default function HydrationGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const currentUser = useAppStore((state) => state.currentUser)
   const isHydrated = useAppStore((state) => state.isHydrated)
   const isSyncing = useAppStore((state) => state.isSyncing)
   const hydratedFromCache = useAppStore((state) => state.hydratedFromCache)
@@ -17,6 +18,11 @@ export default function HydrationGate({ children }: { children: React.ReactNode 
       setHasInitialSyncCompleted(true)
     }
   }, [isHydrated, isSyncing])
+
+  // StoreSync only hydrates business data after verifying a server session.
+  // Login must render before that can happen; anonymous protected routes must
+  // also mount AuthGuard so it can redirect instead of waiting here forever.
+  if (pathname === '/login' || !currentUser) return <>{children}</>
 
   // init() flips isHydrated and isSyncing in the same synchronous tick, so the
   // effect above never observes the gap between them — on a cold boot the
