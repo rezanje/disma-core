@@ -18,3 +18,13 @@ assert.throws(()=>prepareSupplement('event',{clientId:'client',paperNumber:'WA1'
 const supplement=prepareSupplement('event',{clientId:'client',parentOrderId:'original',paperNumber:'WA1',occurredAt:ev.occurredAt,targetDeliveryDate:'2026-10-18',performedBy:'a',note:'WA tambahan',lines:[{productId:'p',qty:3,unitPrice:10,buyQty:2}]});
 assert.equal(supplement.payload.parentOrderId,'original');assert.equal(supplement.payload.lines[0].qty,3);
 console.log('paper-first command validation and actual time normalization: OK');
+
+// Real shared-demand planning must not send binary float dust to exact SQL quantities.
+const {prepareQcBatch}=require('./qc-batch');
+const decimalRows=[0.1,0.2].map((q:number,index:number)=>({item:{id:'decimal-pi-'+index,productId:'decimal-product',qtyPurchased:q,qtyTarget:q,purchaseMethod:'Pasar'},draft:{incoming:q,passed:q,rejected:0,rejectAction:'Disposal',rejectReason:''},needsArrival:false}));
+const planned=prepareQcBatch(decimalRows,{eventId:'decimal',needsArrival:false,evidence:ev,orders:[{id:'decimal-so',status:'Belanja',orderDate:'2026-10-17'}],lines:[{salesOrderId:'decimal-so',productId:'decimal-product',qty:0.3}]});
+const precise=preparePaperTranscription('decimal',planned.plans,[{...dispatch,soId:'decimal-so',lines:[{salesOrderItemId:'decimal-line',qty:0.1+0.2}]}],[]);
+assert.equal(precise.payload.qc[1].commands[0].payload.allocations[0].qty,0.2,'SQL must receive the exact intended second allocation');
+assert.equal(precise.payload.qc[1].commands[0].payload.qtyPassToInventory,0,'binary remainder is not real spare stock');
+assert.equal(precise.payload.dispatches[0].lines[0].qty,0.3,'packing must match the exact SQL sum of QC allocations');
+console.log('fractional kilogram QC and combined dispatch preserve exact intended quantities: OK');
