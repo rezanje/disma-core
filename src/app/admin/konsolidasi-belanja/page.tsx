@@ -365,7 +365,7 @@ export default function KonsolidasiBelanjaPage() {
       </Card>
 
       <Dialog open={!!pdf} onOpenChange={open => !open && setPdf(null)}>
-        <DialogContent className="max-w-[96vw] sm:max-w-[96vw] w-[96vw] h-[96vh] p-0 rounded-xl overflow-hidden border-none bg-slate-900 shadow-sm flex flex-col">
+        <DialogContent showCloseButton={false} className="max-w-[96vw] sm:max-w-[96vw] w-[96vw] h-[96vh] p-0 rounded-xl overflow-hidden border-none bg-slate-900 shadow-sm flex flex-col">
           <DialogHeader className="shrink-0 flex-row items-center justify-between space-y-0 bg-slate-900 p-6 text-white">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400">
@@ -379,6 +379,7 @@ export default function KonsolidasiBelanjaPage() {
             <Button
               variant="ghost"
               size="icon"
+              aria-label="Tutup preview"
               className="rounded-xl text-slate-400 hover:bg-slate-700 hover:text-white"
               onClick={() => setPdf(null)}
             >
