@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import { prepareQcBatch } from './qc-batch';
+const item:any={id:'a',purchaseId:'doc',productId:'p',qtyTarget:10,qtyPurchased:0,estimatedUnitPrice:10,purchaseMethod:'Pasar'};
+const draft:any={incoming:6,passed:6,rejected:0,rejectAction:'Disposal',rejectReason:''};
+const context:any={eventId:'batch',needsArrival:true,evidence:{performedBy:'worker',occurredAt:'2026-10-17T04:00:00+07:00',paperNumber:'QC-1'},orders:[{id:'po',status:'Belanja',orderDate:'2026-10-16'}],lines:[{salesOrderId:'po',productId:'p',qty:8}]};
+const rows=[{item,draft,needsArrival:true},{item:{...item,id:'b'},draft,needsArrival:true}];
+const result=prepareQcBatch(rows,context);
+assert.deepEqual(result.errors,{});
+assert.equal(result.plans.length,2);
+assert.equal(result.plans[0].qc.allocations[0].qty,6);
+assert.equal(result.plans[1].qc.allocations[0].qty,2,'batch rows must share the same remaining PO demand');
+assert.equal(result.plans[1].qc.qtyPassToInventory,4);
+assert.notEqual(result.plans[0].qc.eventId,result.plans[1].qc.eventId);
+assert.equal(context.lines[0].qtyFinal,undefined,'previewing a batch never changes live state');
+const invalid=prepareQcBatch([...rows,{item:{...item,id:'invalid'},draft:{...draft,incoming:5},needsArrival:true}],context);
+assert.match(invalid.errors.invalid,/Masuk harus sama/);
+assert.equal(invalid.plans.length,0,'no submitted plan if any filled row is invalid');
+console.log('bulk QC allocation and whole-batch validation: OK');
