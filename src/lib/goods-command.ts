@@ -1,5 +1,6 @@
 import {v5 as uuidv5} from 'uuid';
 import {useAppStore} from './store';
+export class GoodsCommandRejected extends Error {}
 /** Every goods stage commits on the server; no client fallback on schema/transport errors. */
 export type PaperEvidence = {
   occurredAt?: string;
@@ -32,7 +33,11 @@ export async function executeGoodsCommand(
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(command),
   });
   const result = await response.json();
-  if (!response.ok || !result.ok) throw new Error(result.error || 'Pencatatan barang gagal. Berkas belum selesai; ulangi dengan nomor kejadian yang sama.');
+  if (!response.ok || !result.ok) {
+    const message=result.error || 'Pencatatan barang gagal. Berkas belum selesai; ulangi dengan nomor kejadian yang sama.';
+    if(response.status===409)throw new GoodsCommandRejected(message);
+    throw new Error(message);
+  }
   const keys=['stockMovements','products','salesOrders','salesOrderItems','purchaseItems','deliveries','invoices','pendingReturns','vendorReturns','rejectedItems','vendorBills','bankAccounts','cashTransactions','journalEntries','journalLines'] as const;
   if(result.eventId!==command.eventId || !result.updates || keys.some(key=>!Array.isArray(result.updates[key])||result.updates[key].some((row:any)=>!row||typeof row.id!=='string'||!row.id))) throw new Error('Kejadian mungkin sudah tercatat, tetapi rincian server belum lengkap. Ulangi dengan nomor berkas yang sama.');
   const required:Partial<Record<GoodsCommand['stage'],[string,string]>>={

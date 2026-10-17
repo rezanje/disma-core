@@ -16,16 +16,21 @@ import { Label } from '@/components/ui/label'
 import { qty as qtyText } from '@/lib/worksheet-rows'
 import { ChevronDown, Check, Search } from 'lucide-react'
 import { toast } from 'sonner'
+import PaperDispatchTable,{emptyDispatchSheet,dispatchSheetRows,dispatchSheetCount} from '@/components/paper-dispatch-table'
+import {preparePaperTranscription,type PaperCommand,localPaperTime} from '@/lib/paper-operations'
+import {submitPaperOperation,PaperOperationRejected} from '@/lib/paper-submit'
 
 function localDateTime() {
  const date=new Date()
  return new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,16)
 }
 
-export default function QcEntryTable() {
+export default function QcEntryTable({transitionMode=false}:{transitionMode?:boolean}) {
+ const [dispatchSheet,setDispatchSheet]=useState(emptyDispatchSheet)
+ const [paperPending,setPaperPending]=useState<PaperCommand|null>(null)
  const s=useAppStore()
  const [sheetId]=useState(()=>uuidv4())
- const [evidence,setEvidence]=useState<PaperEvidence>(()=>({occurredAt:localDateTime()}))
+ const [evidence,setEvidence]=useState<PaperEvidence>(()=>({occurredAt:localPaperTime()}))
  const [search,setSearch]=useState('')
  const [drafts,setDrafts]=useState<Record<string,QcEntryDraft>>({})
  const [pending,setPending]=useState<QcEntryPlan[]|null>(null)
@@ -73,7 +78,7 @@ export default function QcEntryTable() {
   if(busy)return
   let submitted=pending
   if(!submitted) {
-   if(!filled.length)return
+   if(!filled.length&&(!transitionMode||!dispatchSheetCount(dispatchSheet)))return
    if(filled.length>100){setBatchError('Maksimal 100 barang dalam sekali simpan.');return}
    const state=useAppStore.getState()
    const prepared=prepareQcBatch(filled as QcBatchRow[],{eventId:`qc-batch:${uuidv4()}`,needsArrival:false,evidence:paper,orders:state.salesOrders,lines:state.salesOrderItems,actorRole:state.currentUser?.role})
@@ -82,8 +87,14 @@ export default function QcEntryTable() {
    setDrafts(old=>({...old,...Object.fromEntries(filled.map(row=>[row.item.id,{...row.draft}]))}))
   }
   const batch=submitted
+  let combined=paperPending
+  if(transitionMode&&!combined){try{const {dispatches,spares}=dispatchSheetRows(dispatchSheet,previewLines as import('@/types').SalesOrderItem[],paper);combined=preparePaperTranscription(uuidv4(),batch,dispatches,spares)}catch(error){setBatchError(error instanceof Error?error.message:'Periksa isian serah terima.');return}}
   setBusy(true);setPending(batch);setErrors({});setBatchError('')
   try {
+   if(combined){
+    setPaperPending(combined);await submitPaperOperation(combined);
+    setDrafts({});setExpanded({});setPending(null);setPaperPending(null);setDispatchSheet(emptyDispatchSheet());setSaved('QC dan serah terima yang dipilih sudah tersimpan.');toast.success('Seluruh isian berhasil disimpan.');return
+   }
    const result=await submitQcBatch(batch)
    result.warnings.forEach(warning=>toast.warning(warning))
    const completed=new Set(result.completedSourceIds)
@@ -98,22 +109,22 @@ export default function QcEntryTable() {
     setBatchError(`${completed.size} barang tersimpan, ${remaining.length} belum selesai. ${message}`)
     if(result.failedSourceId)setErrors({[result.failedSourceId]:message})
    }
-  } catch(error) {setBatchError(error instanceof Error?error.message:'Simpan bersama belum selesai. Coba ulang dengan isian yang sama.')}
+  } catch(error) {if(error instanceof PaperOperationRejected){setPending(null);setPaperPending(null)}setBatchError(error instanceof Error?error.message:'Simpan bersama belum selesai. Coba ulang dengan isian yang sama.')}
   finally {setBusy(false)}
  }
 
  return <section className="space-y-4">
   <div className="flex flex-wrap items-start justify-between gap-3">
-   <div><h2 className="text-xl font-semibold tracking-tight">Penerimaan dan QC</h2><p className="mt-1 text-sm text-slate-500">Isi jumlah semua barang, lalu klik Simpan semua sekali. Lolos otomatis dibagi ke PO; sisanya masuk stok gudang.</p></div>
+   <div><h2 className="text-xl font-semibold tracking-tight">{transitionMode?'Salin QC & serah terima':'Penerimaan dan QC'}</h2><p className="mt-1 text-sm text-slate-500">{transitionMode?'Salin hasil kertas QC, lalu pilih barang yang sudah diterima kurir. Simpan semua sekaligus. Biaya belanja boleh menyusul.':'Isi jumlah semua barang, lalu klik Simpan semua sekali. Lolos otomatis dibagi ke PO; sisanya masuk stok gudang.'}</p></div>
    <div className="flex flex-wrap items-center gap-2"><WorksheetPrintButton kind="qc" title="LEMBAR QC BARANG MASUK" label="Print lembar QC" paperNumber={paper.paperNumber} showPaperNumberInput={false} rows={[...queued.values()].map(item=>{const product=s.products.find(p=>p.id===item.productId);return {group:documentName(item.purchaseId),cells:[product?.skuCode||'',product?.name||item.productId,qtyText(qcRemaining(item)||arrivalRemaining(item),product?.uom)]}})}/></div>
   </div>
   <div className="rounded-xl border bg-white p-4 space-y-3">
    <div className="grid gap-3 sm:grid-cols-3">
     <div><Label htmlFor="qc-examiner">Pemeriksa</Label><select id="qc-examiner" disabled={busy||!!pending} className="h-9 w-full rounded-md border bg-white px-2 text-sm" value={evidence.performedBy||''} onChange={e=>setEvidence(v=>({...v,performedBy:e.target.value}))}><option value="">Pilih nama pemeriksa</option>{s.users.map(user=><option key={user.id} value={user.id}>{user.name}</option>)}</select></div>
-    <div><Label htmlFor="qc-occurred-at">Waktu pemeriksaan</Label><Input id="qc-occurred-at" disabled={busy||!!pending} type="datetime-local" className="h-9" value={evidence.occurredAt||''} onChange={e=>setEvidence(v=>({...v,occurredAt:e.target.value}))}/></div>
+    <div><Label htmlFor="qc-occurred-at">Waktu QC / penyiapan (WIB)</Label><Input id="qc-occurred-at" disabled={busy||!!pending} type="datetime-local" className="h-9" value={evidence.occurredAt||''} onChange={e=>setEvidence(v=>({...v,occurredAt:e.target.value}))}/></div>
     <div><Label htmlFor="qc-paper-number">Nomor berkas</Label><Input id="qc-paper-number" disabled={busy||!!pending} className="h-9" value={evidence.paperNumber||''} placeholder={automaticPaper} onChange={e=>setEvidence(v=>({...v,paperNumber:e.target.value}))}/></div>
    </div>
-   <details><summary className="cursor-pointer text-xs text-slate-500">Lampiran berkas (opsional)</summary><div className="mt-3"><ReceiptUpload currentFile={evidence.paperProof||''} onFileSelect={url=>setEvidence(v=>({...v,paperProof:url}))} label="Foto / scan berkas QC"/></div></details>
+   <details><summary className="cursor-pointer text-xs text-slate-500">Lampiran berkas (opsional)</summary><fieldset disabled={busy||!!pending} className="mt-3"><ReceiptUpload currentFile={evidence.paperProof||''} onFileSelect={url=>setEvidence(v=>({...v,paperProof:url}))} label="Foto / scan berkas QC"/></fieldset></details>
   </div>
   {saved&&<p role="status" className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800"><Check className="size-4"/>{saved}</p>}
   <div className="rounded-xl border bg-white overflow-hidden">
@@ -149,11 +160,12 @@ export default function QcEntryTable() {
     {!rows.length&&<tr><td colSpan={8} className="px-4 py-12 text-center text-sm text-slate-500">{queued.size?'Tidak ada barang yang cocok dengan pencarian.':'Semua barang sudah diproses. Belum ada penerimaan atau QC yang menunggu.'}</td></tr>}
     </tbody>
    </table></div>
-   <div className="flex flex-wrap items-center justify-between gap-3 border-t bg-slate-50/50 px-4 py-3">
+   {!transitionMode&&<div className="flex flex-wrap items-center justify-between gap-3 border-t bg-slate-50/50 px-4 py-3">
     <p className="text-sm text-slate-500">{pending?.length||filled.length} barang terisi · Baris kosong tidak ikut disimpan.{filled.some(row=>!rows.some(item=>item.id===row.item.id))&&<span className="block text-xs">Termasuk baris terisi yang tersembunyi oleh pencarian.</span>}</p>
     <Button disabled={busy||(!pending&&!filled.length)} onClick={saveAll}>{busy?`Menyimpan ${pending?.length||filled.length} barang…`:pending?'Coba simpan semua lagi':`Simpan semua (${filled.length})`}</Button>
-   </div>
+   </div>}
   </div>
+  {transitionMode&&<><PaperDispatchTable sheet={dispatchSheet} onChange={setDispatchSheet} lines={previewLines as import('@/types').SalesOrderItem[]} locked={busy||!!pending}/><div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white p-4 shadow-sm"><p className="text-sm text-slate-500">{filled.length} barang QC · {dispatchSheetCount(dispatchSheet)} serah terima / spare dipilih</p><Button disabled={busy||(!pending&&!filled.length&&!dispatchSheetCount(dispatchSheet))} onClick={saveAll}>{busy?'Menyimpan semua…':pending?'Coba simpan semua lagi':'Simpan QC & serah terima'}</Button></div></>}
   {batchError&&<div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{batchError}{pending&&<p className="mt-1 text-xs">Isian transaksi tetap disimpan. Coba ulang untuk melanjutkan; barang yang sudah tercatat tidak akan digandakan. <button type="button" className="underline" onClick={()=>window.location.reload()}>Muat ulang status</button></p>}</div>}
  </section>
 }

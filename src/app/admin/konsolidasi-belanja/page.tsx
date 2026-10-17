@@ -1,5 +1,6 @@
 "use client"
 
+import FieldPacketWorkspace from "@/components/field-packet-workspace"
 import { v4 as uuidv4, v5 as uuidv5 } from "uuid"
 import React, { useMemo, useState } from "react"
 import Link from "next/link"
@@ -151,6 +152,7 @@ export default function KonsolidasiBelanjaPage() {
 
   return (
     <div className="space-y-6">
+      <FieldPacketWorkspace/>
       <div>
         <h2 className="text-[19px] leading-tight font-semibold text-slate-900">Kertas belanja</h2>
         <p className="text-muted-foreground">

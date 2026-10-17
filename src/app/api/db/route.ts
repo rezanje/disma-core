@@ -196,15 +196,16 @@ export async function GET(request: Request) {
 
     // --- GROUP 4: Warehouse & Logistics ---
     if (group === '4') {
-      const [vendors, deliveries, stockMovements, pendingReturns, rejectedItems, vendorPrices, vendorReturns] = await Promise.all([
+      const [vendors, deliveries, stockMovements, pendingReturns, rejectedItems, vendorPrices, vendorReturns, courierSpares] = await Promise.all([
         fetchTable('vendors'), fetchTable('deliveries'),
         fetchTable('stock_movements'), fetchTable('pending_returns'),
         fetchTable('rejected_items'), fetchTable('vendor_prices'),
-        fetchTable('vendor_returns')
+        fetchTable('vendor_returns'), fetchTable('courier_spares')
       ]);
       return NextResponse.json({
         vendors: toCamel(vendors),
         deliveries: toCamel(deliveries),
+        courierSpares: toCamel(courierSpares),
         stockMovements: toCamel(stockMovements),
         pendingReturns: toCamel(pendingReturns),
         rejectedItems: toCamel(rejectedItems),

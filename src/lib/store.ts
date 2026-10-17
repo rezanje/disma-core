@@ -458,6 +458,7 @@ interface AppState {
   saveDailyCostConfig: (cfg: DailyCostConfig) => Promise<void>;
   addTutupHariKantong: (rec: TutupHariKantong) => Promise<void>;
 
+  courierSpares: import("@/types").CourierSpare[];
   deliveries: Delivery[];
   addDelivery: (d: Delivery) => void;
   updateDelivery: (id: string, data: Partial<Delivery>) => void;
@@ -1144,6 +1145,7 @@ export const useAppStore = create<AppState>((set, get) => {
             setIfDefined('tukarFakturs', data.tukarFakturs);
             setIfDefined('vendorBills', data.vendorBills);
             setIfDefined('deliveries', data.deliveries);
+            setIfDefined('courierSpares', data.courierSpares);
             setIfDefined('leads', data.leads);
             setIfDefined('tasks', data.tasks);
             setIfDefined('reimbursements', data.reimbursements);
@@ -1906,6 +1908,7 @@ export const useAppStore = create<AppState>((set, get) => {
       },
 
 
+      courierSpares: [],
       deliveries: [],
       addDelivery: async (d) => {
         set((state) => ({ deliveries: [...state.deliveries, d] }));
@@ -2608,6 +2611,7 @@ export const useAppStore = create<AppState>((set, get) => {
         set({
           salesOrders: [], salesOrderItems: [], purchases: [], purchaseItems: [],
           purchaseRequests: [],
+          courierSpares: [],
           deliveries: [], expenses: [], invoices: [], tukarFakturs: [], vendorBills: [], journalEntries: [],
           journalLines: [], stockMovements: [], tasks: [], notifications: [],
           pendingReturns: [], rejectedItems: [], reimbursements: [], cashTransactions: [],
@@ -2666,6 +2670,7 @@ export const useAppStore = create<AppState>((set, get) => {
           clients: CLIENTS_SEED, vendors: VENDORS_SEED, products: PRODUCTS_SEED, 
           salesOrders: [], salesOrderItems: [], purchases: [], purchaseItems: [],
           purchaseRequests: [],
+          courierSpares: [],
           deliveries: [], expenses: [], invoices: [], tukarFakturs: [], vendorBills: [], journalEntries: [],
           journalLines: [], stockMovements: [], coas: COA_SEED, users: MOCK_USERS,
           tasks: [], notifications: [], bankAccounts: INITIAL_BANK_ACCOUNTS,
