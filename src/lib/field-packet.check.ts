@@ -14,4 +14,4 @@ const qc=pages.find((p:any)=>p.kind==='qc'&&!p.supplement);assert.equal(qc.rows[
 assert.deepEqual(state.salesOrders[0].status,'Belanja','printing has no business mutations');
 console.log('field packet planned quantities, blank actuals, outlet/courier separation and supplements: OK');
 
-assert.equal(pages.find((p:any)=>p.kind==='belanja'&&!p.supplement).rows[0][2],'Rp15.000','printed prices use Indonesian thousands separators');
+assert.ok(!pages.some((p:any)=>p.kind==='belanja'&&!p.supplement),'shopping pages come only from the canonical planned-list renderer');

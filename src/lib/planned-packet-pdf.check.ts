@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {buildShoppingListPDF} from './pdf';
+import {buildFieldPacketPdf} from './field-packet-pdf';
+const rows=[{productId:'p',productName:'Daun',skuCode:'SKU',totalQty:3,estimatedPrice:15000,purchaseMethod:'Pasar',paymentMethod:'Cash',vendorName:'Vendor A'}];
+const shopping=buildShoppingListPDF(rows,'KERTAS-1');
+const before=(shopping.internal as any).pages.slice(1).map((page:string[])=>[...page]);const count=shopping.getNumberOfPages();
+assert.ok(before.flat().join(' ').includes('45.000'),'the canonical cash estimate keeps Indonesian thousands separators');
+const full=buildFieldPacketPdf([{kind:'qc',title:'LEMBAR QC',reference:'KERTAS-1-QC',subtitle:[],columns:[{label:'Barang',width:267}],rows:[['Daun']],signatures:['QC','Admin']}],shopping);
+assert.equal(full,shopping,'complete packet appends to the exact shopping PDF');
+assert.equal(full.getNumberOfPages(),count+1);
+for(let i=0;i<count;i++)assert.deepEqual((full.internal as any).pages[i+1],before[i],'appending QC must not redraw or change any shopping page');
+console.log('standalone shopping pages stay identical inside the complete packet: OK');

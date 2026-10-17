@@ -3,9 +3,10 @@ import {DISMA_LOGO_BASE64} from './logo';
 import type {PacketPage} from './field-packet';
 const text=(value:string)=>value.replace(/[—–]/g,'-').replace(/·/g,' | ').replace(/…/g,'...');
 /** All actuals are blank. Building a PDF never submits any application command. */
-export function buildFieldPacketPdf(pages:PacketPage[]):jsPDF {
- const doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4',compress:true});
- let first=true;
+export function buildFieldPacketPdf(pages:PacketPage[],shoppingDocument?:jsPDF):jsPDF {
+ const doc=shoppingDocument||new jsPDF({orientation:'landscape',unit:'mm',format:'a4',compress:true});
+ const firstPacketPage=shoppingDocument?doc.getNumberOfPages()+1:1;
+ let first=!shoppingDocument;
  for(const page of pages){
   let y=0;
   const header=()=>{
@@ -41,6 +42,6 @@ export function buildFieldPacketPdf(pages:PacketPage[]):jsPDF {
   }
  }
  doc.setFontSize(7);
- const count=doc.getNumberOfPages();for(let i=1;i<=count;i++){doc.setPage(i);doc.text(`Persiapan dokumen | jumlah aktual diisi di lapangan | ${i}/${count}`,14,204);}
+ const count=doc.getNumberOfPages();for(let i=firstPacketPage;i<=count;i++){doc.setPage(i);doc.text(`Persiapan dokumen | jumlah aktual diisi di lapangan | ${i}/${count}`,14,204);}
  return doc;
 }
