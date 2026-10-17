@@ -31,8 +31,9 @@ export default function PaperDispatchTable({sheet,onChange,lines,locked}:{sheet:
   return relevant.some(l=>(l.qtyFinal||0)>0)&&relevant.every(l=>l.qtyFinal!=null);
  });
  const put=(soId:string,patch:Partial<DispatchSheet['orders'][string]>)=>onChange({...sheet,orders:{...sheet.orders,[soId]:{...(sheet.orders[soId]||{selected:false,courierId:s.salesOrders.find(o=>o.id===soId)?.assignedCourierId||'',quantities:{}}),...patch}}});
- return <fieldset disabled={locked} className="rounded-xl border bg-white overflow-hidden">
-  <div className="space-y-3 border-b p-4"><h3 className="font-semibold">Pembagian barang & serah terima kurir</h3><p className="text-sm text-slate-500">Centang PO yang sudah benar-benar disiapkan dan diterima kurir sesuai kertas. Kalau baru QC, biarkan kosong.</p>
+ return <fieldset disabled={locked} aria-labelledby="handover-step-title" className="min-w-0 rounded-xl border border-slate-300 bg-white overflow-hidden">
+  <div className="flex items-start gap-3 border-b bg-slate-100 px-4 py-4 sm:px-5"><span aria-hidden="true" className="flex size-8 shrink-0 items-center justify-center rounded-full bg-slate-700 text-sm font-semibold text-white">2</span><div><h3 id="handover-step-title" className="font-semibold text-slate-900">Salin serah terima kurir</h3><p className="mt-1 text-sm text-slate-600">Dari berita acara: pilih outlet / PO, kurir, dan jumlah yang benar-benar dibawa.</p><p className="mt-1 text-xs text-slate-500">Isi saat barang sudah diterima kurir. Kalau baru QC, lewati bagian ini.</p></div></div>
+  <div className="space-y-3 border-b p-4 sm:p-5">
    <div className="grid gap-3 sm:grid-cols-2"><div><Label htmlFor="paper-handover-at">Waktu serah terima (WIB)</Label><Input id="paper-handover-at" type="datetime-local" value={sheet.handoverAt} onChange={e=>onChange({...sheet,handoverAt:e.target.value})}/></div><div><Label htmlFor="paper-handover-no">Nomor berita acara</Label><Input id="paper-handover-no" value={sheet.paperNumber} placeholder="Nomor BA pada kertas (kosong = nomor berkas QC)" onChange={e=>onChange({...sheet,paperNumber:e.target.value})}/></div></div>
    <label className="flex gap-2 text-sm"><input type="checkbox" checked={sheet.signed} onChange={e=>onChange({...sheet,signed:e.target.checked})}/>Berita acara sudah ditandatangani QC dan kurir; barang sudah diterima kurir.</label>
   </div>
