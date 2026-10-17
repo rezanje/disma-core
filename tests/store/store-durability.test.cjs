@@ -77,6 +77,29 @@ test('user PINs travel only in provisioning writes; state, session cache and aud
   assert.equal('pin' in store.getState().currentUser, false);
 });
 
+test('navigation readiness requires a server session and is cleared on logout or identity change', async () => {
+  reset();
+  const user = { id: 'office-session', name: 'Office', role: 'finance', pin: '8643', isActive: true };
+  assert.equal(store.getState().isSessionVerified, false);
+  store.getState().setCurrentUser(user);
+  assert.equal(store.getState().isSessionVerified, false, 'cached/display identity cannot verify a session');
+  store.getState().setServerSession(user);
+  assert.equal(store.getState().isSessionVerified, true);
+  assert.equal('pin' in store.getState().currentUser, false);
+  store.getState().setCurrentUser({ ...user, name: 'Updated display name' });
+  assert.equal(store.getState().isSessionVerified, true, 'a display edit must not interrupt navigation');
+  store.getState().setCurrentUser({ ...user, role: 'admin_po' });
+  assert.equal(store.getState().isSessionVerified, false, 'a local role change cannot inherit verification');
+  store.getState().setServerSession(user);
+  store.getState().setCurrentUser(null);
+  assert.equal(store.getState().isSessionVerified, false, 'logout clears readiness');
+  store.getState().setServerSession(user);
+  store.getState().setServerSession(null);
+  assert.equal(store.getState().isSessionVerified, false, 'server rejection clears readiness');
+  store.getState().setCurrentUser(user);
+  assert.equal(store.getState().isSessionVerified, false, 'restoring a cached user after rejection stays unverified');
+});
+
 test('user hydration uses server activation without restoring removed seed identities or PINs', async () => {
   reset();
   global.fetch = async () => response({ clients: [{ id: 'c' }], users: [{ id: 'only-server-user', name: 'Inactive', role: 'finance', pin: '6521', isActive: false }] });
