@@ -2,7 +2,8 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
+import { getActiveNavigation } from "@/lib/navigation-tabs"
 import { MoreHorizontal } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet"
@@ -25,6 +26,7 @@ const MAX_SLOTS = 5
 
 export default function BottomNav({ items }: BottomNavProps) {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const currentUser = useAppStore(state => state.currentUser)
   const navConfigs = useAppStore(state => state.navConfigs) || {}
   const [moreOpen, setMoreOpen] = useState(false)
@@ -52,8 +54,8 @@ export default function BottomNav({ items }: BottomNavProps) {
     return indexA - indexB
   })
 
-  const isItemActive = (href: string) =>
-    pathname === href || pathname.startsWith(`${href}/`)
+  const activeNavigation = getActiveNavigation(sortedNavItems, pathname, searchParams.toString())
+  const isItemActive = (href: string) => activeNavigation?.href === href
 
   // 3. Split into primary slots + overflow
   // Slot "More" selalu ada — selain menampung kelebihan menu, di situlah tombol
@@ -69,11 +71,12 @@ export default function BottomNav({ items }: BottomNavProps) {
   return (
     <div className="md:hidden fixed bottom-0 left-0 right-0 glass-topbar flex items-stretch justify-around px-2 pb-safe z-50">
       {primaryItems.map((item) => {
-        const isActive = isItemActive(item.href)
+        const isActive = activeNavigation?.groupKey === item.key
         return (
           <Link
             key={item.key}
             href={item.href}
+            aria-current={isActive ? 'page' : undefined}
             className={cn(
               "flex flex-col items-center justify-center flex-1 h-16 space-y-1 transition-colors touch-manipulation min-w-0",
               isActive ? "text-primary" : "text-slate-500 hover:text-slate-900 dark:hover:text-slate-300"
@@ -109,6 +112,7 @@ export default function BottomNav({ items }: BottomNavProps) {
                   <Link
                     key={item.key}
                     href={item.href}
+                    aria-current={isActive ? 'page' : undefined}
                     onClick={() => setMoreOpen(false)}
                     className={cn(
                       "flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl transition-colors touch-manipulation",

@@ -10,7 +10,7 @@ assert.equal(po.length,5,'five PO task workspaces');
 assert.equal(finance.length,7,'seven Finance task workspaces');
 assert.equal(admin.length,5,'five oversight workspaces');
 assert.ok(po.some(x=>x.href==='/admin/operasi'));
-assert.ok(finance.flatMap(x=>x.children||[]).some(x=>x.href==='/courier/expenses'));
+assert.ok(finance.flatMap(x=>x.children||[]).some(x=>x.href==='/finance/salin?workspace=kurir'));
 assert.ok(admin.flatMap(x=>x.children||[]).some(x=>x.href==='/finance/piutang'));
 for (const page of [...po,...finance,...admin]) assert.ok(fs.existsSync(`src/app${page.href}/page.tsx`),`Missing task workspace ${page.href}`);
 for(const role of ['admin_po','finance','super_admin'] as const){
