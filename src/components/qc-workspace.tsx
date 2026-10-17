@@ -2,34 +2,27 @@
 
 import type { SVGProps } from "react"
 import Link from "next/link"
-import React, { useState, useCallback } from "react"
-import { WorksheetPrintButton } from "@/components/worksheet-print-button"
-import { qty as qtyTeks } from "@/lib/worksheet-rows"
+import { useState } from "react"
 import { barisSiap, kesiapan, labelKesiapan } from "@/lib/kesiapan-po"
 import { useAppStore } from "@/lib/store"
 import { PaperEvidenceFields } from "@/components/paper-evidence-fields"
 import { executeGoodsCommand, type PaperEvidence } from "@/lib/goods-command"
 import { recordPacking } from "@/lib/dispatch"
-import { processInboundQC } from "@/lib/qc-process"
-import GoodsArrivalList from "@/components/goods-arrival-list"
-import { qcRemaining, awaitingQc, buildFifoAllocations } from "@/lib/daily-flow"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ShieldAlert, ShieldCheck, Tag, RefreshCcw, PackageSearch, AlertTriangle, Warehouse, Truck, ClipboardCheck, ChevronDown, Store } from "lucide-react"
+import { RefreshCcw, AlertTriangle, Truck, ClipboardCheck, Store } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import QcEntryTable from "@/components/qc-entry-table"
 import { qtyOwed } from "@/lib/backorder"
 import { isReturnSplitValid, isSwapSplitValid } from "@/lib/vendor-return"
 
-type PoAllocation = { soId: string; qty: number }
 
 export default function QCWorkspace({ transcription = false }: { transcription?: boolean }) {
   const products = useAppStore(state => state.products)
-  const purchases = useAppStore(state => state.purchases)
-  const purchaseItems = useAppStore(state => state.purchaseItems)
   const allPendingReturns = useAppStore(state => state.pendingReturns)
   // Yang sudah diproses tetap tersimpan sebagai riwayat, tapi tidak boleh muncul
   // lagi di antrian — kalau muncul, barangnya bisa di-restock dua kali.
@@ -46,91 +39,9 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
   const users = useAppStore(state => state.users)
   const kurirs = users.filter(u => u.role === 'kurir')
 
-  // Antreannya dihitung di src/lib/daily-flow.ts supaya layar harian gabungan
-  // melihat daftar yang persis sama.
-  const pendingQCItems = awaitingQc(purchaseItems, purchases)
-    .map(item => ({ ...item, product: products.find(p => p.id === item.productId) }))
-    .filter(item => item.product)
-
-  const [selectedPurchaseItemId, setSelectedPurchaseItemId] = useState("")
-  const [qtyPassToInventory, setQtyPassToInventory] = useState(0)
-  const [poAllocations, setPoAllocations] = useState<PoAllocation[]>([])
-  const [qtyReject, setQtyReject] = useState(0)
-  const [rejectReason, setRejectReason] = useState("")
-  const [unbalanceReason, setUnbalanceReason] = useState("")
-  const [qcPhoto, setQcPhoto] = useState<string | null>(null)
-  const [expiryDate, setExpiryDate] = useState("")
-  const [batchNumber, setBatchNumber] = useState("")
-  // Harga beli untuk barang yang diantar vendor — satu-satunya tempat harga itu bisa masuk.
-  // Mode Salin: siapa yang benar-benar memeriksa barangnya di gudang, terpisah dari
-  // siapa yang mengetikkan hasilnya.
-  const [qcPerformedBy, setQcPerformedBy] = useState("")
-  const [paperEvidence, setPaperEvidence] = useState<PaperEvidence>({})
   const [returnEvidence,setReturnEvidence] = useState<PaperEvidence>({})
   const [packingEvidence,setPackingEvidence] = useState<PaperEvidence>({})
-  const [qcSaving,setQcSaving] = useState(false)
   const [operationBusy,setOperationBusy] = useState(false)
-  const [rejectVendorId,setRejectVendorId] = useState('')
-  const [vendorUnitPrice,setVendorUnitPrice] = useState('')
-  const [qcBankId,setQcBankId] = useState('')
-  const [rejectAction, setRejectAction] = useState<'Return' | 'Disposal' | 'B2C'>('Disposal')
-
-  // Usulan pembagian ke pesanan: pesanan tertua dapat duluan (src/lib/daily-flow.ts).
-  const buildFifo = useCallback(
-    (productId: string, totalPassed: number) => buildFifoAllocations(productId, totalPassed, salesOrders, salesOrderItems),
-    [salesOrders, salesOrderItems])
-
-  const activePurchaseItem = pendingQCItems.find(i => i.id === selectedPurchaseItemId)
-  const activeProduct = products.find(p => p.id === activePurchaseItem?.productId)
-
-  const handleProcessQC = async () => {
-    if (!activeProduct || !activePurchaseItem || qcSaving) return
-
-    toast.loading("Memproses verifikasi inbound & pencatatan jurnal...", { id: "qc-process" })
-    // Isinya pindah ke src/lib/qc-process.ts supaya layar harian gabungan memanggil
-    // alur yang sama persis, bukan salinannya.
-    setQcSaving(true)
-    let res
-    try { res = await processInboundQC(useAppStore.getState, {
-      purchaseItemId: activePurchaseItem.id,
-      qtyPassToInventory,
-      allocations: poAllocations.map(a => ({ soId: a.soId, qty: a.qty })),
-      qtyReject,
-      rejectAction,
-      rejectReason,
-      unbalanceReason,
-      batchNumber,
-      expiryDate,
-      qcPhoto,
-      qcPerformedByUserId: paperEvidence.performedBy || qcPerformedBy,
-      eventId: `qc:${activePurchaseItem.id}:${paperEvidence.paperNumber || 'initial'}`,
-      vendorUnitPrice: vendorUnitPrice ? Number(vendorUnitPrice) : undefined,
-      rejectVendorId: rejectVendorId || undefined,
-      bankAccountId: qcBankId,
-      ...paperEvidence,
-    }) } finally { setQcSaving(false) }
-
-    if (!res.ok) {
-      toast.error(res.error, { id: "qc-process" })
-      return
-    }
-    res.warnings.forEach(w => toast.warning(w))
-    res.infos.forEach(i => toast.info(i))
-
-    toast.success("QC berhasil disimpan dan stok telah diperbarui!", { id: "qc-process" })
-
-    // Cleanup
-    setSelectedPurchaseItemId("")
-    setQtyPassToInventory(0)
-    setPoAllocations([])
-    setQtyReject(0)
-    setRejectReason("")
-    setUnbalanceReason("")
-    setQcPerformedBy("")
-    setQcPhoto(null)
-    setExpiryDate("")
-    setBatchNumber("")
-  }
 
   // --- TAB 2: CUSTOMER RETURN QC LOGIC ---
   const [selectedReturnId, setSelectedReturnId] = useState("")
@@ -224,228 +135,8 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
     setDispatchNote({})
   }
 
-  const groupedQCItems = pendingQCItems.reduce((acc, item) => {
-    const so = salesOrders.find(s => s.id === item.salesOrderId);
-    const groupKey = so ? `PO: ${so.poNumber}` : "Restock Gudang (Tanpa PO)";
-    if (!acc[groupKey]) {
-      acc[groupKey] = [];
-    }
-    acc[groupKey].push(item);
-    return acc;
-  }, {} as Record<string, typeof pendingQCItems>);
-
-  /**
-   * Formulir QC yang dulu berdiri sendiri di bawah daftar, sekarang dibuka tepat di
-   * bawah barisnya. Ukurannya dirapatkan supaya satu layar cukup memuat daftar dan
-   * isiannya sekaligus — pemeriksa tidak perlu bolak-balik menggulung untuk memastikan
-   * angka yang diketik milik barang yang benar.
-   */
-  const panelQC = activeProduct && activePurchaseItem ? (
-                 <div className="space-y-4 px-4 py-4 duration-200">
-                    {/* PO Allocation Table */}
-                    <div className="space-y-3">
-                      <Label className="text-slate-500 font-bold uppercase text-[11px] tracking-widest flex items-center gap-2">
-                        <Tag className="w-4 h-4" /> Distribusi ke PO Klien (FIFO)
-                      </Label>
-
-                      {poAllocations.length === 0 ? (
-                        <div className="p-3 rounded-xl border border-dashed border-slate-200 bg-slate-50/50 text-center">
-                          <p className="text-[11px] font-bold  text-slate-400">Tidak ada PO pending untuk produk ini</p>
-                        </div>
-                      ) : (
-                        <div className="rounded-xl border border-indigo-100 overflow-hidden">
-                          {poAllocations.map((alloc, idx) => {
-                            const so = salesOrders.find(s => s.id === alloc.soId)
-                            const client = clients.find(c => c.id === so?.clientId)
-                            const soItem = salesOrderItems.find(i => i.salesOrderId === alloc.soId && i.productId === activePurchaseItem.productId)
-                            const needed = soItem ? Math.max(0, soItem.qty - (soItem.qtyDelivered ?? 0) - (soItem.qtyFinal ?? 0)) : 0
-                            return (
-                              <div key={alloc.soId} className={cn(
-                                "flex items-center gap-3 px-3 py-2 bg-indigo-50/40",
-                                idx > 0 && "border-t border-indigo-100"
-                              )}>
-                                <div className="flex-1 min-w-0">
-                                  <p className="font-bold text-slate-800 text-sm truncate">{so?.poNumber ?? alloc.soId}</p>
-                                  <p className="text-[11px] font-bold text-slate-400 ">{client?.companyName ?? '—'} · Butuh: {needed} {activeProduct?.uom}</p>
-                                </div>
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  step="any"
-                                  className="w-20 text-sm font-bold h-9 rounded-lg border-indigo-200 bg-white text-center"
-                                  value={alloc.qty}
-                                  onChange={(e) => {
-                                    const val = parseFloat(e.target.value) || 0
-                                    setPoAllocations(prev => prev.map((a, i) => i === idx ? { ...a, qty: val } : a))
-                                  }}
-                                />
-                                <span className="text-xs font-bold text-slate-400 uppercase w-8">{activeProduct?.uom}</span>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Inventory + Reject */}
-                    <div className="flex flex-wrap gap-3">
-                      <div className="flex-1 min-w-[150px] bg-emerald-50/60 p-3 rounded-xl border border-emerald-100 space-y-1.5">
-                        <Label className="text-emerald-700 font-bold uppercase text-[11px] tracking-widest flex items-center gap-2">
-                          <Warehouse className="w-4 h-4" /> Stok Gudang
-                        </Label>
-                        <Input
-                          type="number"
-                          min="0"
-                          step="any"
-                          className="text-sm font-bold h-9 rounded-lg border-none shadow-sm"
-                          value={qtyPassToInventory}
-                          onChange={(e) => setQtyPassToInventory(parseFloat(e.target.value) || 0)}
-                        />
-                        <p className="text-[11px] font-bold text-emerald-400 uppercase">Masuk Stok Gudang (Available)</p>
-                      </div>
-
-                      <div className="flex-1 min-w-[150px] bg-rose-50/60 p-3 rounded-xl border border-rose-100 space-y-1.5">
-                        <Label className="text-rose-700 font-bold uppercase text-[11px] tracking-widest flex items-center gap-2">
-                          <ShieldAlert className="w-4 h-4" /> Reject / Rusak
-                        </Label>
-                        <Input
-                          type="number"
-                          min="0"
-                          step="any"
-                          className="text-sm font-bold h-9 rounded-lg border-none shadow-sm"
-                          value={qtyReject}
-                          onChange={(e) => setQtyReject(parseFloat(e.target.value) || 0)}
-                        />
-                        <p className="text-[11px] font-bold text-rose-400 uppercase">Buang / Shrinkage</p>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap gap-3">
-                      <div className="space-y-2">
-                        <Label className="text-slate-500 font-bold uppercase text-[11px] tracking-widest">Batch Number (Opsional)</Label>
-                        <Input
-                          placeholder="e.g. BATCH-A1"
-                          className="h-9 rounded-lg border border-slate-200 bg-white text-xs"
-                          value={batchNumber}
-                          onChange={(e) => setBatchNumber(e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-slate-500 font-bold uppercase text-[11px] tracking-widest">Tanggal Kedaluarsa (Wajib Pangan Segar)</Label>
-                        <Input
-                          type="date"
-                          className="h-9 rounded-lg border border-slate-200 bg-white text-xs"
-                          value={expiryDate}
-                          onChange={(e) => setExpiryDate(e.target.value)}
-                        />
-                      </div>
-                    </div>
-
-                     <div className="space-y-4">
-                        <div className="flex justify-between items-center px-4">
-                           {(() => {
-                             const totalAllocPos = poAllocations.reduce((s, a) => s + a.qty, 0)
-                             const totalDone = qtyPassToInventory + totalAllocPos + qtyReject
-                             const balanced = totalDone === qcRemaining(activePurchaseItem)
-                             return <>
-                               <span className={cn("text-xs font-bold ", balanced ? "text-emerald-600" : "text-rose-600")}>
-                                 Status: {balanced ? "Balance ✓" : "Tidak Balance !"}
-                               </span>
-                               <span className="text-[11px] font-bold text-slate-400">Processed: {totalDone} / {qcRemaining(activePurchaseItem)}</span>
-                             </>
-                           })()}
-                        </div>
-
-                        {(() => {
-                          const totalAllocPos = poAllocations.reduce((s, a) => s + a.qty, 0)
-                          return (qtyPassToInventory + totalAllocPos + qtyReject !== qcRemaining(activePurchaseItem))
-                        })() && (
-                           <div className="space-y-2 p-3 bg-rose-50 rounded-xl border border-rose-100">
-                              <Label className="text-rose-700 font-bold uppercase text-[11px] tracking-widest">Alasan Selisih / Tidak Balance (Wajib)</Label>
-                              <Input
-                                placeholder="Kenapa jumlah fisik beda?"
-                                className="h-9 rounded-lg border-rose-200 bg-white text-xs"
-                                value={unbalanceReason}
-                                onChange={(e) => setUnbalanceReason(e.target.value)}
-                              />
-                              <p className="text-xs text-muted-foreground">Unggah foto asli melalui lampiran berkas di bawah.</p>
-                           </div>
-                        )}
-
-                        {qtyReject > 0 && (
-                          <div className="space-y-2 p-3 bg-slate-50 rounded-xl border border-slate-100">
-                             <Label className="text-slate-500 font-bold uppercase text-[11px] tracking-widest">Tindakan Barang Reject</Label>
-                             <div className="grid grid-cols-3 gap-2">
-                               <button
-                                 type="button"
-                                 onClick={() => setRejectAction('Return')}
-                                 className={cn(
-                                   "h-9 rounded-lg font-bold text-[11px] uppercase transition-all border",
-                                   rejectAction === 'Return' ? "bg-rose-600 text-white border-rose-600 shadow-md" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-                                 )}
-                               >
-                                 Retur ke Supplier
-                               </button>
-                               <button
-                                 type="button"
-                                 onClick={() => setRejectAction('Disposal')}
-                                 className={cn(
-                                   "h-9 rounded-lg font-bold text-[11px] uppercase transition-all border",
-                                   rejectAction === 'Disposal' ? "bg-rose-600 text-white border-rose-600 shadow-md" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-                                 )}
-                               >
-                                 Disposal (Buang)
-                               </button>
-                               <button
-                                 type="button"
-                                 onClick={() => setRejectAction('B2C')}
-                                 className={cn(
-                                   "h-9 rounded-lg font-bold text-[11px] uppercase transition-all border",
-                                   rejectAction === 'B2C' ? "bg-emerald-600 text-white border-emerald-600 shadow-md" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-                                 )}
-                               >
-                                 Peralihan B2C
-                               </button>
-                             </div>
-
-                             <div className="space-y-2 mt-2">
-                               <Label className="text-slate-500 font-bold uppercase text-[11px] tracking-widest">Alasan Reject</Label>
-                               <Input
-                                 placeholder="Kondisi barang reject (pecah, busuk, dll)"
-                                 className="h-9 rounded-lg border border-slate-200 bg-white text-xs"
-                                 value={rejectReason}
-                                 onChange={(e) => setRejectReason(e.target.value)}
-                               />
-                             </div>
-                          </div>
-                        )}
-
-                    <PaperEvidenceFields value={paperEvidence} onChange={setPaperEvidence}/>
-                    {!activePurchaseItem.physicalBeforeReport&&<div><Label>Harga vendor per satuan</Label><Input type="number" min="0" value={vendorUnitPrice} placeholder={String(activePurchaseItem.actualUnitPrice||activePurchaseItem.estimatedUnitPrice||0)} onChange={e=>setVendorUnitPrice(e.target.value)}/></div>}
-                    {activePurchaseItem.physicalBeforeReport&&rejectAction==='Return'&&qtyReject>0&&<div><Label>Vendor tujuan retur</Label><select className="w-full rounded-md border p-2" value={rejectVendorId} onChange={e=>setRejectVendorId(e.target.value)}><option value="">Pilih vendor</option>{vendors.map(v=><option key={v.id} value={v.id}>{v.companyName}</option>)}</select></div>}
-                    {activePurchaseItem.purchaseMethod==='Vendor'&&activePurchaseItem.paymentMethod==='Transfer'&&['finance','super_admin'].includes(useAppStore.getState().currentUser?.role||'')&&<div><Label>Rekening sumber</Label><select value={qcBankId} onChange={e=>setQcBankId(e.target.value)}><option value="">Pilih rekening</option>{useAppStore.getState().bankAccounts.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></div>}
-
-                    <Button
-                      className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold  shadow active:scale-[0.99] transition-all text-xs"
-                      disabled={qcSaving} onClick={handleProcessQC}
-                    >
-                      {transcription ? "Simpan Hasil QC" : "Konfirmasi QC Sourcing"}
-                    </Button>
-                  </div>
-               </div>
-  ) : null
-
   return (
-    <div className="space-y-6 max-w-4xl mx-auto pb-20">
-      <div className="flex justify-between items-end">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight text-slate-900 uppercase">{transcription ? "Salin Berkas QC" : <>Input <span className="text-emerald-600">QC & Inspeksi</span></>}</h2>
-          <p className="text-slate-500 font-bold mt-1 uppercase text-[11px] tracking-widest">{transcription ? "Salin hasil pemeriksaan dari berkas QC. Isi jumlah sesuai kertas dan pilih nama pemeriksanya." : "Validasi barang masuk dari Sourcing & Retur Customer."}</p>
-        </div>
-      </div>
-
-      <GoodsArrivalList/>
-
+    <div className="space-y-6 w-full min-w-0 pb-20">
       <Tabs defaultValue="sourcing" className="w-full">
         {!transcription && <TabsList className="bg-slate-100 p-1 rounded-2xl mb-6">
           <TabsTrigger value="sourcing" className="rounded-xl px-8 font-bold uppercase text-[11px] tracking-widest">
@@ -476,115 +167,7 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
           </TabsTrigger>
         </TabsList>}
 
-        <TabsContent value="sourcing">
-          <Card className="liquid-card shadow-sm">
-            <CardHeader className="bg-white rounded-t-2xl border-b border-slate-50 px-5 py-4">
-              <CardTitle className="text-lg font-bold text-slate-800 flex flex-wrap items-center justify-between gap-3">
-                <span className="flex items-center gap-3">
-                  <PackageSearch className="w-6 h-6 text-emerald-600" /> {transcription ? "Berkas QC Barang Masuk" : "Inspeksi Kedatangan Sourcing"}
-                </span>
-                <WorksheetPrintButton
-                  kind="qc"
-                  title="LEMBAR QC BARANG MASUK"
-                  label="Print Lembar QC"
-                  rows={purchaseItems.filter(i=>!i.isQCed && i.purchaseMethod!=='Dropship').map(item=>{
-                    const product=products.find(p=>p.id===item.productId)
-                    return {group:salesOrders.find(so=>so.id===item.salesOrderId)?.poNumber||item.purchaseId,cells:[product?.skuCode||'',product?.name||item.productId,qtyTeks(Math.max(0,(item.qtyPurchased||item.qtyTarget)-(item.qcProcessedQty||0)),product?.uom)]}
-                  })}
-                />
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-5 space-y-5">
-               {/* Daftar kedatangan dibuat tabel, bukan tumpukan kartu besar.
-                   Satu kartu per barang enak dilihat untuk tiga barang dan menyiksa
-                   untuk tiga puluh — dan yang dibutuhkan gudang cuma memilih barisnya,
-                   lalu mengisi angkanya di bawah. */}
-               {Object.entries(groupedQCItems).length === 0 ? (
-                 <div className="h-32 border border-dashed rounded-2xl flex flex-col items-center justify-center text-slate-400 bg-slate-50/50">
-                    <PackageSearch className="w-7 h-7 opacity-20 mb-2" />
-                    <p className="text-[11px] font-bold ">Belum ada barang masuk untuk di-QC</p>
-                 </div>
-               ) : (
-                 <div className="overflow-x-auto rounded-2xl border border-slate-100">
-                   <table className="w-full min-w-[460px] text-sm">
-                     <thead>
-                       <tr className="border-b bg-slate-50 text-left">
-                         <th className="px-4 py-2.5 text-[11px] font-bold  text-slate-500">Barang</th>
-                         <th className="px-3 py-2.5 text-[11px] font-bold  text-slate-500">Jalur</th>
-                         <th className="px-3 py-2.5 text-right text-[11px] font-bold  text-slate-500">Qty Datang</th>
-                         <th className="px-3 py-2.5 text-right text-[11px] font-bold  text-slate-500"></th>
-                       </tr>
-                     </thead>
-                     <tbody>
-                       {Object.entries(groupedQCItems).map(([poName, items]) => (
-                         <React.Fragment key={poName}>
-                           <tr className="border-b bg-slate-100/70">
-                             <td colSpan={4} className="px-4 py-1.5 text-[11px] font-bold  text-slate-500">
-                               {poName}
-                             </td>
-                           </tr>
-                           {items.map(item => {
-                             const dipilih = selectedPurchaseItemId === item.id
-                             const pilihBaris = () => {
-                               setSelectedPurchaseItemId(item.id)
-                               setPaperEvidence({});setVendorUnitPrice('');setQcBankId('');setRejectVendorId(item.vendorId||item.plannedVendorId||'')
-                               setQtyReject(0)
-                               const { allocations, inventoryRemainder } = buildFifo(item.productId, qcRemaining(item))
-                               setPoAllocations(allocations)
-                               setQtyPassToInventory(inventoryRemainder)
-                             }
-                             return (
-                               <React.Fragment key={item.id}>
-                               <tr
-                                 onClick={pilihBaris}
-                                 className={cn(
-                                   "border-b last:border-0 cursor-pointer transition-colors",
-                                   dipilih ? "bg-emerald-50/70" : "hover:bg-slate-50",
-                                 )}
-                               >
-                                 <td className="px-4 py-2.5">
-                                   <p className="font-bold text-slate-800 leading-tight">{item.product?.name}</p>
-                                   <p className="text-[11px] font-bold  text-slate-400">{item.product?.skuCode}</p>
-                                   {item.costPending&&<p className="text-xs text-amber-700">Laporan belanja menyusul · biaya belum lengkap</p>}
-                                 </td>
-                                 <td className="px-3 py-2.5 text-[11px] font-bold  text-slate-400">
-                                   {item.purchaseMethod || 'Pasar'}
-                                 </td>
-                                 <td className="px-3 py-2.5 text-right font-bold text-slate-700 whitespace-nowrap">
-                                   {qcRemaining(item)} {item.product?.uom}
-                                 </td>
-                                 <td className="px-3 py-2 text-right">
-                                   <Button
-                                     size="sm"
-                                     variant={dipilih ? "default" : "outline"}
-                                     className={cn(
-                                       "h-8 rounded-xl text-[11px] font-bold ",
-                                       dipilih && "bg-emerald-600 hover:bg-emerald-700 text-white",
-                                     )}
-                                     onClick={pilihBaris}
-                                   >
-                                     {transcription ? (dipilih ? 'Sedang Disalin' : 'Salin Hasil QC') : (dipilih ? 'Sedang Diperiksa' : 'Periksa')}
-                                   </Button>
-                                 </td>
-                               </tr>
-                               {dipilih && panelQC && (
-                                 <tr className="border-b bg-emerald-50/20">
-                                   <td colSpan={4} className="p-0">{panelQC}</td>
-                                 </tr>
-                               )}
-                               </React.Fragment>
-                             )
-                           })}
-                         </React.Fragment>
-                       ))}
-                     </tbody>
-                   </table>
-                 </div>
-               )}
-
-            </CardContent>
-          </Card>
-        </TabsContent>
+        <TabsContent value="sourcing"><QcEntryTable/></TabsContent>
 
         <TabsContent value="returns">
           <Card className="liquid-card shadow-sm">
