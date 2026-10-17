@@ -26,3 +26,16 @@ for(const key of ['pass','buang','vendor'])for(const value of [-1,0,0.1,2,3,8,Na
  const result=balanceReturnSplit({pass:1,buang:1,vendor:1},3,key,value);
  assert.ok(isReturnSplitValid(result,3));assert.ok(Object.values(result).every((n:any)=>n>=0));
 }
+const {returnEvidenceError}=require('./vendor-return');
+assert.equal(typeof returnEvidenceError,'function');
+const evidence={performedBy:'qc',occurredAt:'2026-10-17T23:16',paperNumber:'QC-ASLI'};
+assert.equal(returnEvidenceError(evidence),'','photo is optional for return QC');
+assert.match(returnEvidenceError({...evidence,performedBy:''}),/pelaksana/i);
+assert.match(returnEvidenceError({...evidence,occurredAt:''}),/waktu/i);
+assert.match(returnEvidenceError({...evidence,occurredAt:'invalid'}),/waktu/i);
+assert.match(returnEvidenceError({...evidence,paperNumber:' '}),/nomor berkas/i);
+const {vendorReturnSubmitMessage}=require('./vendor-return');
+assert.equal(typeof vendorReturnSubmitMessage,'function');
+assert.match(vendorReturnSubmitMessage('Lengkapi laporan belanja sebelum penyelesaian biaya retur vendor'),/bukan.*foto/i);
+assert.match(vendorReturnSubmitMessage('Lengkapi laporan belanja sebelum penyelesaian biaya retur vendor'),/harga beli/i);
+assert.equal(vendorReturnSubmitMessage('Retur vendor sudah selesai'),'Retur vendor sudah selesai');
