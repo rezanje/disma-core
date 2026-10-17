@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+assert.ok(fs.existsSync('src/lib/return-origin-vendors.ts'),'returns must resolve vendors from actual purchases');
+const {returnOriginVendorIds}=require('./return-origin-vendors');
+const ret={productId:'p',originalSoId:'so',deliveryId:'d',salesOrderItemId:'li'};
+const state={deliveries:[{id:'d',lineSnapshots:[{salesOrderItemId:'li',productId:'p',costSources:[{purchaseItemId:'actual',qty:5}]}]}],purchaseItems:[{id:'actual',productId:'p',salesOrderId:'another-so',vendorId:'bought-here',plannedVendorId:'planned',qtyPurchased:5},{id:'other',productId:'p',salesOrderId:'so',vendorId:'unrelated',qtyPurchased:8}]};
+assert.deepEqual(returnOriginVendorIds(ret,state),['bought-here'],'frozen shipment sources win over unrelated PO purchases');
+assert.deepEqual(returnOriginVendorIds(ret,{...state,purchaseItems:state.purchaseItems.map(p=>({...p,vendorId:undefined}))}),[],'planned vendor never substitutes for the actual seller');
+assert.deepEqual(returnOriginVendorIds({...ret,deliveryId:undefined},{...state,deliveries:[]}),['unrelated'],'legacy returns use actual purchases for their own PO/product');
+const multi={...state,deliveries:[{id:'d',lineSnapshots:[{salesOrderItemId:'li',productId:'p',costSources:[{purchaseItemId:'actual',qty:2},{purchaseItemId:'other',qty:3},{purchaseItemId:'actual',qty:1}]}]}]};
+assert.deepEqual(returnOriginVendorIds(ret,multi),['bought-here','unrelated']);
+assert.deepEqual(returnOriginVendorIds(ret,{...state,purchaseItems:[{...state.purchaseItems[0],productId:'wrong'}]}),[]);
+console.log('return vendors follow shipment provenance and actual PO purchases, never catalogue prices or plans: OK');
