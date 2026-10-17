@@ -11,3 +11,11 @@ const multi={...state,deliveries:[{id:'d',lineSnapshots:[{salesOrderItemId:'li',
 assert.deepEqual(returnOriginVendorIds(ret,multi),['bought-here','unrelated']);
 assert.deepEqual(returnOriginVendorIds(ret,{...state,purchaseItems:[{...state.purchaseItems[0],productId:'wrong'}]}),[]);
 console.log('return vendors follow shipment provenance and actual PO purchases, never catalogue prices or plans: OK');
+const {returnPaperNumber,returnVendorChoices}=require('./return-origin-vendors');
+assert.equal(typeof returnPaperNumber,'function');
+assert.equal(returnPaperNumber(ret,{...state,deliveries:[{...state.deliveries[0],paperNumber:'QC-ASLI'}]}),'QC-ASLI');
+assert.equal(returnPaperNumber({...ret,diNumber:'DI-ASLI'},{deliveries:[]}),'DI-ASLI');
+assert.equal(returnPaperNumber({...ret,id:'return1'},{deliveries:[]}),'RETUR-return1');
+const vendors=[{id:'bought-here',companyName:'Asal'},{id:'unrelated',companyName:'Lain'}];
+assert.deepEqual(returnVendorChoices(ret,{...state,vendors}).map((v:any)=>v.id),['bought-here']);
+assert.deepEqual(returnVendorChoices(ret,{...state,vendors,purchaseItems:[]}).map((v:any)=>v.id),['bought-here','unrelated'],'unknown origin allows all vendors');
