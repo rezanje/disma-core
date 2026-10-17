@@ -579,7 +579,7 @@ function drawCatatanOperasional(doc: jsPDF, y: number, pageRight: number, pageBo
   return y + 8
 }
 
-function buildShoppingListPDF(
+export function buildShoppingListPDF(
   items: Array<{productId: string, productName: string, skuCode: string, uom?: string, totalQty: number, estimatedPrice: number, purchaseMethod?: string, paymentMethod?: string, vendorName?: string}>,
   titleOverride?: string
 ) {

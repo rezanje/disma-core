@@ -1,6 +1,5 @@
 "use client"
 
-import FieldPacketWorkspace from "@/components/field-packet-workspace"
 import { v4 as uuidv4, v5 as uuidv5 } from "uuid"
 import React, { useMemo, useState } from "react"
 import Link from "next/link"
@@ -12,8 +11,10 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { PdfCanvasPreview } from "@/components/pdf-canvas-preview"
-import { generateShoppingListPDFDataUrl } from "@/lib/pdf"
-import { gabungBaris, tunaiDibutuhkan, type BarisBelanja } from "@/lib/belanja-merge"
+import { buildFieldPacketPdf } from "@/lib/field-packet-pdf"
+import {plannedDocumentRows,plannedShoppingRows,plannedPacketPages} from "@/lib/planned-packet"
+import { buildShoppingListPDF, generateShoppingListPDFDataUrl } from "@/lib/pdf"
+import { gabungBaris, tunaiDibutuhkan } from "@/lib/belanja-merge"
 import { dayKey, dayLabel } from "@/lib/po-grouping"
 import { cn, formatRupiah } from "@/lib/utils"
 import { toast } from "sonner"
@@ -23,43 +24,18 @@ const LOKASI_LABEL: Record<string, string> = {
   Pasar: 'Pasar', Online: 'Beli Online', Vendor: 'Vendor Kirim', Dropship: 'Dropship',
 }
 
-/** Baris cetak untuk satu dokumen, dibaca dari yang tersimpan. */
-function barisDokumen(
-  purchaseId: string,
-  purchaseItems: ReturnType<typeof useAppStore.getState>['purchaseItems'],
-  products: ReturnType<typeof useAppStore.getState>['products'],
-  vendors: ReturnType<typeof useAppStore.getState>['vendors'],
-): BarisBelanja[] {
-  return purchaseItems.filter(pi => pi.purchaseId === purchaseId).map(pi => {
-    const product = products.find(p => p.id === pi.productId)
-    // Vendor pilihan Finance ada di plannedVendorId; vendorId baru terisi setelah
-    // barangnya benar-benar dibeli.
-    const vendorId = pi.plannedVendorId || null
-    return {
-      purchaseId,
-      productId: pi.productId,
-      productName: product?.name || pi.productId,
-      skuCode: product?.skuCode || '',
-      uom: product?.uom,
-      totalQty: pi.qtyTarget,
-      estimatedPrice: pi.estimatedUnitPrice,
-      purchaseMethod: pi.purchaseMethod,
-      paymentMethod: pi.paymentMethod,
-      vendorId,
-      vendorName: vendors.find(v => v.id === vendorId)?.companyName,
-    }
-  })
-}
-
 export default function KonsolidasiBelanjaPage() {
   const purchases = useAppStore(s => s.purchases)
   const purchaseItems = useAppStore(s => s.purchaseItems)
   const products = useAppStore(s => s.products)
   const vendors = useAppStore(s => s.vendors)
   const salesOrders = useAppStore(s => s.salesOrders)
+  const users = useAppStore(s => s.users)
+  const [assignments,setAssignments]=useState<Record<string,string>>({})
   const updatePurchase = useAppStore(s => s.updatePurchase)
 
   const [dipilih, setDipilih] = useState<Set<string>>(new Set())
+  const [printing,setPrinting]=useState(false)
   const [melepas, setMelepas] = useState(false)
   const [printedSelection, setPrintedSelection] = useState('')
   const [sessionId, setSessionId] = useState('')
@@ -71,9 +47,9 @@ export default function KonsolidasiBelanjaPage() {
     [purchases],
   )
   const sudahDilepas = useMemo(
-    () => purchases.filter(p => p.status === 'Pending' || p.status === 'Belanja')
+    () => purchases.filter(p => p.status === 'Pending' || p.status === 'Belanja' || (p.status === 'Selesai' && salesOrders.some(so => !['Batal','Selesai','Terkirim','Awaiting Audit'].includes(so.status) && (so.shoppingListDocumentId === p.id || purchaseItems.some(pi => pi.purchaseId === p.id && pi.salesOrderId === so.id)))))
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
-    [purchases],
+    [purchases, salesOrders, purchaseItems],
   )
 
   // Dokumen baru otomatis tercentang. Yang biasa terjadi adalah semuanya dicetak jadi
@@ -84,15 +60,15 @@ export default function KonsolidasiBelanjaPage() {
   /** Tanggal kirim dokumen, diambil dari PO yang menyumbang barisnya. */
   const tanggalKirim = (purchaseId: string): string => {
     const soIds = new Set(purchaseItems.filter(pi => pi.purchaseId === purchaseId).map(pi => pi.salesOrderId).filter(Boolean))
-    const kunci = [...soIds]
-      .map(id => dayKey(salesOrders.find(so => so.id === id)?.targetDeliveryDate))
+    const kunci = salesOrders.filter(so => soIds.has(so.id) || so.shoppingListDocumentId === purchaseId)
+      .map(so => dayKey(so.targetDeliveryDate))
       .filter(Boolean)
       .sort()
     return kunci[0] || ''
   }
 
   const barisMentah = useMemo(
-    () => [...dipilih].flatMap(id => barisDokumen(id, purchaseItems, products, vendors)),
+    () => [...dipilih].flatMap(id => plannedDocumentRows({purchaseItems,products,vendors},id)),
     [dipilih, purchaseItems, products, vendors],
   )
   const gabungan = useMemo(() => gabungBaris(barisMentah), [barisMentah])
@@ -113,23 +89,32 @@ export default function KonsolidasiBelanjaPage() {
     return next
   })
 
-  const cetakGabungan = async () => {
-    if (barisPasar.length === 0) return toast.error("Tidak ada barang jalur pasar untuk dicetak.")
+  const cetakGabungan = async (complete=false) => {
+    if(printing||melepas)return
+    if (!dipilih.size) return toast.error('Pilih dokumen hasil perencanaan terlebih dahulu.')
+    if (!complete && barisPasar.length === 0) return toast.error("Tidak ada barang jalur pasar untuk dicetak.")
     const selected = purchases.filter(p=>dipilih.has(p.id))
     const released = selected.filter(p=>p.status !== 'Siap Cetak')
     const sessions = new Set(released.map(p=>p.paperSessionId || p.id))
     if (released.length && (released.length !== selected.length || sessions.size > 1)) return toast.error('Cetak ulang satu sesi yang sudah dilepas secara terpisah agar ID kertas tetap dapat ditelusuri.')
-    const session = released[0]?.paperSessionId || `KERTAS-${uuidv4().slice(0,8).toUpperCase()}`
-    try { for (const id of dipilih) await updatePurchase(id, {paperSessionId:session}) }
-    catch (e) { toast.error('ID sesi kertas gagal disimpan.'); return }
+    const session = released[0] ? (released[0].paperSessionId || released[0].id) : (printedSelection===[...dipilih].sort().join('|')&&sessionId?sessionId:`KERTAS-${uuidv4().slice(0,8).toUpperCase()}`)
+    setPrinting(true)
+    try { for (const doc of selected) if(doc.status==='Siap Cetak'&&doc.paperSessionId!==session) await updatePurchase(doc.id, {paperSessionId:session}) }
+    catch (e) { setPrinting(false);toast.error('ID sesi kertas gagal disimpan.'); return }
     setSessionId(session); setPrintedSelection([...dipilih].sort().join('|'))
     const judul = `${session} | ${[...dipilih].map(kodeDokumen).join(', ')}`
-    setPdf({ title: judul, url: generateShoppingListPDFDataUrl(barisPasar, judul) })
+    try {
+      const state=useAppStore.getState()
+      const rows=plannedShoppingRows(state,[...dipilih])
+      const shopping=rows.length?buildShoppingListPDF(rows,judul):undefined
+      const document=complete?buildFieldPacketPdf(plannedPacketPages(state,[...dipilih],assignments,session),shopping):shopping!
+      setPdf({title:complete?`Paket lengkap · ${judul}`:judul,url:document.output('bloburl').toString()})
+    } catch(e){setPrintedSelection('');toast.error(e instanceof Error?e.message:'Dokumen belum bisa dicetak.')} finally{setPrinting(false)}
   }
 
   const cetakSatuDokumen = (purchaseId: string) => {
     const judul = `DAFTAR BELANJA #${kodeDokumen(purchaseId)}`
-    const isi = gabungBaris(barisDokumen(purchaseId, purchaseItems, products, vendors))
+    const isi = gabungBaris(plannedDocumentRows({purchaseItems,products,vendors},purchaseId))
       .filter(r => r.purchaseMethod === 'Pasar')
     if (isi.length === 0) return toast.error("Dokumen ini tidak punya barang jalur pasar.")
     setPdf({ title: judul, url: generateShoppingListPDFDataUrl(isi, judul) })
@@ -152,11 +137,10 @@ export default function KonsolidasiBelanjaPage() {
 
   return (
     <div className="space-y-6">
-      <FieldPacketWorkspace/>
       <div>
-        <h2 className="text-[19px] leading-tight font-semibold text-slate-900">Kertas belanja</h2>
+        <h2 className="text-[19px] leading-tight font-semibold text-slate-900">Cetak daftar belanja & paket lapangan</h2>
         <p className="text-muted-foreground">
-          Satukan dokumen yang sudah direncanakan Finance jadi satu lembar, cetak, lalu lepas ke sourcing.
+          Pilih dokumen hasil perencanaan. Cetak daftar belanja saja atau paket lengkap dengan QC, berita acara kurir, surat jalan, dan lembar susulan kosong.
         </p>
       </div>
 
@@ -214,7 +198,7 @@ export default function KonsolidasiBelanjaPage() {
         </CardContent>
       </Card>
 
-      {gabungan.length > 0 && (
+      {dipilih.size > 0 && (
         <Card className="glass-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -248,14 +232,15 @@ export default function KonsolidasiBelanjaPage() {
                     <Button
                       variant="outline"
                       className="h-11 rounded-xl bg-white text-[11px] font-bold "
-                      onClick={cetakGabungan}
+                      disabled={printing||melepas} onClick={()=>cetakGabungan(false)}
                     >
                       <Printer className="mr-2 h-4 w-4" />
-                      Print Gabungan
+                      Cetak daftar belanja saja
                     </Button>
+                    <Button variant="outline" className="h-11 rounded-xl bg-white text-[11px] font-bold" disabled={printing||melepas} onClick={()=>cetakGabungan(true)}><Printer className="mr-2 h-4 w-4"/>Cetak paket lengkap</Button>
                     <Button
                       className="h-11 gap-2 rounded-xl bg-emerald-600 text-[11px] font-bold  text-white hover:bg-emerald-700"
-                      disabled={melepas || bisaDilepas.length === 0}
+                      disabled={printing || melepas || bisaDilepas.length === 0}
                       title={bisaDilepas.length === 0 ? 'Semua yang dicentang sudah pernah dilepas.' : undefined}
                       onClick={lepasKeSourcing}
                     >
@@ -266,6 +251,7 @@ export default function KonsolidasiBelanjaPage() {
                 </div>
               </div>
 
+              <details className="rounded-xl border p-3"><summary className="cursor-pointer text-sm font-medium">Rencana kurir untuk paket lengkap</summary><div className="mt-3 space-y-2">{salesOrders.filter(so=>dipilih.has(so.shoppingListDocumentId||'')||purchaseItems.some(pi=>dipilih.has(pi.purchaseId)&&pi.salesOrderId===so.id)).map(so=><label key={so.id} className="flex flex-wrap items-center justify-between gap-3 text-sm"><span>{so.poNumber} · {so.targetDeliveryDate.slice(0,10)}</span><select aria-label={`Rencana kurir ${so.poNumber}`} className="h-9 rounded-md border bg-white px-2" value={assignments[so.id]??so.assignedCourierId??''} onChange={e=>setAssignments(v=>({...v,[so.id]:e.target.value}))}><option value="">Isi nama di kertas</option>{users.filter(u=>u.role==='kurir').map(u=><option key={u.id} value={u.id}>{u.name}</option>)}</select></label>)}</div></details>
               <div className="max-h-[420px] overflow-auto rounded-2xl border border-slate-100">
                 <Table className="min-w-[820px]">
                   <TableHeader>

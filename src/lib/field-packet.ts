@@ -1,21 +1,21 @@
+import {worksheetColumns} from './worksheet-columns';
 import type {SalesOrder,SalesOrderItem,Client,Product,User,PurchaseItem,Purchase,Vendor} from '@/types';
 export type PacketState={salesOrders:SalesOrder[];salesOrderItems:SalesOrderItem[];clients:Client[];products:Product[];users:User[];purchaseItems:PurchaseItem[];purchases:Purchase[];vendors:Vendor[]};
 export type PacketPage={kind:'belanja'|'qc'|'handover'|'surat-jalan';title:string;reference:string;subtitle:string[];columns:Array<{label:string;width:number}>;rows:string[][];signatures:string[];supplement?:boolean};
 const cols=(...pairs:Array<[string,number]>)=>pairs.map(([label,width])=>({label,width}));
 const layouts={
- belanja:cols(['SKU / Barang',55],['Rencana beli',26],['Est. harga',25],['Beli aktual',27],['Total aktual',30],['Vendor',45],['Catatan',59]),
+ belanja:worksheetColumns('belanja').map(c=>({label:c.header,width:c.width})),
  qc:cols(['SKU',20],['Barang',54],['Rencana',24],['Masuk aktual',26],['Lolos',24],['Reject',24],['Tindakan / alasan',48],['Alokasi / catatan',47]),
  handover:cols(['Outlet / PO',55],['Barang',55],['Rencana',25],['Diserahkan aktual',35],['Diterima kurir',35],['Catatan',62]),
  'surat-jalan':cols(['SKU',23],['Barang',68],['Rencana',30],['Dikirim aktual',34],['Diterima outlet',35],['Selisih / catatan',77]),
 };
-const priceFormatter=new Intl.NumberFormat('id-ID',{minimumFractionDigits:0,maximumFractionDigits:2});
 const blank=(columns:number,count=7)=>Array.from({length:count},()=>Array(columns).fill(''));
-export function buildFieldPacket(state:PacketState,date:string,assignments:Record<string,string>={},packetReference=`PAKET-${date}`):PacketPage[] {
+export function buildFieldPacket(state:PacketState,date:string,assignments:Record<string,string>={},packetReference=`PAKET-${date}`,selectedPurchaseIds?:string[]):PacketPage[] {
  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!Number.isFinite(new Date(date+'T00:00:00+07:00').getTime()))throw new Error('Pilih tanggal kirim yang valid.');
  const orders=state.salesOrders.filter(o=>o.targetDeliveryDate.slice(0,10)===date&&!['Batal','Selesai','Terkirim','Awaiting Audit'].includes(o.status));
  const pending=(line:SalesOrderItem)=>Math.max(0,line.qty-(line.qtyDelivered||0)-(line.qtyCancelled||0));
  const items=(so:SalesOrder)=>state.salesOrderItems.filter(l=>l.salesOrderId===so.id&&pending(l)>0&&!state.purchaseItems.some(pi=>pi.salesOrderId===so.id&&pi.productId===l.productId&&pi.purchaseMethod==='Dropship'));
- const relevantDocs=new Set(state.purchaseItems.filter(pi=>orders.some(o=>o.id===pi.salesOrderId)).map(pi=>pi.purchaseId));
+ const relevantDocs=new Set(selectedPurchaseIds??state.purchaseItems.filter(pi=>orders.some(o=>o.id===pi.salesOrderId)).map(pi=>pi.purchaseId));
  const buys=state.purchaseItems.filter(pi=>relevantDocs.has(pi.purchaseId)&&(!pi.salesOrderId||orders.some(o=>o.id===pi.salesOrderId))&&pi.purchaseMethod!=='Dropship'&&pi.qtyTarget>0);
  const product=(id:string)=>state.products.find(p=>p.id===id);
  const textQty=(n:number,id:string)=>`${Number(n.toPrecision(12))} ${product(id)?.uom||''}`.trim();
@@ -24,7 +24,6 @@ export function buildFieldPacket(state:PacketState,date:string,assignments:Recor
  const buyGroups=new Map<string,{productId:string;qty:number;estimate:number}>();
  for(const pi of buys){const old=buyGroups.get(pi.productId)||{productId:pi.productId,qty:0,estimate:pi.estimatedUnitPrice||0};old.qty+=pi.qtyTarget;buyGroups.set(pi.productId,old);}
  const grouped=[...buyGroups.values()];
- pages.push({kind:'belanja',title:'DAFTAR BELANJA',reference:packetReference+'-BELANJA',subtitle,columns:layouts.belanja,rows:grouped.filter(g=>buys.some(pi=>pi.productId===g.productId&&(!pi.purchaseMethod||pi.purchaseMethod==='Pasar'))).map(g=>[`${product(g.productId)?.skuCode||''} ${product(g.productId)?.name||g.productId}`,textQty(buys.filter(pi=>pi.productId===g.productId&&(!pi.purchaseMethod||pi.purchaseMethod==='Pasar')).reduce((n,pi)=>n+pi.qtyTarget,0),g.productId),`Rp${priceFormatter.format(g.estimate)}`,'','','','']),signatures:['Petugas belanja','Penerima laporan']});
  pages.push({kind:'qc',title:'LEMBAR PENERIMAAN DAN QC',reference:packetReference+'-QC',subtitle:[...subtitle,'Masuk = Lolos + Reject. Tulis alokasi ke outlet; pisahkan spare dan sisa gudang.'],columns:layouts.qc,rows:grouped.map(g=>[product(g.productId)?.skuCode||'',product(g.productId)?.name||g.productId,textQty(g.qty,g.productId),'','','','','']),signatures:['Pemeriksa QC','Pemeriksa berkas']});
  const courierGroups=new Map<string,SalesOrder[]>();
  for(const so of orders.filter(o=>items(o).length)){
