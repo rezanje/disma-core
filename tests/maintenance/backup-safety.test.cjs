@@ -11,11 +11,11 @@ const { BACKUP_TABLES, validateBackup, readCompleteBackup, restoreCompleteBackup
 const snapshot = () => ({ manifest: { format: 'disma-backup', version: 1, createdAt: '2026-10-16T00:00:00.000Z', tables: [...BACKUP_TABLES], counts: Object.fromEntries(BACKUP_TABLES.map(table => [table, 0])) }, data: Object.fromEntries(BACKUP_TABLES.map(table => [table, []])) });
 
 test('backup manifest covers all app facts and excludes authentication secrets', () => {
-  for (const table of ['app_settings', 'users', 'budget_plans', 'budget_categories', 'budget_sub_categories', 'budget_adjustments', 'disbursement_requests', 'daily_close', 'credit_notes', 'tutup_hari_kantong', 'vendor_prices', 'client_receipts', 'client_receipt_allocations', 'financial_events', 'financial_command_events', 'goods_events', 'purchase_events', 'bank_reconciliation_statements', 'bank_reconciliation_rows', 'bank_reconciliation_matches', 'vendor_advances', 'vendor_advance_allocations', 'vendor_claim_settlements', 'financial_reversals']) assert.ok(BACKUP_TABLES.includes(table), table);
+  for (const table of ['app_settings', 'users', 'budget_plans', 'budget_categories', 'budget_sub_categories', 'budget_adjustments', 'disbursement_requests', 'daily_close', 'credit_notes', 'tutup_hari_kantong', 'vendor_prices', 'client_receipts', 'client_receipt_allocations', 'financial_events', 'financial_command_events', 'goods_events', 'purchase_events', 'bank_reconciliation_statements', 'bank_reconciliation_rows', 'bank_reconciliation_matches', 'vendor_advances', 'vendor_advance_allocations', 'vendor_claim_settlements', 'financial_reversals', 'paper_operations', 'courier_spares']) assert.ok(BACKUP_TABLES.includes(table), table);
   assert.equal(BACKUP_TABLES.includes('auth_sessions'), false);
   assert.equal(BACKUP_TABLES.includes('auth_login_attempts'), false);
   assert.equal(validateBackup(snapshot()).manifest.tables.length, BACKUP_TABLES.length);
-  const migration = fs.readFileSync(path.join(__dirname, '../../supabase/migrations/20261016000007_safe_maintenance.sql'), 'utf8');
+  const migration = fs.readFileSync(path.join(__dirname, '../../supabase/migrations/20261017000003_paper_operations_backups.sql'), 'utf8');
   const sqlTables = migration.match(/SELECT ARRAY\[(.*?)\]::text\[\]/s)?.[1].match(/'([^']+)'/g).map(value => value.slice(1, -1));
   assert.deepEqual(sqlTables, [...BACKUP_TABLES], 'SQL and API whitelists must stay identical');
 });

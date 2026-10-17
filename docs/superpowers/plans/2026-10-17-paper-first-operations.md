@@ -21,7 +21,7 @@
 - Returning unpriced spare must preserve cost provenance for later booking.
 
 ### Task 1: Durable transition commands
-Files: new migration 20261017000002_paper_first_operations.sql; tests/operations/paper-first.sql; src/lib/paper-operations.ts; API operations/paper.
+Files: new migrations 20261017000002_paper_first_operations.sql and 20261017000003_paper_operations_backups.sql; tests/operations/paper-first.sql; src/lib/paper-operations.ts; API operations/paper.
 Interfaces: process_paper_operation(command jsonb, actor text) -> {ok,eventId,updates}; stages transcribe, supplement, spare-settle. Combined transcribe consumes QC commands, selected dispatch rows and spare rows; emits canonical source updates and spare custody rows.
 - [x] Write failing SQL fixtures for rollback/retry, late duplicate reference/parent linkage, reserved spare/conservation/costing.
 - [x] Run fixture to confirm missing-command failure.

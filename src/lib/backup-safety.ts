@@ -1,4 +1,4 @@
-/** Parent-first order, shared with migration 007. Authentication runtime is excluded. */
+/** Parent-first order, shared with the latest business_backup_tables migration. Authentication runtime is excluded. */
 export const BACKUP_TABLES = [
   'app_settings', 'users', 'clients', 'vendors', 'products', 'coas', 'bank_accounts',
   'employees', 'leads', 'budget_plans', 'budget_categories', 'budget_sub_categories', 'budget_adjustments',
@@ -10,7 +10,7 @@ export const BACKUP_TABLES = [
   'shopping_draft', 'daily_close', 'credit_notes', 'client_receipts', 'client_receipt_allocations',
   'financial_events', 'financial_command_events', 'goods_events', 'purchase_events',
   'bank_reconciliation_statements', 'bank_reconciliation_rows', 'bank_reconciliation_matches',
-  'vendor_advances', 'vendor_advance_allocations', 'vendor_claim_settlements', 'financial_reversals',
+  'vendor_advances', 'vendor_advance_allocations', 'vendor_claim_settlements', 'financial_reversals', 'paper_operations', 'courier_spares',
 ] as const;
 
 export class BackupValidationError extends Error { readonly status = 400; }
