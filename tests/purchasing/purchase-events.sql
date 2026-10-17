@@ -139,6 +139,34 @@ INSERT INTO sales_order_items(id,sales_order_id,product_id,qty,unit_price,subtot
 SELECT pg_temp.purch('pur-mix-compile','compile','pur-mix-doc','{"salesOrderIds":["pur-mixa","pur-mixb"],"items":[{"id":"pur-mixpi","productId":"pur-mixstock","salesOrderId":"pur-mixb","qtyTarget":2,"estimatedUnitPrice":10}],"reservations":[{"salesOrderItemId":"pur-mixla","qty":2}],"rejectedIds":[]}');
 \o
 DO $$ BEGIN IF (SELECT status FROM sales_orders WHERE id='pur-mixa')<>'Packing' OR (SELECT status FROM sales_orders WHERE id='pur-mixb')<>'Belanja' THEN RAISE EXCEPTION 'Mixed compilation must route each PO according to its own stock/purchase readiness'; END IF; END $$;
+-- Demand 10, free stock 7, edited buying 5: 3 for the PO and 2 extra for stock.
+INSERT INTO products(id,sku_code,name,uom,base_price,current_stock) VALUES('pur-topup','PUR-TOPUP','Leek','kg',10,7);
+INSERT INTO sales_orders(id,po_number,client_id,order_date,target_delivery_date,status) VALUES('pur-topup-so','PUR-TOPUP','pur-client','2026-10-16','2026-10-17','Draft');
+INSERT INTO sales_order_items(id,sales_order_id,product_id,qty,unit_price,subtotal) VALUES('pur-topup-line','pur-topup-so','pur-topup',10,20,200);
+\o /dev/null
+SELECT pg_temp.purch('pur-topup-compile','compile','pur-topup-doc','{"salesOrderIds":["pur-topup-so"],"items":[{"id":"pur-topup-po-buy","productId":"pur-topup","salesOrderId":"pur-topup-so","qtyTarget":3,"estimatedUnitPrice":10},{"id":"pur-topup-stock-buy","productId":"pur-topup","qtyTarget":2,"estimatedUnitPrice":10}],"reservations":[{"salesOrderItemId":"pur-topup-line","qty":7}],"rejectedIds":[]}');
+SELECT pg_temp.purch('pur-topup-compile','compile','pur-topup-doc','{"salesOrderIds":["pur-topup-so"],"items":[{"id":"pur-topup-po-buy","productId":"pur-topup","salesOrderId":"pur-topup-so","qtyTarget":3,"estimatedUnitPrice":10},{"id":"pur-topup-stock-buy","productId":"pur-topup","qtyTarget":2,"estimatedUnitPrice":10}],"reservations":[{"salesOrderItemId":"pur-topup-line","qty":7}],"rejectedIds":[]}');
+\o
+DO $$ BEGIN
+ IF (SELECT qty_final FROM sales_order_items WHERE id='pur-topup-line')<>7 OR (SELECT current_stock FROM products WHERE id='pur-topup')<>7
+ OR (SELECT sum(qty_target) FROM purchase_items WHERE purchase_id='pur-topup-doc' AND sales_order_id='pur-topup-so')<>3
+ OR (SELECT sum(qty_target) FROM purchase_items WHERE purchase_id='pur-topup-doc' AND sales_order_id IS NULL)<>2
+ THEN RAISE EXCEPTION 'Top-up compile mixed warehouse stock with PO demand'; END IF;
+END $$;
+-- Model the separately recorded purchasing result before exercising the real QC commands.
+UPDATE purchases SET status='Selesai' WHERE id='pur-topup-doc';
+UPDATE purchase_items SET qty_purchased=qty_target,actual_unit_price=10,purchase_method='Pasar',payment_method='Tempo',vendor_id='pur-vendor' WHERE purchase_id='pur-topup-doc';
+\o /dev/null
+SELECT process_goods_event('{"eventId":"pur-topup-qc-po","stage":"qc","sourceId":"pur-topup-po-buy","payload":{"performedBy":"pur-admin","occurredAt":"2026-10-16T06:00:00Z","paperNumber":"topup-po","qtyPassToInventory":0,"qtyReject":0,"allocations":[{"soId":"pur-topup-so","qty":3}]}}','pur-admin');
+SELECT process_goods_event('{"eventId":"pur-topup-qc-stock","stage":"qc","sourceId":"pur-topup-stock-buy","payload":{"performedBy":"pur-admin","occurredAt":"2026-10-16T06:00:00Z","paperNumber":"topup-stock","qtyPassToInventory":2,"qtyReject":0,"allocations":[]}}','pur-admin');
+SELECT process_goods_event('{"eventId":"pur-topup-qc-stock","stage":"qc","sourceId":"pur-topup-stock-buy","payload":{"performedBy":"pur-admin","occurredAt":"2026-10-16T06:00:00Z","paperNumber":"topup-stock","qtyPassToInventory":2,"qtyReject":0,"allocations":[]}}','pur-admin');
+\o
+DO $$ BEGIN
+ IF (SELECT qty FROM sales_order_items WHERE id='pur-topup-line')<>10 OR (SELECT qty_final FROM sales_order_items WHERE id='pur-topup-line')<>10
+ OR (SELECT current_stock FROM products WHERE id='pur-topup')<>12
+ OR (SELECT sum(total_amount) FROM vendor_bills WHERE purchase_id='pur-topup-doc')<>50
+ THEN RAISE EXCEPTION 'Top-up QC must leave exactly two units free, without expanding the PO or duplicating AP'; END IF;
+END $$;
 DO $$ BEGIN IF has_function_privilege('anon','process_purchase_event(jsonb,text)','EXECUTE') OR has_function_privilege('authenticated','process_purchase_event(jsonb,text)','EXECUTE') THEN RAISE EXCEPTION 'RPC exposed to browser roles'; END IF; END $$;
 ROLLBACK;
 \echo 'PASS atomic purchasing compile/reservation/revision/report rollback, retries, supplier allocations and access'
