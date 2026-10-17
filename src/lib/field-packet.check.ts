@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 assert.ok(fs.existsSync('src/lib/field-packet.ts'),'Missing printable field packet builder');
 const {buildFieldPacket}=require('./field-packet');
-const state={salesOrders:[{id:'so',poNumber:'PO1',clientId:'c',targetDeliveryDate:'2026-10-18',status:'Belanja',assignedCourierId:'rivai'},{id:'tomorrow',poNumber:'PO2',clientId:'c',targetDeliveryDate:'2026-10-19',status:'Belanja'}],salesOrderItems:[{id:'li',salesOrderId:'so',productId:'p',qty:10,qtyDelivered:2,qtyCancelled:1},{id:'later',salesOrderId:'tomorrow',productId:'p',qty:20}],clients:[{id:'c',companyName:'Outlet A',address:'Jalan A',picName:'A'}],products:[{id:'p',skuCode:'SKU1',name:'Daun',uom:'kg'}],users:[{id:'rivai',name:'Rivai',role:'kurir'}],purchaseItems:[{id:'pi',purchaseId:'buy',productId:'p',salesOrderId:'so',qtyTarget:7,estimatedUnitPrice:10,purchaseMethod:'Pasar'}],purchases:[{id:'buy',advanceCode:'ADV1'}],vendors:[]};
+const state={salesOrders:[{id:'so',poNumber:'PO1',clientId:'c',targetDeliveryDate:'2026-10-18',status:'Belanja',assignedCourierId:'rivai'},{id:'tomorrow',poNumber:'PO2',clientId:'c',targetDeliveryDate:'2026-10-19',status:'Belanja'}],salesOrderItems:[{id:'li',salesOrderId:'so',productId:'p',qty:10,qtyDelivered:2,qtyCancelled:1},{id:'later',salesOrderId:'tomorrow',productId:'p',qty:20}],clients:[{id:'c',companyName:'Outlet A',address:'Jalan A',picName:'A'}],products:[{id:'p',skuCode:'SKU1',name:'Daun',uom:'kg'}],users:[{id:'rivai',name:'Rivai',role:'kurir'}],purchaseItems:[{id:'pi',purchaseId:'buy',productId:'p',salesOrderId:'so',qtyTarget:7,estimatedUnitPrice:15000,purchaseMethod:'Pasar'}],purchases:[{id:'buy',advanceCode:'ADV1'}],vendors:[]};
 const pages=buildFieldPacket(state,'2026-10-18');
 const sj=pages.find((p:any)=>p.kind==='surat-jalan');assert.ok(sj);
 assert.match(sj.subtitle.join(' '),/Outlet A.*Jalan A/);assert.equal(sj.rows[0][2],'7 kg');
@@ -13,3 +13,5 @@ assert.ok(pages.filter((p:any)=>p.supplement).length>=4,'blank supplements neede
 const qc=pages.find((p:any)=>p.kind==='qc'&&!p.supplement);assert.equal(qc.rows[0][3],'','actual incoming is handwritten');assert.equal(qc.rows[0][4],'');
 assert.deepEqual(state.salesOrders[0].status,'Belanja','printing has no business mutations');
 console.log('field packet planned quantities, blank actuals, outlet/courier separation and supplements: OK');
+
+assert.equal(pages.find((p:any)=>p.kind==='belanja'&&!p.supplement).rows[0][2],'Rp15.000','printed prices use Indonesian thousands separators');

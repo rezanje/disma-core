@@ -1,4 +1,5 @@
 import {jsPDF} from 'jspdf';
+import {DISMA_LOGO_BASE64} from './logo';
 import type {PacketPage} from './field-packet';
 const text=(value:string)=>value.replace(/[—–]/g,'-').replace(/·/g,' | ').replace(/…/g,'...');
 /** All actuals are blank. Building a PDF never submits any application command. */
@@ -9,10 +10,15 @@ export function buildFieldPacketPdf(pages:PacketPage[]):jsPDF {
   let y=0;
   const header=()=>{
    if(!first)doc.addPage();first=false;
-   doc.setFont('helvetica','bold');doc.setFontSize(14);doc.text('DISMA | PT Disma Permata Sejahtera',14,15);
-   doc.setFontSize(12);doc.text(doc.splitTextToSize(text(page.title),269),14,24);
+   doc.addImage(DISMA_LOGO_BASE64,'PNG',14,5,20,20);
+   doc.setFont('helvetica','bold');doc.setFontSize(14);doc.text('PT Disma Permata Sejahtera',40,12);
    doc.setFont('helvetica','normal');doc.setFontSize(8);
-   let top=34;
+   doc.text('Kawasan Industri Pulo Gadung, Jakarta Timur',40,18);
+   doc.text('Phone: 021-99887766 | Email: finance@disma-distribusi.com',40,23);
+   doc.setDrawColor(180);doc.line(14,28,283,28);
+   doc.setFont('helvetica','bold');doc.setFontSize(12);doc.text(doc.splitTextToSize(text(page.title),269),14,36);
+   doc.setFont('helvetica','normal');doc.setFontSize(8);
+   let top=46;
    for(const text of [`No. ${page.reference}`,...page.subtitle]){const lines=doc.splitTextToSize(text.replace(/[—–]/g,'-').replace(/·/g,' | '),269);doc.text(lines,14,top);top+=lines.length*4+1;}
    y=top+3;doc.setFillColor(231,239,234);doc.rect(14,y,269,10,'F');
    let x=14;doc.setFont('helvetica','bold');

@@ -8,6 +8,7 @@ const layouts={
  handover:cols(['Outlet / PO',55],['Barang',55],['Rencana',25],['Diserahkan aktual',35],['Diterima kurir',35],['Catatan',62]),
  'surat-jalan':cols(['SKU',23],['Barang',68],['Rencana',30],['Dikirim aktual',34],['Diterima outlet',35],['Selisih / catatan',77]),
 };
+const priceFormatter=new Intl.NumberFormat('id-ID',{minimumFractionDigits:0,maximumFractionDigits:2});
 const blank=(columns:number,count=7)=>Array.from({length:count},()=>Array(columns).fill(''));
 export function buildFieldPacket(state:PacketState,date:string,assignments:Record<string,string>={},packetReference=`PAKET-${date}`):PacketPage[] {
  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!Number.isFinite(new Date(date+'T00:00:00+07:00').getTime()))throw new Error('Pilih tanggal kirim yang valid.');
@@ -23,7 +24,7 @@ export function buildFieldPacket(state:PacketState,date:string,assignments:Recor
  const buyGroups=new Map<string,{productId:string;qty:number;estimate:number}>();
  for(const pi of buys){const old=buyGroups.get(pi.productId)||{productId:pi.productId,qty:0,estimate:pi.estimatedUnitPrice||0};old.qty+=pi.qtyTarget;buyGroups.set(pi.productId,old);}
  const grouped=[...buyGroups.values()];
- pages.push({kind:'belanja',title:'DAFTAR BELANJA',reference:packetReference+'-BELANJA',subtitle,columns:layouts.belanja,rows:grouped.filter(g=>buys.some(pi=>pi.productId===g.productId&&(!pi.purchaseMethod||pi.purchaseMethod==='Pasar'))).map(g=>[`${product(g.productId)?.skuCode||''} ${product(g.productId)?.name||g.productId}`,textQty(buys.filter(pi=>pi.productId===g.productId&&(!pi.purchaseMethod||pi.purchaseMethod==='Pasar')).reduce((n,pi)=>n+pi.qtyTarget,0),g.productId),String(g.estimate),'','','','']),signatures:['Petugas belanja','Penerima laporan']});
+ pages.push({kind:'belanja',title:'DAFTAR BELANJA',reference:packetReference+'-BELANJA',subtitle,columns:layouts.belanja,rows:grouped.filter(g=>buys.some(pi=>pi.productId===g.productId&&(!pi.purchaseMethod||pi.purchaseMethod==='Pasar'))).map(g=>[`${product(g.productId)?.skuCode||''} ${product(g.productId)?.name||g.productId}`,textQty(buys.filter(pi=>pi.productId===g.productId&&(!pi.purchaseMethod||pi.purchaseMethod==='Pasar')).reduce((n,pi)=>n+pi.qtyTarget,0),g.productId),`Rp${priceFormatter.format(g.estimate)}`,'','','','']),signatures:['Petugas belanja','Penerima laporan']});
  pages.push({kind:'qc',title:'LEMBAR PENERIMAAN DAN QC',reference:packetReference+'-QC',subtitle:[...subtitle,'Masuk = Lolos + Reject. Tulis alokasi ke outlet; pisahkan spare dan sisa gudang.'],columns:layouts.qc,rows:grouped.map(g=>[product(g.productId)?.skuCode||'',product(g.productId)?.name||g.productId,textQty(g.qty,g.productId),'','','','','']),signatures:['Pemeriksa QC','Pemeriksa berkas']});
  const courierGroups=new Map<string,SalesOrder[]>();
  for(const so of orders.filter(o=>items(o).length)){
