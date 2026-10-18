@@ -161,11 +161,11 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
   return (
     <div className="space-y-6 w-full min-w-0 pb-20">
       <Tabs defaultValue="sourcing" className="w-full">
-        {!transcription && <TabsList className="bg-slate-100 p-1 rounded-2xl mb-6">
-          <TabsTrigger value="sourcing" className="rounded-xl px-8 font-bold uppercase text-[11px] tracking-widest">
+        {!transcription && <TabsList aria-label="Jenis pekerjaan QC" className="mb-4 grid w-full grid-cols-2 gap-1 overflow-visible rounded-xl bg-slate-100 p-1 group-data-horizontal/tabs:h-auto md:grid-cols-4 md:group-data-horizontal/tabs:h-auto [&>button]:h-auto [&>button]:min-h-14 [&>button]:min-w-0 [&>button]:w-full [&>button]:flex-wrap [&>button]:whitespace-normal [&>button]:px-2 [&>button]:py-2 [&>button]:text-center [&>button]:leading-snug">
+          <TabsTrigger value="sourcing" className="rounded-lg text-xs font-semibold">
             QC Barang Baru (Sourcing)
           </TabsTrigger>
-          <TabsTrigger value="returns" className="rounded-xl px-8 font-bold uppercase text-[11px] tracking-widest flex items-center gap-2">
+          <TabsTrigger value="returns" className="flex items-center gap-1.5 rounded-lg text-xs font-semibold">
             Retur dari Customer
             {pendingReturns.length > 0 && (
               <span className="bg-rose-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-[11px]">
@@ -173,7 +173,7 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="dispatch" className="rounded-xl px-8 font-bold uppercase text-[11px] tracking-widest flex items-center gap-2">
+          <TabsTrigger value="dispatch" className="flex items-center gap-1.5 rounded-lg text-xs font-semibold">
             <Truck className="w-3 h-3" />
             Persiapan Pengiriman
             {packingSos.length > 0 && (
@@ -182,7 +182,7 @@ export default function QCWorkspace({ transcription = false }: { transcription?:
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="vendor-returns" className="rounded-xl px-8 font-bold uppercase text-[11px] tracking-widest flex items-center gap-2">
+          <TabsTrigger value="vendor-returns" className="flex items-center gap-1.5 rounded-lg text-xs font-semibold">
             <Store className="w-4 h-4" /> Retur ke Vendor
             {pendingVendorReturns.length > 0 && (
               <span className="ml-1 bg-blue-600 text-white rounded-full px-2 py-0.5 text-[11px]">{pendingVendorReturns.length}</span>
