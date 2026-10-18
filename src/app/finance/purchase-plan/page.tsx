@@ -401,7 +401,7 @@ export default function PurchasePlanPage() {
                         </TableCell>
                       </TableRow>
                     )}
-                    {g.rows.map(line => {
+                    {g.rows.map((line, rowIndex) => {
                   const product = products.find(p => p.id === line.productId)
                   const so = salesOrders.find(s => s.id === line.salesOrderId)
                   const client = clients.find(c => c.id === so?.clientId)
@@ -410,7 +410,16 @@ export default function PurchasePlanPage() {
                   const isPasar = line.purchaseMethod === 'Pasar'
 
                   return (
-                    <TableRow key={line.id} className={cn(!planned && "bg-amber-50/40 dark:bg-amber-950/10", pilih.has(line.id) && "bg-emerald-50/60 dark:bg-emerald-950/20")}>
+                    <TableRow key={line.id} className={cn(
+                      // Stripe the whole row so it stays easy to follow while scrolling sideways.
+                      rowIndex % 2 === 0
+                        ? "bg-white dark:bg-slate-950"
+                        : "bg-slate-100/60 dark:bg-slate-800/40",
+                      !planned && (rowIndex % 2 === 0
+                        ? "bg-amber-50/40 dark:bg-amber-950/10"
+                        : "bg-amber-100/50 dark:bg-amber-950/30"),
+                      pilih.has(line.id) && "bg-emerald-100/70 dark:bg-emerald-950/50",
+                    )}>
                       <TableCell>
                         <input
                           type="checkbox"
