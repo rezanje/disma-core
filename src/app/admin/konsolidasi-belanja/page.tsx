@@ -30,6 +30,7 @@ export default function KonsolidasiBelanjaPage() {
   const products = useAppStore(s => s.products)
   const vendors = useAppStore(s => s.vendors)
   const salesOrders = useAppStore(s => s.salesOrders)
+  const clients = useAppStore(s => s.clients)
   const users = useAppStore(s => s.users)
   const [assignments,setAssignments]=useState<Record<string,string>>({})
   const updatePurchase = useAppStore(s => s.updatePurchase)
@@ -251,7 +252,31 @@ export default function KonsolidasiBelanjaPage() {
                 </div>
               </div>
 
-              <details className="rounded-xl border p-3"><summary className="cursor-pointer text-sm font-medium">Rencana kurir untuk paket lengkap</summary><div className="mt-3 space-y-2">{salesOrders.filter(so=>dipilih.has(so.shoppingListDocumentId||'')||purchaseItems.some(pi=>dipilih.has(pi.purchaseId)&&pi.salesOrderId===so.id)).map(so=><label key={so.id} className="flex flex-wrap items-center justify-between gap-3 text-sm"><span>{so.poNumber} · {so.targetDeliveryDate.slice(0,10)}</span><select aria-label={`Rencana kurir ${so.poNumber}`} className="h-9 rounded-md border bg-white px-2" value={assignments[so.id]??so.assignedCourierId??''} onChange={e=>setAssignments(v=>({...v,[so.id]:e.target.value}))}><option value="">Isi nama di kertas</option>{users.filter(u=>u.role==='kurir').map(u=><option key={u.id} value={u.id}>{u.name}</option>)}</select></label>)}</div></details>
+              <details className="rounded-xl border p-3">
+                <summary className="cursor-pointer text-sm font-medium">Rencana kurir untuk paket lengkap</summary>
+                <div className="mt-3 divide-y divide-slate-100">
+                  {salesOrders.filter(so=>dipilih.has(so.shoppingListDocumentId||'')||purchaseItems.some(pi=>dipilih.has(pi.purchaseId)&&pi.salesOrderId===so.id)).map(so => {
+                    const clientName = clients.find(client => client.id === so.clientId)?.companyName || 'Klien belum tersedia'
+                    return (
+                      <label key={so.id} className="flex min-w-0 flex-col gap-2 py-3 text-sm first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                        <span className="min-w-0 break-words">
+                          <span className="block font-semibold">{clientName}</span>
+                          <span className="mt-0.5 block text-xs text-slate-500">{so.poNumber} · {so.targetDeliveryDate.slice(0,10)}</span>
+                        </span>
+                        <select
+                          aria-label={`Rencana kurir ${so.poNumber} · ${clientName}`}
+                          className="min-h-11 w-full min-w-0 rounded-md border bg-white px-2 text-base sm:w-52 sm:shrink-0 sm:text-sm dark:bg-slate-900"
+                          value={assignments[so.id]??so.assignedCourierId??''}
+                          onChange={e=>setAssignments(v=>({...v,[so.id]:e.target.value}))}
+                        >
+                          <option value="">Isi nama di kertas</option>
+                          {users.filter(u=>u.role==='kurir').map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
+                        </select>
+                      </label>
+                    )
+                  })}
+                </div>
+              </details>
               <div className="max-h-[420px] overflow-auto rounded-2xl border border-slate-100">
                 <Table className="min-w-[820px]">
                   <TableHeader>
