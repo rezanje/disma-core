@@ -72,7 +72,8 @@ export function SearchSelect({
           <input
             autoFocus
             placeholder="Cari..."
-            className="h-full w-full bg-transparent text-xs font-bold outline-none placeholder:font-normal placeholder:text-slate-400"
+            // iOS Safari zooms focused inputs with a font size below 16px.
+            className="h-full w-full bg-transparent text-base md:text-xs font-bold outline-none placeholder:font-normal placeholder:text-slate-400"
             value={cari}
             onChange={(e) => setCari(e.target.value)}
           />
