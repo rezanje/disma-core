@@ -758,7 +758,7 @@ export default function ShoppingListPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6">
       <div className="flex justify-between items-center">
         <div>
           {pendingCompile && <div role="alert" className="p-3 border border-amber-300 rounded">Kompilasi belum selesai. <Button disabled={isLoading} onClick={handleGenerateDocument}>Coba transaksi yang sama</Button></div>}
@@ -768,15 +768,15 @@ export default function ShoppingListPage() {
       </div>
 
       <div className="grid gap-6 grid-cols-1">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center">
-                <RefreshCw className="mr-2 h-5 w-5 text-emerald-500" />
+        <Card className="min-w-0">
+          <CardHeader className="min-w-0 max-sm:px-4">
+            <CardTitle className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex min-w-0 items-center">
+                <RefreshCw className="mr-2 h-5 w-5 shrink-0 text-emerald-500" />
                 Auto-Consolidator
               </div>
               
-              <div className="flex items-center gap-2">
+              <div className="grid min-w-0 grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center [&>button]:h-auto [&>button]:min-h-11 [&>button]:w-full [&>button]:whitespace-normal sm:[&>button]:w-auto">
                 <GlobalUndoButton inline />
                 <Dialog open={isAddManualOpen} onOpenChange={setIsAddManualOpen}>
                   <DialogTrigger render={
@@ -926,13 +926,13 @@ export default function ShoppingListPage() {
               {selectedSOs.length} dari {candidateSOs.length} PO dipilih • {manualItems.length} Item Stok manual
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-5">
+          <CardContent className="min-w-0 space-y-5 max-sm:px-4">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              <div className="lg:col-span-2">
+              <div className="min-w-0 lg:col-span-2">
                 <div className="rounded-xl border border-slate-100 bg-card p-4 shadow-sm">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                    <div className="flex flex-wrap gap-3">
-                      <div className="grid gap-2">
+                  <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+                    <div className="min-w-0 lg:flex-1">
+                      <div className="grid min-w-0 gap-2">
                         <Label htmlFor="filter-delivery-date" className="text-[11px] font-bold  text-slate-400">
                           Filter Tanggal Kirim
                         </Label>
@@ -945,7 +945,7 @@ export default function ShoppingListPage() {
                         />
                       </div>
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="grid min-w-0 grid-cols-2 gap-2 sm:flex sm:flex-wrap [&>button]:h-auto [&>button]:min-h-11 [&>button]:min-w-0 [&>button]:whitespace-normal [&>button]:px-2 [&>button:first-child]:col-span-2">
                       <Button
                         variant="ghost"
                         className="h-10 rounded-xl text-[11px] font-bold  text-slate-400"
@@ -1068,7 +1068,7 @@ export default function ShoppingListPage() {
                   </div>
                 </div>
               </div>
-              <div className="lg:col-span-1">
+              <div className="min-w-0 lg:col-span-1">
                 <div className="rounded-xl border border-slate-100 bg-card p-4 shadow-sm flex flex-col h-full">
                   <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                     <div className="flex items-center gap-2">
@@ -1087,7 +1087,7 @@ export default function ShoppingListPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 rounded-lg"
+                      className="h-8 w-8 shrink-0 rounded-lg"
                       onClick={() => setIsSusulanExpanded(!isSusulanExpanded)}
                     >
                       {isSusulanExpanded ? (
@@ -1448,7 +1448,7 @@ export default function ShoppingListPage() {
                 
                 {/* PR Selector — opsional sebelum compile */}
                 <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 mt-4">
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                     <p className="text-[11px] font-bold  text-slate-500">
                       Pilih Purchase Request (Opsional — Bisa diajukan otomatis)
                     </p>
@@ -1489,7 +1489,7 @@ export default function ShoppingListPage() {
                               className="accent-emerald-600 mt-0.5 shrink-0"
                             />
                             <div className="min-w-0 flex-1">
-                              <div className="flex items-start justify-between gap-2">
+                              <div className="flex flex-wrap items-start justify-between gap-2">
                                 <p className="text-sm font-bold text-slate-800 leading-tight">{pr.title}</p>
                                 <div className="flex items-center gap-1.5 shrink-0">
                                   {usageCount > 0 && (
@@ -1521,7 +1521,7 @@ export default function ShoppingListPage() {
                 </div>
 
                 <div className="flex justify-end pt-2 gap-3">
-                  <Button data-tour="sl-generate" onClick={handleGenerateDocument} disabled={isLoading} className="bg-emerald-600 hover:bg-emerald-700 shadow-md">
+                  <Button data-tour="sl-generate" onClick={handleGenerateDocument} disabled={isLoading} className="min-h-11 w-full bg-emerald-600 hover:bg-emerald-700 shadow-md sm:w-auto">
                     {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShoppingBasket className="mr-2 h-4 w-4" />}
                     {isLoading ? "Generating..." : "Buat Dokumen List"}
                   </Button>
